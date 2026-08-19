@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Varsayılan vurgu tonu (Orijinal Turuncu / Amber-600 = #D97706).
+       AccentProvider, kullanıcı özel bir renk seçtiğinde bu değişkenleri
+       document.documentElement üzerinde runtime'da günceller. */
+    --brand-50: 249 244 239;
+    --brand-100: 245 232 218;
+    --brand-300: 252 202 144;
+    --brand-400: 250 173 85;
+    --brand-500: 249 147 30;
+    --brand-600: 217 119 6;
+    --brand-700: 176 95 1;
+    --brand-800: 147 78 0;
+  }
+
+  body {
+    @apply bg-cream text-espresso antialiased transition-colors duration-500 dark:bg-midnight dark:text-cream;
+  }
+}
+
+/* A4 Kurumsal PDF önizlemesi yazdırılırken sayfada SADECE bu alan görünsün. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-a4,
+  .printable-a4 * {
+    visibility: visible;
+  }
+  .printable-a4 {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    box-shadow: none !important;
+  }
+}

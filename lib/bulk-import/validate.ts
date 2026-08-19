@@ -1,0 +1,48 @@
+import type { ImportRole, RawRow, ValidatedRow } from "./types";
+
+function pick(row: RawRow, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = row[key];
+    if (value?.trim()) return value.trim();
+  }
+  return "";
+}
+
+// Sunucudaki (app/api/admin/import/bulk) doğrulamanın istemci tarafı aynası
+// — kullanıcıya yazmadan ÖNCE anında geri bildirim verir. Nihai/yetkili
+// doğrulama her zaman sunucudadır (T.C./öğrenci no çakışması gibi DB'ye
+// bakması gereken kontroller burada yapılamaz, sadece biçim kontrolü yapılır).
+export function validateRows(role: ImportRole, rawRows: RawRow[], branchNames: string[]): ValidatedRow[] {
+  const branchNameSet = new Set(branchNames.map((n) => n.toLocaleLowerCase("tr")));
+  const seenNationalIds = new Set<string>();
+
+  return rawRows.map((raw, rowIndex) => {
+    const errors: string[] = [];
+    const fullName = pick(raw, "fullName", "Ad Soyad");
+    const nationalId = pick(raw, "nationalId", "T.C. No");
+
+    if (!fullName) errors.push("Ad Soyad zorunludur.");
+    else if (fullName.trim().split(/\s+/).length < 2) errors.push("Ad ve soyadı birlikte girin.");
+
+    if (!/^\d{11}$/.test(nationalId)) errors.push("T.C. No 11 haneli olmalı.");
+    else if (seenNationalIds.has(nationalId)) errors.push("Bu dosya içinde tekrar eden T.C. No.");
+    else seenNationalIds.add(nationalId);
+
+    if (role === "STUDENT") {
+      const branchName = pick(raw, "branchName", "Şube");
+      if (!branchName) errors.push("Şube zorunludur.");
+      else if (!branchNameSet.has(branchName.toLocaleLowerCase("tr"))) errors.push(`Şube bulunamadı: "${branchName}".`);
+    } else {
+      const subject = pick(raw, "subject", "Branş");
+      const mobilePhone = pick(raw, "mobilePhone", "GSM");
+      const advisorBranchName = pick(raw, "advisorBranchName", "Danışman Şube");
+      if (!subject) errors.push("Branş zorunludur.");
+      if (!mobilePhone) errors.push("GSM zorunludur.");
+      if (advisorBranchName && !branchNameSet.has(advisorBranchName.toLocaleLowerCase("tr"))) {
+        errors.push(`Şube bulunamadı: "${advisorBranchName}".`);
+      }
+    }
+
+    return { rowIndex, raw, fullName, nationalId, isValid: errors.length === 0, errors };
+  });
+}

@@ -1,0 +1,796 @@
+// Routinix Kampüs — K12 standartlarında veri modeli.
+// Yerel geliştirme için: `docker compose up -d` ile Postgres'i ayağa kaldırıp
+// `npm run db:migrate` çalıştırın (bkz. .env.example).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: bağlantı URL'si artık burada değil, prisma.config.ts +
+// PrismaClient'a verilen 'adapter' üzerinden sağlanıyor (bkz. lib/server/prisma.ts).
+datasource db {
+  provider = "postgresql"
+}
+
+// ----------------------------------------------------------------------------
+// Ortak enum'lar
+// ----------------------------------------------------------------------------
+
+enum Gender {
+  FEMALE
+  MALE
+}
+
+enum BloodType {
+  A_POS
+  A_NEG
+  B_POS
+  B_NEG
+  AB_POS
+  AB_NEG
+  O_POS
+  O_NEG
+  UNKNOWN
+}
+
+enum TransportMethod {
+  SCHOOL_SERVICE
+  PRIVATE_VEHICLE
+  PUBLIC_TRANSPORT
+  WALKING
+}
+
+enum ParentRelationship {
+  MOTHER
+  FATHER
+  GUARDIAN
+}
+
+enum ConsentStatus {
+  GRANTED
+  DENIED
+  PENDING
+}
+
+enum AdminAuthorityLevel {
+  SUPER_ADMIN
+  BRANCH_MANAGER
+  COORDINATOR
+}
+
+// Öğrencinin/şubenin gerçek sınıf seviyesi kademesi — Yönetici panelindeki
+// Genel/LGS/YKS/Mezun segment filtresinin tek gerçek kaynağı.
+enum BranchSegment {
+  LGS
+  YKS
+  MEZUN
+}
+
+// ----------------------------------------------------------------------------
+// Kurum yapısı
+// ----------------------------------------------------------------------------
+
+model Branch {
+  id                     String                  @id @default(cuid())
+  name                   String                  @unique // "12-A VIP"
+  grade                  Int
+  segment                BranchSegment           @default(YKS) // Mezun grubunun gerçek bir sınıf seviyesi yoktur (grade temsili tutulur)
+  institutionalCode      String?                 @unique // "RTX-IST01" — karne/QR gibi insan-okur yüzeylerde kullanılan kısa kod
+  track                  String? // Alan/Dal: Sayısal, Eşit Ağırlık, Sözel, TM vb.
+  advisorId              String?
+  advisor                Teacher?                @relation("BranchAdvisor", fields: [advisorId], references: [id])
+  // Danışman (advisor) TEK öğretmendir; bir şubede birden fazla branş
+  // öğretmeni ders verebilir — bu çoka-çok ilişki o gerçek "kim nerede ders
+  // veriyor" bilgisini taşır (öğretmen panelindeki assignedBranches kapsamı,
+  // öğrenci etüt/rehberlik öğretmen seçicisi vb. buradan beslenir).
+  teachingStaff          Teacher[]               @relation("BranchTeaching")
+  students               Student[]
+  quizzes                Quiz[]
+  attendanceSubmissions  AttendanceSubmission[]
+  classbookNotes         ClassbookNote[]
+  curriculumProgress     CurriculumProgress[]
+  seatingArrangement     SeatingArrangement?
+  materials              TeacherMaterial[]
+  lessonSlots            LessonSlot[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+}
+
+// ----------------------------------------------------------------------------
+// Kullanıcı tipleri
+// ----------------------------------------------------------------------------
+
+model Student {
+  id                String              @id @default(cuid())
+  nationalId        String              @unique // TC Kimlik No
+  firstName         String
+  lastName          String
+  birthDate         DateTime?
+  gender            Gender?
+  bloodType         BloodType           @default(UNKNOWN)
+  studentNumber     String              @unique // Öğrenci No
+  branchId          String
+  branch            Branch              @relation(fields: [branchId], references: [id])
+  track             String? // Alan/Dal (şube varsayılanını ezmek gerekirse)
+  advisorTeacherId  String? // Danışman ID
+  advisorTeacher    Teacher?            @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id])
+  transportMethod   TransportMethod?
+  residenceAddress  String?
+  email             String?
+  phone             String?
+  healthNote        String? // Özel sağlık/alerji notu
+  // Hedef net & haftalık çalışma saati — gerçek bir ölçüm/entegrasyon
+  // kaynağı yok (Pomodoro cihazda kalır, bkz. gizlilik kuralı), bu yüzden
+  // isteğe bağlı alanlar: danışman öğretmen Röntgen ekranından girer, boşsa
+  // arayüzde "—" gösterilir.
+  targetNet         Float?
+  weeklyStudyHours  Int?
+  passwordHash      String? // bcrypt — giriş akışı henüz uygulanmadı, ileriye dönük hazırlık
+  parents           ParentStudent[]
+  netResults        ExamNetResult[]
+  attendanceRecords AttendanceRecord[]
+  reportCards       ReportCard[]
+  questions         Question[]
+  homeworkSubmissions HomeworkSubmission[]
+  quizSubmissions   QuizSubmission[]
+  appointmentRequests AppointmentRequest[]
+  guidanceNotes     GuidanceNote[]
+  announcementReads AnnouncementRead[]
+  seatAssignments   ExamSeatAssignment[]
+  preferences       StudentPreference[]
+  guidancePrograms  GuidanceProgram[]
+  remediationTasks  RemediationTask[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([branchId])
+}
+
+model Parent {
+  id            String             @id @default(cuid())
+  firstName     String
+  lastName      String
+  relationship  ParentRelationship
+  mobilePhone   String // GSM (SMS onaylı)
+  smsConsent    Boolean            @default(false)
+  workPhone     String?
+  email         String?
+  homeAddress   String?
+  workAddress   String?
+  occupation    String?
+  company       String?
+  title         String?
+  kvkkConsent   ConsentStatus      @default(PENDING)
+  iysConsent    ConsentStatus      @default(PENDING)
+  passwordHash  String? // bcrypt — giriş akışı henüz uygulanmadı, ileriye dönük hazırlık
+  students      ParentStudent[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+// Öğrenci-Veli çoka-çok ilişkisi (bir öğrencinin birden fazla velisi, bir
+// velinin birden fazla öğrencisi olabilir — kardeş kayıtları için gerekli).
+model ParentStudent {
+  id        String  @id @default(cuid())
+  parentId  String
+  parent    Parent  @relation(fields: [parentId], references: [id])
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  @@unique([parentId, studentId])
+}
+
+model Teacher {
+  id                 String    @id @default(cuid())
+  nationalId         String    @unique
+  firstName          String
+  lastName           String
+  subject            String // Branş
+  university         String?
+  mobilePhone        String
+  institutionalEmail String?
+  personalEmail      String?
+  dutyDays           String[] // Nöbet Günleri
+  institutionalCode  String?   @unique // "TCH-102" — kısa, insan-okur öğretmen kodu (giriş kullanıcı adı DEĞİL — o T.C. No'dur)
+  passwordHash       String? // bcrypt — giriş akışı henüz uygulanmadı, ileriye dönük hazırlık
+  advisorBranches    Branch[]  @relation("BranchAdvisor")
+  teachingBranches   Branch[]  @relation("BranchTeaching")
+  advisedStudents    Student[] @relation("StudentAdvisor")
+  questions          Question[]
+  homeworks          Homework[]
+  quizzes            Quiz[]
+  quizBankQuestions  QuizBankQuestion[]
+  attendanceSubmissions AttendanceSubmission[]
+  unavailability     TeacherUnavailability[]
+  appointmentRequests AppointmentRequest[]
+  classbookNotes     ClassbookNote[]
+  yearlyPlanRows     YearlyPlanRow[]
+  materials          TeacherMaterial[]
+  lessonSlots        LessonSlot[]
+  dutySlots          TeacherDutySlot[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model Admin {
+  id                  String               @id @default(cuid())
+  firstName           String
+  lastName            String
+  title                String
+  authorityLevel       AdminAuthorityLevel  @default(BRANCH_MANAGER)
+  institutionalMobile  String
+  email                String
+  extensionNumber      String? // Dahili No
+  passwordHash         String? // bcrypt — giriş akışı henüz uygulanmadı, ileriye dönük hazırlık
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+}
+
+// ----------------------------------------------------------------------------
+// Sınav / net verisi — karne motorunun beslendiği kaynak
+// ----------------------------------------------------------------------------
+
+model Exam {
+  id              String               @id @default(cuid())
+  name            String
+  examDate        DateTime
+  results         ExamNetResult[]
+  seatAssignments ExamSeatAssignment[]
+  createdAt       DateTime             @default(now())
+}
+
+model ExamNetResult {
+  id        String   @id @default(cuid())
+  examId    String
+  exam      Exam     @relation(fields: [examId], references: [id])
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  subject   String // "Matematik"
+  net       Float
+  createdAt DateTime @default(now())
+
+  @@unique([examId, studentId, subject])
+  @@index([studentId])
+}
+
+model AttendanceRecord {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  date      DateTime
+  status    String // PRESENT | ABSENT | LATE
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, date])
+}
+
+// Bir öğretmenin belirli bir şube+tarih için yoklamayı "gönderdiği" olayın
+// hafif denetim kaydı — AttendanceRecord'lar (öğrenci bazlı) zaten asıl veri,
+// bu sadece "kim, ne zaman, kaç öğrenci için gönderdi" akışını (yönetici
+// panelindeki canlı bildirim listesi) beslemek içindir.
+model AttendanceSubmission {
+  id          String   @id @default(cuid())
+  teacherId   String
+  teacher     Teacher  @relation(fields: [teacherId], references: [id])
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  date        DateTime
+  recordCount Int
+  createdAt   DateTime @default(now())
+
+  @@index([branchId])
+}
+
+// ----------------------------------------------------------------------------
+// Toplu Bildirim / SMS
+// ----------------------------------------------------------------------------
+
+enum NotificationScopeType {
+  ALL_SCHOOL // TumOkul
+  GRADE // Kademe (örn. 12. Sınıflar)
+  BRANCH // Sube (örn. 12-A VIP)
+  CUSTOM_GROUP // OzelGrup
+  CUSTOM_ID_LIST // CustomIDList
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model SmsTemplate {
+  id        String              @id @default(cuid())
+  key       String              @unique // "devamsizlik_bildirimi"
+  label     String
+  body      String // "Sayın {veli_adi}, öğrencimiz {ogrenci_adi} ..."
+  batches   NotificationBatch[]
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+}
+
+model NotificationBatch {
+  id         String                @id @default(cuid())
+  scopeType  NotificationScopeType
+  scopeValue String? // "12" (Kademe), "12-A VIP" (Şube), "id1,id2" (CustomIDList) vb.
+  templateId String?
+  template   SmsTemplate?          @relation(fields: [templateId], references: [id])
+  rawMessage String?
+  logs       NotificationLog[]
+  createdAt  DateTime              @default(now())
+}
+
+model NotificationLog {
+  id             String              @id @default(cuid())
+  batchId        String
+  batch          NotificationBatch   @relation(fields: [batchId], references: [id])
+  recipientPhone String
+  recipientName  String?
+  message        String
+  status         NotificationStatus  @default(PENDING)
+  providerName   String?
+  providerRef    String?
+  errorMessage   String?
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@index([batchId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------------
+// Soru Sor & Soru Havuzu — öğrencinin çözemediği bir sorunun fotoğrafını
+// seçtiği öğretmene ilettiği, öğretmenin yanıtladığı akış.
+// ----------------------------------------------------------------------------
+
+enum QuestionStatus {
+  PENDING // Öğretmene ulaştı, henüz yanıtlanmadı
+  ANSWERED // Öğretmen yazılı/sesli yanıt verdi
+  SOLVED // Öğrenci "anladım" olarak işaretledi
+}
+
+model Question {
+  id          String         @id @default(cuid())
+  studentId   String
+  student     Student        @relation(fields: [studentId], references: [id])
+  teacherId   String
+  teacher     Teacher        @relation(fields: [teacherId], references: [id])
+  subject     String // Ders/Branş adı — öğretmenin branşından bağımsız olarak öğrencinin seçtiği ders
+  imageUrl    String // Yüklenen soru fotoğrafının yolu (bkz. lib/server/uploads)
+  studentNote String? // "3. adımı anlamadım" vb.
+  status      QuestionStatus @default(PENDING)
+  answerText  String?
+  answeredAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([status])
+}
+
+// ----------------------------------------------------------------------------
+// Akıllı Ödev Masası & Teslim Portalı
+// ----------------------------------------------------------------------------
+
+enum HomeworkStatus {
+  NOT_DONE
+  HALF
+  DONE
+  LATE
+}
+
+model Homework {
+  id                  String               @id @default(cuid())
+  teacherId           String
+  teacher             Teacher              @relation(fields: [teacherId], references: [id])
+  branchIds           String[] // aynı ödev birden fazla şubeye atanabilir
+  title               String
+  description         String?
+  linkUrl             String?
+  fileNames           String[] // yüklenen ek dosya adları (görüntüleme amaçlı)
+  checklist            String[]
+  targetQuestionCount Int?
+  dueAt               DateTime?
+  createdAt           DateTime             @default(now())
+  submissions         HomeworkSubmission[]
+
+  @@index([teacherId])
+}
+
+model HomeworkSubmission {
+  id         String         @id @default(cuid())
+  homeworkId String
+  homework   Homework       @relation(fields: [homeworkId], references: [id])
+  studentId  String
+  student    Student        @relation(fields: [studentId], references: [id])
+  status     HomeworkStatus @default(NOT_DONE)
+  updatedAt  DateTime       @updatedAt
+
+  @@unique([homeworkId, studentId])
+  @@index([studentId])
+}
+
+// ----------------------------------------------------------------------------
+// Pop-Quiz & Anlık Soru Fırlatma
+// ----------------------------------------------------------------------------
+
+enum QuizStage {
+  LIVE
+  ENDED
+}
+
+model Quiz {
+  id              String           @id @default(cuid())
+  teacherId       String
+  teacher         Teacher          @relation(fields: [teacherId], references: [id])
+  branchId        String
+  branch          Branch           @relation(fields: [branchId], references: [id])
+  name            String
+  durationSeconds Int
+  stage           QuizStage        @default(LIVE)
+  launchedAt      DateTime         @default(now())
+  endedAt         DateTime?
+  questions       QuizQuestion[]
+  submissions     QuizSubmission[]
+
+  @@index([teacherId])
+  @@index([stage])
+}
+
+model QuizQuestion {
+  id         String @id @default(cuid())
+  quizId     String
+  quiz       Quiz   @relation(fields: [quizId], references: [id])
+  imageLabel String
+  answer     String
+  position   Int
+}
+
+model QuizSubmission {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  correct     Int
+  wrong       Int
+  submittedAt DateTime @default(now())
+
+  @@unique([quizId, studentId])
+}
+
+// Öğretmenin daha önce kullandığı Pop-Quiz sorularının tekrar kullanılabilir
+// havuzu (bir quiz bitince oradaki sorular buraya da eklenir).
+model QuizBankQuestion {
+  id         String   @id @default(cuid())
+  teacherId  String
+  teacher    Teacher  @relation(fields: [teacherId], references: [id])
+  imageLabel String
+  answer     String
+  addedAt    DateTime @default(now())
+
+  @@index([teacherId])
+}
+
+// ----------------------------------------------------------------------------
+// Birebir Etüt & Randevu Sistemi
+// ----------------------------------------------------------------------------
+
+// Öğretmenin haftalık programında etüt ALAMAYACAĞI (bloke ettiği) saatler —
+// bunun dışındaki her saat, o an başka bir randevuyla dolu olmadığı sürece
+// müsaittir. Onaylanmış AppointmentRequest kayıtları zaten "dolu" saatleri
+// temsil ettiği için ayrı bir "EtutSlot" tablosuna gerek yok.
+model TeacherUnavailability {
+  id        String  @id @default(cuid())
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  day       String // "Pazartesi".."Cuma"
+  slot      String // "16:00-17:00" vb.
+
+  @@unique([teacherId, day, slot])
+}
+
+enum AppointmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AppointmentRequest {
+  id          String            @id @default(cuid())
+  studentId   String
+  student     Student           @relation(fields: [studentId], references: [id])
+  teacherId   String
+  teacher     Teacher           @relation(fields: [teacherId], references: [id])
+  topic       String
+  day         String
+  slot        String
+  status      AppointmentStatus @default(PENDING)
+  requestedAt DateTime          @default(now())
+  decidedAt   DateTime?
+
+  @@index([teacherId])
+  @@index([studentId])
+}
+
+// ----------------------------------------------------------------------------
+// Rehberlik & PDR Modülü
+// ----------------------------------------------------------------------------
+
+enum GuidanceCategory {
+  ACADEMIC
+  PSYCHOLOGICAL
+  DISCIPLINARY
+}
+
+// PUBLIC: sevk eden öğretmen + yönetici görebilir (yönetici akışında görünür)
+// RESTRICTED: sadece yönetici + rehberlik (yönetici akışında görünür, içerik özetlenir)
+// CONFIDENTIAL: sadece rehberlik erişebilir (yönetici canlı akışında HİÇ görünmez)
+enum ConfidentialityLevel {
+  PUBLIC
+  RESTRICTED
+  CONFIDENTIAL
+}
+
+model GuidanceNote {
+  id                   String               @id @default(cuid())
+  studentId            String
+  student              Student              @relation(fields: [studentId], references: [id])
+  authorName           String
+  category             GuidanceCategory     @default(ACADEMIC)
+  confidentialityLevel ConfidentialityLevel @default(RESTRICTED)
+  note                 String
+  createdAt            DateTime             @default(now())
+
+  @@index([studentId])
+}
+
+// ----------------------------------------------------------------------------
+// Duyuru, Etkinlik & Acil Bildirim Akışı
+// ----------------------------------------------------------------------------
+
+enum AnnouncementCategory {
+  GENERAL
+  EXAM
+  HOLIDAY
+  EVENT
+  EMERGENCY
+}
+
+enum AnnouncementAuthorRole {
+  ADMIN
+  TEACHER
+}
+
+model Announcement {
+  id         String                 @id @default(cuid())
+  title      String
+  content    String
+  category   AnnouncementCategory   @default(GENERAL)
+  // Hedef kitle: NotificationScopeType, SMS modülüyle aynı — ALL_SCHOOL /
+  // GRADE (scopeValue: "12") / BRANCH (scopeValue: branchId) burada kullanılır.
+  scopeType  NotificationScopeType  @default(ALL_SCHOOL)
+  scopeValue String?
+  authorName String
+  authorRole AnnouncementAuthorRole
+  createdAt  DateTime               @default(now())
+  reads      AnnouncementRead[]
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id])
+  studentId      String
+  student        Student      @relation(fields: [studentId], references: [id])
+  readAt         DateTime     @default(now())
+
+  @@unique([announcementId, studentId])
+}
+
+// ----------------------------------------------------------------------------
+// Gelişim Karnesi üretim kaydı (audit)
+// ----------------------------------------------------------------------------
+
+model ReportCard {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  periodLabel String // "2025-2026 1. Dönem"
+  generatedAt DateTime @default(now())
+
+  @@index([studentId])
+}
+
+// ----------------------------------------------------------------------------
+// Dijital Sınıf Defteri & Yıllık Plan
+// ----------------------------------------------------------------------------
+
+model ClassbookNote {
+  id        String   @id @default(cuid())
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  note      String
+  createdAt DateTime @default(now())
+
+  @@index([branchId])
+}
+
+model YearlyPlanRow {
+  id           String   @id @default(cuid())
+  teacherId    String
+  teacher      Teacher  @relation(fields: [teacherId], references: [id])
+  weekLabel    String
+  subtopicName String
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  @@index([teacherId])
+}
+
+// Müfredat konu ağacının kendisi (CURRICULUM_TREE) statik referans içerik
+// olarak lib/mock-data.ts'te kalır — MEB müfredatı, kurumun düzenlediği bir
+// veri değil. Burada sadece "hangi şube hangi alt konuyu işledi" durumu
+// (şubeye göre gerçek, kalıcı ilerleme) tutulur.
+model CurriculumProgress {
+  id         String    @id @default(cuid())
+  branchId   String
+  branch     Branch    @relation(fields: [branchId], references: [id])
+  subject    String
+  subtopicId String // CURRICULUM_TREE içindeki subtopic.id
+  covered    Boolean   @default(false)
+  coveredAt  DateTime?
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([branchId, subtopicId])
+  @@index([branchId])
+}
+
+// ----------------------------------------------------------------------------
+// Oturma Planı & Öğrenci Çarkı — roster gerçek Student tablosundan gelir,
+// burada sadece o şube için mevcut koltuk SIRASI tutulur.
+// ----------------------------------------------------------------------------
+
+model SeatingArrangement {
+  id           String   @id @default(cuid())
+  branchId     String   @unique
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  studentOrder String[] // Student.id sıralı listesi
+  updatedAt    DateTime @updatedAt
+}
+
+// ----------------------------------------------------------------------------
+// Ders Materyali Kütüphanesi
+// ----------------------------------------------------------------------------
+
+model TeacherMaterial {
+  id        String   @id @default(cuid())
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  title     String
+  fileUrl   String
+  fileType  String // pdf | doc | slide
+  sizeLabel String
+  createdAt DateTime @default(now())
+
+  @@index([branchId])
+  @@index([teacherId])
+}
+
+// ----------------------------------------------------------------------------
+// Kelebek Sınav Oturma Planı — mevcut Exam kaydına bağlı, kalıcı koltuk
+// atamaları (öğrenci + öğretmen + yönetici aynı gerçek veriyi görür).
+// ----------------------------------------------------------------------------
+
+model ExamSeatAssignment {
+  id         String   @id @default(cuid())
+  examId     String
+  exam       Exam     @relation(fields: [examId], references: [id])
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id])
+  hall       String
+  seatNumber Int
+  rowNum     Int
+  colNum     Int
+  createdAt  DateTime @default(now())
+
+  @@unique([examId, studentId])
+  @@index([studentId])
+}
+
+// ----------------------------------------------------------------------------
+// YKS/LGS Tercih Robotu — üniversite/bölüm referans listesi (UNIVERSITY_PROGRAMS,
+// temsili taban sıralamalarıyla) statik içerik olarak mock-data.ts'te kalır;
+// burada sadece öğrencinin kaydettiği GERÇEK tercih sırası tutulur.
+// ----------------------------------------------------------------------------
+
+model StudentPreference {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id])
+  programId String // UNIVERSITY_PROGRAMS içindeki program.id
+  position  Int
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, programId])
+  @@index([studentId])
+}
+
+// ----------------------------------------------------------------------------
+// Çakışmasız Ders Programı — yöneticinin sürükle-bırak ile oluşturduğu ana
+// haftalık program; öğretmen ve öğrenci panelindeki "Haftalık Program"
+// sekmeleri BUNUN salt-okunur, kendi kapsamına göre süzülmüş görünümleridir
+// (teacherId / branchId'ye göre filtrelenir).
+// ----------------------------------------------------------------------------
+
+model LessonSlot {
+  id        String  @id @default(cuid())
+  branchId  String
+  branch    Branch  @relation(fields: [branchId], references: [id])
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  subject   String
+  day       String // "Pazartesi".."Cuma"
+  slot      String // "16:00-17:00" vb.
+
+  @@unique([branchId, day, slot])
+  @@index([teacherId])
+}
+
+model TeacherDutySlot {
+  id        String  @id @default(cuid())
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  day       String
+  slot      String
+  label     String
+
+  @@index([teacherId])
+}
+
+// ----------------------------------------------------------------------------
+// Rehberlik & PDR A4 Kişisel Çalışma Programı — rehberlik biriminin öğrenci
+// için hazırlayıp portala gönderdiği haftalık program + geçmişi.
+// ----------------------------------------------------------------------------
+
+model GuidanceProgram {
+  id        String                 @id @default(cuid())
+  studentId String
+  student   Student                @relation(fields: [studentId], references: [id])
+  weekLabel String
+  createdAt DateTime               @default(now())
+  entries   GuidanceProgramEntry[]
+
+  @@index([studentId])
+}
+
+model GuidanceProgramEntry {
+  id             String          @id @default(cuid())
+  programId      String
+  program        GuidanceProgram @relation(fields: [programId], references: [id])
+  day            String
+  time           String
+  subject        String
+  topic          String
+  questionTarget Int
+}
+
+// ----------------------------------------------------------------------------
+// Eksik Kapatma — öğretmenin bir öğrenciye atadığı telafi görevi.
+// ----------------------------------------------------------------------------
+
+model RemediationTask {
+  id              String   @id @default(cuid())
+  studentId       String
+  student         Student  @relation(fields: [studentId], references: [id])
+  topic           String
+  taskDescription String
+  assignedAt      DateTime @default(now())
+
+  @@index([studentId])
+}
