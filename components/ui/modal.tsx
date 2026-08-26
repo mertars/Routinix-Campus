@@ -3,7 +3,9 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useIsMobile } from "@/lib/use-media-query";
+import { cn } from "@/lib/utils";
 
 export function Modal({
   isOpen,
@@ -11,6 +13,7 @@ export function Modal({
   title,
   children,
   variant = "auto",
+  widthClassName = "max-w-md",
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -20,11 +23,25 @@ export function Modal({
   // "center": bilgilendirici/detay popup'ları (Arşiv, Analiz vb.) için — her
   // ekran boyutunda ortada açılır, sağ üstte her zaman net bir X butonu olur.
   variant?: "auto" | "center";
+  // Masaüstü kartının genişliği (örn. haftalık program gibi geniş tablolar
+  // için "max-w-4xl") — varsayılan mevcut tüm çağıranlarla birebir aynı
+  // davranışı korur.
+  widthClassName?: string;
 }) {
   const isMobileQuery = useIsMobile();
   const isMobile = variant === "auto" && isMobileQuery;
 
-  return (
+  // document.body'ye Portal: bu Modal, bir kart bileşeninin (örn.
+  // whileHover ile animasyon uygulanan bir motion.div) içinden çağrılırsa,
+  // Framer Motion'ın o ata elemana uyguladığı inline transform (sayısal
+  // olarak identity olsa bile) fixed-positioned çocuklar için YENİ bir
+  // containing block oluşturur — bu da "position: fixed; top: 50%" hesabını
+  // viewport yerine o kartın kutusuna göre yapar (modal viewport'ta ortalanmaz,
+  // çağrıldığı kartın içinde/üstünde sıkışmış görünür). Portal, bu DOM
+  // ağacı bağımlılığını tamamen ortadan kaldırır.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -70,7 +87,7 @@ export function Modal({
             </motion.div>
           ) : (
             // Masaüstünde: ekran ortasında sabit kart (davranış değişmedi).
-            <div className="fixed left-1/2 top-1/2 z-[70] w-[92vw] max-w-md -translate-x-1/2 -translate-y-1/2">
+            <div className={cn("fixed left-1/2 top-1/2 z-[70] w-[92vw] -translate-x-1/2 -translate-y-1/2", widthClassName)}>
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -93,6 +110,7 @@ export function Modal({
           )}
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

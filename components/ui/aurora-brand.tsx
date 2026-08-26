@@ -86,28 +86,41 @@ const GRAIN_STYLE = {
 // görünür. İki köşede (sol-üst turuncu, sağ-alt bordo/altın) ayrı ışık
 // kümeleri olduğu için ekranın SADECE bir köşesi değil, genel yüzeyi canlı
 // hisseder; üstüne çok hafif bir grain dokusu düz/steril görünümü kırar.
+//
+// RENK: Sabit hex DEĞİL, ':root'taki '--brand-{ton}' CSS değişkenlerinden
+// (bkz. lib/accent-context.tsx > AccentProvider, tailwind.config.ts >
+// withOpacity) okunur — kullanıcı sağ üstteki Tema/Vurgu Rengi seçiciden
+// yeni bir renk seçtiğinde bu değişkenler runtime'da güncellenir ve aurora
+// bloblarının TAMAMI (farklı tonlarda: 600/400/800/500) yeni rengin
+// ailesine döner. Varsayılan turuncu (#FF6B00) tam olarak eski sabit
+// değerlerle aynı görünümü üretir — bu bir davranış değişikliği değil,
+// sadece sabit rengi CSS değişkenine bağlamaktır.
 export function PanelAurora() {
   return (
     <div className="pointer-events-none fixed inset-0 -z-10 hidden overflow-hidden dark:block">
       <div className="absolute inset-0 bg-midnight" />
 
       <motion.div
-        className="absolute -left-40 -top-32 h-[38rem] w-[38rem] rounded-full bg-[#FF6B00]/25 blur-[130px] mix-blend-screen"
+        className="absolute -left-40 -top-32 h-[38rem] w-[38rem] rounded-full blur-[130px] mix-blend-screen"
+        style={{ backgroundColor: "rgb(var(--brand-600) / 0.25)" }}
         animate={{ x: [0, 55, -20, 0], y: [0, 35, -25, 0], scale: [1, 1.08, 0.96, 1] }}
         transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -right-40 -top-20 h-[26rem] w-[26rem] rounded-full bg-[#D8A13B]/16 blur-[120px] mix-blend-screen"
+        className="absolute -right-40 -top-20 h-[26rem] w-[26rem] rounded-full blur-[120px] mix-blend-screen"
+        style={{ backgroundColor: "rgb(var(--brand-400) / 0.16)" }}
         animate={{ x: [0, -35, 20, 0], y: [0, 30, -15, 0] }}
         transition={{ duration: 31, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -right-48 bottom-0 h-[34rem] w-[34rem] rounded-full bg-[#8C3A2B]/22 blur-[130px] mix-blend-screen"
+        className="absolute -right-48 bottom-0 h-[34rem] w-[34rem] rounded-full blur-[130px] mix-blend-screen"
+        style={{ backgroundColor: "rgb(var(--brand-800) / 0.22)" }}
         animate={{ x: [0, -40, 25, 0], y: [0, -30, 20, 0], scale: [1, 0.95, 1.05, 1] }}
         transition={{ duration: 33, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -bottom-48 left-1/4 h-[34rem] w-[34rem] rounded-full bg-[#FF8C00]/20 blur-[120px] mix-blend-screen"
+        className="absolute -bottom-48 left-1/4 h-[34rem] w-[34rem] rounded-full blur-[120px] mix-blend-screen"
+        style={{ backgroundColor: "rgb(var(--brand-500) / 0.20)" }}
         animate={{ x: [0, 35, -35, 0], y: [0, -25, 25, 0] }}
         transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }}
       />
@@ -115,7 +128,7 @@ export function PanelAurora() {
       <div
         className="absolute inset-0 opacity-[0.5]"
         style={{
-          backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,140,0,0.18), transparent 60%)",
+          backgroundImage: "radial-gradient(ellipse 80% 50% at 50% -10%, rgb(var(--brand-600) / 0.18), transparent 60%)",
         }}
       />
       <div className="absolute inset-0 opacity-[0.5]" style={AURORA_GRID_STYLE} />

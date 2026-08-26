@@ -39,6 +39,51 @@ function useCountdownTo(targetIso: string) {
   return { days, hours, minutes, seconds };
 }
 
+function useDaysRemaining(targetIso: string) {
+  const countdown = useCountdownTo(targetIso);
+  return countdown ? countdown.days : null;
+}
+
+// Yönetici panelindeki (bkz. components/principal/hero.tsx) minimalist geri
+// sayım kapsülüyle AYNI kalıp — StudentHero'nun sağ üst köşesinde duran
+// küçük bir cam kapsül (bkz. app/student/page.tsx üzerinden StudentHero).
+// "Genel" izleme türünde (henüz LGS/YKS yılı belirlenmemiş öğrenci)
+// gösterilecek anlamlı bir sınav tarihi olmadığı için hiç render edilmez.
+export function ExamCountdownChip() {
+  const { track } = useStudentScope();
+  const isLgs = track === "lgs";
+  const targetIso = isLgs ? LGS_DATE : TYT_DATE;
+  const daysRemaining = useDaysRemaining(targetIso);
+
+  if (track === "genel") return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.25 }}
+      whileHover={{ y: -2 }}
+      className="flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 px-5 py-3 backdrop-blur-sm transition-colors dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-xl dark:hover:border-brand-500/40"
+    >
+      <motion.span
+        animate={{ rotate: [0, 180, 180, 0, 0] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", times: [0, 0.15, 0.5, 0.65, 1] }}
+        className="inline-flex"
+      >
+        <Hourglass className="h-4 w-4 text-brand-600" />
+      </motion.span>
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-espresso/50 dark:text-cream/40">
+          {isLgs ? "LGS Geri Sayımı" : "YKS Geri Sayımı"}
+        </p>
+        <p className="text-lg font-bold leading-tight text-espresso dark:text-cream">
+          {daysRemaining != null ? `${daysRemaining} gün` : "—"}
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
 function CountdownBlock({ label, targetIso }: { label: string; targetIso: string }) {
   const countdown = useCountdownTo(targetIso);
   return (
@@ -54,6 +99,11 @@ function CountdownBlock({ label, targetIso }: { label: string; targetIso: string
   );
 }
 
+// Tam boy geri sayım kartı — SADECE "Sınav Geri Sayımı & Motivasyon"
+// sekmesinde kullanılır (bkz. tabs/exam-countdown.tsx). Ana sayfa
+// (Overview) artık bunun yerine kompakt ExamCountdownChip + TodayScheduleCard
+// kullanıyor — bu bileşen kaldırılmadı, sadece o TEK kullanım yerinden
+// taşındı.
 export function ExamCountdownCard() {
   const { track } = useStudentScope();
   const [quoteIndex, setQuoteIndex] = useState(0);
@@ -73,7 +123,7 @@ export function ExamCountdownCard() {
         <motion.p key={quoteIndex} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-lg font-semibold leading-snug">
           {MOTIVATION_QUOTES[quoteIndex]}
         </motion.p>
-        <p className="mt-3 text-xs text-cream/60">Düzenli çalışma ve soru pratiği en güçlü hazırlık yöntemindir.</p>
+        <p className="mt-3 text-xs text-cream/60">Düzenli çalışma ve soru pratiği en güçlü hazırlık yöntemidir.</p>
       </motion.div>
     );
   }

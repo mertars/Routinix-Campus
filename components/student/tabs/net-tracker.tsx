@@ -59,6 +59,7 @@ export function NetTrackerTab() {
   const [summary, setSummary] = useState<NetSummary | null>(null);
 
   useEffect(() => {
+    if (!studentId) return;
     fetch(`/api/students/${encodeURIComponent(studentId)}/net-summary`)
       .then((res) => res.json())
       .then((data) => setSummary(data))

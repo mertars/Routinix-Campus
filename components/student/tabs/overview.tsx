@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Target, CalendarCheck, FileCheck2, Bell, Radio, Clock, Zap } from "lucide-react";
-import { type ScheduleAssignment, type ScheduleDay, type ScheduleSlot } from "@/lib/mock-data";
+import { Target, CalendarCheck, FileCheck2, Bell, Zap } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
-import { useCurrentLesson } from "@/lib/teacher-scope";
 import { useActiveQuiz } from "@/lib/use-active-quiz";
-import { ExamCountdownCard } from "@/components/student/exam-countdown-card";
+import { TodayScheduleCard } from "@/components/student/today-schedule-card";
 
 type HomeworkSubmission = { studentId: string; status: "NOT_DONE" | "HALF" | "DONE" | "LATE" };
 type HomeworkEntry = { id: string; submissions: HomeworkSubmission[] };
@@ -15,28 +13,6 @@ type HomeworkEntry = { id: string; submissions: HomeworkSubmission[] };
 export function OverviewTab({ onNavigate = () => {} }: { onNavigate?: (tabId: string) => void }) {
   const { studentId, branchId, report } = useStudentScope();
 
-  const [mySchedule, setMySchedule] = useState<ScheduleAssignment[]>([]);
-  useEffect(() => {
-    if (!branchId) return;
-    fetch(`/api/lesson-slots?branchId=${encodeURIComponent(branchId)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setMySchedule(
-          (data.slots ?? []).map((s: { id: string; branchId: string; day: string; slot: string; subject: string; teacherName: string }) => ({
-            id: s.id,
-            branchId: s.branchId,
-            day: s.day as ScheduleDay,
-            slot: s.slot as ScheduleSlot,
-            teacherName: s.teacherName,
-            subject: s.subject,
-          }))
-        );
-      })
-      .catch(() => {
-        // sessiz — ders programı boş görünür
-      });
-  }, [branchId]);
-  const lesson = useCurrentLesson(mySchedule);
   const { quiz: activeQuiz, alreadySubmitted } = useActiveQuiz(branchId, studentId);
   const hasLiveQuiz = !!activeQuiz && !alreadySubmitted;
 
@@ -62,6 +38,7 @@ export function OverviewTab({ onNavigate = () => {} }: { onNavigate?: (tabId: st
   }, [branchId, studentId]);
 
   useEffect(() => {
+    if (!studentId) return;
     fetch(`/api/appointments?studentId=${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data) => {
@@ -74,6 +51,7 @@ export function OverviewTab({ onNavigate = () => {} }: { onNavigate?: (tabId: st
   }, [studentId]);
 
   useEffect(() => {
+    if (!studentId) return;
     fetch(`/api/announcements?studentId=${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data) => setLatestAnnouncementTitle(data.announcements?.[0]?.title ?? null))
@@ -101,29 +79,7 @@ export function OverviewTab({ onNavigate = () => {} }: { onNavigate?: (tabId: st
         </motion.button>
       )}
 
-      <ExamCountdownCard />
-
-      <motion.div
-        whileHover={{ scale: 1.005, y: -2 }}
-        className={
-          lesson.isLive
-            ? "flex items-center gap-2 rounded-2xl bg-green-600 p-4 text-sm font-semibold text-white shadow-sm"
-            : "flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-sm font-medium text-espresso-muted backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30 dark:text-cream/40"
-        }
-      >
-        {lesson.isLive ? (
-          <motion.span animate={{ opacity: [1, 0.4, 1] }} transition={{ duration: 1.6, repeat: Infinity }}>
-            <Radio className="h-4 w-4" />
-          </motion.span>
-        ) : (
-          <Clock className="h-4 w-4" />
-        )}
-        {lesson.isLive
-          ? `Şu An Canlı: ${lesson.subject} (${lesson.slot})`
-          : lesson.branchName
-            ? `Sıradaki Ders: ${lesson.subject} · ${lesson.day} ${lesson.slot}`
-            : "Bugün için planlanmış ders yok"}
-      </motion.div>
+      <TodayScheduleCard />
 
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => onNavigate("net-tracker")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:hover:bg-white/5">
