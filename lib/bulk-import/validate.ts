@@ -30,8 +30,14 @@ export function validateRows(role: ImportRole, rawRows: RawRow[], branchNames: s
 
     if (role === "STUDENT") {
       const branchName = pick(raw, "branchName", "Şube");
+      const phone = pick(raw, "phone", "Öğrenci GSM");
+      const parentName = pick(raw, "parentName", "Veli Ad Soyad");
+      const parentPhone = pick(raw, "parentPhone", "Veli GSM");
       if (!branchName) errors.push("Şube zorunludur.");
       else if (!branchNameSet.has(branchName.toLocaleLowerCase("tr"))) errors.push(`Şube bulunamadı: "${branchName}".`);
+      if (!phone) errors.push("Öğrenci GSM zorunludur (veli numarası da girilebilir).");
+      if (!parentName) errors.push("Veli Ad Soyad zorunludur.");
+      if (!parentPhone) errors.push("Veli GSM zorunludur.");
     } else {
       const subject = pick(raw, "subject", "Branş");
       const mobilePhone = pick(raw, "mobilePhone", "GSM");

@@ -1,0 +1,11 @@
+node_modules/
+.next/
+public/
+dist/
+build/
+.git/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.svg

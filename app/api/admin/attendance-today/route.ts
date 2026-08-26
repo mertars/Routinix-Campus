@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +20,18 @@ const TO_UPPER: Record<string, "PRESENT" | "ABSENT" | "LATE"> = { present: "PRES
 // Canlı Yoklama ekranıyla) paylaşır — iki panel arasında çelişkili veri yok.
 async function handleGet() {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const [students, records] = await Promise.all([
-      prisma.student.findMany({ select: { id: true, firstName: true, lastName: true, branch: { select: { name: true } } } }),
-      prisma.attendanceRecord.findMany({ where: { date: today() }, select: { studentId: true, status: true } }),
+      prisma.student.findMany({
+        where: { institutionId: session.institutionId },
+        select: { id: true, firstName: true, lastName: true, branch: { select: { name: true } } },
+      }),
+      prisma.attendanceRecord.findMany({
+        where: { date: today(), student: { institutionId: session.institutionId } },
+        select: { studentId: true, status: true },
+      }),
     ]);
     const statusByStudent = new Map(records.map((r) => [r.studentId, TO_LOWER[r.status] ?? "unmarked"]));
 
@@ -33,6 +44,7 @@ async function handleGet() {
 
     return NextResponse.json({ rows });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("admin_attendance_today_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }
@@ -43,10 +55,17 @@ async function handleGet() {
 // aynı AttendanceRecord satırı üzerinde çalışır).
 async function handlePost(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const body = await request.json();
     const { studentId, status } = body as { studentId?: string; status?: string };
     if (!studentId || !status || !(status in TO_UPPER)) {
       return NextResponse.json({ error: "studentId ve geçerli bir status ('present'|'absent'|'late') zorunludur." }, { status: 400 });
+    }
+    const student = await prisma.student.findUnique({ where: { id: studentId }, select: { institutionId: true } });
+    if (!student || student.institutionId !== session.institutionId) {
+      return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
     }
     const date = today();
     await prisma.attendanceRecord.upsert({
@@ -56,6 +75,7 @@ async function handlePost(request: NextRequest) {
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("admin_attendance_today_update_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }

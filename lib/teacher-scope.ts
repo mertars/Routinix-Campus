@@ -1,35 +1,41 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRole } from "./role-context";
 import { INITIAL_BRANCHES, SCHEDULE_DAYS, SCHEDULE_SLOTS, type ScheduleAssignment } from "./mock-data";
 
 export type ScopeBranch = { id: string; name: string; grade?: number; track?: string | null };
 
-// Demo modunda gerçek bir login/oturum yok — tek persona ismi tek gerçek
-// Teacher.id'ye sabit eşlenir (prisma/seed.ts'teki TEACHER_ID_BY_NAME ile
-// birebir aynı). Gerçek bir auth eklenince bu eşleme oturumdan gelecek.
-const TEACHER_ID_BY_PERSONA_NAME: Record<string, string> = {
-  "İrfan Hoca": "1",
-  "Selin Hoca": "2",
-  "Kemal Hoca": "3",
-  "Ayşe Hoca": "4",
-  "Zehra Rehber": "5",
-};
-
-// Öğretmen paneli, oturum açan personaya göre SADECE kendi ders verdiği
-// şubeleri ve branşını gösterir — teachingBranches (gerçek Postgres ilişkisi,
-// bkz. app/api/teachers/[id]) yetki kısıtlamasının tek kaynağı.
+// Öğretmen paneli, /api/auth/session'dan gelen GERÇEK oturum kimliğine göre
+// SADECE kendi ders verdiği şubeleri ve branşını gösterir — teachingBranches
+// (gerçek Postgres ilişkisi, bkz. app/api/teachers/[id]) yetki kısıtlamasının
+// tek kaynağı. teacherId, httpOnly oturum cookie'si sunucuda çözülene kadar
+// kısa süreliğine boş kalır; altındaki veri effect'i boşken hiç istek atmaz.
 export function useTeacherScope() {
-  const { persona } = useRole();
-  const teacherName = persona?.name ?? "İrfan Hoca";
-  const teacherId = TEACHER_ID_BY_PERSONA_NAME[teacherName] ?? "1";
-
+  const [teacherId, setTeacherId] = useState("");
+  const [teacherName, setTeacherName] = useState("");
   const [subject, setSubject] = useState("Genel");
   const [assignedBranches, setAssignedBranches] = useState<ScopeBranch[]>([]);
   const [mySchedule, setMySchedule] = useState<ScheduleAssignment[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/session")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.id) return;
+        setTeacherId(data.id);
+        setTeacherName(data.name ?? "");
+      })
+      .catch(() => {
+        // sessiz — oturum çözülemedi, kapsam boş kalır
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!teacherId) return;
     let cancelled = false;
     fetch(`/api/teachers/${encodeURIComponent(teacherId)}`)
       .then((res) => res.json())

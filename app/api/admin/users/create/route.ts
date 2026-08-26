@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { AdminAuthorityLevel } from "@prisma/client";
 import { AdminCreateError, createStudentAccount, createTeacherAccount, createAdminAccount } from "@/lib/server/admin/create-user";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 type CreateBody = {
@@ -9,6 +11,7 @@ type CreateBody = {
   nationalId?: string;
   // öğrenci
   branchId?: string;
+  phone?: string;
   parentName?: string;
   parentPhone?: string;
   healthNote?: string;
@@ -25,6 +28,9 @@ type CreateBody = {
 
 async function handlePost(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const body = (await request.json()) as CreateBody;
     const { role, fullName } = body;
 
@@ -34,11 +40,14 @@ async function handlePost(request: NextRequest) {
 
     if (role === "STUDENT") {
       const account = await createStudentAccount({
+        institutionId: session.institutionId,
+        actorId: session.sub,
         fullName,
         nationalId: body.nationalId ?? "",
         branchId: body.branchId ?? "",
-        parentName: body.parentName,
-        parentPhone: body.parentPhone,
+        phone: body.phone ?? "",
+        parentName: body.parentName ?? "",
+        parentPhone: body.parentPhone ?? "",
         healthNote: body.healthNote,
       });
       return NextResponse.json({ id: account.id, role: "STUDENT", username: account.username, password: account.password }, { status: 201 });
@@ -46,6 +55,8 @@ async function handlePost(request: NextRequest) {
 
     if (role === "TEACHER") {
       const account = await createTeacherAccount({
+        institutionId: session.institutionId,
+        actorId: session.sub,
         fullName,
         nationalId: body.nationalId ?? "",
         subject: body.subject ?? "",
@@ -61,6 +72,8 @@ async function handlePost(request: NextRequest) {
 
     if (role === "ADMIN") {
       const account = await createAdminAccount({
+        institutionId: session.institutionId,
+        actorId: session.sub,
         fullName,
         title: body.title ?? "",
         mobilePhone: body.mobilePhone ?? "",
@@ -72,6 +85,7 @@ async function handlePost(request: NextRequest) {
 
     return NextResponse.json({ error: "Geçersiz role değeri." }, { status: 400 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof AdminCreateError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }

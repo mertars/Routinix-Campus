@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRole } from "./role-context";
 import { useLocalStorageState } from "./use-local-storage-state";
 import { type BranchSegment, type GradeLevel } from "./mock-data";
 
-// Öğrenci paneli tek bir demo öğrenci (Arslan Yıldırım, Student.id "1")
-// üzerinden çalışıyor — gerçek bir login/oturum yok, bkz. prisma/seed.ts.
-// Sınıf-duyarlı iş kuralını (LGS/YKS/Genel akışları) TÜM yollarıyla
-// gösterebilmek için burada yalnızca arayüz amaçlı bir "demo sınıf" seçici
-// tutuyoruz — gerçek net/devam/branş verisi her zaman aynı öğrenciden
-// (Postgres'ten) gelir, sadece grade/segment (ve buna bağlı sınav geri
-// sayımı/tercih robotu) değişir.
+// Öğrenci paneli, /api/auth/session'dan gelen GERÇEK oturum kimliğine göre
+// SADECE kendi verisini gösterir (bkz. app/api/students/[id]). Sınıf-duyarlı
+// iş kuralını (LGS/YKS/Genel akışları) TÜM yollarıyla gösterebilmek için
+// burada yalnızca arayüz amaçlı bir "demo sınıf" seçici tutuyoruz — gerçek
+// net/devam/branş verisi her zaman aynı öğrenciden (Postgres'ten) gelir,
+// sadece grade/segment (ve buna bağlı sınav geri sayımı/tercih robotu) değişir.
 export type AcademicTrack = "lgs" | "yks" | "genel";
 
 export type DemoGradeChoice = {
@@ -29,7 +27,6 @@ export const DEMO_GRADE_CHOICES: DemoGradeChoice[] = [
 ];
 
 const DEMO_GRADE_KEY = "routinix-kampus-student-demo-grade";
-const STUDENT_ID = "1";
 
 export function trackFromGrade(grade: GradeLevel | undefined): AcademicTrack {
   if (grade === 8) return "lgs";
@@ -47,17 +44,34 @@ export type StudentReport = {
   attendanceRate: number;
 };
 
-const EMPTY_REPORT: StudentReport = { id: STUDENT_ID, name: "Arslan", branch: "", branchId: "", actualNet: 0, targetNet: 0, attendanceRate: 0 };
+const EMPTY_REPORT: StudentReport = { id: "", name: "", branch: "", branchId: "", actualNet: 0, targetNet: 0, attendanceRate: 0 };
 
 export function useStudentScope() {
-  const { persona } = useRole();
-  const studentName = persona?.name ?? "Arslan";
-
+  const [studentId, setStudentId] = useState("");
+  const [studentName, setStudentName] = useState("");
   const [report, setReport] = useState<StudentReport>(EMPTY_REPORT);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/students/${encodeURIComponent(STUDENT_ID)}`)
+    fetch("/api/auth/session")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.id) return;
+        setStudentId(data.id);
+        setStudentName(data.name ?? "");
+      })
+      .catch(() => {
+        // sessiz — oturum çözülemedi, kapsam boş kalır
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!studentId) return;
+    let cancelled = false;
+    fetch(`/api/students/${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled || data.error) return;
@@ -77,7 +91,7 @@ export function useStudentScope() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [studentId]);
 
   const [demoGradeKey, setDemoGradeKey] = useLocalStorageState<string>(DEMO_GRADE_KEY, "grade12");
   const demoChoice = DEMO_GRADE_CHOICES.find((choice) => choice.key === demoGradeKey) ?? DEMO_GRADE_CHOICES[2];
@@ -87,7 +101,7 @@ export function useStudentScope() {
   const track = trackFromGrade(grade);
 
   return {
-    studentId: STUDENT_ID,
+    studentId,
     studentName,
     branchName: report.branch,
     branchId: report.branchId,

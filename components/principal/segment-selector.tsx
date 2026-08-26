@@ -111,7 +111,7 @@ function DropdownTrigger({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ type: "spring", stiffness: 320, damping: 26 }}
-            className="absolute left-0 top-full z-[9999] mt-2 w-48 overflow-hidden rounded-2xl border border-white/15 bg-[#1C1512]/95 p-1.5 shadow-2xl backdrop-blur-2xl"
+            className="absolute left-0 top-full z-[9999] mt-2 w-48 overflow-hidden rounded-2xl border border-white/15 bg-midnight-card/95 p-1.5 shadow-2xl backdrop-blur-2xl"
           >
             {options.map((option) => (
               <button
@@ -207,7 +207,7 @@ function MobileSheet({
             onDragEnd={(_, info) => {
               if (info.offset.y > 110 || info.velocity.y > 500) onClose();
             }}
-            className="fixed inset-x-0 bottom-0 z-[80] rounded-t-3xl border-t border-white/15 bg-[#1C1512]/95 shadow-2xl backdrop-blur-2xl"
+            className="fixed inset-x-0 bottom-0 z-[80] rounded-t-3xl border-t border-white/15 bg-midnight-card/95 shadow-2xl backdrop-blur-2xl"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
             <div className="flex justify-center pt-2.5">
@@ -262,7 +262,7 @@ export function SegmentSelector({ selected, onSelect }: { selected: Segment; onS
     <div ref={containerRef} className="relative z-50">
       {/* Masaüstü: tek satır bar + açılır popover'lar (değişmedi) */}
       <div className="hidden flex-wrap items-center gap-2 md:flex">
-        <div className="inline-flex h-10 items-center gap-1 rounded-full border border-hairline bg-white/70 px-1 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+        <div className="inline-flex h-10 items-center gap-1 rounded-full border border-hairline bg-white/70 px-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <TriggerPill isActive={selected === "ALL"} onClick={() => handleSelect("ALL")} layoutId="segmentPill">
             <Globe2 className="h-3.5 w-3.5" /> Genel
           </TriggerPill>

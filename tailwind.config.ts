@@ -43,8 +43,8 @@ const config: Config = {
         },
         caramel: "#5C3D2E", // Karamel Kahvesi — dark modda görünür ısınmış vurgu
         midnight: {
-          DEFAULT: "#120D0B", // Derin Gece Kahvesi — dark mod arka planı
-          card: "#1C1512", // dark mod cam/kart yüzeyi
+          DEFAULT: "#12100D", // Espresso Siyahı — sıcak, kahverengi alt tonlu derin zemin (Cockpit paneli)
+          card: "#1E1912", // dark mod cam/kart yüzeyi — aynı sıcak aile, biraz açık
         },
         hairline: "#E6E1D5",
       },

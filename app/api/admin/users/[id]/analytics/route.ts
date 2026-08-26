@@ -3,16 +3,21 @@ import { prisma } from "@/lib/server/prisma";
 import { computeAttendanceRate } from "@/lib/server/report-card/analyzer";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
 import { computeActivityScore } from "@/lib/server/teacher-activity";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-async function studentAnalytics(studentId: string) {
+// Gizli rehberlik notları dahil (CONFIDENTIAL hariç) — SADECE aynı kurumun
+// yöneticisine gösterilir, bu yüzden institutionId her iki fonksiyonda da
+// zorunlu bir filtre olarak geçirilir (bulunamayan/başka kuruma ait id → null → 404).
+async function studentAnalytics(studentId: string, institutionId: string) {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
     include: { branch: true },
   });
-  if (!student) return null;
+  if (!student || student.institutionId !== institutionId) return null;
 
   const [netResults, attendanceRecords, homeworkSubmissions, guidanceNotes] = await Promise.all([
     prisma.examNetResult.findMany({ where: { studentId }, include: { exam: true }, orderBy: { exam: { examDate: "asc" } } }),
@@ -51,12 +56,12 @@ async function studentAnalytics(studentId: string) {
   };
 }
 
-async function teacherAnalytics(teacherId: string) {
+async function teacherAnalytics(teacherId: string, institutionId: string) {
   const teacher = await prisma.teacher.findUnique({
     where: { id: teacherId },
     include: { teachingBranches: true },
   });
-  if (!teacher) return null;
+  if (!teacher || teacher.institutionId !== institutionId) return null;
 
   // Danışmanlık (advisorBranches) TEK şubedir; bir öğretmen birden fazla
   // şubede ders verebilir — sınıf net ortalaması/branş listesi bu yüzden
@@ -93,16 +98,21 @@ async function teacherAnalytics(teacherId: string) {
 
 async function handleGet(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const role = request.nextUrl.searchParams.get("role");
     if (role !== "STUDENT" && role !== "TEACHER") {
       return NextResponse.json({ error: "role parametresi 'STUDENT' veya 'TEACHER' olmalı." }, { status: 400 });
     }
 
-    const result = role === "STUDENT" ? await studentAnalytics(params.id) : await teacherAnalytics(params.id);
+    const result =
+      role === "STUDENT" ? await studentAnalytics(params.id, session.institutionId) : await teacherAnalytics(params.id, session.institutionId);
     if (!result) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("admin_analytics_failed", { userId: params.id, error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }

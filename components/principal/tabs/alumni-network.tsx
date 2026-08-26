@@ -44,7 +44,7 @@ export function AlumniNetworkTab() {
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <Trophy className="h-4 w-4 text-brand-600" /> Mezun Gurur Tablosu
         </h2>
-        <div className="flex gap-1.5 rounded-full border border-hairline bg-white/70 p-1 dark:border-white/10 dark:bg-midnight-card/70">
+        <div className="flex gap-1.5 rounded-full border border-hairline bg-white/70 p-1 dark:border-white/10 dark:bg-midnight-card/50">
           <button
             onClick={() => setShowMentorsOnly(false)}
             className={cn(
@@ -74,7 +74,7 @@ export function AlumniNetworkTab() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
             whileHover={{ scale: 1.02, y: -4 }}
-            className="flex flex-col rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+            className="flex flex-col rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <div className="mb-3 flex items-center gap-3">
               <AvatarInitials name={alumnus.name} className="h-11 w-11 text-sm" />

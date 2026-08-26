@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import { useStudentScope } from "@/lib/student-scope";
+import { spaceGrotesk } from "@/components/ui/aurora-brand";
+import { cn } from "@/lib/utils";
 
 const TRACK_SUBTITLE: Record<string, string> = {
   lgs: "LGS Hazırlık Süreci",
@@ -27,7 +29,7 @@ export function StudentHero({ name }: { name: string }) {
         initial={{ opacity: 0, y: -24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-        className="text-5xl font-bold tracking-tight text-espresso dark:text-cream sm:text-6xl"
+        className={cn(spaceGrotesk.className, "text-5xl font-bold tracking-tight text-espresso dark:text-cream sm:text-6xl")}
       >
         {name}
       </motion.h1>

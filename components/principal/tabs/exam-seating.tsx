@@ -6,6 +6,7 @@ import { Shuffle, DoorOpen, IdCard, Loader2 } from "lucide-react";
 import { INITIAL_BRANCHES, EXAM_HALLS } from "@/lib/mock-data";
 import { ExamPrintModal, type PrintSeat } from "@/components/principal/exam/exam-print-modal";
 import { useToast } from "@/lib/toast-context";
+import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { cn } from "@/lib/utils";
 
 const BRANCH_COLORS = [
@@ -31,11 +32,10 @@ export function ExamSeatingTab() {
   const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    fetch("/api/admin/dashboard?segment=ALL")
-      .then((res) => res.json())
+    fetchDashboard<{ branches?: { id: string; studentCount: number }[] }>("ALL")
       .then((data) => {
         const counts: Record<string, number> = {};
-        (data.branches ?? []).forEach((b: { id: string; studentCount: number }) => (counts[b.id] = b.studentCount));
+        (data.branches ?? []).forEach((b) => (counts[b.id] = b.studentCount));
         setStudentCounts(counts);
       })
       .catch(() => {
@@ -78,7 +78,7 @@ export function ExamSeatingTab() {
     <div className="space-y-4">
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <h2 className="mb-4 text-sm font-semibold text-espresso dark:text-cream">Kelebek Sınav Oturum Simülasyonu</h2>
 
@@ -150,7 +150,7 @@ export function ExamSeatingTab() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+            className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-espresso dark:text-cream">

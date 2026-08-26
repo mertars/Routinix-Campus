@@ -75,7 +75,7 @@ export function MaterialLibraryTab() {
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
         onClick={() => !uploading && inputRef.current?.click()}
-        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-hairline bg-white/70 px-6 py-8 text-center shadow-sm backdrop-blur-sm transition hover:border-brand-600/40 dark:border-white/10 dark:bg-midnight-card/70"
+        className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-hairline bg-white/70 px-6 py-8 text-center shadow-sm backdrop-blur-sm transition hover:border-brand-600/40 dark:border-white/10 dark:bg-midnight-card/50"
       >
         {uploading ? <Loader2 className="h-6 w-6 animate-spin text-brand-600" /> : <UploadCloud className="h-6 w-6 text-brand-600" />}
         <p className="text-sm font-medium text-espresso dark:text-cream">{uploading ? "Yükleniyor..." : "Ders materyali yükle"}</p>
@@ -94,7 +94,7 @@ export function MaterialLibraryTab() {
 
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <h2 className="mb-3 text-sm font-semibold text-espresso dark:text-cream">Kütüphanem ({materials.length})</h2>
         <div className="space-y-2">

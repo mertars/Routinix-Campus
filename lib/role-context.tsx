@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { MOCK_PERSONAS, type Persona, type RoleId } from "./mock-data";
 
 type RoleContextValue = {
@@ -61,4 +62,24 @@ export function useRole() {
   const ctx = useContext(RoleContext);
   if (!ctx) throw new Error("useRole, RoleProvider içinde kullanılmalı");
   return ctx;
+}
+
+// Tüm panellerdeki "Çıkış Yap" butonlarının TEK gerçek kaynağı. Önce gerçek
+// sunucu oturumunu (httpOnly cookie, /api/auth/logout) sonlandırır, sonra
+// kozmetik persona durumunu (role-cookie + localStorage) temizler ve
+// /login'e döner. Sunucu isteği başarısız olsa bile yerel temizlik ve
+// yönlendirme her zaman gerçekleşir — kullanıcı asla panelde kilitli kalmaz.
+export function useLogout() {
+  const { clearRole } = useRole();
+  const router = useRouter();
+
+  return useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // yoksay — aşağıdaki yerel temizlik + yönlendirme yine de çalışır
+    }
+    clearRole();
+    router.push("/login");
+  }, [clearRole, router]);
 }

@@ -106,7 +106,7 @@ export function WeeklyScheduleTab() {
         whileHover={{ scale: 1.005, y: -2 }}
         className={cn(
           "flex items-center gap-2 rounded-2xl p-4 text-sm font-semibold",
-          lesson.isLive ? "bg-green-600 text-white shadow-sm" : "border border-hairline bg-white/70 text-espresso-muted backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70 dark:text-cream/40"
+          lesson.isLive ? "bg-green-600 text-white shadow-sm" : "border border-hairline bg-white/70 text-espresso-muted backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30 dark:text-cream/40"
         )}
       >
         {lesson.isLive ? (
@@ -123,14 +123,14 @@ export function WeeklyScheduleTab() {
             : "Sıradaki ders bilgisi yok"}
       </motion.div>
 
-      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <CalendarDays className="h-4 w-4 text-brand-600" /> Haftalık Ders Programı
         </h2>
         <WeeklyGrid getCell={getCell} />
       </motion.div>
 
-      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <BookOpen className="h-4 w-4 text-brand-600" /> Müfredat Durumu
         </h2>
@@ -177,7 +177,7 @@ export function WeeklyScheduleTab() {
         </div>
       </motion.div>
 
-      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <FileText className="h-4 w-4 text-brand-600" /> Ders Notları
         </h2>

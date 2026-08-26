@@ -66,34 +66,70 @@ enum BranchSegment {
   MEZUN
 }
 
+// Tek kullanımlık şifre (OTP) amacı — ilk giriş aktivasyonu ve şifre sıfırlama
+// akışlarında aynı OtpCode tablosu kullanılır; purpose ile birbirinden ayrılır.
+enum OtpPurpose {
+  FIRST_LOGIN
+  PASSWORD_RESET
+}
+
 // ----------------------------------------------------------------------------
 // Kurum yapısı
 // ----------------------------------------------------------------------------
 
+// Çoklu-kurum (SaaS) temeli — her "kök" kayıt (Branch/Student/Teacher/Admin/
+// Parent/Exam/Announcement/NotificationBatch) bir Institution'a bağlıdır.
+// isActive, statik JWT'ler için pratik tek iptal yoludur: bir kurumun
+// erişimi anında kesilmek istendiğinde token'lar hâlâ geçerli olsa bile
+// requireSession() burayı kontrol eder (bkz. lib/server/auth/session-guard.ts).
+model Institution {
+  id                  String              @id @default(cuid())
+  name                String
+  slug                String              @unique
+  isActive            Boolean             @default(true)
+  branches            Branch[]
+  students            Student[]
+  teachers            Teacher[]
+  admins              Admin[]
+  parents             Parent[]
+  exams               Exam[]
+  announcements       Announcement[]
+  notificationBatches NotificationBatch[]
+  auditLogs           AuditLog[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+}
+
 model Branch {
-  id                     String                  @id @default(cuid())
-  name                   String                  @unique // "12-A VIP"
-  grade                  Int
-  segment                BranchSegment           @default(YKS) // Mezun grubunun gerçek bir sınıf seviyesi yoktur (grade temsili tutulur)
-  institutionalCode      String?                 @unique // "RTX-IST01" — karne/QR gibi insan-okur yüzeylerde kullanılan kısa kod
-  track                  String? // Alan/Dal: Sayısal, Eşit Ağırlık, Sözel, TM vb.
-  advisorId              String?
-  advisor                Teacher?                @relation("BranchAdvisor", fields: [advisorId], references: [id])
+  id                    String                 @id @default(cuid())
+  institutionId         String
+  institution           Institution            @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  name                  String // "12-A VIP" — kurum içinde benzersiz (bkz. @@unique altta)
+  grade                 Int
+  segment               BranchSegment          @default(YKS) // Mezun grubunun gerçek bir sınıf seviyesi yoktur (grade temsili tutulur)
+  institutionalCode     String? // "RTX-IST01" — karne/QR gibi insan-okur yüzeylerde kullanılan kısa kod, kurum içinde benzersiz
+  track                 String? // Alan/Dal: Sayısal, Eşit Ağırlık, Sözel, TM vb.
+  advisorId             String?
+  advisor               Teacher?               @relation("BranchAdvisor", fields: [advisorId], references: [id])
   // Danışman (advisor) TEK öğretmendir; bir şubede birden fazla branş
   // öğretmeni ders verebilir — bu çoka-çok ilişki o gerçek "kim nerede ders
   // veriyor" bilgisini taşır (öğretmen panelindeki assignedBranches kapsamı,
   // öğrenci etüt/rehberlik öğretmen seçicisi vb. buradan beslenir).
-  teachingStaff          Teacher[]               @relation("BranchTeaching")
-  students               Student[]
-  quizzes                Quiz[]
-  attendanceSubmissions  AttendanceSubmission[]
-  classbookNotes         ClassbookNote[]
-  curriculumProgress     CurriculumProgress[]
-  seatingArrangement     SeatingArrangement?
-  materials              TeacherMaterial[]
-  lessonSlots            LessonSlot[]
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
+  teachingStaff         Teacher[]              @relation("BranchTeaching")
+  students              Student[]
+  quizzes               Quiz[]
+  attendanceSubmissions AttendanceSubmission[]
+  classbookNotes        ClassbookNote[]
+  curriculumProgress    CurriculumProgress[]
+  seatingArrangement    SeatingArrangement?
+  materials             TeacherMaterial[]
+  lessonSlots           LessonSlot[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@unique([institutionId, name])
+  @@unique([institutionId, institutionalCode])
+  @@index([institutionId])
 }
 
 // ----------------------------------------------------------------------------
@@ -101,71 +137,81 @@ model Branch {
 // ----------------------------------------------------------------------------
 
 model Student {
-  id                String              @id @default(cuid())
-  nationalId        String              @unique // TC Kimlik No
-  firstName         String
-  lastName          String
-  birthDate         DateTime?
-  gender            Gender?
-  bloodType         BloodType           @default(UNKNOWN)
-  studentNumber     String              @unique // Öğrenci No
-  branchId          String
-  branch            Branch              @relation(fields: [branchId], references: [id])
-  track             String? // Alan/Dal (şube varsayılanını ezmek gerekirse)
-  advisorTeacherId  String? // Danışman ID
-  advisorTeacher    Teacher?            @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id])
-  transportMethod   TransportMethod?
-  residenceAddress  String?
-  email             String?
-  phone             String?
-  healthNote        String? // Özel sağlık/alerji notu
+  id                  String               @id @default(cuid())
+  institutionId       String
+  institution         Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  nationalId          String               @unique // TC Kimlik No — v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
+  firstName           String
+  lastName            String
+  birthDate           DateTime?
+  gender              Gender?
+  bloodType           BloodType            @default(UNKNOWN)
+  studentNumber       String // Öğrenci No — kurum içinde benzersiz (bkz. @@unique altta)
+  branchId            String
+  branch              Branch               @relation(fields: [branchId], references: [id])
+  track               String? // Alan/Dal (şube varsayılanını ezmek gerekirse)
+  advisorTeacherId    String? // Danışman ID
+  advisorTeacher      Teacher?             @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id])
+  transportMethod     TransportMethod?
+  residenceAddress    String?
+  email               String?
+  phone               String?
+  healthNote          String? // Özel sağlık/alerji notu
   // Hedef net & haftalık çalışma saati — gerçek bir ölçüm/entegrasyon
   // kaynağı yok (Pomodoro cihazda kalır, bkz. gizlilik kuralı), bu yüzden
   // isteğe bağlı alanlar: danışman öğretmen Röntgen ekranından girer, boşsa
   // arayüzde "—" gösterilir.
-  targetNet         Float?
-  weeklyStudyHours  Int?
-  passwordHash      String? // bcrypt — giriş akışı henüz uygulanmadı, ileriye dönük hazırlık
-  parents           ParentStudent[]
-  netResults        ExamNetResult[]
-  attendanceRecords AttendanceRecord[]
-  reportCards       ReportCard[]
-  questions         Question[]
+  targetNet           Float?
+  weeklyStudyHours    Int?
+  passwordHash        String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
+  mustChangePassword  Boolean              @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  parents             ParentStudent[]
+  netResults          ExamNetResult[]
+  attendanceRecords   AttendanceRecord[]
+  reportCards         ReportCard[]
+  questions           Question[]
   homeworkSubmissions HomeworkSubmission[]
-  quizSubmissions   QuizSubmission[]
+  quizSubmissions     QuizSubmission[]
   appointmentRequests AppointmentRequest[]
-  guidanceNotes     GuidanceNote[]
-  announcementReads AnnouncementRead[]
-  seatAssignments   ExamSeatAssignment[]
-  preferences       StudentPreference[]
-  guidancePrograms  GuidanceProgram[]
-  remediationTasks  RemediationTask[]
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
+  guidanceNotes       GuidanceNote[]
+  announcementReads   AnnouncementRead[]
+  seatAssignments     ExamSeatAssignment[]
+  preferences         StudentPreference[]
+  guidancePrograms    GuidanceProgram[]
+  remediationTasks    RemediationTask[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
+  @@unique([institutionId, studentNumber])
   @@index([branchId])
+  @@index([institutionId])
 }
 
 model Parent {
-  id            String             @id @default(cuid())
-  firstName     String
-  lastName      String
-  relationship  ParentRelationship
-  mobilePhone   String // GSM (SMS onaylı)
-  smsConsent    Boolean            @default(false)
-  workPhone     String?
-  email         String?
-  homeAddress   String?
-  workAddress   String?
-  occupation    String?
-  company       String?
-  title         String?
-  kvkkConsent   ConsentStatus      @default(PENDING)
-  iysConsent    ConsentStatus      @default(PENDING)
-  passwordHash  String? // bcrypt — giriş akışı henüz uygulanmadı, ileriye dönük hazırlık
-  students      ParentStudent[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id                 String             @id @default(cuid())
+  institutionId      String
+  institution        Institution        @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  firstName          String
+  lastName           String
+  relationship       ParentRelationship
+  mobilePhone        String // GSM (SMS onaylı)
+  smsConsent         Boolean            @default(false)
+  workPhone          String?
+  email              String?
+  homeAddress        String?
+  workAddress        String?
+  occupation         String?
+  company            String?
+  title              String?
+  kvkkConsent        ConsentStatus      @default(PENDING)
+  iysConsent         ConsentStatus      @default(PENDING)
+  passwordHash       String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
+  mustChangePassword Boolean            @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  students           ParentStudent[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([institutionId])
 }
 
 // Öğrenci-Veli çoka-çok ilişkisi (bir öğrencinin birden fazla velisi, bir
@@ -181,49 +227,87 @@ model ParentStudent {
 }
 
 model Teacher {
-  id                 String    @id @default(cuid())
-  nationalId         String    @unique
-  firstName          String
-  lastName           String
-  subject            String // Branş
-  university         String?
-  mobilePhone        String
-  institutionalEmail String?
-  personalEmail      String?
-  dutyDays           String[] // Nöbet Günleri
-  institutionalCode  String?   @unique // "TCH-102" — kısa, insan-okur öğretmen kodu (giriş kullanıcı adı DEĞİL — o T.C. No'dur)
-  passwordHash       String? // bcrypt — giriş akışı henüz uygulanmadı, ileriye dönük hazırlık
-  advisorBranches    Branch[]  @relation("BranchAdvisor")
-  teachingBranches   Branch[]  @relation("BranchTeaching")
-  advisedStudents    Student[] @relation("StudentAdvisor")
-  questions          Question[]
-  homeworks          Homework[]
-  quizzes            Quiz[]
-  quizBankQuestions  QuizBankQuestion[]
+  id                    String                  @id @default(cuid())
+  institutionId         String
+  institution           Institution             @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  nationalId            String                  @unique // v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
+  firstName             String
+  lastName              String
+  subject               String // Branş
+  university            String?
+  mobilePhone           String
+  institutionalEmail    String?
+  personalEmail         String?
+  dutyDays              String[] // Nöbet Günleri
+  institutionalCode     String? // "TCH-102" — kısa, insan-okur öğretmen kodu (giriş kullanıcı adı DEĞİL — o T.C. No'dur), kurum içinde benzersiz
+  passwordHash          String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
+  mustChangePassword    Boolean                 @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  advisorBranches       Branch[]                @relation("BranchAdvisor")
+  teachingBranches      Branch[]                @relation("BranchTeaching")
+  advisedStudents       Student[]               @relation("StudentAdvisor")
+  questions             Question[]
+  homeworks             Homework[]
+  quizzes               Quiz[]
+  quizBankQuestions     QuizBankQuestion[]
   attendanceSubmissions AttendanceSubmission[]
-  unavailability     TeacherUnavailability[]
-  appointmentRequests AppointmentRequest[]
-  classbookNotes     ClassbookNote[]
-  yearlyPlanRows     YearlyPlanRow[]
-  materials          TeacherMaterial[]
-  lessonSlots        LessonSlot[]
-  dutySlots          TeacherDutySlot[]
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  unavailability        TeacherUnavailability[]
+  appointmentRequests   AppointmentRequest[]
+  classbookNotes        ClassbookNote[]
+  yearlyPlanRows        YearlyPlanRow[]
+  materials             TeacherMaterial[]
+  lessonSlots           LessonSlot[]
+  dutySlots             TeacherDutySlot[]
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  @@unique([institutionId, institutionalCode])
+  @@index([institutionId])
+}
+
+// Tek kullanımlık şifre kaydı — telefon + amaç bazında en son geçerli kod
+// tutulur. Kod düz metin saklanmaz; bcrypt hash'i tutulur (bkz. lib/server/auth/otp.ts).
+model OtpCode {
+  id         String     @id @default(cuid())
+  phone      String // normalize edilmiş telefon (lib/server/auth/otp.ts > normalizePhone)
+  purpose    OtpPurpose
+  codeHash   String // bcrypt hash'li OTP
+  expiresAt  DateTime
+  consumedAt DateTime?
+  attempts   Int        @default(0)
+  createdAt  DateTime   @default(now())
+
+  @@index([phone, purpose])
+}
+
+// Şifreli giriş (POST /api/auth/login) için brute-force kilidi — telefon
+// bazında son başarısız deneme sayısı ve (varsa) kilit bitiş zamanı tutulur.
+// OTP'nin kendi kod bazlı deneme sayacından (OtpCode.attempts) ayrıdır çünkü
+// şifreli girişte "yeni kod iste" gibi doğal bir sıfırlama noktası yoktur.
+model LoginAttempt {
+  id          String    @id @default(cuid())
+  phone       String    @unique
+  failedCount Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
 }
 
 model Admin {
-  id                  String               @id @default(cuid())
+  id                  String              @id @default(cuid())
+  institutionId       String
+  institution         Institution         @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   firstName           String
   lastName            String
-  title                String
-  authorityLevel       AdminAuthorityLevel  @default(BRANCH_MANAGER)
-  institutionalMobile  String
-  email                String
-  extensionNumber      String? // Dahili No
-  passwordHash         String? // bcrypt — giriş akışı henüz uygulanmadı, ileriye dönük hazırlık
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+  title               String
+  authorityLevel      AdminAuthorityLevel @default(BRANCH_MANAGER)
+  institutionalMobile String
+  email               String
+  extensionNumber     String? // Dahili No
+  passwordHash        String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
+  mustChangePassword  Boolean             @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([institutionId])
 }
 
 // ----------------------------------------------------------------------------
@@ -232,11 +316,15 @@ model Admin {
 
 model Exam {
   id              String               @id @default(cuid())
+  institutionId   String
+  institution     Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   name            String
   examDate        DateTime
   results         ExamNetResult[]
   seatAssignments ExamSeatAssignment[]
   createdAt       DateTime             @default(now())
+
+  @@index([institutionId])
 }
 
 model ExamNetResult {
@@ -310,29 +398,33 @@ model SmsTemplate {
 }
 
 model NotificationBatch {
-  id         String                @id @default(cuid())
-  scopeType  NotificationScopeType
-  scopeValue String? // "12" (Kademe), "12-A VIP" (Şube), "id1,id2" (CustomIDList) vb.
-  templateId String?
-  template   SmsTemplate?          @relation(fields: [templateId], references: [id])
-  rawMessage String?
-  logs       NotificationLog[]
-  createdAt  DateTime              @default(now())
+  id            String                @id @default(cuid())
+  institutionId String
+  institution   Institution           @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  scopeType     NotificationScopeType
+  scopeValue    String? // "12" (Kademe), "12-A VIP" (Şube), "id1,id2" (CustomIDList) vb.
+  templateId    String?
+  template      SmsTemplate?          @relation(fields: [templateId], references: [id])
+  rawMessage    String?
+  logs          NotificationLog[]
+  createdAt     DateTime              @default(now())
+
+  @@index([institutionId])
 }
 
 model NotificationLog {
-  id             String              @id @default(cuid())
+  id             String             @id @default(cuid())
   batchId        String
-  batch          NotificationBatch   @relation(fields: [batchId], references: [id])
+  batch          NotificationBatch  @relation(fields: [batchId], references: [id])
   recipientPhone String
   recipientName  String?
   message        String
-  status         NotificationStatus  @default(PENDING)
+  status         NotificationStatus @default(PENDING)
   providerName   String?
   providerRef    String?
   errorMessage   String?
   sentAt         DateTime?
-  createdAt      DateTime            @default(now())
+  createdAt      DateTime           @default(now())
 
   @@index([batchId])
   @@index([status])
@@ -389,7 +481,7 @@ model Homework {
   description         String?
   linkUrl             String?
   fileNames           String[] // yüklenen ek dosya adları (görüntüleme amaçlı)
-  checklist            String[]
+  checklist           String[]
   targetQuestionCount Int?
   dueAt               DateTime?
   createdAt           DateTime             @default(now())
@@ -564,18 +656,22 @@ enum AnnouncementAuthorRole {
 }
 
 model Announcement {
-  id         String                 @id @default(cuid())
-  title      String
-  content    String
-  category   AnnouncementCategory   @default(GENERAL)
+  id            String                 @id @default(cuid())
+  institutionId String
+  institution   Institution            @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  title         String
+  content       String
+  category      AnnouncementCategory   @default(GENERAL)
   // Hedef kitle: NotificationScopeType, SMS modülüyle aynı — ALL_SCHOOL /
   // GRADE (scopeValue: "12") / BRANCH (scopeValue: branchId) burada kullanılır.
-  scopeType  NotificationScopeType  @default(ALL_SCHOOL)
-  scopeValue String?
-  authorName String
-  authorRole AnnouncementAuthorRole
-  createdAt  DateTime               @default(now())
-  reads      AnnouncementRead[]
+  scopeType     NotificationScopeType  @default(ALL_SCHOOL)
+  scopeValue    String?
+  authorName    String
+  authorRole    AnnouncementAuthorRole
+  createdAt     DateTime               @default(now())
+  reads         AnnouncementRead[]
+
+  @@index([institutionId])
 }
 
 model AnnouncementRead {
@@ -793,4 +889,37 @@ model RemediationTask {
   assignedAt      DateTime @default(now())
 
   @@index([studentId])
+}
+
+// ----------------------------------------------------------------------------
+// Audit Log — kritik yazma işlemlerinin (kullanıcı oluşturma, not girişi,
+// rehberlik notu, şifre değişimi) kim/ne-zaman/ne kaydı. Sadece EKLENİR,
+// hiçbir zaman güncellenmez/silinmez — bu yüzden updatedAt yok.
+// ----------------------------------------------------------------------------
+
+enum AuditAction {
+  USER_CREATED
+  GRADE_ENTERED
+  GUIDANCE_NOTE_CREATED
+  PASSWORD_CHANGED
+}
+
+model AuditLog {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  // actorId'nin FK'si YOK — Admin/Teacher/Student/Parent'tan (4 farklı tablo)
+  // herhangi biri olabilir; Prisma polimorfik ilişkiyi desteklemiyor, bu
+  // yüzden actorRole ile birlikte denormalize tutulur (AuthRole değeri).
+  actorId       String
+  actorRole     String
+  action        AuditAction
+  targetType    String
+  targetId      String
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+
+  @@index([institutionId, createdAt])
+  @@index([actorId])
+  @@index([targetType, targetId])
 }

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Users, LifeBuoy, CheckCircle2, FileSpreadsheet, Megaphone, Loader2 } from "lucide-react";
 import { RISK_REASON_LABEL, type RiskReason, type Segment } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
+import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { cn } from "@/lib/utils";
 
 type DashboardStudent = { id: string; name: string; branch: string; actualNet: number | null };
@@ -31,8 +32,7 @@ function useDashboard(segment: Segment) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/admin/dashboard?segment=${encodeURIComponent(String(segment))}`)
-      .then((res) => res.json())
+    fetchDashboard<DashboardResponse>(String(segment))
       .then((json) => {
         if (!cancelled) setData(json);
       })

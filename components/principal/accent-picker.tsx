@@ -82,7 +82,7 @@ export function AccentPicker() {
       <button
         onClick={() => setIsOpen((value) => !value)}
         aria-label="Vurgu rengini özelleştir"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm backdrop-blur-sm transition hover:border-brand-600/40 hover:text-brand-600 dark:border-white/10 dark:bg-midnight-card/70 dark:text-cream"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm backdrop-blur-sm transition hover:border-brand-600/40 hover:text-brand-600 dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
       >
         <Palette className="h-4 w-4" />
       </button>

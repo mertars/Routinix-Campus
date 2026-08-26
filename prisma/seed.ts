@@ -8,15 +8,14 @@
 // modüllerde (Yoklama/Ödev/Pop-Quiz) hem henüz mock kalan modüllerde aynı
 // kişi olarak görünür.
 //
-// ⚠️ passwordHash alanları, TÜM demo hesaplar için aynı, açıkça sahte bir
-// demo şifresinin ("Demo1234!") bcrypt hash'idir — gerçek bir kimlik bilgisi
-// değildir. Gerçek bir giriş (login) akışı henüz uygulanmadı; bu alan sadece
-// ileride eklenecek auth için altyapı hazırlığıdır.
+// ⚠️ passwordHash alanları NULL başlatılır — ilk girişte kullanıcı telefon+OTP
+// doğrulamasıyla kendi kalıcı şifresini belirler (bkz. mustChangePassword +
+// lib/server/auth/otp.ts). Öğrencilere de deterministik birer GSM atanır
+// (studentPhoneFor) çünkü giriş akışı telefon numarasıyla çalışır.
 import { config } from "dotenv";
 config({ path: ".env.local" });
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import bcrypt from "bcryptjs";
 import { createHash } from "crypto";
 import {
   INITIAL_BRANCHES,
@@ -33,7 +32,19 @@ import { generateBranchCode, generateTeacherCode, generateStudentNumber } from "
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" });
 const prisma = new PrismaClient({ adapter });
 
-const DEMO_PASSWORD_HASH = bcrypt.hashSync("Demo1234!", 10);
+// Çoklu-kurum migration'ının (20260826115720_add_institution_multitenancy)
+// backfill ettiği TEK kurumla birebir aynı id — demo verisi hep bu kuruma
+// yazılır. Yeni bir kurum onboarding akışı (FAZ 5) eklenene kadar tek gerçek
+// kaynak budur.
+const DEFAULT_INSTITUTION_ID = "inst_arslan_dershaneleri_default";
+
+async function ensureDefaultInstitution() {
+  await prisma.institution.upsert({
+    where: { id: DEFAULT_INSTITUTION_ID },
+    update: {},
+    create: { id: DEFAULT_INSTITUTION_ID, name: "Arslan Dershaneleri", slug: "arslan-dershaneleri", isActive: true },
+  });
+}
 
 const TEACHER_ID_BY_NAME: Record<string, string> = {
   "İrfan Hoca": "1",
@@ -59,7 +70,18 @@ function nationalIdFor(seatId: string): string {
   return `9${numeric.toString().padStart(9, "0")}`;
 }
 
+// seat.id'den KARARLI (deterministik) bir sahte GSM üretir — öğrenci ilk
+// giriş akışında telefon+OTP ile doğrulanacağı için her öğrenciye numara
+// gerekir. Türkiye GSM biçimine ("0555…") benzemesi için sabit önek kullanılır.
+function studentPhoneFor(seatId: string): string {
+  const hash = createHash("sha256").update(`phone:${seatId}`).digest("hex");
+  const numeric = BigInt(`0x${hash.slice(0, 12)}`) % BigInt(10_000_000);
+  return `0555${numeric.toString().padStart(7, "0")}`;
+}
+
 async function main() {
+  await ensureDefaultInstitution();
+
   // ---- Öğretmenler -----------------------------------------------------
   const teachers = [
     { id: "1", firstName: "İrfan", lastName: "Hoca", subject: "Matematik", nationalId: "10000000001", mobilePhone: "05550000001" },
@@ -72,7 +94,7 @@ async function main() {
     await prisma.teacher.upsert({
       where: { id: teacher.id },
       update: {},
-      create: { ...teacher, passwordHash: DEMO_PASSWORD_HASH, institutionalEmail: `${teacher.firstName.toLowerCase()}@arslandershaneleri.demo` },
+      create: { ...teacher, institutionId: DEFAULT_INSTITUTION_ID, passwordHash: null, institutionalEmail: `${teacher.firstName.toLowerCase()}@arslandershaneleri.demo` },
     });
   }
 
@@ -82,13 +104,14 @@ async function main() {
     update: {},
     create: {
       id: "1",
+      institutionId: DEFAULT_INSTITUTION_ID,
       firstName: "Mert",
       lastName: "Yönetici",
       title: "Kurum Müdürü",
       authorityLevel: "SUPER_ADMIN",
       institutionalMobile: "05550000000",
       email: "mudur@arslandershaneleri.demo",
-      passwordHash: DEMO_PASSWORD_HASH,
+      passwordHash: null,
     },
   });
 
@@ -105,7 +128,7 @@ async function main() {
     const branch = await prisma.branch.upsert({
       where: { id: mockBranch.id },
       update: { segment: mockBranch.segment },
-      create: { id: mockBranch.id, name: mockBranch.name, grade: mockBranch.grade ?? 12, segment: mockBranch.segment, advisorId: teacherId },
+      create: { id: mockBranch.id, institutionId: DEFAULT_INSTITUTION_ID, name: mockBranch.name, grade: mockBranch.grade ?? 12, segment: mockBranch.segment, advisorId: teacherId },
     });
     const roster = SEAT_ROSTER_BY_BRANCH[mockBranch.id] ?? [];
     const createdIds: string[] = [];
@@ -119,15 +142,17 @@ async function main() {
         update: {},
         create: {
           id: seat.id,
+          institutionId: DEFAULT_INSTITUTION_ID,
           nationalId: nationalIdFor(seat.id),
           firstName,
           lastName,
           birthDate: new Date(birthYear, 0, 15),
           gender: i % 2 === 0 ? "MALE" : "FEMALE",
           studentNumber: `S-${seat.id}`,
+          phone: studentPhoneFor(seat.id),
           branchId: branch.id,
           advisorTeacherId: teacherId,
-          passwordHash: DEMO_PASSWORD_HASH,
+          passwordHash: null,
         },
       });
       createdIds.push(seat.id);
@@ -147,6 +172,7 @@ async function main() {
     update: {},
     create: {
       id: "1",
+      institutionId: DEFAULT_INSTITUTION_ID,
       firstName: "Kemal",
       lastName: "Yıldırım",
       relationship: "FATHER",
@@ -154,7 +180,7 @@ async function main() {
       smsConsent: true,
       kvkkConsent: "GRANTED",
       iysConsent: "GRANTED",
-      passwordHash: DEMO_PASSWORD_HASH,
+      passwordHash: null,
       email: "kemal.yildirim@veli.demo",
     },
   });
@@ -173,7 +199,7 @@ async function main() {
     const exam = await prisma.exam.upsert({
       where: { id: `exam-${i + 1}` },
       update: {},
-      create: { id: `exam-${i + 1}`, name: examNames[i], examDate: new Date(2026, 3, (i + 1) * 7) },
+      create: { id: `exam-${i + 1}`, institutionId: DEFAULT_INSTITUTION_ID, name: examNames[i], examDate: new Date(2026, 3, (i + 1) * 7) },
     });
     for (const [studentId, nets] of [
       ["1", arslanNets],
@@ -284,13 +310,13 @@ async function main() {
   // üretilmez, sıra numarası her seferinde 01'den şaşmaz.
   const branchesWithoutCode = await prisma.branch.findMany({ where: { institutionalCode: null }, orderBy: { grade: "asc" } });
   for (const branch of branchesWithoutCode) {
-    const code = await generateBranchCode(prisma);
+    const code = await generateBranchCode(prisma, DEFAULT_INSTITUTION_ID);
     await prisma.branch.update({ where: { id: branch.id }, data: { institutionalCode: code } });
   }
 
   const teachersWithoutCode = await prisma.teacher.findMany({ where: { institutionalCode: null }, orderBy: { id: "asc" } });
   for (const teacher of teachersWithoutCode) {
-    const code = await generateTeacherCode(prisma);
+    const code = await generateTeacherCode(prisma, DEFAULT_INSTITUTION_ID);
     await prisma.teacher.update({ where: { id: teacher.id }, data: { institutionalCode: code } });
   }
 
@@ -302,7 +328,7 @@ async function main() {
     select: { id: true },
   });
   for (const student of studentsWithOldFormat) {
-    const studentNumber = await generateStudentNumber(prisma);
+    const studentNumber = await generateStudentNumber(prisma, DEFAULT_INSTITUTION_ID);
     await prisma.student.update({ where: { id: student.id }, data: { studentNumber } });
   }
 
@@ -310,7 +336,7 @@ async function main() {
   console.log(
     `Seed tamamlandı: ${INITIAL_BRANCHES.length} şube, ${teachers.length} öğretmen, 1 yönetici, ${totalStudents} öğrenci, 1 veli, 12 net sonucu, 5 yoklama kaydı.`
   );
-  console.log(`Demo giriş şifresi (tüm hesaplar için, henüz login akışı yok): "Demo1234!"`);
+  console.log("İlk giriş: /login > telefon + OTP ile kendi kalıcı şifrenizi belirleyin.");
 }
 
 main()

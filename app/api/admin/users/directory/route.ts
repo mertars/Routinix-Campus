@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +9,9 @@ export const dynamic = "force-dynamic";
 // GET /api/admin/users/directory?role=STUDENT|TEACHER&query=&branchId=&subject=
 async function handleGet(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const role = request.nextUrl.searchParams.get("role") ?? "STUDENT";
     const query = request.nextUrl.searchParams.get("query")?.trim();
     const branchId = request.nextUrl.searchParams.get("branchId");
@@ -15,6 +20,7 @@ async function handleGet(request: NextRequest) {
     if (role === "TEACHER") {
       const teachers = await prisma.teacher.findMany({
         where: {
+          institutionId: session.institutionId,
           subject: subject || undefined,
           OR: query
             ? [
@@ -51,6 +57,7 @@ async function handleGet(request: NextRequest) {
 
     const students = await prisma.student.findMany({
       where: {
+        institutionId: session.institutionId,
         branchId: branchId || undefined,
         OR: query
           ? [{ firstName: { contains: query, mode: "insensitive" } }, { lastName: { contains: query, mode: "insensitive" } }, { studentNumber: { contains: query, mode: "insensitive" } }]
@@ -78,6 +85,7 @@ async function handleGet(request: NextRequest) {
       total: students.length,
     });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("admin_directory_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }

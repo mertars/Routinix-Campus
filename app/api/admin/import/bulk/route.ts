@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { AdminCreateError, createStudentAccount, createTeacherAccount } from "@/lib/server/admin/create-user";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +25,9 @@ type RowResult = {
 // kayıt") — bir satırın başarısız olması diğerlerinin yazılmasını engellemez.
 async function handlePost(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const body = await request.json();
     const { role, rows } = body as { role?: "STUDENT" | "TEACHER"; rows?: RawRow[] };
 
@@ -36,7 +41,7 @@ async function handlePost(request: NextRequest) {
       return NextResponse.json({ error: "Tek seferde en fazla 500 satır işlenebilir." }, { status: 400 });
     }
 
-    const branches = await prisma.branch.findMany({ select: { id: true, name: true } });
+    const branches = await prisma.branch.findMany({ where: { institutionId: session.institutionId }, select: { id: true, name: true } });
     const branchByName = new Map(branches.map((b) => [b.name.trim().toLocaleLowerCase("tr"), b.id]));
 
     const seenNationalIds = new Set<string>();
@@ -57,13 +62,21 @@ async function handlePost(request: NextRequest) {
           const branchName = (row.branchName ?? row["Şube"] ?? "").toString().trim();
           const branchId = branchByName.get(branchName.toLocaleLowerCase("tr"));
           if (!branchId) throw new AdminCreateError(`Şube bulunamadı: "${branchName}".`);
+          const phone = (row.phone ?? row["Öğrenci GSM"] ?? "").toString().trim();
+          if (!phone) throw new AdminCreateError("Öğrenci GSM zorunludur (kişisel telefonu yoksa veli telefonu girilebilir).");
+          const parentName = (row.parentName ?? row["Veli Ad Soyad"] ?? "").toString().trim();
+          const parentPhone = (row.parentPhone ?? row["Veli GSM"] ?? "").toString().trim();
+          if (!parentName || !parentPhone) throw new AdminCreateError("Veli Ad Soyad ve Veli GSM zorunludur.");
 
           const account = await createStudentAccount({
+            institutionId: session.institutionId,
+            actorId: session.sub,
             fullName,
             nationalId,
             branchId,
-            parentName: (row.parentName ?? row["Veli Ad Soyad"])?.toString().trim(),
-            parentPhone: (row.parentPhone ?? row["Veli GSM"])?.toString().trim(),
+            phone,
+            parentName,
+            parentPhone,
             healthNote: (row.healthNote ?? row["Özel Not"])?.toString().trim(),
           });
           results.push({ rowIndex: i, fullName, status: "success", username: account.username, password: account.password });
@@ -77,6 +90,8 @@ async function handlePost(request: NextRequest) {
           if (advisorBranchName && !advisorBranchId) throw new AdminCreateError(`Şube bulunamadı: "${advisorBranchName}".`);
 
           const account = await createTeacherAccount({
+            institutionId: session.institutionId,
+            actorId: session.sub,
             fullName,
             nationalId,
             subject,
@@ -98,6 +113,7 @@ async function handlePost(request: NextRequest) {
 
     return NextResponse.json({ results, successCount, failedCount: rows.length - successCount });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("admin_bulk_import_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }

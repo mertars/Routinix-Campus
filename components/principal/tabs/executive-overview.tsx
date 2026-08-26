@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Building2, Users, ScanLine, Megaphone, Radar, type LucideIcon } from "lucide-react";
 import type { Segment } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
+import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { Modal } from "@/components/ui/modal";
 import {
   BranchesListContent,
@@ -39,8 +40,7 @@ export function ExecutiveOverviewTab({ segment = "ALL" }: { segment?: Segment } 
   const [announcementCount, setAnnouncementCount] = useState(0);
 
   useEffect(() => {
-    fetch(`/api/admin/dashboard?segment=${encodeURIComponent(String(segment))}`)
-      .then((res) => res.json())
+    fetchDashboard<DashboardData>(String(segment))
       .then((json) => setData(json))
       .catch(() => showError("Genel bakış verisi yüklenemedi."));
     fetch("/api/announcements")
@@ -57,10 +57,10 @@ export function ExecutiveOverviewTab({ segment = "ALL" }: { segment?: Segment } 
 
   const hints: Record<string, string> = {
     branches: `${branches.length} aktif sınıf`,
-    staff: `${data?.staff.length ?? 0} kişi`,
+    staff: `${data?.staff?.length ?? 0} kişi`,
     upload: data?.latestExam ? `Son yükleme: ${data.latestExam.name}` : "Henüz yükleme yok",
     announcements: `${announcementCount} aktif duyuru`,
-    risk: `${data?.riskyStudents.length ?? 0} sevk bekleyen öğrenci`,
+    risk: `${data?.riskyStudents?.length ?? 0} sevk bekleyen öğrenci`,
   };
 
   const examNetTrend = data?.examNetTrend ?? [];
@@ -78,7 +78,7 @@ export function ExecutiveOverviewTab({ segment = "ALL" }: { segment?: Segment } 
             whileHover={{ scale: 1.02, y: -4 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => setOpenModalId(card.id)}
-            className="flex flex-col items-start gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-left shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+            className="flex flex-col items-start gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-left shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15">
               <card.icon className="h-4 w-4" />
@@ -94,7 +94,7 @@ export function ExecutiveOverviewTab({ segment = "ALL" }: { segment?: Segment } 
       <div className="grid gap-4 lg:grid-cols-2">
         <motion.div
           whileHover={{ scale: 1.01, y: -3 }}
-          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
         >
           <h2 className="mb-4 text-sm font-semibold text-espresso dark:text-cream">Şube Bazlı Ödev Tamamlama Karşılaştırması</h2>
           <div className="space-y-4">
@@ -122,7 +122,7 @@ export function ExecutiveOverviewTab({ segment = "ALL" }: { segment?: Segment } 
 
         <motion.div
           whileHover={{ scale: 1.01, y: -3 }}
-          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
         >
           <h2 className="mb-1 text-sm font-semibold text-espresso dark:text-cream">Deneme Bazlı Net Ortalaması</h2>
           <p className="mb-4 text-[11px] text-espresso-muted dark:text-cream/40">

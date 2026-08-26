@@ -1,33 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 // POST /api/quizzes — öğretmen bir Pop-Quiz fırlatır (stage=LIVE).
-// Body: { teacherId, branchId, name, durationSeconds, questions: [{imageLabel, answer}] }
+// teacherId body'den DEĞİL oturumdan alınır (bir öğretmen başka bir öğretmen
+// adına quiz açamaz). Body: { branchId, name, durationSeconds, questions }
 async function handlePost(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "teacher");
+    const teacherId = session.sub;
+
     const body = await request.json();
-    const { teacherId, branchId, name, durationSeconds, questions } = body as {
-      teacherId?: string;
+    const { branchId, name, durationSeconds, questions } = body as {
       branchId?: string;
       name?: string;
       durationSeconds?: number;
       questions?: { imageLabel: string; answer: string }[];
     };
 
-    if (!teacherId || !branchId || !name?.trim() || !durationSeconds || !Array.isArray(questions) || questions.length < 5) {
-      return NextResponse.json({ error: "teacherId, branchId, name, durationSeconds ve en az 5 soru zorunludur." }, { status: 400 });
+    if (!branchId || !name?.trim() || !durationSeconds || !Array.isArray(questions) || questions.length < 5) {
+      return NextResponse.json({ error: "branchId, name, durationSeconds ve en az 5 soru zorunludur." }, { status: 400 });
     }
     if (questions.some((q) => !q.imageLabel?.trim() || !q.answer?.trim())) {
       return NextResponse.json({ error: "Her sorunun görsel etiketi ve cevabı olmalı." }, { status: 400 });
     }
 
-    const [teacher, branch] = await Promise.all([
-      prisma.teacher.findUnique({ where: { id: teacherId }, select: { id: true } }),
-      prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } }),
-    ]);
-    if (!teacher) return NextResponse.json({ error: "Öğretmen bulunamadı." }, { status: 404 });
-    if (!branch) return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
+    const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { id: true, institutionId: true } });
+    if (!branch || branch.institutionId !== session.institutionId) {
+      return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
+    }
 
     // Aynı şubede zaten canlı bir quiz varsa üzerine yenisini açma.
     const existingLive = await prisma.quiz.findFirst({ where: { branchId, stage: "LIVE" } });
@@ -48,6 +52,7 @@ async function handlePost(request: NextRequest) {
 
     return NextResponse.json({ quiz }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("quiz_launch_failed", { error: error instanceof Error ? error.message : String(error) });
     const message = error instanceof Error ? error.message : "Beklenmeyen hata";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -58,6 +63,9 @@ async function handlePost(request: NextRequest) {
 // (ENDED) quiz'leri, yanıt sayılarıyla birlikte döner.
 async function handleGet(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const isFeed = request.nextUrl.searchParams.get("feed") === "true";
     if (!isFeed) {
       return NextResponse.json({ error: "Şu an sadece ?feed=true destekleniyor." }, { status: 400 });
@@ -65,7 +73,7 @@ async function handleGet(request: NextRequest) {
     const limit = Math.min(20, Number(request.nextUrl.searchParams.get("limit") ?? "4") || 4);
 
     const quizzes = await prisma.quiz.findMany({
-      where: { stage: "ENDED" },
+      where: { stage: "ENDED", branch: { institutionId: session.institutionId } },
       orderBy: { endedAt: "desc" },
       take: limit,
       include: { branch: { select: { name: true } }, submissions: { select: { id: true } } },
@@ -81,6 +89,7 @@ async function handleGet(request: NextRequest) {
 
     return NextResponse.json({ results });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("quiz_feed_failed", { error: error instanceof Error ? error.message : String(error) });
     const message = error instanceof Error ? error.message : "Beklenmeyen hata";
     return NextResponse.json({ error: message }, { status: 500 });

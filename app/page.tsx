@@ -4,27 +4,30 @@ import { Suspense } from "react";
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ShieldAlert, Crown, GraduationCap, BookOpen, Users } from "lucide-react";
-import { useRole } from "@/lib/role-context";
 import { MOCK_PERSONAS, type RoleId } from "@/lib/mock-data";
 import { RoleCard } from "@/components/role-select/role-card";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { AuroraOrbs, GlowLogo, spaceGrotesk, AURORA_GRID_STYLE } from "@/components/ui/aurora-brand";
+import { cn } from "@/lib/utils";
 
 const PANEL_LABEL: Record<string, string> = {
   principal: "Yönetici Paneli",
   teacher: "Öğretmen Paneli",
   student: "Öğrenci Paneli",
+  parent: "Veli Paneli",
 };
 
 const ICONS: Record<RoleId, typeof Crown> = {
   principal: Crown,
   teacher: GraduationCap,
   student: BookOpen,
+  parent: Users,
 };
 
-const TONES: Record<RoleId, "espresso" | "amber" | "green"> = {
-  principal: "espresso",
-  teacher: "amber",
-  student: "green",
+const ROLE_DESCRIPTION: Record<RoleId, string> = {
+  principal: "Kurumu tek panelden yönetin — kadro, şube, risk ve performans tek ekranda.",
+  teacher: "Sınıfını, ödevlerini ve öğrenci gelişimini uçtan uca takip et.",
+  student: "Netlerini, ödevlerini ve haftalık programını tek yerden gör.",
+  parent: "Çocuğunuzun akademik gelişimini gerçek zamanlı izleyin.",
 };
 
 // useSearchParams() bir Suspense sınırı içinde olmalı (Next.js App Router
@@ -39,7 +42,7 @@ function AccessDeniedNotice() {
     <motion.div
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-6 flex max-w-md items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+      className="mb-8 flex max-w-md items-center gap-2 rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-2.5 text-xs font-medium text-rose-200"
     >
       <ShieldAlert className="h-4 w-4 shrink-0" />
       Bu rolle {PANEL_LABEL[denied]}&apos;ne erişemezsiniz — devam etmek için doğru rolü seçin.
@@ -49,64 +52,44 @@ function AccessDeniedNotice() {
 
 export default function RoleSelectPage() {
   const router = useRouter();
-  const { selectRole } = useRole();
 
   function handleSelect(persona: (typeof MOCK_PERSONAS)[number]) {
-    selectRole(persona.id);
-    router.push(persona.href);
+    // Rol seçimini URL parametresi olarak gönder
+    const loginUrl = `/login?role=${persona.id}`;
+    router.push(loginUrl);
   }
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-cream px-6 py-16 dark:bg-midnight">
-      <div className="absolute right-6 top-6">
-        <ThemeToggle />
-      </div>
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#08060B] px-6 py-16">
+      <AuroraOrbs />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.35]" style={AURORA_GRID_STYLE} />
 
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="mb-12 text-center"
+        className="relative z-10 mb-12 flex flex-col items-center text-center"
       >
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-espresso text-xl font-bold text-cream dark:bg-brand-600">
-          R
-        </div>
-        <h1 className="text-2xl font-semibold text-espresso dark:text-cream">Routinix Kampüs</h1>
-        <p className="mt-1 text-sm text-espresso-muted dark:text-cream/40">Devam etmek için rolünü seç</p>
+        <GlowLogo size="h-14 w-14" textSize="text-2xl" />
+        <h1 className={cn(spaceGrotesk.className, "mt-5 text-3xl font-bold text-white")}>Routinix Kampüs</h1>
+        <p className="mt-2 text-sm text-white/40">Devam etmek için rolünü seç</p>
       </motion.div>
 
       <Suspense fallback={null}>
         <AccessDeniedNotice />
       </Suspense>
 
-      <div className="grid w-full max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="relative z-10 grid w-full max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {MOCK_PERSONAS.map((persona, index) => (
           <RoleCard
             key={persona.id}
             persona={persona}
             icon={ICONS[persona.id]}
-            tone={TONES[persona.id]}
+            description={ROLE_DESCRIPTION[persona.id]}
             index={index}
             onSelect={() => handleSelect(persona)}
           />
         ))}
-        <motion.button
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, delay: MOCK_PERSONAS.length * 0.08, ease: "easeOut" }}
-          whileHover={{ scale: 1.02, y: -2 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={() => router.push("/parent")}
-          className="flex min-h-[168px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-hairline bg-cream-card/60 p-6 text-center opacity-80 transition-colors hover:border-brand-600/40 dark:border-white/10 dark:bg-midnight-card/60"
-        >
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-espresso/8 text-espresso dark:bg-brand-600/15 dark:text-brand-500">
-            <Users className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-espresso dark:text-cream">Veli Girişi</p>
-            <p className="mt-0.5 text-xs text-espresso-muted dark:text-cream/40">Yakında</p>
-          </div>
-        </motion.button>
       </div>
     </main>
   );

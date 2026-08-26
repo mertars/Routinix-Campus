@@ -27,7 +27,7 @@ export function TeacherAppearancePopup({ isOpen, onClose }: { isOpen: boolean; o
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 12 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="rounded-3xl border border-white/10 bg-[#1C1512]/95 p-6 text-cream shadow-2xl backdrop-blur-2xl"
+              className="rounded-3xl border border-white/10 bg-midnight-card/95 p-6 text-cream shadow-2xl backdrop-blur-2xl"
             >
               <div className="mb-5 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-cream">Görünüm</h3>

@@ -159,12 +159,12 @@ export function PopQuizTab() {
             <p className="text-xs text-white/80">Öğretmeniniz şu an canlı bir soru fırlattı — hemen katılın!</p>
           </motion.button>
         ) : activeQuiz && alreadySubmitted ? (
-          <motion.div key="submitted" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2 rounded-3xl border border-hairline bg-white/70 p-6 text-center dark:border-white/10 dark:bg-midnight-card/70">
+          <motion.div key="submitted" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2 rounded-3xl border border-hairline bg-white/70 p-6 text-center dark:border-white/10 dark:bg-midnight-card/50">
             <PartyPopper className="h-8 w-8 text-brand-600" />
             <p className="text-sm font-semibold text-espresso dark:text-cream">Yanıtların gönderildi, sonucun bekleniyor.</p>
           </motion.div>
         ) : (
-          <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2 rounded-3xl border border-hairline bg-white/70 p-8 text-center dark:border-white/10 dark:bg-midnight-card/70">
+          <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2 rounded-3xl border border-hairline bg-white/70 p-8 text-center dark:border-white/10 dark:bg-midnight-card/50">
             <Rocket className="h-8 w-8 text-espresso-muted dark:text-cream/30" />
             <p className="text-sm font-medium text-espresso dark:text-cream">Şu anda aktif bir Pop-Quiz yok</p>
             <p className="text-xs text-espresso-muted dark:text-cream/40">Öğretmenin bir soru fırlattığında bu ekranda anında görünecek.</p>

@@ -1,19 +1,15 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { X, Check, RotateCcw, Palette } from "lucide-react";
+import { X, Check, RotateCcw, Palette, LogOut } from "lucide-react";
 import { useAccent } from "@/lib/accent-context";
 import { ACCENT_PRESETS, DEFAULT_ACCENT_HEX } from "@/lib/color-utils";
-import { useRole } from "@/lib/role-context";
-import { MOCK_PERSONAS } from "@/lib/mock-data";
+import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { cn } from "@/lib/utils";
 
 export function MobileMenuPopup({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { hex, setAccent, resetAccent } = useAccent();
-  const { role, selectRole } = useRole();
-  const router = useRouter();
+  const logout = useLogout();
   const isDefaultAccent = hex.toLowerCase() === DEFAULT_ACCENT_HEX.toLowerCase();
 
   return (
@@ -33,7 +29,7 @@ export function MobileMenuPopup({ isOpen, onClose }: { isOpen: boolean; onClose:
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 12 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#1C1512]/95 p-6 text-cream shadow-2xl backdrop-blur-2xl"
+              className="max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-midnight-card/95 p-6 text-cream shadow-2xl backdrop-blur-2xl"
             >
               <div className="mb-5 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-cream">Ayarlar</h3>
@@ -91,28 +87,15 @@ export function MobileMenuPopup({ isOpen, onClose }: { isOpen: boolean; onClose:
                 <ThemeToggle />
               </div>
 
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cream/50">Rol Değiştir</p>
-              <div className="grid grid-cols-3 gap-2">
-                {MOCK_PERSONAS.map((persona) => {
-                  const isActive = role === persona.id;
-                  return (
-                    <button
-                      key={persona.id}
-                      onClick={() => {
-                        selectRole(persona.id);
-                        onClose();
-                        router.push(persona.href);
-                      }}
-                      className={cn(
-                        "flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-2xl border px-2 py-2.5 text-center text-[11px] font-medium transition",
-                        isActive ? "border-brand-600 bg-brand-600 text-white" : "border-white/15 text-cream/70 hover:bg-white/5"
-                      )}
-                    >
-                      {persona.cardLabel.replace(" Girişi", "")}
-                    </button>
-                  );
-                })}
-              </div>
+              <button
+                onClick={() => {
+                  onClose();
+                  logout();
+                }}
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-xs font-medium text-red-400 transition hover:bg-red-500/20"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Çıkış Yap
+              </button>
             </motion.div>
           </div>
         </>

@@ -23,6 +23,7 @@ import {
   Wand2,
   Trophy,
 } from "lucide-react";
+import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { type NavTab } from "@/components/principal/floating-nav";
 import { DualFloatingNav } from "@/components/principal/dual-floating-nav";
 import { SegmentSelector } from "@/components/principal/segment-selector";
@@ -112,8 +113,7 @@ export default function PrincipalPage() {
 
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
   useEffect(() => {
-    fetch(`/api/admin/dashboard?segment=${encodeURIComponent(String(selectedSegment))}`)
-      .then((res) => res.json())
+    fetchDashboard<Partial<DashboardStats>>(String(selectedSegment))
       .then((data) =>
         setStats({
           totalStudents: data.totalStudents ?? 0,
@@ -128,7 +128,7 @@ export default function PrincipalPage() {
   const { totalStudents, avgCompletion, riskyStudentCount } = stats;
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-cream dark:bg-midnight">
+    <div className="relative min-h-screen overflow-x-hidden dark:bg-transparent bg-cream">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[640px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-500/10 via-transparent to-transparent"

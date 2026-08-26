@@ -2,23 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { saveQuestionImage, MAX_QUESTION_IMAGE_BYTES } from "@/lib/server/uploads/save-question-image";
 import { notifyTeacherBySms } from "@/lib/server/notifications/teacher-sms-queue";
+import { requireSession, requireRole, requireInstitution, assertOwnsSelf, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
-// POST /api/questions — öğrenci, çözemediği bir sorunun fotoğrafını seçtiği
-// öğretmene gönderir (multipart/form-data: studentId, teacherId, subject,
-// studentNote?, image).
+// POST /api/questions — öğrenci KENDİSİ, çözemediği bir sorunun fotoğrafını
+// seçtiği öğretmene gönderir (multipart/form-data: teacherId, subject,
+// studentNote?, image). studentId body'den değil oturumdan alınır.
 async function handlePost(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "student");
+    const studentId = session.sub;
+
     const formData = await request.formData();
-    const studentId = formData.get("studentId");
     const teacherId = formData.get("teacherId");
     const subject = formData.get("subject");
     const studentNote = formData.get("studentNote");
     const image = formData.get("image");
 
-    if (typeof studentId !== "string" || !studentId) {
-      return NextResponse.json({ error: "studentId zorunludur." }, { status: 400 });
-    }
     if (typeof teacherId !== "string" || !teacherId) {
       return NextResponse.json({ error: "teacherId zorunludur." }, { status: 400 });
     }
@@ -35,14 +37,12 @@ async function handlePost(request: NextRequest) {
       return NextResponse.json({ error: "Görsel 8MB'dan büyük olamaz." }, { status: 400 });
     }
 
-    // studentId/teacherId ilişkisel bütünlüğünü baştan doğrula — yoksa ham
+    // teacherId'nin AYNI kurumda gerçekten var olduğunu doğrula — yoksa ham
     // Prisma FK hatası yerine anlaşılır bir 404 döner (çakışan/geçersiz ID kontrolü).
-    const [student, teacher] = await Promise.all([
-      prisma.student.findUnique({ where: { id: studentId }, select: { id: true } }),
-      prisma.teacher.findUnique({ where: { id: teacherId }, select: { id: true, mobilePhone: true } }),
-    ]);
-    if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
-    if (!teacher) return NextResponse.json({ error: "Öğretmen bulunamadı." }, { status: 404 });
+    const teacher = await prisma.teacher.findUnique({ where: { id: teacherId }, select: { id: true, institutionId: true, mobilePhone: true } });
+    if (!teacher || teacher.institutionId !== session.institutionId) {
+      return NextResponse.json({ error: "Öğretmen bulunamadı." }, { status: 404 });
+    }
 
     const imageUrl = await saveQuestionImage(image);
 
@@ -73,6 +73,7 @@ async function handlePost(request: NextRequest) {
 
     return NextResponse.json({ question }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("question_create_failed", { error: error instanceof Error ? error.message : String(error) });
     const message = error instanceof Error ? error.message : "Beklenmeyen hata";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -81,13 +82,35 @@ async function handlePost(request: NextRequest) {
 
 // GET /api/questions?teacherId=...  veya  ?studentId=...  (biri zorunlu —
 // aksi halde sistemdeki tüm soruların dışarı sızmasını engellemek için 400 döner)
+// teacherId: sadece o öğretmenin kendisi ya da yönetici. studentId: öğrencinin
+// kendisi / danışman-branş öğretmeni / velisi / yönetici.
 async function handleGet(request: NextRequest) {
   try {
+    const session = await requireSession();
     const teacherId = request.nextUrl.searchParams.get("teacherId");
     const studentId = request.nextUrl.searchParams.get("studentId");
 
     if (!teacherId && !studentId) {
       return NextResponse.json({ error: "teacherId veya studentId parametrelerinden biri zorunludur." }, { status: 400 });
+    }
+
+    if (teacherId) {
+      if (session.role === "TEACHER") {
+        if (session.sub !== teacherId) throw new AuthError("Kayıt bulunamadı.", "NOT_FOUND", 404);
+      } else {
+        requireRole(session, "principal");
+      }
+      const teacher = await prisma.teacher.findUnique({ where: { id: teacherId }, select: { institutionId: true } });
+      if (!teacher || teacher.institutionId !== session.institutionId) {
+        return NextResponse.json({ error: "Öğretmen bulunamadı." }, { status: 404 });
+      }
+    } else {
+      const student = await prisma.student.findUnique({ where: { id: studentId! }, select: { institutionId: true } });
+      if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
+      requireInstitution(session, student.institutionId);
+      if (session.role === "STUDENT") assertOwnsSelf(session, studentId!);
+      else if (session.role === "TEACHER") await assertTeacherOwnsStudent(session.sub, studentId!);
+      else if (session.role === "PARENT") await assertParentOwnsStudent(session.sub, studentId!);
     }
 
     const where = teacherId ? { teacherId } : { studentId: studentId! };
@@ -103,6 +126,7 @@ async function handleGet(request: NextRequest) {
 
     return NextResponse.json({ questions });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("questions_list_failed", { error: error instanceof Error ? error.message : String(error) });
     const message = error instanceof Error ? error.message : "Beklenmeyen hata";
     return NextResponse.json({ error: message }, { status: 500 });

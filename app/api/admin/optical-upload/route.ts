@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
+import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -12,13 +15,16 @@ export const dynamic = "force-dynamic";
 // hesaplanıp döner (statik completionRate'in yerini alır).
 async function handlePost(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const body = await request.json();
     const { examName } = body as { examName?: string };
     if (!examName?.trim()) return NextResponse.json({ error: "examName zorunludur." }, { status: 400 });
 
-    const exam = await prisma.exam.create({ data: { name: examName.trim(), examDate: new Date() } });
+    const exam = await prisma.exam.create({ data: { institutionId: session.institutionId, name: examName.trim(), examDate: new Date() } });
 
-    const students = await prisma.student.findMany({ select: { id: true, branchId: true, targetNet: true } });
+    const students = await prisma.student.findMany({ where: { institutionId: session.institutionId }, select: { id: true, branchId: true, targetNet: true } });
     await prisma.$transaction(
       students.map((student) => {
         const base = student.targetNet ?? 60;
@@ -28,6 +34,7 @@ async function handlePost(request: NextRequest) {
     );
 
     const branches = await prisma.branch.findMany({
+      where: { institutionId: session.institutionId },
       select: { id: true, name: true, students: { select: { netResults: { where: { examId: exam.id }, select: { net: true } } } } },
     });
     const branchAverages = branches.map((b) => {
@@ -36,8 +43,22 @@ async function handlePost(request: NextRequest) {
       return { branchId: b.id, branchName: b.name, averageNet: average };
     });
 
+    // Toplu yükleme — öğrenci başına ayrı kayıt yerine TEK bir denetim
+    // kaydı (aksi halde 100+ öğrencilik bir sınıf tek yüklemede günlüğü
+    // anlamsız şekilde şişirirdi).
+    await recordAuditLog({
+      institutionId: session.institutionId,
+      actorId: session.sub,
+      actorRole: session.role,
+      action: "GRADE_ENTERED",
+      targetType: "Exam",
+      targetId: exam.id,
+      metadata: { examName: exam.name, studentCount: students.length, source: "optical-upload" },
+    });
+
     return NextResponse.json({ exam, branchAverages }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("admin_optical_upload_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }

@@ -108,7 +108,7 @@ export function OverviewTab({ onNavigate = () => {} }: { onNavigate?: (tabId: st
         className={
           lesson.isLive
             ? "flex items-center gap-2 rounded-2xl bg-green-600 p-4 text-sm font-semibold text-white shadow-sm"
-            : "flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-sm font-medium text-espresso-muted backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70 dark:text-cream/40"
+            : "flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-sm font-medium text-espresso-muted backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30 dark:text-cream/40"
         }
       >
         {lesson.isLive ? (
@@ -126,22 +126,22 @@ export function OverviewTab({ onNavigate = () => {} }: { onNavigate?: (tabId: st
       </motion.div>
 
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => onNavigate("net-tracker")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/70 dark:hover:bg-white/5">
+        <button onClick={() => onNavigate("net-tracker")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:hover:bg-white/5">
           <Target className="mb-1.5 h-4 w-4 text-brand-600" />
           <p className="text-lg font-bold text-espresso dark:text-cream">{report.actualNet}</p>
           <p className="text-[10px] text-espresso-muted dark:text-cream/40">Güncel Net (Hedef {report.targetNet})</p>
         </button>
-        <button onClick={() => onNavigate("homework")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/70 dark:hover:bg-white/5">
+        <button onClick={() => onNavigate("homework")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:hover:bg-white/5">
           <FileCheck2 className="mb-1.5 h-4 w-4 text-brand-600" />
           <p className="text-lg font-bold text-espresso dark:text-cream">{pendingHomeworkCount}</p>
           <p className="text-[10px] text-espresso-muted dark:text-cream/40">Bekleyen Ödev</p>
         </button>
-        <button onClick={() => onNavigate("etut")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/70 dark:hover:bg-white/5">
+        <button onClick={() => onNavigate("etut")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:hover:bg-white/5">
           <CalendarCheck className="mb-1.5 h-4 w-4 text-brand-600" />
           <p className="text-lg font-bold text-espresso dark:text-cream">{pendingAppointments}</p>
           <p className="text-[10px] text-espresso-muted dark:text-cream/40">Onay Bekleyen Randevu</p>
         </button>
-        <button onClick={() => onNavigate("announcements")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/70 dark:hover:bg-white/5">
+        <button onClick={() => onNavigate("announcements")} className="rounded-2xl border border-hairline bg-white/70 p-4 text-left backdrop-blur-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:hover:bg-white/5">
           <Bell className="mb-1.5 h-4 w-4 text-brand-600" />
           <p className="truncate text-xs font-semibold text-espresso dark:text-cream">{latestAnnouncementTitle ?? "Duyuru yok"}</p>
           <p className="text-[10px] text-espresso-muted dark:text-cream/40">Son Duyuru</p>

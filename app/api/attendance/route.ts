@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 function parseDateOnly(value: string): Date {
@@ -13,28 +15,29 @@ function parseDateOnly(value: string): Date {
 // records: [{ studentId, status: "PRESENT"|"ABSENT"|"LATE" }] }
 async function handlePost(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "teacher");
+    const teacherId = session.sub;
+
     const body = await request.json();
-    const { teacherId, branchId, date, records } = body as {
-      teacherId?: string;
+    const { branchId, date, records } = body as {
       branchId?: string;
       date?: string;
       records?: { studentId: string; status: string }[];
     };
 
-    if (!teacherId || !branchId || !date || !Array.isArray(records) || records.length === 0) {
-      return NextResponse.json({ error: "teacherId, branchId, date ve records zorunludur." }, { status: 400 });
+    if (!branchId || !date || !Array.isArray(records) || records.length === 0) {
+      return NextResponse.json({ error: "branchId, date ve records zorunludur." }, { status: 400 });
     }
     const validStatuses = new Set(["PRESENT", "ABSENT", "LATE"]);
     if (records.some((r) => !r.studentId || !validStatuses.has(r.status))) {
       return NextResponse.json({ error: "Her kayıt geçerli bir studentId ve status içermeli." }, { status: 400 });
     }
 
-    const [teacher, branch] = await Promise.all([
-      prisma.teacher.findUnique({ where: { id: teacherId }, select: { id: true } }),
-      prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } }),
-    ]);
-    if (!teacher) return NextResponse.json({ error: "Öğretmen bulunamadı." }, { status: 404 });
-    if (!branch) return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
+    const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { id: true, institutionId: true } });
+    if (!branch || branch.institutionId !== session.institutionId) {
+      return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
+    }
 
     const day = parseDateOnly(date);
 
@@ -53,6 +56,7 @@ async function handlePost(request: NextRequest) {
 
     return NextResponse.json({ ok: true, recordCount: records.length }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("attendance_submit_failed", { error: error instanceof Error ? error.message : String(error) });
     const message = error instanceof Error ? error.message : "Beklenmeyen hata";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -64,10 +68,17 @@ async function handlePost(request: NextRequest) {
 // girildi mi" kontrolü için).
 async function handleGet(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "teacher", "principal");
+
     const branchId = request.nextUrl.searchParams.get("branchId");
     const date = request.nextUrl.searchParams.get("date");
     if (!branchId || !date) {
       return NextResponse.json({ error: "branchId ve date parametreleri zorunludur." }, { status: 400 });
+    }
+    const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { institutionId: true } });
+    if (!branch || branch.institutionId !== session.institutionId) {
+      return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
     }
 
     const day = parseDateOnly(date);
@@ -79,6 +90,7 @@ async function handleGet(request: NextRequest) {
 
     return NextResponse.json({ records });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("attendance_lookup_failed", { error: error instanceof Error ? error.message : String(error) });
     const message = error instanceof Error ? error.message : "Beklenmeyen hata";
     return NextResponse.json({ error: message }, { status: 500 });

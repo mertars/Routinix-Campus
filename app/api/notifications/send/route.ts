@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { sendBulkNotification } from "@/lib/server/sms/notification-service";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 const bodySchema = z.object({
@@ -14,22 +16,26 @@ const bodySchema = z.object({
 // Body: { scopeType, scopeValue?, templateBody, extraParams? }
 // 202 döner — gönderim kuyruğa alınır, senkron olarak beklenmez.
 async function handlePost(request: NextRequest) {
-  let json: unknown;
   try {
-    json = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Geçersiz JSON gövdesi" }, { status: 400 });
-  }
+    const session = await requireSession();
+    requireRole(session, "principal");
 
-  const parsed = bodySchema.safeParse(json);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Geçersiz istek gövdesi", details: parsed.error.flatten() }, { status: 400 });
-  }
+    let json: unknown;
+    try {
+      json = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Geçersiz JSON gövdesi" }, { status: 400 });
+    }
 
-  try {
-    const result = await sendBulkNotification(parsed.data);
+    const parsed = bodySchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Geçersiz istek gövdesi", details: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const result = await sendBulkNotification({ ...parsed.data, institutionId: session.institutionId });
     return NextResponse.json(result, { status: 202 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("notifications_send_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: error instanceof Error ? error.message : "Beklenmeyen hata" }, { status: 500 });
   }

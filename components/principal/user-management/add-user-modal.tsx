@@ -36,6 +36,7 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
   const [fullName, setFullName] = useState("");
   const [nationalId, setNationalId] = useState("");
   const [branchId, setBranchId] = useState(INITIAL_BRANCHES[0]?.id ?? "");
+  const [studentPhone, setStudentPhone] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [healthNote, setHealthNote] = useState("");
@@ -50,6 +51,7 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
   function resetForm() {
     setFullName("");
     setNationalId("");
+    setStudentPhone("");
     setParentName("");
     setParentPhone("");
     setHealthNote("");
@@ -65,7 +67,7 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
   const isValid =
     fullName.trim().length > 1 &&
     (role === "STUDENT"
-      ? nationalId.trim() && branchId
+      ? nationalId.trim() && branchId && studentPhone.trim() && parentName.trim() && parentPhone.trim()
       : role === "TEACHER"
         ? nationalId.trim() && (subject !== "Diğer" || customSubject.trim()) && mobilePhone.trim()
         : title.trim() && mobilePhone.trim() && email.trim());
@@ -76,7 +78,7 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
     try {
       const body =
         role === "STUDENT"
-          ? { role, fullName, nationalId, branchId, parentName, parentPhone, healthNote }
+          ? { role, fullName, nationalId, branchId, phone: studentPhone, parentName, parentPhone, healthNote }
           : role === "TEACHER"
             ? { role, fullName, nationalId, subject: subject === "Diğer" ? customSubject : subject, mobilePhone, email, advisorBranchId: advisorBranchId || undefined }
             : { role, fullName, title, mobilePhone, email, authorityLevel };
@@ -89,7 +91,7 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Kullanıcı oluşturulamadı.");
 
-      const phone = role === "STUDENT" ? parentPhone : mobilePhone;
+      const phone = role === "STUDENT" ? studentPhone : mobilePhone;
       onCreated({
         name: fullName.trim(),
         username: data.username,
@@ -137,6 +139,21 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
+            <div>
+              <input value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} placeholder="Öğrenci Telefonu (giriş için)" className={inputClass} />
+              <p className="mt-1 text-[10px] text-espresso-muted dark:text-cream/40">
+                Giriş ekranı bu numarayla çalışır. Öğrencinin kişisel telefonu yoksa veli telefonunu girin
+                {parentPhone.trim() && (
+                  <>
+                    {" "}—{" "}
+                    <button type="button" onClick={() => setStudentPhone(parentPhone)} className="text-brand-600 underline underline-offset-2 dark:text-brand-500">
+                      veli ile aynı yap
+                    </button>
+                  </>
+                )}
+                .
+              </p>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <input value={parentName} onChange={(e) => setParentName(e.target.value)} placeholder="Veli Ad Soyad" className={inputClass} />
               <input value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} placeholder="Veli Telefonu" className={inputClass} />

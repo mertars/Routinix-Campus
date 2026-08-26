@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
+import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { cn } from "@/lib/utils";
 import { downloadImportTemplate } from "@/lib/bulk-import/template";
 import { parseXlsxFile, parseCsvFile } from "@/lib/bulk-import/parse-spreadsheet";
@@ -95,9 +96,8 @@ export function BulkImportWizard({ isOpen, onClose, onImported }: { isOpen: bool
 
   useEffect(() => {
     if (!isOpen) return;
-    fetch("/api/admin/dashboard?segment=ALL")
-      .then((res) => res.json())
-      .then((data) => setBranchNames((data.branches ?? []).map((b: { name: string }) => b.name)))
+    fetchDashboard<{ branches?: { name: string }[] }>("ALL")
+      .then((data) => setBranchNames((data.branches ?? []).map((b) => b.name)))
       .catch(() => showError("Şube listesi yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);

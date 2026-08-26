@@ -135,7 +135,7 @@ export function StudentXrayTab() {
 
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <div className="mb-4 flex items-center gap-3">
           <AvatarInitials name={`${analytics.firstName} ${analytics.lastName}`} className="h-12 w-12 text-base" />

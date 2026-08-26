@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Share2, FileDown, Loader2, Send, Clock, CheckCircle2 } from "lucide-react";
 import { INITIAL_BRANCHES } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
+import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { cn } from "@/lib/utils";
 
 type AnnouncementCategory = "GENERAL" | "EXAM" | "HOLIDAY" | "EVENT" | "EMERGENCY";
@@ -57,8 +58,7 @@ function BulkReportSender() {
   const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    fetch("/api/admin/dashboard?segment=ALL")
-      .then((res) => res.json())
+    fetchDashboard<{ totalStudents?: number }>("ALL")
       .then((data) => setTotal(data.totalStudents ?? 0))
       .catch(() => {
         // sessiz — sayaç 0 kalır
@@ -171,7 +171,7 @@ function TransparentReportGenerator() {
   return (
     <motion.div
       whileHover={{ scale: 1.01, y: -3 }}
-      className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+      className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
     >
       <h2 className="mb-4 text-sm font-semibold text-espresso dark:text-cream">Velilere Özel Şeffaf Karne</h2>
 
@@ -314,7 +314,7 @@ export function AnnouncementsTab() {
     <div className="grid gap-4 lg:grid-cols-2">
       <motion.div
         whileHover={{ scale: 1.01, y: -3 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-espresso dark:text-cream">Kampüs Panosu</h2>

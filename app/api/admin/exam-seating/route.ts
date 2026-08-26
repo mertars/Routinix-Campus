@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +11,9 @@ export const dynamic = "force-dynamic";
 // Öğrenci/öğretmen paneli aynı kaydı GET /api/exam-seating ile okur.
 async function handlePost(request: NextRequest) {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const body = await request.json();
     const { examName, hall, branchIds } = body as {
       examName?: string;
@@ -21,7 +26,7 @@ async function handlePost(request: NextRequest) {
     }
 
     const branches = await prisma.branch.findMany({
-      where: { id: { in: branchIds } },
+      where: { id: { in: branchIds }, institutionId: session.institutionId },
       include: { students: { select: { id: true, firstName: true, lastName: true }, orderBy: [{ firstName: "asc" }, { lastName: "asc" }] } },
     });
     // Sıralamayı branchIds'in verildiği sırayla koru (kelebek algoritması sıraya duyarlı).
@@ -31,7 +36,7 @@ async function handlePost(request: NextRequest) {
     // biçimde ayrıştırılamaz, bu yüzden Exam.examDate her zaman planın
     // OLUŞTURULDUĞU ana ("şimdi") ayarlanır; serbest metin yalnızca
     // giriş kartı/kapı listesi yazdırma önizlemesinde gösterim amaçlıdır.
-    const exam = await prisma.exam.create({ data: { name: examName.trim(), examDate: new Date() } });
+    const exam = await prisma.exam.create({ data: { institutionId: session.institutionId, name: examName.trim(), examDate: new Date() } });
 
     const queues = orderedBranches.map((b) => [...b.students]);
     const seats: { studentId: string; studentName: string; branchName: string; branchIndex: number; seatNumber: number }[] = [];
@@ -67,6 +72,7 @@ async function handlePost(request: NextRequest) {
 
     return NextResponse.json({ exam, seats }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("admin_exam_seating_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }

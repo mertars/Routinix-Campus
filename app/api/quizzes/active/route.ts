@@ -1,20 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { requireSession } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/quizzes/active?branchId=X&studentId=Y — öğrenci tarafının canlı
-// Pop-Quiz yoklaması için kullandığı, CEVAP ANAHTARI İÇERMEYEN uç nokta.
-// studentId verilirse, sekme değişse/yeniden mount olsa bile banner'ın tekrar
-// görünmemesi için "bu öğrenci zaten yanıtladı mı" bilgisini de döner.
+// GET /api/quizzes/active?branchId=X — öğrenci tarafının canlı Pop-Quiz
+// yoklaması için kullandığı, CEVAP ANAHTARI İÇERMEYEN uç nokta. "Bu öğrenci
+// zaten yanıtladı mı" kontrolü STUDENT rolünde her zaman oturum sahibinin
+// kendi id'sine göre yapılır (query'den studentId GÜVENİLMEZ).
 async function handleGet(request: NextRequest) {
   try {
+    const session = await requireSession();
     const branchId = request.nextUrl.searchParams.get("branchId");
-    const studentId = request.nextUrl.searchParams.get("studentId");
     if (!branchId) {
       return NextResponse.json({ error: "branchId parametresi zorunludur." }, { status: 400 });
     }
+    const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { institutionId: true } });
+    if (!branch || branch.institutionId !== session.institutionId) {
+      return NextResponse.json({ quiz: null });
+    }
+    const studentId = session.role === "STUDENT" ? session.sub : null;
 
     const quiz = await prisma.quiz.findFirst({
       where: { branchId, stage: "LIVE" },
@@ -49,6 +56,7 @@ async function handleGet(request: NextRequest) {
       alreadySubmitted,
     });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("quiz_active_lookup_failed", { error: error instanceof Error ? error.message : String(error) });
     const message = error instanceof Error ? error.message : "Beklenmeyen hata";
     return NextResponse.json({ error: message }, { status: 500 });

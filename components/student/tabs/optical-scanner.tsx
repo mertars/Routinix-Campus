@@ -117,7 +117,7 @@ export function OpticalScannerTab() {
   return (
     <div className="space-y-4">
       {stage === "idle" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3 rounded-3xl border border-hairline bg-white/70 p-8 text-center backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3 rounded-3xl border border-hairline bg-white/70 p-8 text-center backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <ScanLine className="h-10 w-10 text-brand-600" />
           <p className="text-sm font-semibold text-espresso dark:text-cream">Optik Cevap Kağıdını Tara</p>
           <p className="text-xs text-espresso-muted dark:text-cream/40">Kamerayı kullanarak cevap kağıdını anında analiz et.</p>

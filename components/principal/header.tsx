@@ -1,16 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useRole } from "@/lib/role-context";
+import { useRole, useLogout } from "@/lib/role-context";
 
 export function PrincipalHeader() {
-  const router = useRouter();
-  const { persona, clearRole } = useRole();
-
-  function handleRoleSwitch() {
-    clearRole();
-    router.push("/");
-  }
+  const { persona } = useRole();
+  const handleLogout = useLogout();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-hairline bg-white px-4 sm:px-6">
@@ -28,10 +22,10 @@ export function PrincipalHeader() {
           <span className="text-xs text-cream/70">{persona?.title ?? "Kurum Müdürü"}</span>
         </div>
         <button
-          onClick={handleRoleSwitch}
-          className="rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso-muted transition hover:bg-cream-card"
+          onClick={handleLogout}
+          className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-100 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400 dark:hover:bg-red-900/50"
         >
-          Rol Değiştir
+          Çıkış Yap
         </button>
       </div>
     </header>

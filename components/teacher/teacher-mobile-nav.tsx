@@ -129,11 +129,11 @@ function ModuleButton({ tab, isActive, onClick }: { tab: NavTab; isActive: boole
       className={cn(
         "flex min-h-[64px] flex-col items-start justify-center gap-1.5 rounded-2xl border px-3 py-2.5 text-left transition",
         isActive
-          ? "border-brand-600 bg-brand-600 text-white"
+          ? "border-brand-500/40 bg-brand-500/10 text-brand-700 dark:text-brand-300"
           : "border-hairline bg-cream-card text-espresso dark:border-white/10 dark:bg-white/5 dark:text-cream"
       )}
     >
-      <tab.icon className={cn("h-4 w-4", isActive ? "text-white" : "text-brand-600")} />
+      <tab.icon className={cn("h-4 w-4", isActive ? "text-brand-600 dark:text-brand-400" : "text-brand-600")} />
       <span className="text-xs font-medium leading-tight">{tab.label}</span>
     </button>
   );

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { getTodayTrDayName, parseSlotRange, nowMinutes } from "@/lib/server/schedule/slot-time";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -11,12 +13,15 @@ export const dynamic = "force-dynamic";
 // gösterir — ayrı bir mock liste değil.
 async function handleGet() {
   try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
     const today = getTodayTrDayName();
     const minutesNow = nowMinutes();
 
     const approvedToday = today
       ? await prisma.appointmentRequest.findMany({
-          where: { status: "APPROVED", day: today },
+          where: { status: "APPROVED", day: today, teacher: { institutionId: session.institutionId } },
           include: {
             student: { select: { firstName: true, lastName: true } },
             teacher: { select: { firstName: true, lastName: true, subject: true } },
@@ -60,6 +65,7 @@ async function handleGet() {
       upcoming,
     });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("admin_live_tutoring_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }

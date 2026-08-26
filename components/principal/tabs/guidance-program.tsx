@@ -209,7 +209,7 @@ export function GuidanceProgramTab() {
           ))}
         </select>
 
-        <div className="flex gap-1.5 rounded-full border border-hairline bg-white/70 p-1 dark:border-white/10 dark:bg-midnight-card/70">
+        <div className="flex gap-1.5 rounded-full border border-hairline bg-white/70 p-1 dark:border-white/10 dark:bg-midnight-card/50">
           <button
             onClick={() => setView("builder")}
             className={cn(
@@ -236,7 +236,7 @@ export function GuidanceProgramTab() {
           key="builder"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
         >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-espresso dark:text-cream">
@@ -277,7 +277,7 @@ export function GuidanceProgramTab() {
         </motion.div>
       ) : (
         <motion.div key="history" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+          <div className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
             <h2 className="mb-4 text-sm font-semibold text-espresso dark:text-cream">Geçmiş Programlar — {student.firstName} {student.lastName}</h2>
             <div className="space-y-2">
               {studentHistory.length === 0 && (
@@ -304,7 +304,7 @@ export function GuidanceProgramTab() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+          <div className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
             <h2 className="mb-4 text-sm font-semibold text-espresso dark:text-cream">Konu Analiz Kartı</h2>
             <div className="space-y-4">
               {analysis.length === 0 && (

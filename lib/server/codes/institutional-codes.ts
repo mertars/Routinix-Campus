@@ -22,11 +22,14 @@ async function maxNumericSuffix(values: string[], prefixLength: number): Promise
 }
 
 // Öğrenci No: {yıl}-{4 haneli sıralı} — örn. "2026-1001". Sıra numarası o
-// yılın İÇİNDE, mevcut en yüksek numaraya göre ilerler (1000'den başlar).
-export async function generateStudentNumber(tx: Tx, year = new Date().getFullYear()): Promise<string> {
+// yılın İÇİNDE ve AYNI KURUM içinde, mevcut en yüksek numaraya göre ilerler
+// (1000'den başlar) — Student.studentNumber artık global değil, kurum bazlı
+// benzersiz (bkz. prisma/schema.prisma > @@unique([institutionId, studentNumber])),
+// bu yüzden iki farklı kurum aynı yıl içinde aynı numaradan başlayabilir.
+export async function generateStudentNumber(tx: Tx, institutionId: string, year = new Date().getFullYear()): Promise<string> {
   const prefix = `${year}-`;
   const matches = await tx.student.findMany({
-    where: { studentNumber: { startsWith: prefix } },
+    where: { institutionId, studentNumber: { startsWith: prefix } },
     select: { studentNumber: true },
   });
   const max = await maxNumericSuffix(matches.map((m) => m.studentNumber), prefix.length);
@@ -34,10 +37,11 @@ export async function generateStudentNumber(tx: Tx, year = new Date().getFullYea
   return `${prefix}${nextSeq}`;
 }
 
-// Öğretmen Kodu: "TCH-" + 3 haneli benzersiz numara — örn. "TCH-102".
-export async function generateTeacherCode(tx: Tx): Promise<string> {
+// Öğretmen Kodu: "TCH-" + 3 haneli benzersiz numara — örn. "TCH-102" — kurum
+// bazlı benzersiz (bkz. Teacher.@@unique([institutionId, institutionalCode])).
+export async function generateTeacherCode(tx: Tx, institutionId: string): Promise<string> {
   const matches = await tx.teacher.findMany({
-    where: { institutionalCode: { startsWith: "TCH-" } },
+    where: { institutionId, institutionalCode: { startsWith: "TCH-" } },
     select: { institutionalCode: true },
   });
   const max = await maxNumericSuffix(matches.map((m) => m.institutionalCode!), 4);
@@ -45,11 +49,12 @@ export async function generateTeacherCode(tx: Tx): Promise<string> {
   return `TCH-${String(nextSeq).padStart(3, "0")}`;
 }
 
-// Şube Kodu: "RTX-" + Şehir Kısaltması + 2 haneli sıra — örn. "RTX-IST01".
-export async function generateBranchCode(tx: Tx, cityAbbr = INSTITUTION_CITY_ABBR): Promise<string> {
+// Şube Kodu: "RTX-" + Şehir Kısaltması + 2 haneli sıra — örn. "RTX-IST01" —
+// kurum bazlı benzersiz (bkz. Branch.@@unique([institutionId, institutionalCode])).
+export async function generateBranchCode(tx: Tx, institutionId: string, cityAbbr = INSTITUTION_CITY_ABBR): Promise<string> {
   const prefix = `RTX-${cityAbbr}`;
   const matches = await tx.branch.findMany({
-    where: { institutionalCode: { startsWith: prefix } },
+    where: { institutionId, institutionalCode: { startsWith: prefix } },
     select: { institutionalCode: true },
   });
   const max = await maxNumericSuffix(matches.map((m) => m.institutionalCode!), prefix.length);

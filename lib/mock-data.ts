@@ -1,4 +1,4 @@
-export type RoleId = "principal" | "teacher" | "student";
+export type RoleId = "principal" | "teacher" | "student" | "parent";
 
 export type Persona = {
   id: RoleId;
@@ -29,6 +29,13 @@ export const MOCK_PERSONAS: Persona[] = [
     name: "Arslan",
     title: "12-A VIP Öğrencisi",
     href: "/student",
+  },
+  {
+    id: "parent",
+    cardLabel: "Veli Girişi",
+    name: "Kemal Yıldırım",
+    title: "Veli",
+    href: "/parent",
   },
 ];
 

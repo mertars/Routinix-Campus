@@ -10,6 +10,20 @@ function requireEnv(name: string): string {
   return value;
 }
 
+// GERÇEK bir SMS göndermeden (bkz. /api/health) sadece seçili sağlayıcının
+// gerekli ortam değişkenlerinin eksiksiz tanımlı olduğunu doğrular —
+// createSmsProvider() zaten aynı requireEnv() kontrolünü yapıyor, burada
+// sadece o hatayı bir sağlık durumuna çeviriyoruz.
+export function getSmsProviderStatus(): { provider: string; configured: boolean; error?: string } {
+  const providerName = process.env.SMS_PROVIDER ?? "mock";
+  try {
+    createSmsProvider();
+    return { provider: providerName, configured: true };
+  } catch (error) {
+    return { provider: providerName, configured: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 // SMS_PROVIDER ortam değişkenine göre doğru sağlayıcıyı döndürür.
 // Varsayılan "mock" — hiçbir gerçek kimlik bilgisi gerektirmez.
 export function createSmsProvider(): SmsProvider {

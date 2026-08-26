@@ -74,7 +74,7 @@ export function NetTrackerTab() {
 
   return (
     <div className="space-y-4">
-      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <Target className="h-4 w-4 text-brand-600" /> Hedef vs. Gerçekleşen Net
         </h2>
@@ -97,24 +97,24 @@ export function NetTrackerTab() {
       </motion.div>
 
       {Object.entries(summary.trendBySubject).map(([subject, points]) => (
-        <motion.div key={subject} whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+        <motion.div key={subject} whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <h2 className="mb-3 text-sm font-semibold text-espresso dark:text-cream">{subject} Net Trendi</h2>
           <NetTrendChart points={points} />
         </motion.div>
       ))}
 
       <motion.div whileHover={{ scale: 1.005, y: -2 }} className="grid grid-cols-3 gap-2.5">
-        <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 text-center backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 text-center backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <Users className="mx-auto mb-1 h-4 w-4 text-brand-600" />
           <p className="text-lg font-bold text-espresso dark:text-cream">{summary.branchRank}.</p>
           <p className="text-[9px] text-espresso-muted dark:text-cream/40">Şube Sıralaması</p>
         </div>
-        <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 text-center backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 text-center backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <Trophy className="mx-auto mb-1 h-4 w-4 text-brand-600" />
           <p className="text-lg font-bold text-espresso dark:text-cream">{summary.institutionRank}.</p>
           <p className="text-[9px] text-espresso-muted dark:text-cream/40">Kurum Sıralaması</p>
         </div>
-        <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 text-center backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 text-center backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <Globe2 className="mx-auto mb-1 h-4 w-4 text-brand-600" />
           <p className="text-lg font-bold text-espresso dark:text-cream">%{summary.estimatedNationwidePercentile}</p>
           <p className="text-[9px] text-espresso-muted dark:text-cream/40">Tahmini Türkiye Dilimi</p>

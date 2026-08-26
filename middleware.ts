@@ -1,37 +1,88 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { verifySessionToken, ROLE_ID_BY_AUTH_ROLE } from "@/lib/server/auth/jwt";
 
-// ⚠️ DEMO-SEVİYESİ ROL KAPISI — GERÇEK GÜVENLİK DEĞİL.
-// Bu uygulamada henüz gerçek bir kimlik doğrulama/oturum sistemi yok (bkz.
-// Student/Teacher/Admin.passwordHash alanları — dolu ama hiçbir yerde
-// doğrulanmıyor). "routinix-kampus-role" cookie'si sadece lib/role-context.tsx
-// üzerinden kullanıcının kendi seçtiği persona'yı taşır; tarayıcı DevTools'tan
-// elle değiştirilebilir. Bu middleware SADECE kazara/dolaylı çapraz-rol
-// gezinmesini engeller (örn. bir öğrencinin /principal linkini bulup tıklaması).
-// Gerçek yetkilendirme için: şifre doğrulamalı login + sunucu tarafı
-// imzalı oturum (örn. iron-session/next-auth) + API route'larının da bu
-// oturuma göre korunması gerekir — şu an API route'ları bu kapıdan geçmiyor.
+// Panel rotalarını GERÇEK, sunucu tarafı imzalı oturuma (routinix-kampus-session,
+// bkz. lib/server/auth/jwt.ts) göre korur. Rol bilgisi tarayıcıdan okunabilir/
+// yazılabilir bir cookie'den DEĞİL, doğrulanmış JWT'nin içinden gelir — bu
+// yüzden DevTools'tan cookie değiştirerek başka bir role geçmek artık mümkün
+// değildir. "routinix-kampus-role" cookie'si (bkz. lib/role-context.tsx) hâlâ
+// var ama sadece kozmetik persona görünümü içindir, yetkilendirme burada.
+const SESSION_COOKIE = "routinix-kampus-session";
+
 const ROUTE_ROLE: Record<string, string> = {
   "/principal": "principal",
   "/teacher": "teacher",
   "/student": "student",
+  "/parent": "parent",
 };
 
-export function middleware(request: NextRequest) {
+// CSP nonce'ı burada, HER sayfa isteğinde yeniden üretilir (statik bir değer
+// script-src'yi anlamsızlaştırır — tahmin edilebilir olurdu). next.config.mjs
+// bunu BİLEREK yapmaz; sadece middleware istek başına çalışır. Next.js, bu
+// header'daki 'nonce-...' değerini KENDİ enjekte ettiği hydration/RSC inline
+// script'lerine otomatik uygular; app/layout.tsx'teki elle yazılmış iki
+// script ise nonce'ı headers()'tan okuyup kendisi uygular (bkz. orada).
+function buildCsp(nonce: string): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+export async function middleware(request: NextRequest) {
+  const nonce = btoa(crypto.randomUUID());
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  const cspHeader = buildCsp(nonce);
+
   const { pathname } = request.nextUrl;
   const matchedPrefix = Object.keys(ROUTE_ROLE).find((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-  if (!matchedPrefix) return NextResponse.next();
 
-  const role = request.cookies.get("routinix-kampus-role")?.value;
-  if (role !== ROUTE_ROLE[matchedPrefix]) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    url.search = `?denied=${encodeURIComponent(matchedPrefix.slice(1))}`;
-    return NextResponse.redirect(url);
+  if (!matchedPrefix) {
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("Content-Security-Policy", cspHeader);
+    return response;
   }
 
-  return NextResponse.next();
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const session = token ? await verifySessionToken(token) : null;
+  const roleId = session ? ROLE_ID_BY_AUTH_ROLE[session.role] : null;
+
+  if (roleId === ROUTE_ROLE[matchedPrefix]) {
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("Content-Security-Policy", cspHeader);
+    return response;
+  }
+
+  const url = request.nextUrl.clone();
+  if (!session) {
+    // Hiç oturum yok — doğrudan girişe yönlendir.
+    url.pathname = "/login";
+    url.search = "";
+  } else {
+    // Oturum var ama başka bir role ait — rol seçim ekranına, hangi panele
+    // erişilemediğini gösteren bir uyarıyla dön.
+    url.pathname = "/";
+    url.search = `?denied=${encodeURIComponent(matchedPrefix.slice(1))}`;
+  }
+  const response = NextResponse.redirect(url);
+  response.headers.set("Content-Security-Policy", cspHeader);
+  return response;
 }
 
 export const config = {
-  matcher: ["/principal/:path*", "/teacher/:path*", "/student/:path*"],
+  // API route'ları ve statik varlıklar hariç TÜM sayfa rotaları — CSP
+  // nonce'ının her HTML yanıtına uygulanması gerekir; API zaten JSON döner,
+  // tarayıcı CSP'si orada anlamsızdır (rate limit/auth koruması ayrı, bkz.
+  // lib/logger.ts > withApiLogging ve lib/server/auth/session-guard.ts).
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Hourglass } from "lucide-react";
+import { spaceGrotesk } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
 
 const EXAM_DATE = new Date("2027-06-20T09:00:00");
@@ -22,6 +23,7 @@ export function Hero({ name, title }: { name: string; title: string }) {
 
   return (
     <div className="relative overflow-hidden">
+      <div className="absolute inset-x-0 top-0 hidden h-px dark:block dark:bg-gradient-to-r dark:from-transparent dark:via-brand-500/70 dark:to-transparent" />
       <AnimatePresence>
         {campMode && (
           <motion.div
@@ -57,7 +59,7 @@ export function Hero({ name, title }: { name: string; title: string }) {
             initial={{ opacity: 0, y: -24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-2 text-5xl font-bold tracking-tight text-espresso dark:text-cream sm:text-6xl md:text-7xl"
+            className={cn(spaceGrotesk.className, "mt-2 text-5xl font-bold tracking-tight text-espresso dark:text-cream sm:text-6xl md:text-7xl")}
           >
             {name}
           </motion.h1>
@@ -76,7 +78,7 @@ export function Hero({ name, title }: { name: string; title: string }) {
             initial={{ opacity: 0, y: -16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 px-5 py-3 backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70"
+            className="flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 px-5 py-3 backdrop-blur-sm transition-colors dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-xl dark:hover:border-brand-500/40"
           >
             <motion.span
               animate={{ rotate: [0, 180, 180, 0, 0] }}
@@ -105,8 +107,8 @@ export function Hero({ name, title }: { name: string; title: string }) {
             className={cn(
               "flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-medium transition-colors",
               campMode
-                ? "border-brand-600 bg-brand-600 text-white shadow-lg shadow-brand-600/30"
-                : "border-hairline bg-white/70 text-espresso backdrop-blur-sm hover:border-brand-600/40 dark:border-white/10 dark:bg-midnight-card/70 dark:text-cream"
+                ? "border-brand-500/50 bg-brand-600 text-white shadow-[0_0_30px_-6px_rgb(var(--brand-600)/0.7)]"
+                : "border-hairline bg-white/70 text-espresso backdrop-blur-sm hover:border-brand-600/40 dark:border-brand-500/20 dark:bg-midnight-card/50 dark:text-cream dark:backdrop-blur-xl dark:hover:border-brand-500/40"
             )}
           >
             <Flame className={cn("h-4 w-4", campMode && "animate-pulse")} />

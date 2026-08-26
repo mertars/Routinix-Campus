@@ -80,7 +80,7 @@ export default function TeacherPage() {
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? LiveAttendanceTab;
 
   return (
-    <div className="relative min-h-screen bg-cream dark:bg-midnight">
+    <div className="relative min-h-screen dark:bg-transparent bg-cream">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[640px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-500/10 via-transparent to-transparent"

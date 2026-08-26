@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { AppointmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
+import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 const VALID_STATUSES = new Set<AppointmentStatus>(["APPROVED", "REJECTED"]);
 
-// PATCH /api/appointments/:id — öğretmen randevu talebini onaylar/reddeder.
+// PATCH /api/appointments/:id — SADECE randevunun atandığı öğretmen talebi
+// onaylar/reddeder.
 async function handlePatch(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const session = await requireSession();
+    requireRole(session, "teacher");
+
     const body = await request.json();
     const status = (body as { status?: AppointmentStatus }).status;
     if (!status || !VALID_STATUSES.has(status)) {
@@ -15,7 +21,9 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
     }
 
     const existing = await prisma.appointmentRequest.findUnique({ where: { id: params.id } });
-    if (!existing) return NextResponse.json({ error: "Randevu talebi bulunamadı." }, { status: 404 });
+    if (!existing || existing.teacherId !== session.sub) {
+      return NextResponse.json({ error: "Randevu talebi bulunamadı." }, { status: 404 });
+    }
 
     if (status === "APPROVED") {
       const conflict = await prisma.appointmentRequest.findFirst({
@@ -33,6 +41,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
 
     return NextResponse.json({ appointment });
   } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("appointment_decide_failed", { appointmentId: params.id, error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }

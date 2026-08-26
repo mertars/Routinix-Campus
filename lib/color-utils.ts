@@ -87,10 +87,14 @@ export function generateAccentRamp(baseHex: string): AccentRamp {
   };
 }
 
-export const DEFAULT_ACCENT_HEX = "#D97706";
+// Routinix Turuncu — marka kimliğinin tek gerçek kaynağı (login/rol seçimi
+// ekranlarındaki neon turuncuyla birebir aynı hex). Buradan üretilen ramp,
+// ':root'taki başlangıç değerleriyle (bkz. app/globals.css) senkron tutulmalı
+// — aksi halde JS hydrate olana kadar yanlış renkte bir "flash" görünür.
+export const DEFAULT_ACCENT_HEX = "#FF6B00";
 
 export const ACCENT_PRESETS: { label: string; hex: string }[] = [
-  { label: "Orijinal Turuncu", hex: "#D97706" },
+  { label: "Routinix Turuncu", hex: "#FF6B00" },
   { label: "Neon Mavi", hex: "#2563EB" },
   { label: "Zümrüt Yeşili", hex: "#10B981" },
   { label: "Mor", hex: "#7C3AED" },

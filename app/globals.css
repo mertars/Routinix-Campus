@@ -4,21 +4,71 @@
 
 @layer base {
   :root {
-    /* Varsayılan vurgu tonu (Orijinal Turuncu / Amber-600 = #D97706).
-       AccentProvider, kullanıcı özel bir renk seçtiğinde bu değişkenleri
-       document.documentElement üzerinde runtime'da günceller. */
-    --brand-50: 249 244 239;
-    --brand-100: 245 232 218;
-    --brand-300: 252 202 144;
-    --brand-400: 250 173 85;
-    --brand-500: 249 147 30;
-    --brand-600: 217 119 6;
-    --brand-700: 176 95 1;
-    --brand-800: 147 78 0;
+    /* Varsayılan vurgu tonu (Routinix Turuncu = #FF6B00, bkz. lib/color-utils.ts
+       > DEFAULT_ACCENT_HEX — bu değerler o hex'ten generateAccentRamp() ile
+       BİREBİR üretilir, elle senkronize tutulur). AccentProvider, kullanıcı
+       özel bir renk seçtiğinde bu değişkenleri document.documentElement
+       üzerinde runtime'da günceller; buradaki değerler yalnızca JS hydrate
+       olana kadarki ilk boyamayı (flash-of-wrong-color'ı önlemek için) kapsar. */
+    --brand-50: 251 247 244;
+    --brand-100: 252 247 243;
+    --brand-300: 255 208 173;
+    --brand-400: 255 172 112;
+    --brand-500: 255 140 56;
+    --brand-600: 255 107 0;
+    --brand-700: 209 88 0;
+    --brand-800: 179 75 0;
   }
 
   body {
     @apply bg-cream text-espresso antialiased transition-colors duration-500 dark:bg-midnight dark:text-cream;
+  }
+
+  /* ------------------------------------------------------------------------
+   * Scrollbar — kaydırma DAVRANIŞINA dokunmaz, sadece görünümü temaya uydurur.
+   * Firefox: scrollbar-width/scrollbar-color. WebKit (Chrome/Safari/Edge):
+   * *::-webkit-scrollbar-*. Marka rengi (turuncu) her iki temada da aynı;
+   * sadece track rengi light/dark'a göre değişir. Bu, her modal/dropdown/
+   * kaydırılabilir listeyi TEK TEK işaretlemeden projedeki HER scrollbar'ı kapsar.
+   * ---------------------------------------------------------------------- */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 107 0 / 0.35) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(255 107 0 / 0.28);
+    border-radius: 8px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(255 107 0 / 0.6);
+  }
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  .dark *::-webkit-scrollbar-track {
+    background: rgb(15 15 20 / 0.4);
+  }
+  .dark {
+    scrollbar-color: rgb(255 107 0 / 0.4) rgb(15 15 20 / 0.4);
+  }
+
+  /* Scrollbar'ı tamamen gizleyen ama kaydırmayı koruyan yardımcı sınıf —
+     yatay sekme/etiket şeritleri gibi "görünmez kaydırma" istenen yerler için. */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 

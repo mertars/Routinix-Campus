@@ -2,29 +2,23 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { useRouter } from "next/navigation";
-import { Radio, Clock, Palette, Sparkles } from "lucide-react";
-import { useRole } from "@/lib/role-context";
+import { Radio, Clock, Palette, Sparkles, LogOut } from "lucide-react";
+import { useLogout } from "@/lib/role-context";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
 import { useHideOnScroll } from "@/lib/use-hide-on-scroll";
 import { INSTITUTION_NAME } from "@/lib/mock-data";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
 import { TeacherAppearancePopup } from "@/components/teacher/teacher-appearance-popup";
+import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
 
 export function TeacherTopBar() {
-  const router = useRouter();
-  const { clearRole } = useRole();
+  const handleLogout = useLogout();
   const { mySchedule } = useTeacherScope();
   const lesson = useCurrentLesson(mySchedule);
   const hidden = useHideOnScroll();
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
-
-  function handleRoleChange() {
-    clearRole();
-    router.push("/");
-  }
 
   const lessonText = lesson.isLive
     ? `${lesson.branchName} · ${lesson.subject} (${lesson.slot})`
@@ -43,26 +37,24 @@ export function TeacherTopBar() {
         {/* Mobil düzen: sadeleştirilmiş — logo, görünüm ayarı, kurum rozeti, Rol Değiştir */}
         <div className="md:hidden">
           <div className="flex items-center justify-between gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-espresso text-xs font-bold text-cream dark:bg-brand-600">
-              R
-            </span>
+            <GlowLogo size="h-8 w-8" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <div className="ml-auto flex min-w-0 items-center gap-1.5">
               <button
                 onClick={() => setIsAppearanceOpen(true)}
                 aria-label="Görünüm ayarları"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/70 dark:text-cream"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
               >
                 <Palette className="h-4 w-4" />
               </button>
-              <div className="flex min-w-0 items-center gap-1 rounded-full bg-brand-500 px-2.5 py-1.5 text-white shadow-sm dark:bg-brand-600/90">
+              <div className="flex min-w-0 items-center gap-1 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
                 <Sparkles className="h-3 w-3 shrink-0" />
                 <span className="truncate text-[10px] font-semibold">{INSTITUTION_NAME}</span>
               </div>
               <button
-                onClick={handleRoleChange}
-                className="shrink-0 rounded-full border border-hairline px-2.5 py-1.5 text-[11px] font-medium text-espresso-muted transition hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
+                onClick={handleLogout}
+                className="flex shrink-0 items-center gap-1 rounded-full border border-red-400/20 bg-red-500/5 px-2.5 py-1.5 text-[11px] font-medium text-red-600 backdrop-blur-sm transition hover:border-red-400/30 hover:bg-red-500/10 dark:text-red-300"
               >
-                Rol Değiştir
+                <LogOut className="h-3 w-3" /> Çıkış Yap
               </button>
             </div>
           </div>
@@ -87,11 +79,9 @@ export function TeacherTopBar() {
         {/* Masaüstü düzen: değişmedi */}
         <div className="hidden items-center justify-between gap-3 md:flex">
           <div className="flex items-center justify-start gap-3">
-            <div className="flex items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:bg-midnight-card/60">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-espresso text-xs font-bold text-cream dark:bg-brand-600">
-                R
-              </span>
-              <span className="text-sm font-semibold text-espresso dark:text-cream">Routinix Kampüs</span>
+            <div className="flex items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-xl">
+              <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
+              <span className={cn(spaceGrotesk.className, "text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>
             </div>
 
             <div
@@ -120,15 +110,15 @@ export function TeacherTopBar() {
           <div className="flex items-center gap-2 sm:gap-3">
             <AccentPicker />
             <ThemeToggle />
-            <div className="flex items-center gap-1.5 rounded-full bg-brand-500 px-3 py-1.5 text-white shadow-sm dark:bg-brand-600/90">
+            <div className="flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
               <Sparkles className="h-3.5 w-3.5" />
               <span className="text-xs font-semibold">{INSTITUTION_NAME}</span>
             </div>
             <button
-              onClick={handleRoleChange}
-              className="rounded-full border border-hairline px-3 py-1.5 text-xs font-medium text-espresso-muted transition hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 rounded-full border border-red-400/20 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-600 backdrop-blur-sm transition hover:border-red-400/30 hover:bg-red-500/10 dark:text-red-300"
             >
-              Rol Değiştir
+              <LogOut className="h-3.5 w-3.5" /> Çıkış Yap
             </button>
           </div>
         </div>

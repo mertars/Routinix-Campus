@@ -7,3 +7,6 @@ node_modules
 *.log
 public/uploads
 *.tsbuildinfo
+/test-results
+/playwright-report
+/blob-report

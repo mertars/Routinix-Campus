@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import { RoleProvider } from "@/lib/role-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AccentProvider } from "@/lib/accent-context";
 import { LiveSyncProvider } from "@/lib/live-sync-context";
 import { ToastProvider } from "@/lib/toast-context";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { PanelAurora } from "@/components/ui/aurora-brand";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -40,16 +42,23 @@ const ACCENT_INIT_SCRIPT = `
 `;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  // middleware.ts'in her istekte ürettiği CSP nonce'ı — Next.js kendi
+  // hydration/RSC script'lerine bunu otomatik uygular, ama BURADA elle
+  // yazılan iki inline script'in çalışabilmesi için nonce prop'u AÇIKÇA
+  // gerekir (aksi halde script-src CSP'si tarafından sessizce engellenir).
+  const nonce = headers().get("x-nonce") ?? undefined;
+
   return (
     <html lang="tr">
       <head>
         {/* Hydration'dan önce çalışır — dark mod / özel vurgu rengi tercihi varsa
             flash (varsayılan görünümün bir anlığına yanıp sönmesi) olmadan
             doğrudan uygulanır. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        <script dangerouslySetInnerHTML={{ __html: ACCENT_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: ACCENT_INIT_SCRIPT }} />
       </head>
       <body className="overflow-x-hidden bg-cream text-espresso dark:bg-midnight dark:text-cream">
+        <PanelAurora />
         <ThemeProvider>
           <AccentProvider>
             <RoleProvider>

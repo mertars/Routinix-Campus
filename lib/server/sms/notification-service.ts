@@ -6,6 +6,7 @@ import { InProcessQueue } from "@/lib/server/queue/in-process-queue";
 import type { NotificationScopeType } from "@prisma/client";
 
 export type SendBulkInput = {
+  institutionId: string;
   scopeType: NotificationScopeType;
   scopeValue?: string;
   templateBody: string;
@@ -44,13 +45,13 @@ function getSmsQueue(): InProcessQueue<SmsJob> {
 }
 
 export async function sendBulkNotification(input: SendBulkInput) {
-  const recipients = await resolveScope(input.scopeType, input.scopeValue);
+  const recipients = await resolveScope(input.scopeType, input.scopeValue, input.institutionId);
   if (recipients.length === 0) {
     throw new Error("Bu kapsamda SMS onayı (smsConsent) olan alıcı bulunamadı.");
   }
 
   const batch = await prisma.notificationBatch.create({
-    data: { scopeType: input.scopeType, scopeValue: input.scopeValue, rawMessage: input.templateBody },
+    data: { institutionId: input.institutionId, scopeType: input.scopeType, scopeValue: input.scopeValue, rawMessage: input.templateBody },
   });
 
   const queue = getSmsQueue();
@@ -78,12 +79,11 @@ export async function sendBulkNotification(input: SendBulkInput) {
   return { batchId: batch.id, recipientCount: recipients.length };
 }
 
-export async function getBatchStatus(batchId: string) {
+export async function getBatchStatus(batchId: string, institutionId: string) {
+  const batch = await prisma.notificationBatch.findUnique({ where: { id: batchId }, select: { institutionId: true } });
+  if (!batch || batch.institutionId !== institutionId) throw new Error("Bildirim grubu (batch) bulunamadı.");
+
   const logs = await prisma.notificationLog.findMany({ where: { batchId } });
-  if (logs.length === 0) {
-    const batch = await prisma.notificationBatch.findUnique({ where: { id: batchId } });
-    if (!batch) throw new Error("Bildirim grubu (batch) bulunamadı.");
-  }
 
   return {
     batchId,

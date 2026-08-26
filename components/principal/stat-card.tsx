@@ -78,7 +78,7 @@ export function StatCard({
   return (
     <MagneticCard
       onClick={onClick}
-      className="cursor-pointer rounded-2xl border border-hairline bg-white/80 p-4 text-left shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/80"
+      className="cursor-pointer rounded-2xl border border-hairline bg-white/80 p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 dark:border-white/10 dark:bg-midnight-card/50 dark:backdrop-blur-xl dark:hover:border-brand-500/40 dark:hover:shadow-[0_0_30px_-8px_rgb(var(--brand-600)/0.5)]"
     >
       <div className="flex items-center justify-between">
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${TONE_STYLES[tone]}`}>
@@ -100,7 +100,7 @@ export function StatCard({
       {progress != null && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
           <motion.div
-            className="h-full rounded-full bg-espresso dark:bg-brand-600"
+            className="h-full rounded-full bg-espresso dark:bg-gradient-to-r dark:from-brand-600 dark:to-brand-400 dark:shadow-[0_0_8px_rgb(var(--brand-500)/0.6)]"
             initial={{ width: 0 }}
             animate={{ width: `${progress}%` }}
             transition={{ type: "spring", stiffness: 80, damping: 16, delay: 0.2 }}
