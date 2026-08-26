@@ -39,7 +39,7 @@ import { StudentXrayTab } from "@/components/teacher/tabs/student-xray";
 import { GapClosingTab } from "@/components/teacher/tabs/gap-closing";
 import { RiskReferralTab } from "@/components/teacher/tabs/risk-referral";
 import { WeeklyScheduleTab } from "@/components/teacher/tabs/weekly-schedule";
-import { useRole } from "@/lib/role-context";
+import { useSessionName } from "@/lib/institution-scope";
 
 // Sol Ada: Ders & Sınıf Operasyonu — Sağ Ada: Analiz & Etüt/İletişim
 const TABS = [
@@ -75,7 +75,7 @@ const sectionVariants = {
 };
 
 export default function TeacherPage() {
-  const { persona } = useRole();
+  const teacherName = useSessionName("İrfan Hoca");
   const [activeTab, setActiveTab] = useState<TabId>("attendance");
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? LiveAttendanceTab;
 
@@ -98,7 +98,7 @@ export default function TeacherPage() {
 
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="relative z-10 mx-auto max-w-6xl">
         <motion.div variants={sectionVariants}>
-          <TeacherHero name={persona?.name ?? "İrfan Hoca"} />
+          <TeacherHero name={teacherName} />
         </motion.div>
 
         <main className="px-4 pb-28 pt-2 md:px-32 md:pb-10">

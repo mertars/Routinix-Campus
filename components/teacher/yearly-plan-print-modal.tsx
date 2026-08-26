@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Printer } from "lucide-react";
-import { INSTITUTION_NAME } from "@/lib/mock-data";
+import { useInstitutionName } from "@/lib/institution-scope";
 
 export function YearlyPlanPrintModal({
   isOpen,
@@ -17,6 +17,7 @@ export function YearlyPlanPrintModal({
   subject: string;
   rows: { weekLabel: string; subtopicName: string; notes: string }[];
 }) {
+  const institutionName = useInstitutionName();
   return (
     <AnimatePresence>
       {isOpen && (
@@ -63,7 +64,7 @@ export function YearlyPlanPrintModal({
                       R
                     </span>
                     <div>
-                      <p className="text-2xl font-bold uppercase tracking-tight text-espresso">{INSTITUTION_NAME.toUpperCase()}</p>
+                      <p className="text-2xl font-bold uppercase tracking-tight text-espresso">{institutionName.toUpperCase()}</p>
                       <p className="text-sm font-medium uppercase tracking-[0.15em] text-brand-600">Özelleştirilmiş Yıllık Plan</p>
                     </div>
                   </div>

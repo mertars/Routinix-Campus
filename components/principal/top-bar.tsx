@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Sparkles, Menu, LogOut } from "lucide-react";
-import { INSTITUTION_NAME } from "@/lib/mock-data";
+import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 
 export function TopBar() {
   const logout = useLogout();
+  const institutionName = useInstitutionName();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -33,7 +34,7 @@ export function TopBar() {
           <div className="ml-auto flex min-w-0 items-center gap-2">
             <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
               <Sparkles className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate text-[10px] font-semibold">{INSTITUTION_NAME}</span>
+              <span className="truncate text-[10px] font-semibold">{institutionName}</span>
             </div>
             <button
               onClick={() => setIsMenuOpen(true)}
@@ -54,7 +55,7 @@ export function TopBar() {
 
           <div className="flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
             <Sparkles className="h-3.5 w-3.5" />
-            <span className="text-xs font-semibold">{INSTITUTION_NAME}</span>
+            <span className="text-xs font-semibold">{institutionName}</span>
           </div>
         </div>
 

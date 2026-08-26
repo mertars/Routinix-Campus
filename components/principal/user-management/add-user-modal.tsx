@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GraduationCap, UserCog2, ShieldCheck, Send, Loader2 } from "lucide-react";
-import { INITIAL_BRANCHES } from "@/lib/mock-data";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import type { NewUserCredentials } from "./credentials-card-modal";
+
+type BranchOption = { id: string; name: string };
 
 type Role = "STUDENT" | "TEACHER" | "ADMIN";
 
@@ -28,14 +29,24 @@ const AUTHORITY_OPTIONS: { id: string; label: string }[] = [
 const inputClass =
   "w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream";
 
-export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; onClose: () => void; onCreated: (credentials: NewUserCredentials) => void }) {
+export function AddUserModal({
+  isOpen,
+  onClose,
+  onCreated,
+  branches,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated: (credentials: NewUserCredentials) => void;
+  branches: BranchOption[];
+}) {
   const { showError } = useToast();
   const [role, setRole] = useState<Role>("STUDENT");
   const [submitting, setSubmitting] = useState(false);
 
   const [fullName, setFullName] = useState("");
   const [nationalId, setNationalId] = useState("");
-  const [branchId, setBranchId] = useState(INITIAL_BRANCHES[0]?.id ?? "");
+  const [branchId, setBranchId] = useState("");
   const [studentPhone, setStudentPhone] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
@@ -47,6 +58,12 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
   const [advisorBranchId, setAdvisorBranchId] = useState("");
   const [title, setTitle] = useState("");
   const [authorityLevel, setAuthorityLevel] = useState("BRANCH_MANAGER");
+
+  // branches asenkron yüklenir (bkz. BranchStaffTab > loadBranches) — modal
+  // ilk açıldığında henüz boş olabilir, geldiğinde varsayılan seçimi ata.
+  useEffect(() => {
+    if (!branchId && branches.length > 0) setBranchId(branches[0].id);
+  }, [branches, branchId]);
 
   function resetForm() {
     setFullName("");
@@ -134,11 +151,17 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
             <p className="-mt-1.5 text-[10px] text-espresso-muted dark:text-cream/40">
               Öğrenci No (kurumsal kod) kaydedince otomatik atanır — örn. &quot;2026-1001&quot;.
             </p>
-            <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className={inputClass}>
-              {INITIAL_BRANCHES.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+            {branches.length === 0 ? (
+              <p className="rounded-lg bg-rose-50 px-3 py-2 text-[11px] text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+                Henüz hiç şube yok — önce &quot;Yeni Şube Ekle&quot; ile en az bir şube oluşturun.
+              </p>
+            ) : (
+              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className={inputClass}>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            )}
             <div>
               <input value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} placeholder="Öğrenci Telefonu (giriş için)" className={inputClass} />
               <p className="mt-1 text-[10px] text-espresso-muted dark:text-cream/40">
@@ -187,7 +210,7 @@ export function AddUserModal({ isOpen, onClose, onCreated }: { isOpen: boolean; 
             </div>
             <select value={advisorBranchId} onChange={(e) => setAdvisorBranchId(e.target.value)} className={inputClass}>
               <option value="">Danışman Sınıf Ataması Yok</option>
-              {INITIAL_BRANCHES.map((b) => (
+              {branches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>

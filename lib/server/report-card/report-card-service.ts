@@ -5,8 +5,6 @@ import { prisma } from "@/lib/server/prisma";
 import { buildReportCardAnalysis } from "./analyzer";
 import { renderHtmlToPdf } from "./pdf-generator";
 
-const INSTITUTION_NAME = "Arslan Dershaneleri";
-
 let compiledTemplate: Handlebars.TemplateDelegate | null = null;
 
 async function getTemplate(): Promise<Handlebars.TemplateDelegate> {
@@ -22,6 +20,7 @@ export async function generateReportCardPdf(studentId: string, periodLabel: stri
     where: { id: studentId },
     include: {
       branch: true,
+      institution: true,
       netResults: true,
       attendanceRecords: true,
     },
@@ -42,7 +41,7 @@ export async function generateReportCardPdf(studentId: string, periodLabel: stri
 
   const template = await getTemplate();
   const html = template({
-    institutionName: INSTITUTION_NAME,
+    institutionName: student.institution.name,
     studentName: `${student.firstName} ${student.lastName}`,
     branchName: student.branch.name,
     periodLabel,

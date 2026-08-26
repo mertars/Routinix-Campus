@@ -45,7 +45,7 @@ import { TercihRobotuTab } from "@/components/student/tabs/tercih-robotu";
 import { KelebekTab } from "@/components/student/tabs/kelebek";
 import { ReportCardTab } from "@/components/student/tabs/report-card";
 import { ProfileTab } from "@/components/student/tabs/profile";
-import { useRole } from "@/lib/role-context";
+import { useSessionName } from "@/lib/institution-scope";
 
 const TABS = [
   { id: "overview", label: "Ana Sayfa", icon: Home, Component: OverviewTab, side: "left" },
@@ -83,7 +83,7 @@ const sectionVariants = {
 };
 
 export default function StudentPage() {
-  const { persona } = useRole();
+  const studentName = useSessionName("Arslan");
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? OverviewTab;
 
@@ -101,7 +101,7 @@ export default function StudentPage() {
 
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="relative z-10 mx-auto max-w-6xl">
         <motion.div variants={sectionVariants}>
-          <StudentHero name={persona?.name ?? "Arslan"} />
+          <StudentHero name={studentName} />
         </motion.div>
 
         <main className="px-4 pb-28 pt-2 md:px-32 md:pb-10">

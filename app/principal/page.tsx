@@ -54,7 +54,7 @@ import {
   RiskyStudentsContent,
 } from "@/components/principal/modal-content";
 import type { Segment } from "@/lib/mock-data";
-import { useRole } from "@/lib/role-context";
+import { useAdminProfile } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 
 // Sol Ada: Akademik & Akış Modülleri — Sağ Ada: İdari & Yönetim Araçları
@@ -103,7 +103,7 @@ type DashboardStats = { totalStudents: number; activeBranches: number; avgComple
 const EMPTY_STATS: DashboardStats = { totalStudents: 0, activeBranches: 0, avgCompletion: 0, riskyStudentCount: 0 };
 
 export default function PrincipalPage() {
-  const { persona } = useRole();
+  const { name: adminName, title: adminTitle } = useAdminProfile("Mert", "Kurum Müdürü");
   const { showError } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [statModal, setStatModal] = useState<StatModalId | null>(null);
@@ -146,7 +146,7 @@ export default function PrincipalPage() {
 
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="relative z-10 mx-auto max-w-6xl">
         <motion.div variants={sectionVariants}>
-          <Hero name={persona?.name ?? "Mert"} title={persona?.title ?? "Kurum Müdürü"} />
+          <Hero name={adminName} title={adminTitle} />
         </motion.div>
 
         <main className="px-4 pb-24 pt-2 sm:px-6 md:pb-10 md:pl-32 md:pr-32">

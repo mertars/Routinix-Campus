@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Printer } from "lucide-react";
-import { INSTITUTION_NAME } from "@/lib/mock-data";
+import { useInstitutionName } from "@/lib/institution-scope";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 
 export type PrintSeat = { seatNumber: number; studentName: string; branchName: string };
@@ -26,6 +26,7 @@ export function ExamPrintModal({
   seat?: PrintSeat;
   seats?: PrintSeat[];
 }) {
+  const institutionName = useInstitutionName();
   return (
     <AnimatePresence>
       {isOpen && (
@@ -76,7 +77,7 @@ export function ExamPrintModal({
                     </span>
                     <div>
                       <p className="text-2xl font-bold uppercase tracking-tight text-espresso">
-                        {INSTITUTION_NAME.toUpperCase()}
+                        {institutionName.toUpperCase()}
                       </p>
                       <p className="text-sm font-medium uppercase tracking-[0.15em] text-brand-600">
                         {mode === "entry" ? "Sınav Giriş Belgesi" : "Salon Kapı Listesi"}

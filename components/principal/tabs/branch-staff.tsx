@@ -3,14 +3,16 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, GraduationCap, UserCog2, Users, FileUp } from "lucide-react";
-import { INITIAL_BRANCHES } from "@/lib/mock-data";
+import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import { AddUserModal } from "@/components/principal/user-management/add-user-modal";
+import { AddBranchModal } from "@/components/principal/user-management/add-branch-modal";
 import { CredentialsCardModal, type NewUserCredentials } from "@/components/principal/user-management/credentials-card-modal";
 import { PerformanceInspectorModal } from "@/components/principal/user-management/performance-inspector-modal";
 import { cn } from "@/lib/utils";
+
+type BranchOption = { id: string; name: string };
 
 // xlsx + pdfjs-dist büyük kütüphaneler — sadece sihirbaz gerçekten açıldığında
 // (nadir bir işlem) ayrı bir chunk olarak yüklensin diye dinamik import
@@ -32,8 +34,10 @@ export function BranchStaffTab() {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [branches, setBranches] = useState<BranchOption[]>([]);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isAddBranchOpen, setIsAddBranchOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [credentials, setCredentials] = useState<NewUserCredentials | null>(null);
   const [inspectorTarget, setInspectorTarget] = useState<{ id: string; role: DirectoryRole; name: string } | null>(null);
@@ -62,6 +66,22 @@ export function BranchStaffTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, query, branchFilter]);
 
+  async function loadBranches() {
+    try {
+      const res = await fetch("/api/admin/branches");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error);
+      setBranches(data.branches ?? []);
+    } catch {
+      showError("Şube listesi yüklenemedi.");
+    }
+  }
+
+  useEffect(() => {
+    loadBranches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const totalCount = role === "STUDENT" ? students.length : teachers.length;
 
   return (
@@ -78,6 +98,12 @@ export function BranchStaffTab() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsAddBranchOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+            >
+              <Layers className="h-3.5 w-3.5" /> Yeni Şube Ekle
+            </button>
             <button
               onClick={() => setIsBulkImportOpen(true)}
               className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
@@ -125,7 +151,7 @@ export function BranchStaffTab() {
               className="rounded-xl border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
             >
               <option value="">Tüm Şubeler</option>
-              {INITIAL_BRANCHES.map((b) => (
+              {branches.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
@@ -186,10 +212,16 @@ export function BranchStaffTab() {
       <AddUserModal
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
+        branches={branches}
         onCreated={(newCredentials) => {
           setCredentials(newCredentials);
           loadDirectory();
         }}
+      />
+      <AddBranchModal
+        isOpen={isAddBranchOpen}
+        onClose={() => setIsAddBranchOpen(false)}
+        onCreated={() => loadBranches()}
       />
       <CredentialsCardModal credentials={credentials} onClose={() => setCredentials(null)} />
       <PerformanceInspectorModal target={inspectorTarget} onClose={() => setInspectorTarget(null)} />

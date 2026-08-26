@@ -902,6 +902,7 @@ enum AuditAction {
   GRADE_ENTERED
   GUIDANCE_NOTE_CREATED
   PASSWORD_CHANGED
+  BRANCH_CREATED
 }
 
 model AuditLog {

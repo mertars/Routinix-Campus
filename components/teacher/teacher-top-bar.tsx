@@ -6,7 +6,7 @@ import { Radio, Clock, Palette, Sparkles, LogOut } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
 import { useHideOnScroll } from "@/lib/use-hide-on-scroll";
-import { INSTITUTION_NAME } from "@/lib/mock-data";
+import { useInstitutionName } from "@/lib/institution-scope";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
 import { TeacherAppearancePopup } from "@/components/teacher/teacher-appearance-popup";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 export function TeacherTopBar() {
   const handleLogout = useLogout();
+  const institutionName = useInstitutionName();
   const { mySchedule } = useTeacherScope();
   const lesson = useCurrentLesson(mySchedule);
   const hidden = useHideOnScroll();
@@ -48,7 +49,7 @@ export function TeacherTopBar() {
               </button>
               <div className="flex min-w-0 items-center gap-1 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
                 <Sparkles className="h-3 w-3 shrink-0" />
-                <span className="truncate text-[10px] font-semibold">{INSTITUTION_NAME}</span>
+                <span className="truncate text-[10px] font-semibold">{institutionName}</span>
               </div>
               <button
                 onClick={handleLogout}
@@ -112,7 +113,7 @@ export function TeacherTopBar() {
             <ThemeToggle />
             <div className="flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="text-xs font-semibold">{INSTITUTION_NAME}</span>
+              <span className="text-xs font-semibold">{institutionName}</span>
             </div>
             <button
               onClick={handleLogout}

@@ -6,7 +6,7 @@ import { GraduationCap, Palette, Sparkles, LogOut } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { useStudentScope } from "@/lib/student-scope";
 import { useHideOnScroll } from "@/lib/use-hide-on-scroll";
-import { INSTITUTION_NAME } from "@/lib/mock-data";
+import { useInstitutionName } from "@/lib/institution-scope";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
 import { StudentAppearancePopup } from "@/components/student/student-appearance-popup";
@@ -17,6 +17,7 @@ const TRACK_LABEL: Record<string, string> = { lgs: "LGS AdayÄ±", yks: "YKS AdayÄ
 
 export function StudentTopBar() {
   const handleLogout = useLogout();
+  const institutionName = useInstitutionName();
   const { branchName, track } = useStudentScope();
   const hidden = useHideOnScroll();
   const [isAppearanceOpen, setIsAppearanceOpen] = useState(false);
@@ -43,7 +44,7 @@ export function StudentTopBar() {
               </button>
               <div className="flex min-w-0 items-center gap-1 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
                 <Sparkles className="h-3 w-3 shrink-0" />
-                <span className="truncate text-[10px] font-semibold">{INSTITUTION_NAME}</span>
+                <span className="truncate text-[10px] font-semibold">{institutionName}</span>
               </div>
               <button
                 onClick={handleLogout}
@@ -79,7 +80,7 @@ export function StudentTopBar() {
             <ThemeToggle />
             <div className="flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
               <Sparkles className="h-3.5 w-3.5" />
-              <span className="text-xs font-semibold">{INSTITUTION_NAME}</span>
+              <span className="text-xs font-semibold">{institutionName}</span>
             </div>
             <button
               onClick={handleLogout}

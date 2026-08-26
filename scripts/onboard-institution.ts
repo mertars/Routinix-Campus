@@ -111,7 +111,9 @@ async function main() {
       "\n⚠️  Bu geçici şifreyi GÜVENLİ bir kanalla (yüz yüze, şifreli mesaj) iletin — burada bir daha görüntülenmeyecek."
     );
     console.log(
-      "İlk girişte yönetici, telefon+OTP ile doğrulanıp kalıcı bir şifre belirleyecek (mustChangePassword=true)."
+      "İlk girişte yönetici, telefonu + bu geçici şifreyle giriş yapıp kalıcı bir şifre belirleyecek\n" +
+        "(mustChangePassword=true — OTP gerekmez, doğru geçici şifreyi bilmek zaten kimlik kanıtıdır;\n" +
+        "bkz. app/api/auth/login/route.ts). OTP akışı sadece şifresi HİÇ olmayan hesaplar içindir."
     );
   } catch (error) {
     if (error instanceof AdminCreateError) {

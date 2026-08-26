@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Printer } from "lucide-react";
-import { INSTITUTION_NAME } from "@/lib/mock-data";
+import { useInstitutionName } from "@/lib/institution-scope";
 
 export type PrintableCredential = { fullName: string; username: string; password: string; institutionalCode?: string };
 
@@ -17,6 +17,7 @@ export function BulkCredentialsPrint({
   role: "STUDENT" | "TEACHER";
   credentials: PrintableCredential[];
 }) {
+  const institutionName = useInstitutionName();
   return (
     <AnimatePresence>
       {isOpen && (
@@ -58,7 +59,7 @@ export function BulkCredentialsPrint({
                 <div className="printable-a4 relative mx-auto flex flex-col bg-white p-10 text-espresso shadow-lg" style={{ width: "210mm", minHeight: "297mm" }}>
                   <div className="mb-6 flex items-center justify-between border-b border-hairline pb-4">
                     <div>
-                      <p className="text-lg font-bold">{INSTITUTION_NAME}</p>
+                      <p className="text-lg font-bold">{institutionName}</p>
                       <p className="text-xs text-espresso-muted">Toplu Giriş Bilgileri Listesi — {role === "STUDENT" ? "Öğrenci" : "Öğretmen"}</p>
                     </div>
                     <p className="text-xs text-espresso-muted">{new Date().toLocaleDateString("tr-TR")}</p>

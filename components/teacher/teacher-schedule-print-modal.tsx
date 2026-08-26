@@ -2,7 +2,8 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Printer } from "lucide-react";
-import { INSTITUTION_NAME, SCHEDULE_DAYS, SCHEDULE_SLOTS, type ScheduleAssignment } from "@/lib/mock-data";
+import { SCHEDULE_DAYS, SCHEDULE_SLOTS, type ScheduleAssignment } from "@/lib/mock-data";
+import { useInstitutionName } from "@/lib/institution-scope";
 
 export function TeacherSchedulePrintModal({
   isOpen,
@@ -17,6 +18,7 @@ export function TeacherSchedulePrintModal({
   subject: string;
   schedule: (ScheduleAssignment & { branchName: string })[];
 }) {
+  const institutionName = useInstitutionName();
   return (
     <AnimatePresence>
       {isOpen && (
@@ -64,7 +66,7 @@ export function TeacherSchedulePrintModal({
                       R
                     </span>
                     <div>
-                      <p className="text-2xl font-bold uppercase tracking-tight text-espresso">{INSTITUTION_NAME.toUpperCase()}</p>
+                      <p className="text-2xl font-bold uppercase tracking-tight text-espresso">{institutionName.toUpperCase()}</p>
                       <p className="text-sm font-medium uppercase tracking-[0.15em] text-brand-600">Haftalık Ders Programı</p>
                     </div>
                   </div>
