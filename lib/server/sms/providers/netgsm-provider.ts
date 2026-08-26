@@ -1,11 +1,13 @@
 import type { SmsProvider, SmsSendResult } from "../types";
 
-// ⚠️ DOĞRULAMA GEREKİR: Bu implementasyon NetGSM'in yaygın bilinen klasik
-// REST API deseni (usercode/password/gsmno/message, "00" ile başlayan başarı
-// kodu) baz alınarak yazılmıştır — internet erişimim olmadığı için NetGSM'in
-// GÜNCEL resmi dokümantasyonuyla teyit edilmedi. Üretime almadan önce
-// https://www.netgsm.com.tr üzerindeki güncel API referansıyla endpoint ve
-// alan adlarını doğrulayın.
+// Endpoint (sms/send/get) ve alan adları (usercode/password/gsmno/msgheader/
+// message, "00" ile başlayan başarı kodu) genel NetGSM dokümantasyonu ve
+// yaygın kullanılan istemci kütüphaneleriyle çapraz doğrulandı. `gsmno`
+// alanı 10 haneli, başında "0"/"90" OLMAYAN yerel formatı bekler — bu proje
+// zaten normalizePhone() ile bu formatı üretiyor (bkz. lib/server/auth/otp.ts),
+// ekstra bir dönüşüm gerekmez. `header` (msgheader) NetGSM panelinde
+// ONAYLANMIŞ bir gönderici başlığı olmalı, aksi halde istek "00" dışında bir
+// hata koduyla döner.
 export class NetGsmProvider implements SmsProvider {
   readonly name = "netgsm";
 

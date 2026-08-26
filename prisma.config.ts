@@ -10,7 +10,12 @@ import { defineConfig } from "prisma/config";
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
-    url: process.env.DATABASE_URL,
+    // Migration/DDL komutları (migrate/db push) Neon'un pooler'ı yerine
+    // DOĞRUDAN bağlantıyı kullanmalı (bkz. lib/server/prisma.ts'teki
+    // adapter — o, uygulamanın gerçek isteklerinde POOLED DATABASE_URL'i
+    // kullanır). DIRECT_URL tanımlı değilse (örn. tek-URL'lik eski kurulum)
+    // DATABASE_URL'e geri düşer, davranış değişmez.
+    url: process.env.DIRECT_URL ?? process.env.DATABASE_URL,
   },
   // Prisma 7: seed komutu artık package.json > "prisma"."seed" değil, burada
   // tanımlanıyor. package.json'daki alanı da (başka araçlar/dokümantasyon
