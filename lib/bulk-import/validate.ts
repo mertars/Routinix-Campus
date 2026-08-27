@@ -3,7 +3,11 @@ import type { ImportRole, RawRow, ValidatedRow } from "./types";
 function pick(row: RawRow, ...keys: string[]): string {
   for (const key of keys) {
     const value = row[key];
-    if (value?.trim()) return value.trim();
+    // Excel, "T.C. No"/"Sınıf Seviyesi" gibi rakamsal hücreleri elle Metin'e
+    // çevrilmemişse JS number olarak döner — String() olmadan .trim() çöker.
+    if (value === undefined || value === null) continue;
+    const str = String(value).trim();
+    if (str) return str;
   }
   return "";
 }

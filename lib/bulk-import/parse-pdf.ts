@@ -68,7 +68,7 @@ export async function parsePdfFile(file: File): Promise<RawRow[]> {
       const key = headers[closestIndex];
       row[key] = row[key] ? `${row[key]} ${item.text}` : item.text;
     }
-    if (Object.values(row).some((v) => v?.trim())) rows.push(row);
+    if (Object.values(row).some((v) => v !== undefined && String(v).trim())) rows.push(row);
   }
 
   return rows;

@@ -1,6 +1,9 @@
 export type ImportRole = "STUDENT" | "TEACHER" | "BRANCH";
 
-export type RawRow = Record<string, string | undefined>;
+// xlsx kütüphanesi, biçimi elle Metin'e çevrilmemiş rakamsal hücreleri
+// (T.C. No, Sınıf Seviyesi vb.) JS number olarak döner — string değil.
+// Bkz. lib/bulk-import/validate.ts > pick().
+export type RawRow = Record<string, string | number | undefined>;
 
 export type ValidatedRow = {
   rowIndex: number;
