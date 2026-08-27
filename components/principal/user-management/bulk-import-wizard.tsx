@@ -124,12 +124,15 @@ export function BulkImportWizard({
     onClose();
   }
 
-  // Sihirbaz her zaman "Öğrenci" sekmesiyle açılırdı — henüz hiç şubesi
-  // olmayan yeni bir kurumda kullanıcı bunu fark etmeden öğrenci dosyasını
-  // yükleyip "Şube bulunamadı" ile karşılaşıyordu. Açılışta hâlâ 0 şube
-  // varsa doğru başlangıç noktasına (Şube sekmesi) yönlendir.
+  // Modal her açılıp kapandığında component unmount OLMUYOR (Modal sadece
+  // görünürlüğü değiştiriyor) — bu yüzden `role` bir önceki oturumdan sızıp
+  // kalabiliyordu: kullanıcı Şube sekmesinden şubeleri içe aktarıp sihirbazı
+  // kapattığında, tekrar açtığında hâlâ "BRANCH" seçili kalıyor, öğrenci
+  // dosyasını o kurallarla (Şube Adı/Segment vb.) yanlış doğruluyordu. Her
+  // açılışta güncel şube sayısına göre YENİDEN karar ver — sıfır şube varsa
+  // Şube sekmesi, aksi halde Öğrenci sekmesiyle başla.
   useEffect(() => {
-    if (isOpen && branchNames.length === 0) setRole("BRANCH");
+    if (isOpen) setRole(branchNames.length === 0 ? "BRANCH" : "STUDENT");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
