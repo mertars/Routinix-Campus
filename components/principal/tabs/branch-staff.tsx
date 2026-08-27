@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers } from "lucide-react";
+import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import { AddUserModal } from "@/components/principal/user-management/add-user-modal";
 import { AddBranchModal } from "@/components/principal/user-management/add-branch-modal";
+import { EditUserModal, type EditTarget } from "@/components/principal/user-management/edit-user-modal";
 import { CredentialsCardModal, type NewUserCredentials } from "@/components/principal/user-management/credentials-card-modal";
 import { PerformanceInspectorModal } from "@/components/principal/user-management/performance-inspector-modal";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ export function BranchStaffTab() {
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [credentials, setCredentials] = useState<NewUserCredentials | null>(null);
   const [inspectorTarget, setInspectorTarget] = useState<{ id: string; role: DirectoryRole; name: string } | null>(null);
+  const [editTarget, setEditTarget] = useState<EditTarget>(null);
 
   async function loadDirectory() {
     setLoading(true);
@@ -162,43 +164,65 @@ export function BranchStaffTab() {
           <AnimatePresence mode="popLayout">
             {role === "STUDENT"
               ? students.map((s, index) => (
-                  <motion.button
+                  <motion.div
                     key={s.id}
                     layout
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ delay: index * 0.02 }}
-                    onClick={() => setInspectorTarget({ id: s.id, role: "STUDENT", name: `${s.firstName} ${s.lastName}` })}
-                    className="flex items-center gap-3 rounded-xl bg-cream-card px-3 py-2.5 text-left transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
+                    className="flex items-center gap-1.5 rounded-xl bg-cream-card pr-2 transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
                   >
-                    <AvatarInitials name={`${s.firstName} ${s.lastName}`} className="h-9 w-9 text-xs" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-espresso dark:text-cream">{s.firstName} {s.lastName}</p>
-                      <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">{s.branchName} · No: {s.studentNumber}</p>
-                    </div>
-                  </motion.button>
+                    <button
+                      onClick={() => setInspectorTarget({ id: s.id, role: "STUDENT", name: `${s.firstName} ${s.lastName}` })}
+                      className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left"
+                    >
+                      <AvatarInitials name={`${s.firstName} ${s.lastName}`} className="h-9 w-9 text-xs" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-espresso dark:text-cream">{s.firstName} {s.lastName}</p>
+                        <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">{s.branchName} · No: {s.studentNumber}</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setEditTarget({ id: s.id, role: "STUDENT", name: `${s.firstName} ${s.lastName}` })}
+                      aria-label="Öğrenciyi düzenle"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-brand-600 dark:text-cream/40 dark:hover:bg-white/10"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </motion.div>
                 ))
               : teachers.map((t, index) => (
-                  <motion.button
+                  <motion.div
                     key={t.id}
                     layout
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                     transition={{ delay: index * 0.02 }}
-                    onClick={() => setInspectorTarget({ id: t.id, role: "TEACHER", name: `${t.firstName} ${t.lastName}` })}
-                    className="flex items-center gap-3 rounded-xl bg-cream-card px-3 py-2.5 text-left transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
+                    className="flex items-center gap-1.5 rounded-xl bg-cream-card pr-2 transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
                   >
-                    <AvatarInitials name={`${t.firstName} ${t.lastName}`} className="h-9 w-9 text-xs" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-espresso dark:text-cream">{t.firstName} {t.lastName}</p>
-                      <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">
-                        {t.subject} · {t.branchNames.join(", ") || "Danışman şube yok"}
-                        {t.institutionalCode && <span className="font-mono"> · {t.institutionalCode}</span>}
-                      </p>
-                    </div>
-                  </motion.button>
+                    <button
+                      onClick={() => setInspectorTarget({ id: t.id, role: "TEACHER", name: `${t.firstName} ${t.lastName}` })}
+                      className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left"
+                    >
+                      <AvatarInitials name={`${t.firstName} ${t.lastName}`} className="h-9 w-9 text-xs" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-espresso dark:text-cream">{t.firstName} {t.lastName}</p>
+                        <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">
+                          {t.subject} · {t.branchNames.join(", ") || "Danışman şube yok"}
+                          {t.institutionalCode && <span className="font-mono"> · {t.institutionalCode}</span>}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setEditTarget({ id: t.id, role: "TEACHER", name: `${t.firstName} ${t.lastName}` })}
+                      aria-label="Öğretmeni düzenle"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-brand-600 dark:text-cream/40 dark:hover:bg-white/10"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </motion.div>
                 ))}
           </AnimatePresence>
           {!loading && totalCount === 0 && (
@@ -225,6 +249,12 @@ export function BranchStaffTab() {
       />
       <CredentialsCardModal credentials={credentials} onClose={() => setCredentials(null)} />
       <PerformanceInspectorModal target={inspectorTarget} onClose={() => setInspectorTarget(null)} />
+      <EditUserModal
+        target={editTarget}
+        onClose={() => setEditTarget(null)}
+        branches={branches}
+        onUpdated={loadDirectory}
+      />
       <BulkImportWizard isOpen={isBulkImportOpen} onClose={() => setIsBulkImportOpen(false)} onImported={loadDirectory} />
     </div>
   );

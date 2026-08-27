@@ -2,12 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
+
+// xlsx büyük bir kütüphane — sadece bir kurum kartına gerçekten tıklandığında
+// (nadir bir işlem) ayrı bir chunk olarak yüklensin diye dinamik import
+// ediliyor (bkz. components/principal/user-management/bulk-import-wizard.tsx'teki
+// AYNI desen) — aksi halde /platform panosunun ilk yüklemesi ~140KB şişerdi.
+const InstitutionDetailModal = dynamic(
+  () => import("@/components/platform/institution-detail-modal").then((mod) => mod.InstitutionDetailModal),
+  { ssr: false }
+);
 
 type InstitutionRow = {
   id: string;
@@ -168,6 +178,7 @@ export default function PlatformDashboardPage() {
   const [institutions, setInstitutions] = useState<InstitutionRow[] | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newCredentials, setNewCredentials] = useState<NewInstitutionCredentials | null>(null);
+  const [detailInstitutionId, setDetailInstitutionId] = useState<string | null>(null);
 
   async function loadInstitutions() {
     try {
@@ -217,7 +228,7 @@ export default function PlatformDashboardPage() {
           <div>
             <h1 className="text-xl font-bold text-espresso dark:text-cream">Kurumlar</h1>
             <p className="text-xs text-espresso-muted dark:text-cream/40">
-              {institutions ? `${institutions.length} kurum` : "Yükleniyor..."}
+              {institutions ? `${institutions.length} kurum · hesap listesi için bir karta tıkla` : "Yükleniyor..."}
             </p>
           </div>
           <button
@@ -245,7 +256,12 @@ export default function PlatformDashboardPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.03 }}
-                  className="rounded-2xl border border-hairline bg-white/70 p-4 backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50"
+                  whileHover={{ y: -2 }}
+                  onClick={() => setDetailInstitutionId(inst.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && setDetailInstitutionId(inst.id)}
+                  className="cursor-pointer rounded-2xl border border-hairline bg-white/70 p-4 backdrop-blur-sm transition hover:border-brand-500/40 dark:border-white/10 dark:bg-midnight-card/50"
                 >
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -298,6 +314,7 @@ export default function PlatformDashboardPage() {
         }}
       />
       <CredentialsOnceModal credentials={newCredentials} onClose={() => setNewCredentials(null)} />
+      <InstitutionDetailModal institutionId={detailInstitutionId} onClose={() => setDetailInstitutionId(null)} />
     </main>
   );
 }
