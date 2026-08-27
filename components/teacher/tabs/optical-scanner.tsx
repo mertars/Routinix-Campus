@@ -127,44 +127,15 @@ export function OpticalScannerTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignedBranches.map((b) => b.id).join(",")]);
 
+  // ⚠️ Bu daha önce kamera erişimi OLMADAN rastgele bir kağıt taranmış gibi
+  // davranıyordu: rosterden RASTGELE bir öğrenci seçip RASTGELE doğru/yanlış
+  // üretiyor, bunu gerçek net-results ucuna yazıyordu — yani hem YANLIŞ
+  // öğrenciye hem UYDURMA bir nota gerçek, kalıcı bir kayıt açılıyordu,
+  // üstelik arayüz "gerçek Net Takipçisi'ne kaydedilir" diyordu. Gerçek bir
+  // kamera/OCR entegrasyonu bağlanana kadar taramayı BİLEREK devre dışı
+  // bırakıyoruz — sahte veri üretmektense net bir uyarı vermek daha güvenli.
   function startScan() {
-    if (!examId || roster.length === 0) {
-      showError("Önce bir deneme sınavı seçin.");
-      return;
-    }
-    setStage("scanning");
-    setTimeout(async () => {
-      const student = roster[Math.floor(Math.random() * roster.length)];
-      const correct = Math.round(answerKey.length * (0.4 + Math.random() * 0.55));
-      const wrong = answerKey.length - correct;
-      const branch = assignedBranches.find((b) => b.id === student.branchId);
-
-      try {
-        const res = await fetch(`/api/exams/${encodeURIComponent(examId)}/net-results`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ studentId: student.id, subject, correct, wrong }),
-        });
-        if (!res.ok) throw new Error();
-        const sheet: ScannedSheet = {
-          id: crypto.randomUUID(),
-          studentName: `${student.firstName} ${student.lastName}`,
-          branchName: branch?.name ?? "—",
-          correct,
-          total: answerKey.length,
-          scannedAt: "az önce",
-        };
-        setSheets((prev) => [sheet, ...prev]);
-      } catch {
-        showError("Sonuç kaydedilemedi.");
-      } finally {
-        setStage("done");
-        setTimeout(() => {
-          setStage("idle");
-          setIsFullscreen(false);
-        }, 1500);
-      }
-    }, 1800);
+    showError("Kamera/OCR entegrasyonu henüz bağlı değil — bu özellik yakında aktif olacak.");
   }
 
   return (
