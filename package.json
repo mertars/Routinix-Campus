@@ -20,6 +20,7 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "onboard-institution": "tsx --env-file=.env.local scripts/onboard-institution.ts",
+    "create-platform-owner": "tsx --env-file=.env.local scripts/create-platform-owner.ts",
     "load-test": "tsx scripts/load-test.ts"
   },
   "dependencies": {

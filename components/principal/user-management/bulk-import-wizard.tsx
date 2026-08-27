@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   GraduationCap,
   UserCog2,
+  Layers,
   Printer,
   X,
 } from "lucide-react";
@@ -202,6 +203,12 @@ export function BulkImportWizard({ isOpen, onClose, onImported }: { isOpen: bool
             <motion.div key="step1" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.2 }} className="space-y-4">
               <div className="flex gap-1.5 rounded-xl bg-cream-card p-1 dark:bg-white/5">
                 <button
+                  onClick={() => setRole("BRANCH")}
+                  className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition", role === "BRANCH" ? "bg-espresso text-cream dark:bg-brand-600" : "text-espresso-muted dark:text-cream/40")}
+                >
+                  <Layers className="h-3.5 w-3.5" /> Şube
+                </button>
+                <button
                   onClick={() => setRole("STUDENT")}
                   className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium transition", role === "STUDENT" ? "bg-espresso text-cream dark:bg-brand-600" : "text-espresso-muted dark:text-cream/40")}
                 >
@@ -217,14 +224,16 @@ export function BulkImportWizard({ isOpen, onClose, onImported }: { isOpen: bool
 
               <div className="rounded-2xl border border-hairline bg-cream-card p-4 dark:border-white/10 dark:bg-white/5">
                 <p className="mb-1 text-sm font-medium text-espresso dark:text-cream">
-                  {role === "STUDENT" ? "Öğrenci" : "Öğretmen"} şablonunu indir
+                  {role === "STUDENT" ? "Öğrenci" : role === "TEACHER" ? "Öğretmen" : "Şube"} şablonunu indir
                 </p>
                 <p className="mb-3 text-xs text-espresso-muted dark:text-cream/40">
-                  Şablon, veritabanındaki güncel {branchNames.length} şubeyi referans sayfasında listeler — &quot;Şube&quot; sütununa yazacağınız isim bu listeyle birebir eşleşmelidir.
+                  {role === "BRANCH"
+                    ? "Her satır yeni bir şube (sınıf) oluşturur — Segment sütununa \"LGS\", \"YKS\" veya \"MEZUN\" yazın."
+                    : `Şablon, veritabanındaki güncel ${branchNames.length} şubeyi referans sayfasında listeler — "Şube" sütununa yazacağınız isim bu listeyle birebir eşleşmelidir.`}
                 </p>
                 <button
                   onClick={() => downloadImportTemplate(role, branchNames)}
-                  disabled={branchNames.length === 0}
+                  disabled={role !== "BRANCH" && branchNames.length === 0}
                   className="flex items-center gap-1.5 rounded-lg bg-espresso px-3 py-2 text-xs font-medium text-cream transition hover:bg-caramel disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
                 >
                   <Download className="h-3.5 w-3.5" /> Excel Şablonu İndir (.xlsx)
@@ -408,7 +417,10 @@ export function BulkImportWizard({ isOpen, onClose, onImported }: { isOpen: bool
         </AnimatePresence>
       </Modal>
 
-      <BulkCredentialsPrint isOpen={isPrintOpen} onClose={() => setIsPrintOpen(false)} role={role} credentials={printableCredentials} />
+      {/* BRANCH satırlarının kullanıcı adı/şifresi olmadığından printableCredentials
+          o modda zaten her zaman boş — role burada sadece etiket metni için, "BRANCH"
+          asla bu modalı anlamlı içerikle açmaz. */}
+      <BulkCredentialsPrint isOpen={isPrintOpen} onClose={() => setIsPrintOpen(false)} role={role === "TEACHER" ? "TEACHER" : "STUDENT"} credentials={printableCredentials} />
     </>
   );
 }

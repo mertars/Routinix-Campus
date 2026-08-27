@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySessionToken, ROLE_ID_BY_AUTH_ROLE } from "@/lib/server/auth/jwt";
+import { verifyPlatformSessionToken, PLATFORM_SESSION_COOKIE_NAME } from "@/lib/server/auth/platform-jwt";
 
 // Panel rotalarını GERÇEK, sunucu tarafı imzalı oturuma (routinix-kampus-session,
 // bkz. lib/server/auth/jwt.ts) göre korur. Rol bilgisi tarayıcıdan okunabilir/
@@ -45,6 +46,33 @@ export async function middleware(request: NextRequest) {
   const cspHeader = buildCsp(nonce);
 
   const { pathname } = request.nextUrl;
+
+  // /platform — kurum panellerinin (ROUTE_ROLE) TAMAMEN dışında, ayrı bir
+  // cookie/JWT ile korunan Platform Sahibi (Süper Admin) alanı (bkz.
+  // lib/server/auth/platform-jwt.ts). /platform/login'in kendisi hariç tüm
+  // /platform/* burada korunur — API tarafında da requirePlatformSession()
+  // ayrıca doğrular, bu sadece sayfa seviyesinde erken bir yönlendirmedir.
+  if (pathname === "/platform" || pathname.startsWith("/platform/")) {
+    if (pathname === "/platform/login") {
+      const response = NextResponse.next({ request: { headers: requestHeaders } });
+      response.headers.set("Content-Security-Policy", cspHeader);
+      return response;
+    }
+    const platformToken = request.cookies.get(PLATFORM_SESSION_COOKIE_NAME)?.value;
+    const platformSession = platformToken ? await verifyPlatformSessionToken(platformToken) : null;
+    if (platformSession) {
+      const response = NextResponse.next({ request: { headers: requestHeaders } });
+      response.headers.set("Content-Security-Policy", cspHeader);
+      return response;
+    }
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/platform/login";
+    loginUrl.search = "";
+    const response = NextResponse.redirect(loginUrl);
+    response.headers.set("Content-Security-Policy", cspHeader);
+    return response;
+  }
+
   const matchedPrefix = Object.keys(ROUTE_ROLE).find((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
   if (!matchedPrefix) {

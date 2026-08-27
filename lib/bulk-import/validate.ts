@@ -12,9 +12,34 @@ function pick(row: RawRow, ...keys: string[]): string {
 // — kullanıcıya yazmadan ÖNCE anında geri bildirim verir. Nihai/yetkili
 // doğrulama her zaman sunucudadır (T.C./öğrenci no çakışması gibi DB'ye
 // bakması gereken kontroller burada yapılamaz, sadece biçim kontrolü yapılır).
+const VALID_SEGMENTS = new Set(["LGS", "YKS", "MEZUN"]);
+
 export function validateRows(role: ImportRole, rawRows: RawRow[], branchNames: string[]): ValidatedRow[] {
   const branchNameSet = new Set(branchNames.map((n) => n.toLocaleLowerCase("tr")));
   const seenNationalIds = new Set<string>();
+  const seenBranchNames = new Set<string>();
+
+  if (role === "BRANCH") {
+    return rawRows.map((raw, rowIndex) => {
+      const errors: string[] = [];
+      const branchName = pick(raw, "name", "Şube Adı");
+      const gradeRaw = pick(raw, "grade", "Sınıf Seviyesi");
+      const segmentRaw = pick(raw, "segment", "Segment").toUpperCase();
+      const grade = Number(gradeRaw);
+
+      if (!branchName) errors.push("Şube Adı zorunludur.");
+      else {
+        const key = branchName.toLocaleLowerCase("tr");
+        if (branchNameSet.has(key)) errors.push(`Bu isimde bir şube zaten var: "${branchName}".`);
+        else if (seenBranchNames.has(key)) errors.push("Bu dosya içinde tekrar eden Şube Adı.");
+        else seenBranchNames.add(key);
+      }
+      if (!gradeRaw || !Number.isInteger(grade) || grade < 5 || grade > 12) errors.push("Sınıf Seviyesi 5-12 arasında bir tam sayı olmalı.");
+      if (!VALID_SEGMENTS.has(segmentRaw)) errors.push('Segment "LGS", "YKS" veya "MEZUN" olmalı.');
+
+      return { rowIndex, raw, fullName: branchName, nationalId: "", isValid: errors.length === 0, errors };
+    });
+  }
 
   return rawRows.map((raw, rowIndex) => {
     const errors: string[] = [];

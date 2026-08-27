@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { AdminCreateError, createStudentAccount, createTeacherAccount } from "@/lib/server/admin/create-user";
+import { createBranch } from "@/lib/server/admin/branches";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -29,16 +30,45 @@ async function handlePost(request: NextRequest) {
     requireRole(session, "principal");
 
     const body = await request.json();
-    const { role, rows } = body as { role?: "STUDENT" | "TEACHER"; rows?: RawRow[] };
+    const { role, rows } = body as { role?: "STUDENT" | "TEACHER" | "BRANCH"; rows?: RawRow[] };
 
-    if (role !== "STUDENT" && role !== "TEACHER") {
-      return NextResponse.json({ error: "role 'STUDENT' veya 'TEACHER' olmalı." }, { status: 400 });
+    if (role !== "STUDENT" && role !== "TEACHER" && role !== "BRANCH") {
+      return NextResponse.json({ error: "role 'STUDENT', 'TEACHER' veya 'BRANCH' olmalı." }, { status: 400 });
     }
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json({ error: "rows (dizi) zorunludur ve boş olamaz." }, { status: 400 });
     }
     if (rows.length > 500) {
       return NextResponse.json({ error: "Tek seferde en fazla 500 satır işlenebilir." }, { status: 400 });
+    }
+
+    if (role === "BRANCH") {
+      const seenBranchNames = new Set<string>();
+      const results: RowResult[] = [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const name = (row.name ?? row["Şube Adı"] ?? "").toString().trim();
+        try {
+          if (!name) throw new AdminCreateError("Şube Adı zorunludur.");
+          const key = name.toLocaleLowerCase("tr");
+          if (seenBranchNames.has(key)) throw new AdminCreateError("Bu dosya içinde tekrar eden Şube Adı.");
+          seenBranchNames.add(key);
+
+          const grade = Number((row.grade ?? row["Sınıf Seviyesi"] ?? "").toString().trim());
+          const segment = (row.segment ?? row["Segment"] ?? "").toString().trim().toUpperCase() as "LGS" | "YKS" | "MEZUN";
+          const track = (row.track ?? row["Alan/Dal"])?.toString().trim();
+
+          const branch = await createBranch({ institutionId: session.institutionId, actorId: session.sub, name, grade, segment, track });
+          results.push({ rowIndex: i, fullName: branch.name, status: "success" });
+        } catch (error) {
+          seenBranchNames.delete(name.toLocaleLowerCase("tr"));
+          const message = error instanceof AdminCreateError ? error.message : "Beklenmeyen hata";
+          results.push({ rowIndex: i, fullName: name || `Satır ${i + 1}`, status: "failed", error: message });
+        }
+      }
+      const successCount = results.filter((r) => r.status === "success").length;
+      logger.info("admin_bulk_import_completed", { role, total: rows.length, successCount, failedCount: rows.length - successCount });
+      return NextResponse.json({ results, successCount, failedCount: rows.length - successCount });
     }
 
     const branches = await prisma.branch.findMany({ where: { institutionId: session.institutionId }, select: { id: true, name: true } });

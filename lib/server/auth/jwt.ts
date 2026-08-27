@@ -64,6 +64,20 @@ export type PasswordChangePayload = {
   institutionId: string;
 };
 
+// ⚠️ GÜVENLİK: Tüm token türleri (kurum oturumu, şifre değiştirme, platform
+// oturumu — bkz. platform-jwt.ts) AYNI AUTH_SECRET ile HS256 imzalanıyor.
+// JWT imza doğrulaması BAŞLI BAŞINA "bu token doğru TÜRDE mi" diye bir ayrım
+// YAPMAZ — sadece imzanın geçerli olduğunu kanıtlar. SessionPayload
+// ({sub,role,phone,name,institutionId}) ile PlatformSessionPayload
+// ({sub,phone,name}) alan kümesi ÖRTÜŞTÜĞÜ için, 'aud' claim'i OLMADAN bir
+// kurum oturum token'ı ham haliyle geçerli bir platform oturumu (veya tam
+// tersi) gibi kabul edilebiliyordu (gerçek bulgu: bu oturumda test edilip
+// doğrulandı). 'aud' claim'i + jwtVerify'a { audience } seçeneği, jose'nin
+// KENDİSİNİN bu tür token'ları reddetmesini sağlar — her tür sadece
+// imzalandığı amaç için geçerlidir.
+const SESSION_AUDIENCE = "routinix:session";
+const PASSWORD_CHANGE_AUDIENCE = "routinix:password-change";
+
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 gün
 // Demo/test ortamında şifre değiştirme token süresi 1 saat — production'da 15 dakika
 const PASSWORD_CHANGE_TTL_SECONDS = process.env.NODE_ENV === "production" ? 15 * 60 : 60 * 60;
@@ -84,13 +98,14 @@ export async function signSessionToken(payload: SessionPayload): Promise<string>
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
+    .setAudience(SESSION_AUDIENCE)
     .setExpirationTime(Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS)
     .sign(secretKey());
 }
 
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, secretKey());
+    const { payload } = await jwtVerify(token, secretKey(), { audience: SESSION_AUDIENCE });
     return payload as unknown as SessionPayload;
   } catch {
     return null;
@@ -102,13 +117,14 @@ export async function signPasswordChangeToken(payload: PasswordChangePayload): P
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
+    .setAudience(PASSWORD_CHANGE_AUDIENCE)
     .setExpirationTime(Math.floor(Date.now() / 1000) + PASSWORD_CHANGE_TTL_SECONDS)
     .sign(secretKey());
 }
 
 export async function verifyPasswordChangeToken(token: string): Promise<PasswordChangePayload | null> {
   try {
-    const { payload } = await jwtVerify(token, secretKey());
+    const { payload } = await jwtVerify(token, secretKey(), { audience: PASSWORD_CHANGE_AUDIENCE });
     return payload as unknown as PasswordChangePayload;
   } catch {
     return null;

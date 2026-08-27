@@ -1,8 +1,10 @@
-// Yeni bir kurum (dershane/okul) + ilk SÜPER YÖNETİCİ hesabını oluşturan
-// GÜVENLİ script. prisma/seed.ts ile AYNI güven modeli: platformda yeni bir
-// müşteri açmak, sunucuya/veritabanına doğrudan erişimi olan operatörün
-// (siz) çalıştırdığı bir komuttur — HTTP üzerinden açık bir uç nokta
-// DEĞİLDİR (aksi halde kimlik doğrulaması olmadan kurum spam'lenebilirdi).
+// Yeni bir kurum (dershane/okul) + ilk SÜPER YÖNETİCİ hesabını terminalden
+// oluşturan script. Artık aynı görevi gören bir Süper Admin web paneli de
+// var (bkz. app/platform, lib/server/platform/onboard-institution.ts) —
+// bu script asıl olarak platform sahibi hesabının kendisini bootstrap etmeden
+// önce (scripts/create-platform-owner.ts) veya sunucuya doğrudan erişimle
+// tek seferlik işler için kalır.
+//
 // Kullanım:
 //   npm run onboard-institution -- \
 //     --name "Yıldız Dershanesi" \
@@ -20,7 +22,8 @@
 // yani asla vaktinde yetişmezdi. Bu script'i DOĞRUDAN `tsx` ile (npm
 // script'i atlayarak) çalıştırmayın — DATABASE_URL tanımsız kalır.
 import { prisma } from "../lib/server/prisma";
-import { createAdminAccount, AdminCreateError } from "../lib/server/admin/create-user";
+import { onboardInstitution } from "../lib/server/platform/onboard-institution";
+import { AdminCreateError } from "../lib/server/admin/create-user";
 
 const SYSTEM_ACTOR_ID = "system:onboard-institution-script";
 
@@ -52,53 +55,28 @@ function printUsageAndExit(): never {
   process.exit(1);
 }
 
-function slugify(input: string): string {
-  return input
-    .trim()
-    .toLocaleLowerCase("tr")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ı/g, "i")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const name = args.name?.trim();
-  const slug = (args.slug?.trim() || (name ? slugify(name) : "")).trim();
   const adminName = args["admin-name"]?.trim();
   const adminTitle = args["admin-title"]?.trim();
   const adminPhone = args["admin-phone"]?.trim();
   const adminEmail = args["admin-email"]?.trim();
 
-  if (!name || !slug || !adminName || !adminTitle || !adminPhone || !adminEmail) {
+  if (!name || !adminName || !adminTitle || !adminPhone || !adminEmail) {
     console.error("Eksik zorunlu parametre(ler).\n");
     printUsageAndExit();
   }
 
-  const existingSlug = await prisma.institution.findUnique({ where: { slug } });
-  if (existingSlug) {
-    console.error(`Hata: "${slug}" slug'ı zaten kullanımda (${existingSlug.name}). Farklı bir --slug verin.`);
-    process.exit(1);
-  }
-
   try {
-    const institution = await prisma.institution.create({
-      data: { name, slug, isActive: true },
-    });
-
-    const admin = await createAdminAccount({
-      institutionId: institution.id,
+    const { institution, admin } = await onboardInstitution({
+      name,
+      slug: args.slug?.trim(),
       actorId: SYSTEM_ACTOR_ID,
-      fullName: adminName,
-      title: adminTitle,
-      mobilePhone: adminPhone,
-      email: adminEmail,
-      authorityLevel: "SUPER_ADMIN",
+      adminName,
+      adminTitle,
+      adminPhone,
+      adminEmail,
     });
 
     console.log("\n✅ Kurum başarıyla oluşturuldu.\n");
