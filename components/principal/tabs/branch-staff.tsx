@@ -281,6 +281,7 @@ export function BranchStaffTab() {
         onClose={() => setEditTarget(null)}
         branches={branches}
         onUpdated={loadDirectory}
+        onPasswordReset={setCredentials}
       />
       <BulkImportWizard
         isOpen={isBulkImportOpen}

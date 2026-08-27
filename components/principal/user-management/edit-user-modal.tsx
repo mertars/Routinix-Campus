@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Save, Loader2 } from "lucide-react";
+import { Save, Loader2, KeyRound } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import type { NewUserCredentials } from "./credentials-card-modal";
 
 type BranchOption = { id: string; name: string };
 export type EditTarget = { id: string; role: "STUDENT" | "TEACHER"; name: string } | null;
@@ -26,12 +27,18 @@ export function EditUserModal({
   target,
   onClose,
   onUpdated,
+  onPasswordReset,
   branches,
   apiBase = "/api/admin",
 }: {
   target: EditTarget;
   onClose: () => void;
   onUpdated: () => void;
+  // Yeni geçici şifre üretildiğinde tetiklenir — üst bileşen bunu zaten
+  // sahip olduğu CredentialsCardModal state'ine (bkz. add-user-modal.tsx'in
+  // onCreated'ı) yönlendirir; burada AYRI bir "Giriş Kartı" modal örneği
+  // AÇILMAZ, tekli oluşturmayla tamamen aynı ekran yeniden kullanılır.
+  onPasswordReset: (credentials: NewUserCredentials) => void;
   branches: BranchOption[];
   // bkz. add-branch-modal.tsx'teki aynı not.
   apiBase?: string;
@@ -39,6 +46,8 @@ export function EditUserModal({
   const { showError } = useToast();
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   const [fullName, setFullName] = useState("");
   const [branchId, setBranchId] = useState("");
@@ -51,6 +60,7 @@ export function EditUserModal({
   const [advisorBranchId, setAdvisorBranchId] = useState("");
 
   useEffect(() => {
+    setConfirmingReset(false);
     if (!target) return;
     setLoading(true);
     fetch(`${apiBase}/users/${target.id}?role=${target.role}`)
@@ -108,6 +118,27 @@ export function EditUserModal({
       showError(error instanceof Error ? error.message : "Güncellenemedi.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!target) return;
+    setResetting(true);
+    try {
+      const res = await fetch(`${apiBase}/users/${target.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: target.role }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Şifre sıfırlanamadı.");
+      onPasswordReset(data.credentials);
+      onClose();
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Şifre sıfırlanamadı.");
+    } finally {
+      setResetting(false);
+      setConfirmingReset(false);
     }
   }
 
@@ -172,6 +203,44 @@ export function EditUserModal({
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {submitting ? "Kaydediliyor..." : "Kaydet"}
           </button>
+
+          <div className="mt-3 border-t border-hairline pt-3 dark:border-white/10">
+            <AnimatePresence mode="wait">
+              {confirmingReset ? (
+                <motion.div key="confirm" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-2">
+                  <p className="text-[11px] text-espresso-muted dark:text-cream/40">
+                    Mevcut geçici/kalıcı şifre geçersiz olur, yeni bir geçici şifre üretilir — bu kişiye tekrar iletmen gerekir.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setConfirmingReset(false)}
+                      className="flex-1 rounded-xl border border-hairline py-2 text-xs font-medium text-espresso-muted transition hover:bg-cream-card dark:border-white/10 dark:text-cream/40 dark:hover:bg-white/5"
+                    >
+                      Vazgeç
+                    </button>
+                    <button
+                      onClick={handleResetPassword}
+                      disabled={resetting}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-red-600 py-2 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {resetting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                      {resetting ? "Sıfırlanıyor..." : "Evet, Sıfırla"}
+                    </button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.button
+                  key="trigger"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  onClick={() => setConfirmingReset(true)}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium text-espresso-muted transition hover:text-red-600 dark:text-cream/40 dark:hover:text-red-400"
+                >
+                  <KeyRound className="h-3.5 w-3.5" /> Şifreyi Sıfırla (yeni geçici şifre üret)
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
         </>
       )}
     </Modal>

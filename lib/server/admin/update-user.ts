@@ -2,6 +2,7 @@ import { prisma } from "@/lib/server/prisma";
 import { AdminCreateError, splitFullName } from "@/lib/server/admin/create-user";
 import { findAccountByPhone } from "@/lib/server/auth/otp";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
+import { generateTemporaryPassword, hashPassword } from "@/lib/server/auth/generate-credentials";
 
 // Toplu içe aktarma (bkz. app/api/admin/import/bulk) veya tekli ekleme
 // sırasında girilen bir bilgi hatalıysa (yanlış telefon, yanlış şube vb.)
@@ -151,4 +152,67 @@ export async function updateTeacherAccount(input: {
     targetId: input.id,
     metadata: { subject: input.subject },
   });
+}
+
+export type ResetPasswordResult = { name: string; username: string; password: string; phone?: string; institutionalCode?: string };
+
+// Şifre hash'i (bcrypt) tek yönlü — kayıt oluşturulurken üretilen geçici
+// şifre bir kez gösterildikten sonra HİÇBİR yerde (DB dahil) düz metin
+// olarak tutulmaz, tekrar görüntülenemez. Ekran kapatılıp not alınmadıysa
+// tek çözüm YENİ bir geçici şifre üretmektir — bu da mustChangePassword'ü
+// tekrar true'ya çeker, tıpkı ilk oluşturmada olduğu gibi.
+export async function resetUserPassword(input: {
+  id: string;
+  role: "STUDENT" | "TEACHER";
+  institutionId: string;
+  actorId: string;
+}): Promise<ResetPasswordResult> {
+  const password = generateTemporaryPassword();
+  const passwordHash = await hashPassword(password);
+
+  if (input.role === "STUDENT") {
+    const existing = await prisma.student.findUnique({
+      where: { id: input.id },
+      select: { institutionId: true, firstName: true, lastName: true, studentNumber: true, phone: true },
+    });
+    if (!existing || existing.institutionId !== input.institutionId) throw new AdminCreateError("Öğrenci bulunamadı.", 404);
+
+    await prisma.student.update({ where: { id: input.id }, data: { passwordHash, mustChangePassword: true } });
+
+    await recordAuditLog({
+      institutionId: input.institutionId,
+      actorId: input.actorId,
+      actorRole: "ADMIN",
+      action: "PASSWORD_RESET_BY_ADMIN",
+      targetType: "Student",
+      targetId: input.id,
+    });
+
+    return { name: `${existing.firstName} ${existing.lastName}`, username: existing.studentNumber, password, phone: existing.phone ?? undefined };
+  }
+
+  const existing = await prisma.teacher.findUnique({
+    where: { id: input.id },
+    select: { institutionId: true, firstName: true, lastName: true, nationalId: true, mobilePhone: true, institutionalCode: true },
+  });
+  if (!existing || existing.institutionId !== input.institutionId) throw new AdminCreateError("Öğretmen bulunamadı.", 404);
+
+  await prisma.teacher.update({ where: { id: input.id }, data: { passwordHash, mustChangePassword: true } });
+
+  await recordAuditLog({
+    institutionId: input.institutionId,
+    actorId: input.actorId,
+    actorRole: "ADMIN",
+    action: "PASSWORD_RESET_BY_ADMIN",
+    targetType: "Teacher",
+    targetId: input.id,
+  });
+
+  return {
+    name: `${existing.firstName} ${existing.lastName}`,
+    username: existing.nationalId,
+    password,
+    phone: existing.mobilePhone,
+    institutionalCode: existing.institutionalCode ?? undefined,
+  };
 }

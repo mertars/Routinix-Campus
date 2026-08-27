@@ -185,7 +185,14 @@ export function InstitutionDetailModal({ institutionId, onClose }: { institution
           loadAll();
         }}
       />
-      <EditUserModal target={editTarget} onClose={() => setEditTarget(null)} apiBase={apiBase} branches={branches} onUpdated={loadAll} />
+      <EditUserModal
+        target={editTarget}
+        onClose={() => setEditTarget(null)}
+        apiBase={apiBase}
+        branches={branches}
+        onUpdated={loadAll}
+        onPasswordReset={setNewCredentials}
+      />
       <BulkImportWizard
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}
