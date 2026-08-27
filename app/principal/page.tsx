@@ -207,7 +207,11 @@ export default function PrincipalPage() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
-                {activeTab === "overview" ? <ExecutiveOverviewTab segment={selectedSegment} /> : <ActiveComponent />}
+                {activeTab === "overview" ? (
+                  <ExecutiveOverviewTab segment={selectedSegment} onNavigate={(id) => setActiveTab(id as TabId)} />
+                ) : (
+                  <ActiveComponent />
+                )}
               </motion.div>
             </AnimatePresence>
           </motion.div>

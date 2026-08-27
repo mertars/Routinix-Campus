@@ -27,13 +27,13 @@ type DashboardData = {
 
 const QUICK_CARDS_META: { id: string; label: string; icon: LucideIcon; Content: (props: { segment?: Segment }) => JSX.Element }[] = [
   { id: "branches", label: "Şubeler", icon: Building2, Content: BranchesListContent },
-  { id: "staff", label: "Kadro", icon: Users, Content: StaffListContent },
+  { id: "staff", label: "Kadro Yönetimi", icon: Users, Content: StaffListContent },
   { id: "upload", label: "Deneme Yükleme", icon: ScanLine, Content: UploadSummaryContent },
   { id: "announcements", label: "Duyurular", icon: Megaphone, Content: AnnouncementsListContent },
   { id: "risk", label: "Risk Kutusu", icon: Radar, Content: RiskyStudentsContent },
 ];
 
-export function ExecutiveOverviewTab({ segment = "ALL" }: { segment?: Segment } = {}) {
+export function ExecutiveOverviewTab({ segment = "ALL", onNavigate }: { segment?: Segment; onNavigate?: (tabId: string) => void } = {}) {
   const { showError } = useToast();
   const [openModalId, setOpenModalId] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -77,7 +77,15 @@ export function ExecutiveOverviewTab({ segment = "ALL" }: { segment?: Segment } 
             transition={{ delay: index * 0.05 }}
             whileHover={{ scale: 1.02, y: -4 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setOpenModalId(card.id)}
+            // "Kadro" kartı BİLEREK modal önizleme açmaz, doğrudan gerçek
+            // "Kullanıcı Yönetimi & Performans" sekmesine (bkz.
+            // app/principal/page.tsx > TABS, id: "students") götürür — o
+            // sekmede arama/filtre, "Yeni Kullanıcı Ekle", "Excel/Dosya İçe
+            // Aktar" ve her satırda düzenleme (kalem) ikonu var; buradaki
+            // küçük önizleme penceresi kullanıcıların (ve bir kez de bu
+            // oturumda test ederken benim) "düzenleme/kalem ikonu yok"
+            // sanıp asıl sekmeyi hiç bulamamasına yol açıyordu.
+            onClick={() => (card.id === "staff" && onNavigate ? onNavigate("students") : setOpenModalId(card.id))}
             className="flex flex-col items-start gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-left shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15">
