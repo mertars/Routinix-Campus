@@ -35,7 +35,7 @@ import { ExecutiveOverviewTab } from "@/components/principal/tabs/executive-over
 import { BranchStaffTab } from "@/components/principal/tabs/branch-staff";
 import { LiveTutoringTab } from "@/components/principal/tabs/live-tutoring";
 import { GuidanceProgramTab } from "@/components/principal/tabs/guidance-program";
-import { OpticalUploadTab } from "@/components/principal/tabs/optical-upload";
+import { ExamResultsImportTab } from "@/components/principal/tabs/exam-results-import";
 import { AnnouncementsTab } from "@/components/principal/tabs/announcements";
 import { TeacherPerformanceTab } from "@/components/principal/tabs/teacher-performance";
 import { RiskRadarTab } from "@/components/principal/tabs/risk-radar";
@@ -61,7 +61,7 @@ import { useToast } from "@/lib/toast-context";
 const TABS = [
   { id: "overview", label: "Genel Bakış", icon: LayoutDashboard, Component: ExecutiveOverviewTab, side: "left" },
   { id: "students", label: "Kullanıcı Yönetimi & Performans", icon: GraduationCap, Component: BranchStaffTab, side: "left" },
-  { id: "upload", label: "Sınav & Optik Yükleme", icon: ScanLine, Component: OpticalUploadTab, side: "left" },
+  { id: "upload", label: "Sınav & Optik Yükleme", icon: ScanLine, Component: ExamResultsImportTab, side: "left" },
   { id: "exam-seating", label: "Kelebek Sınav Oturma Planı", icon: Shuffle, Component: ExamSeatingTab, side: "left" },
   { id: "live-tutoring", label: "Canlı Birebir Etüt & Randevu", icon: Radio, Component: LiveTutoringTab, side: "left" },
   { id: "guidance-program", label: "Rehberlik & A4 Program Yapıcı", icon: NotebookPen, Component: GuidanceProgramTab, side: "left" },

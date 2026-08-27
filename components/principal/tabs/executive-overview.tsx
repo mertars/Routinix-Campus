@@ -77,15 +77,19 @@ export function ExecutiveOverviewTab({ segment = "ALL", onNavigate }: { segment?
             transition={{ delay: index * 0.05 }}
             whileHover={{ scale: 1.02, y: -4 }}
             whileTap={{ scale: 0.98 }}
-            // "Kadro" kartı BİLEREK modal önizleme açmaz, doğrudan gerçek
-            // "Kullanıcı Yönetimi & Performans" sekmesine (bkz.
-            // app/principal/page.tsx > TABS, id: "students") götürür — o
-            // sekmede arama/filtre, "Yeni Kullanıcı Ekle", "Excel/Dosya İçe
-            // Aktar" ve her satırda düzenleme (kalem) ikonu var; buradaki
-            // küçük önizleme penceresi kullanıcıların (ve bir kez de bu
-            // oturumda test ederken benim) "düzenleme/kalem ikonu yok"
-            // sanıp asıl sekmeyi hiç bulamamasına yol açıyordu.
-            onClick={() => (card.id === "staff" && onNavigate ? onNavigate("students") : setOpenModalId(card.id))}
+            // "Kadro" ve "Deneme Yükleme" kartları BİLEREK modal önizleme
+            // açmaz, doğrudan gerçek sekmeye (bkz. app/principal/page.tsx >
+            // TABS) götürür — "Kadro" için "students" (arama/filtre, kalem
+            // ikonuyla düzenleme; küçük önizleme bunları hiç göstermiyordu,
+            // kullanıcı asıl sekmeyi bulamıyordu), "Deneme Yükleme" için
+            // "upload" (asıl PDF/elle-giriş sihirbazı burada — önizleme
+            // sadece "son yükleme" özetini gösterip yeni bir sonuç girmenin
+            // hiçbir yolunu sunmuyordu).
+            onClick={() => {
+              if (card.id === "staff" && onNavigate) onNavigate("students");
+              else if (card.id === "upload" && onNavigate) onNavigate("upload");
+              else setOpenModalId(card.id);
+            }}
             className="flex flex-col items-start gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-left shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15">
