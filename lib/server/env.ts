@@ -10,17 +10,27 @@ export const DEV_FALLBACK_AUTH_SECRET = "routinix-kampus-dev-secret-change-me-00
 // SMS_PROVIDER="mock" gibi TIRNAKLI gösterilir (.env dosya sözdizimi
 // gereği). Biri bu tırnakları birebir kopyalayıp panele yapıştırırsa değer
 // gerçekte 'mock' değil '"mock"' olur ve enum'a uymaz — üretimde tam olarak
-// bu yaşandı, hata mesajı hangi değerin geldiğini göstermediği için teşhis
-// birkaç round-trip sürdü. Burada baştan (trim + çevreleyen tırnak
-// temizliği) toleranslı davranılır; aşağıdaki getEnv() de artık alınan HAM
-// değeri hata mesajına ekler.
-const stripQuotes = (val: unknown) => (typeof val === "string" ? val.trim().replace(/^["']|["']$/g, "") : val);
+// bu yaşandı. Onu düzeltirken alan BOŞ bırakılırsa (değer "" — tanımsız
+// DEĞİL, panelde bir satır var ama içi boş) aynı şekilde enum'a uymuyordu.
+// ⚠️ z.preprocess(...).default(x) İŞE YARAMAZ burada: zod'un .default()'u
+// PREPROCESS ÇALIŞMADAN ÖNCEKİ ham girdiye bakar — "" zaten undefined
+// DEĞİL, bu yüzden .default() hiç tetiklenmiyor, temizlenmiş "" (yani
+// undefined) doğrudan enum şemasına gidip reddediliyordu (elle test
+// edilip doğrulandı). Bu yüzden varsayılan değer BURADA, preprocess
+// fonksiyonunun İÇİNDE uygulanıyor — zod'un .default()'ına hiç
+// güvenilmiyor. Panelde alanı tamamen SİLMEK ile İÇİNİ BOŞ BIRAKMAK
+// artık aynı, güvenli ("mock") sonucu verir.
+const normalizeSmsProvider = (val: unknown): string => {
+  if (typeof val !== "string") return "mock";
+  const cleaned = val.trim().replace(/^["']|["']$/g, "");
+  return cleaned === "" ? "mock" : cleaned;
+};
 
 const baseSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL zorunludur (bkz. .env.local.example)."),
   AUTH_SECRET: z.string().optional(),
-  SMS_PROVIDER: z.preprocess(stripQuotes, z.enum(["mock", "netgsm", "mutlusms", "generic"])).default("mock"),
+  SMS_PROVIDER: z.preprocess(normalizeSmsProvider, z.enum(["mock", "netgsm", "mutlusms", "generic"])),
 });
 
 export type Env = z.infer<typeof baseSchema> & { AUTH_SECRET: string };

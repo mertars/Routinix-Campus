@@ -3,6 +3,7 @@ import { MockSmsProvider } from "./providers/mock-provider";
 import { NetGsmProvider } from "./providers/netgsm-provider";
 import { MutluSmsProvider } from "./providers/mutlu-sms-provider";
 import { GenericRestProvider } from "./providers/generic-rest-provider";
+import { getEnv } from "@/lib/server/env";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -15,7 +16,7 @@ function requireEnv(name: string): string {
 // createSmsProvider() zaten aynı requireEnv() kontrolünü yapıyor, burada
 // sadece o hatayı bir sağlık durumuna çeviriyoruz.
 export function getSmsProviderStatus(): { provider: string; configured: boolean; error?: string } {
-  const providerName = process.env.SMS_PROVIDER ?? "mock";
+  const providerName = getEnv().SMS_PROVIDER;
   try {
     createSmsProvider();
     return { provider: providerName, configured: true };
@@ -27,7 +28,7 @@ export function getSmsProviderStatus(): { provider: string; configured: boolean;
 // SMS_PROVIDER ortam değişkenine göre doğru sağlayıcıyı döndürür.
 // Varsayılan "mock" — hiçbir gerçek kimlik bilgisi gerektirmez.
 export function createSmsProvider(): SmsProvider {
-  const providerName = process.env.SMS_PROVIDER ?? "mock";
+  const providerName = getEnv().SMS_PROVIDER;
 
   switch (providerName) {
     case "netgsm":
