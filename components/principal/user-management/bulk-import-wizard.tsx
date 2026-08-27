@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
-import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { cn } from "@/lib/utils";
 import { downloadImportTemplate } from "@/lib/bulk-import/template";
 import { parseXlsxFile, parseCsvFile } from "@/lib/bulk-import/parse-spreadsheet";
@@ -77,11 +76,28 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-export function BulkImportWizard({ isOpen, onClose, onImported }: { isOpen: boolean; onClose: () => void; onImported: () => void }) {
+export function BulkImportWizard({
+  isOpen,
+  onClose,
+  onImported,
+  branchNames,
+  apiBase = "/api/admin",
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onImported: () => void;
+  // Eskiden bu bileşen /api/admin/dashboard'u (kurum oturumuna bağlı) KENDİSİ
+  // çağırıyordu — platform sahibi bağlamında bu uç hiç erişilebilir değil.
+  // Artık çağıran (branch-staff.tsx VEYA app/platform/page.tsx) zaten
+  // yüklemiş olduğu şube listesini doğrudan prop olarak veriyor, ikisi de
+  // AYNI veriyi iki kez ayrı ayrı çekmek zorunda kalmıyor.
+  branchNames: string[];
+  // bkz. add-branch-modal.tsx'teki aynı not.
+  apiBase?: string;
+}) {
   const { showError } = useToast();
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<ImportRole>("STUDENT");
-  const [branchNames, setBranchNames] = useState<string[]>([]);
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -94,14 +110,6 @@ export function BulkImportWizard({ isOpen, onClose, onImported }: { isOpen: bool
   const [isImporting, setIsImporting] = useState(false);
   const [results, setResults] = useState<RowResult[] | null>(null);
   const [isPrintOpen, setIsPrintOpen] = useState(false);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    fetchDashboard<{ branches?: { name: string }[] }>("ALL")
-      .then((data) => setBranchNames((data.branches ?? []).map((b) => b.name)))
-      .catch(() => showError("Şube listesi yüklenemedi."));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
 
   function reset() {
     setStep(1);
@@ -156,7 +164,7 @@ export function BulkImportWizard({ isOpen, onClose, onImported }: { isOpen: bool
     setIsImporting(true);
     setStep(4);
     try {
-      const res = await fetch("/api/admin/import/bulk", {
+      const res = await fetch(`${apiBase}/import/bulk`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role, rows: validRawRows }),

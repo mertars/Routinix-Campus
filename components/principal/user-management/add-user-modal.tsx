@@ -34,11 +34,14 @@ export function AddUserModal({
   onClose,
   onCreated,
   branches,
+  apiBase = "/api/admin",
 }: {
   isOpen: boolean;
   onClose: () => void;
   onCreated: (credentials: NewUserCredentials) => void;
   branches: BranchOption[];
+  // bkz. add-branch-modal.tsx'teki aynı not.
+  apiBase?: string;
 }) {
   const { showError } = useToast();
   const [role, setRole] = useState<Role>("STUDENT");
@@ -100,7 +103,7 @@ export function AddUserModal({
             ? { role, fullName, nationalId, subject: subject === "Diğer" ? customSubject : subject, mobilePhone, email, advisorBranchId: advisorBranchId || undefined }
             : { role, fullName, title, mobilePhone, email, authorityLevel };
 
-      const res = await fetch("/api/admin/users/create", {
+      const res = await fetch(`${apiBase}/users/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

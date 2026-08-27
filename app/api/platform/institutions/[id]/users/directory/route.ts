@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listStudentDirectory, listTeacherDirectory } from "@/lib/server/admin/directory";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requirePlatformSession, requirePlatformInstitution } from "@/lib/server/auth/platform-session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/admin/users/directory?role=STUDENT|TEACHER&query=&branchId=&subject=
-async function handleGet(request: NextRequest) {
+// app/api/admin/users/directory/route.ts'in platform-sahibi eşdeğeri.
+async function handleGet(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const session = await requireSession();
-    requireRole(session, "principal");
+    await requirePlatformSession();
+    await requirePlatformInstitution(params.id);
 
     const role = request.nextUrl.searchParams.get("role") ?? "STUDENT";
     const query = request.nextUrl.searchParams.get("query")?.trim() ?? undefined;
@@ -18,17 +18,17 @@ async function handleGet(request: NextRequest) {
     const subject = request.nextUrl.searchParams.get("subject") ?? undefined;
 
     if (role === "TEACHER") {
-      const teachers = await listTeacherDirectory(session.institutionId, { query, subject });
+      const teachers = await listTeacherDirectory(params.id, { query, subject });
       return NextResponse.json({ teachers, total: teachers.length });
     }
 
-    const students = await listStudentDirectory(session.institutionId, { query, branchId });
+    const students = await listStudentDirectory(params.id, { query, branchId });
     return NextResponse.json({ students, total: students.length });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("admin_directory_failed", { error: error instanceof Error ? error.message : String(error) });
+    logger.error("platform_directory_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }
 }
 
-export const GET = withApiLogging("GET /api/admin/users/directory", handleGet);
+export const GET = withApiLogging("GET /api/platform/institutions/[id]/users/directory", handleGet);

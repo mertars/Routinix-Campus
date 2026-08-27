@@ -27,11 +27,14 @@ export function EditUserModal({
   onClose,
   onUpdated,
   branches,
+  apiBase = "/api/admin",
 }: {
   target: EditTarget;
   onClose: () => void;
   onUpdated: () => void;
   branches: BranchOption[];
+  // bkz. add-branch-modal.tsx'teki aynı not.
+  apiBase?: string;
 }) {
   const { showError } = useToast();
   const [loading, setLoading] = useState(false);
@@ -50,7 +53,7 @@ export function EditUserModal({
   useEffect(() => {
     if (!target) return;
     setLoading(true);
-    fetch(`/api/admin/users/${target.id}?role=${target.role}`)
+    fetch(`${apiBase}/users/${target.id}?role=${target.role}`)
       .then((res) => res.json())
       .then((data) => {
         if (target.role === "STUDENT") {
@@ -92,7 +95,7 @@ export function EditUserModal({
           ? { role: "STUDENT", fullName, branchId, phone, healthNote }
           : { role: "TEACHER", fullName, subject: subject === "Diğer" ? customSubject : subject, mobilePhone, email, advisorBranchId: advisorBranchId || undefined };
 
-      const res = await fetch(`/api/admin/users/${target.id}`, {
+      const res = await fetch(`${apiBase}/users/${target.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

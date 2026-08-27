@@ -19,7 +19,20 @@ const inputClass =
 
 export type NewBranch = { id: string; name: string };
 
-export function AddBranchModal({ isOpen, onClose, onCreated }: { isOpen: boolean; onClose: () => void; onCreated: (branch: NewBranch) => void }) {
+export function AddBranchModal({
+  isOpen,
+  onClose,
+  onCreated,
+  apiBase = "/api/admin",
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated: (branch: NewBranch) => void;
+  // Kurum yöneticisi (varsayılan, /api/admin) VE platform sahibi (seçtiği
+  // kurum için /api/platform/institutions/{id}) AYNI modalı kullanır — bkz.
+  // app/platform/page.tsx > InstitutionManageModal.
+  apiBase?: string;
+}) {
   const { showError } = useToast();
   const [name, setName] = useState("");
   const [segment, setSegment] = useState<Segment>("YKS");
@@ -40,7 +53,7 @@ export function AddBranchModal({ isOpen, onClose, onCreated }: { isOpen: boolean
     if (!isValid) return;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/branches", {
+      const res = await fetch(`${apiBase}/branches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, segment, grade, track: track.trim() || undefined }),

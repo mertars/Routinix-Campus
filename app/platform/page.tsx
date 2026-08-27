@@ -228,7 +228,7 @@ export default function PlatformDashboardPage() {
           <div>
             <h1 className="text-xl font-bold text-espresso dark:text-cream">Kurumlar</h1>
             <p className="text-xs text-espresso-muted dark:text-cream/40">
-              {institutions ? `${institutions.length} kurum · hesap listesi için bir karta tıkla` : "Yükleniyor..."}
+              {institutions ? `${institutions.length} kurum · kurulum yapmak/hesapları görmek için bir karta tıkla` : "Yükleniyor..."}
             </p>
           </div>
           <button

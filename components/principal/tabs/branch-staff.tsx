@@ -255,7 +255,15 @@ export function BranchStaffTab() {
         branches={branches}
         onUpdated={loadDirectory}
       />
-      <BulkImportWizard isOpen={isBulkImportOpen} onClose={() => setIsBulkImportOpen(false)} onImported={loadDirectory} />
+      <BulkImportWizard
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        onImported={() => {
+          loadDirectory();
+          loadBranches();
+        }}
+        branchNames={branches.map((b) => b.name)}
+      />
     </div>
   );
 }

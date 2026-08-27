@@ -10,7 +10,18 @@ import { SuccessConfetti } from "./success-confetti";
 
 export type NewUserCredentials = { name: string; username: string; password: string; phone?: string; institutionalCode?: string };
 
-export function CredentialsCardModal({ credentials, onClose }: { credentials: NewUserCredentials | null; onClose: () => void }) {
+export function CredentialsCardModal({
+  credentials,
+  onClose,
+  sendCredentialsEndpoint = "/api/admin/send-credentials",
+}: {
+  credentials: NewUserCredentials | null;
+  onClose: () => void;
+  // Platform sahibi bağlamında /api/platform/send-credentials — bkz.
+  // add-branch-modal.tsx'teki apiBase notu (bu uç institutionId almadığı
+  // için ayrı bir prop, aynı desenin uzantısı).
+  sendCredentialsEndpoint?: string;
+}) {
   const { showError, showSuccess } = useToast();
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState<"username" | "password" | null>(null);
@@ -50,7 +61,7 @@ export function CredentialsCardModal({ credentials, onClose }: { credentials: Ne
     if (!credentials?.phone) return;
     setSmsState("sending");
     try {
-      const res = await fetch("/api/admin/send-credentials", {
+      const res = await fetch(sendCredentialsEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: credentials.phone, name: credentials.name, username: credentials.username, password: credentials.password }),
