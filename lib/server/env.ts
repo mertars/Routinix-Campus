@@ -5,11 +5,22 @@ import { z } from "zod";
 // değerin kullanılması AUTH_SECRET eksik/geçersizse boot anında engellenir.
 export const DEV_FALLBACK_AUTH_SECRET = "routinix-kampus-dev-secret-change-me-0000";
 
+// Barındırma panellerinin (Vercel vb.) Environment Variables alanı DÜZ METİN
+// bekler — ama .env.example/.env.local.example dosyalarımızda örnekler
+// SMS_PROVIDER="mock" gibi TIRNAKLI gösterilir (.env dosya sözdizimi
+// gereği). Biri bu tırnakları birebir kopyalayıp panele yapıştırırsa değer
+// gerçekte 'mock' değil '"mock"' olur ve enum'a uymaz — üretimde tam olarak
+// bu yaşandı, hata mesajı hangi değerin geldiğini göstermediği için teşhis
+// birkaç round-trip sürdü. Burada baştan (trim + çevreleyen tırnak
+// temizliği) toleranslı davranılır; aşağıdaki getEnv() de artık alınan HAM
+// değeri hata mesajına ekler.
+const stripQuotes = (val: unknown) => (typeof val === "string" ? val.trim().replace(/^["']|["']$/g, "") : val);
+
 const baseSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL zorunludur (bkz. .env.local.example)."),
   AUTH_SECRET: z.string().optional(),
-  SMS_PROVIDER: z.enum(["mock", "netgsm", "mutlusms", "generic"]).default("mock"),
+  SMS_PROVIDER: z.preprocess(stripQuotes, z.enum(["mock", "netgsm", "mutlusms", "generic"])).default("mock"),
 });
 
 export type Env = z.infer<typeof baseSchema> & { AUTH_SECRET: string };
@@ -25,7 +36,13 @@ export function getEnv(): Env {
 
   const parsed = baseSchema.safeParse(process.env);
   if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
+    const issues = parsed.error.issues
+      .map((i) => {
+        const key = i.path.join(".");
+        const rawValue = process.env[key];
+        return `  - ${key}: ${i.message} (alınan ham değer: ${rawValue === undefined ? "tanımsız" : JSON.stringify(rawValue)})`;
+      })
+      .join("\n");
     throw new Error(`Ortam değişkenleri geçersiz, sunucu başlatılamıyor:\n${issues}`);
   }
 
