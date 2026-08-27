@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Printer } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 
-export type PrintableCredential = { fullName: string; username: string; password: string; institutionalCode?: string };
+export type PrintableCredential = { fullName: string; username: string; password: string; phone?: string; institutionalCode?: string };
 
 export function BulkCredentialsPrint({
   isOpen,
@@ -70,8 +70,9 @@ export function BulkCredentialsPrint({
                       <tr className="border-b border-espresso/20 text-left">
                         <th className="py-2 pr-2 font-semibold">#</th>
                         <th className="py-2 pr-2 font-semibold">Ad Soyad</th>
-                        <th className="py-2 pr-2 font-semibold">Kullanıcı Adı</th>
+                        <th className="py-2 pr-2 font-semibold">Telefon (Giriş)</th>
                         <th className="py-2 pr-2 font-semibold">Geçici Şifre</th>
+                        <th className="py-2 pr-2 font-semibold">Kayıt No</th>
                         {role === "TEACHER" && <th className="py-2 font-semibold">Kurumsal Kod</th>}
                       </tr>
                     </thead>
@@ -80,8 +81,9 @@ export function BulkCredentialsPrint({
                         <tr key={`${c.username}-${index}`} className="border-b border-hairline">
                           <td className="py-1.5 pr-2 text-espresso-muted">{index + 1}</td>
                           <td className="py-1.5 pr-2">{c.fullName}</td>
-                          <td className="py-1.5 pr-2 font-mono">{c.username}</td>
+                          <td className="py-1.5 pr-2 font-mono">{c.phone ?? "—"}</td>
                           <td className="py-1.5 pr-2 font-mono font-semibold">{c.password}</td>
+                          <td className="py-1.5 pr-2 font-mono">{c.username}</td>
                           {role === "TEACHER" && <td className="py-1.5 font-mono">{c.institutionalCode ?? "—"}</td>}
                         </tr>
                       ))}
@@ -89,7 +91,8 @@ export function BulkCredentialsPrint({
                   </table>
 
                   <p className="mt-6 text-[10px] text-espresso-muted">
-                    Bu şifreler geçicidir ve bir kez gösterilir — kullanıcıların ilk girişte değiştirmesi önerilir. Bu belgeyi güvenli şekilde saklayın.
+                    Giriş sayfasında sadece Telefon ve Geçici Şifre kullanılır (Kayıt No kurum kaydı içindir, girişte istenmez). Bu şifreler geçicidir
+                    ve bir kez gösterilir — kullanıcıların ilk girişte değiştirmesi zorunludur. Bu belgeyi güvenli şekilde saklayın.
                   </p>
                 </div>
               </div>

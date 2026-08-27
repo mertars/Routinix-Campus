@@ -16,6 +16,7 @@ type RowResult = {
   status: "success" | "failed";
   username?: string;
   password?: string;
+  phone?: string;
   institutionalCode?: string;
   error?: string;
 };
@@ -92,7 +93,7 @@ export async function runBulkImport(
           parentPhone,
           healthNote: (row.healthNote ?? row["Özel Not"])?.toString().trim(),
         });
-        results.push({ rowIndex: i, fullName, status: "success", username: account.username, password: account.password });
+        results.push({ rowIndex: i, fullName, status: "success", username: account.username, password: account.password, phone });
       } else {
         const subject = (row.subject ?? row["Branş"] ?? "").toString().trim();
         const mobilePhone = (row.mobilePhone ?? row["GSM"] ?? "").toString().trim();
@@ -112,7 +113,7 @@ export async function runBulkImport(
           email: (row.email ?? row["E-posta"])?.toString().trim(),
           advisorBranchId,
         });
-        results.push({ rowIndex: i, fullName, status: "success", username: account.username, password: account.password, institutionalCode: account.institutionalCode });
+        results.push({ rowIndex: i, fullName, status: "success", username: account.username, password: account.password, phone: mobilePhone, institutionalCode: account.institutionalCode });
       }
     } catch (error) {
       seenNationalIds.delete(nationalId);

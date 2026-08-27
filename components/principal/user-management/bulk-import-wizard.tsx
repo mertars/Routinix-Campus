@@ -35,6 +35,7 @@ type RowResult = {
   status: "success" | "failed";
   username?: string;
   password?: string;
+  phone?: string;
   institutionalCode?: string;
   error?: string;
 };
@@ -199,8 +200,9 @@ export function BulkImportWizard({
     const sheet = XLSX.utils.json_to_sheet(
       successRows.map((r) => ({
         "Ad Soyad": r.fullName,
-        "Kullanıcı Adı": r.username,
+        Telefon: r.phone ?? "",
         "Geçici Şifre": r.password,
+        "Kayıt No": r.username,
         ...(role === "TEACHER" ? { "Kurumsal Kod": r.institutionalCode ?? "" } : {}),
       }))
     );
@@ -211,7 +213,7 @@ export function BulkImportWizard({
 
   const printableCredentials: PrintableCredential[] = (results ?? [])
     .filter((r) => r.status === "success" && r.username && r.password)
-    .map((r) => ({ fullName: r.fullName, username: r.username!, password: r.password!, institutionalCode: r.institutionalCode }));
+    .map((r) => ({ fullName: r.fullName, username: r.username!, password: r.password!, phone: r.phone, institutionalCode: r.institutionalCode }));
 
   return (
     <>

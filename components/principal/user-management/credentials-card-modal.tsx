@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
-import { KeyRound, User, Copy, Check, Send, Loader2, ShieldAlert, BadgeCheck } from "lucide-react";
+import { KeyRound, User, Copy, Check, Send, Loader2, ShieldAlert, BadgeCheck, Phone } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { SuccessConfetti } from "./success-confetti";
@@ -34,8 +34,9 @@ export function CredentialsCardModal({
     setSmsState("idle");
     const payload = [
       "Routinix Kampüs Giriş",
-      `Kullanıcı Adı: ${credentials.username}`,
+      credentials.phone ? `Telefon: ${credentials.phone}` : null,
       `Şifre: ${credentials.password}`,
+      `Kayıt No: ${credentials.username}`,
       credentials.institutionalCode ? `Kurumsal Kod: ${credentials.institutionalCode}` : null,
     ]
       .filter(Boolean)
@@ -107,11 +108,18 @@ export function CredentialsCardModal({
             </div>
           )}
 
+          {/* Giriş SADECE telefon + şifre ile yapılıyor (bkz. app/login,
+              lib/server/auth/otp.ts > findAccountByPhone) — "Kullanıcı Adı"
+              (öğrenci no/T.C. no/e-posta) login akışının HİÇBİR yerinde
+              kontrol edilmez, sadece kurumun kendi resmi kaydı (karne, T.C.
+              no referansı) için burada. Kafa karışıklığını önlemek için
+              gerçekten gerekli olan telefon numarası da ayrı bir satırda
+              gösterilir — önceden karttan tamamen eksikti. */}
           <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5">
             <span className="flex min-w-0 items-center gap-2 text-xs text-espresso dark:text-cream">
               <User className="h-3.5 w-3.5 shrink-0 text-brand-600" />
               <span className="min-w-0 truncate">
-                <span className="text-espresso-muted dark:text-cream/40">Kullanıcı Adı: </span>
+                <span className="text-espresso-muted dark:text-cream/40">Kayıt No: </span>
                 <span className="font-mono font-semibold">{credentials.username}</span>
               </span>
             </span>
@@ -119,6 +127,17 @@ export function CredentialsCardModal({
               {copied === "username" ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
           </div>
+          <p className="mb-2 px-1 text-[10px] text-espresso-muted dark:text-cream/40">Bu, kurum kaydı için — girişte kullanılmaz.</p>
+
+          {credentials.phone && (
+            <div className="mb-2 flex items-center gap-2 rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5">
+              <Phone className="h-3.5 w-3.5 shrink-0 text-brand-600" />
+              <span className="min-w-0 truncate text-xs text-espresso dark:text-cream">
+                <span className="text-espresso-muted dark:text-cream/40">Giriş Telefonu: </span>
+                <span className="font-mono font-semibold">{credentials.phone}</span>
+              </span>
+            </div>
+          )}
 
           <div className="mb-4 flex items-center justify-between gap-2 rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5">
             <span className="flex min-w-0 items-center gap-2 text-xs text-espresso dark:text-cream">
