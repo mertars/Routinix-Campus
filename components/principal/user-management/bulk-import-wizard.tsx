@@ -124,6 +124,15 @@ export function BulkImportWizard({
     onClose();
   }
 
+  // Sihirbaz her zaman "Öğrenci" sekmesiyle açılırdı — henüz hiç şubesi
+  // olmayan yeni bir kurumda kullanıcı bunu fark etmeden öğrenci dosyasını
+  // yükleyip "Şube bulunamadı" ile karşılaşıyordu. Açılışta hâlâ 0 şube
+  // varsa doğru başlangıç noktasına (Şube sekmesi) yönlendir.
+  useEffect(() => {
+    if (isOpen && branchNames.length === 0) setRole("BRANCH");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
   async function handleFile(file: File) {
     setFileName(file.name);
     setIsParsing(true);
