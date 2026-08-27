@@ -58,7 +58,7 @@ export default function ParentPage() {
 
   return (
     <main className="flex min-h-screen flex-col dark:bg-transparent bg-cream px-6 py-8">
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-hairline bg-white/80 px-4 backdrop-blur-md dark:border-white/5 dark:bg-midnight/80">
+      <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-hairline bg-white/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-md dark:border-white/5 dark:bg-midnight/80">
         <div className="flex items-center gap-2">
           <GlowLogo size="h-8 w-8" textSize="text-sm" innerClassName="bg-espresso dark:bg-midnight" />
           <span className={cn(spaceGrotesk.className, "hidden text-sm font-semibold text-espresso sm:inline dark:text-cream")}>Routinix Kampüs</span>

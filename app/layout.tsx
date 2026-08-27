@@ -75,6 +75,16 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             gerçek değere düzeltir; sonraki elle tema değişimlerini de AYNI
             ThemeProvider effect'i senkronize tutar. */}
         <meta name="theme-color" content="#FDFBF7" />
+        {/* iOS Safari, standart theme-color'ı SADECE kısmen destekler ve bu
+            iki etiket SADECE "Ana Ekrana Ekle" ile yüklenen bağımsız (PWA)
+            modda etkilidir — normal Safari sekmesinde hiçbir görsel etkisi
+            yoktur (bu, kenar beyazlığının ASIL nedeni değil; asıl neden
+            globals.css'teki html/body yükseklik eksikliğiydi, orada
+            düzeltildi). Yine de bedelsiz ve doğru bir ekleme — kurum bu
+            uygulamayı ileride "Ana Ekrana Ekle" ile kullanmaya başlarsa
+            durum çubuğu içerikle aynı, saydam-siyah görünür. */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         {/* Hydration'dan önce çalışır — dark mod / özel vurgu rengi tercihi varsa
             flash (varsayılan görünümün bir anlığına yanıp sönmesi) olmadan
             doğrudan uygulanır. */}

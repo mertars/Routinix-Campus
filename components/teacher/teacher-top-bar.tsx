@@ -32,7 +32,7 @@ export function TeacherTopBar() {
       initial={{ opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: hidden ? "-100%" : 0 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="sticky top-0 z-40 border-b border-hairline bg-cream/80 px-4 py-3 backdrop-blur-md dark:border-white/10 dark:bg-midnight/80 md:px-32"
+      className="sticky top-0 z-40 border-b border-hairline bg-cream/80 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md dark:border-white/10 dark:bg-midnight/80 md:px-32"
     >
       <div className="mx-auto max-w-6xl">
         {/* Mobil düzen: sadeleştirilmiş — logo, görünüm ayarı, kurum rozeti, Rol Değiştir */}

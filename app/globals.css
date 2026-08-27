@@ -3,16 +3,27 @@
 @tailwind utilities;
 
 /* ----------------------------------------------------------------------
- * Mobil "kenar beyazlığı" (overscroll/rubber-banding) düzeltmesi.
- * Sayfayı en uca kaydırınca Safari/Chrome'un altındaki gerçek sayfa rengini
- * (genelde beyaz) kısa bir an göstermesi, tema koyu iken "çakma/kalitesiz"
- * hissi veriyordu — hem html HEM body'ye aynı anda uygulanmalı, tek biri
- * yetmiyor (tarayıcılar overscroll rengini ikisinin BİRLEŞİMİNDEN alır).
+ * Mobil "kenar beyazlığı" (overscroll/rubber-banding + çentik/ev çizgisi
+ * alanları) düzeltmesi.
+ *
+ * ⚠️ Önceki denemede sadece background-color yeterli sanılmıştı ama html/
+ * body'nin GERÇEK yüksekliği tanımsızdı (içerik kısaysa gövde ekranın
+ * TAMAMINI kaplamıyordu) — viewport-fit=cover ile açılan güvenli-alan
+ * bölgesi (çentik/durum çubuğu üstü, ev çizgisi altı) hiçbir elemanın
+ * arka planıyla boyanmıyor, Safari/Chrome'un kendi (genelde beyaz) zemini
+ * görünüyordu. min-height + -webkit-fill-available (iOS Safari'nin 100vh
+ * hesabındaki bilinen adres çubuğu hatasının standart düzeltmesi) bunu
+ * kapatır — hem html HEM body'ye aynı anda uygulanmalı, tek biri yetmiyor.
  * overscroll-behavior-y: none, kaydırmanın kendisini DEĞİL, sadece "lastik
  * gibi geri sekme" sırasında sayfa ARKASININ sızmasını engeller.
  * ---------------------------------------------------------------------- */
+html {
+  height: -webkit-fill-available;
+}
 html,
 body {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
   overscroll-behavior-y: none;
   background-color: #fdfbf7; /* tailwind.config.ts > cream.DEFAULT ile birebir */
 }
