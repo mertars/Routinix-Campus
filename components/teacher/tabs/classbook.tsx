@@ -149,7 +149,7 @@ export function ClassbookTab() {
         <div className="grid gap-4 lg:grid-cols-2">
           <motion.div
             whileHover={{ scale: 1.005, y: -2 }}
-            className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+            className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
@@ -223,7 +223,7 @@ export function ClassbookTab() {
 
           <motion.div
             whileHover={{ scale: 1.005, y: -2 }}
-            className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+            className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
               <NotebookPen className="h-4 w-4 text-brand-600" /> Dijital Sınıf Defteri
@@ -267,7 +267,7 @@ export function ClassbookTab() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
         >
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">

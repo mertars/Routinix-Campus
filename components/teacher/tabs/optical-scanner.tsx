@@ -171,7 +171,7 @@ export function OpticalScannerTab() {
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
-        className="flex flex-col items-center rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="flex flex-col items-center rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <div className="mb-4 flex w-full items-center justify-between">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
@@ -223,7 +223,7 @@ export function OpticalScannerTab() {
 
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <h2 className="mb-3 text-sm font-semibold text-espresso dark:text-cream">Bugün Taranan Kağıtlar ({sheets.length})</h2>
         <div className="space-y-2">

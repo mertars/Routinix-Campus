@@ -59,7 +59,7 @@ export default function PlatformLoginPage() {
 
         <div className="relative">
           <div className="absolute -inset-1 rounded-[2rem] bg-gradient-to-br from-white/10 via-white/5 to-transparent opacity-60 blur-2xl" aria-hidden />
-          <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+          <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-sm sm:p-8">
             <h1 className={cn(spaceGrotesk.className, "text-2xl font-bold text-white")}>Süper Admin Girişi</h1>
             <p className="mt-1.5 mb-6 text-sm text-white/40">Yeni kurum açmak ve mevcut kurumları görmek için giriş yapın.</p>
 

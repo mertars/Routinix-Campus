@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ----------------------------------------------------------------------
+ * Mobil "kenar beyazlığı" (overscroll/rubber-banding) düzeltmesi.
+ * Sayfayı en uca kaydırınca Safari/Chrome'un altındaki gerçek sayfa rengini
+ * (genelde beyaz) kısa bir an göstermesi, tema koyu iken "çakma/kalitesiz"
+ * hissi veriyordu — hem html HEM body'ye aynı anda uygulanmalı, tek biri
+ * yetmiyor (tarayıcılar overscroll rengini ikisinin BİRLEŞİMİNDEN alır).
+ * overscroll-behavior-y: none, kaydırmanın kendisini DEĞİL, sadece "lastik
+ * gibi geri sekme" sırasında sayfa ARKASININ sızmasını engeller.
+ * ---------------------------------------------------------------------- */
+html,
+body {
+  overscroll-behavior-y: none;
+  background-color: #fdfbf7; /* tailwind.config.ts > cream.DEFAULT ile birebir */
+}
+html.dark,
+html.dark body {
+  background-color: #12100d; /* tailwind.config.ts > midnight.DEFAULT ile birebir */
+}
+
 @layer base {
   :root {
     /* Varsayılan vurgu tonu (Routinix Turuncu = #FF6B00, bkz. lib/color-utils.ts
@@ -69,6 +88,27 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* Uzun (100+ satırlık) listeler için — kadro dizini, toplu içe aktarma
+     önizlemesi, platform hesap listesi vb. Ekran dışındaki satırların
+     layout/paint/render maliyetini tarayıcı tamamen atlar, sadece
+     contain-intrinsic-size kadar yer ayırır (scroll konumu/scrollbar
+     boyu bozulmasın diye) — kaydırma HIZINI değil, ekranda GÖRÜNMEYEN
+     satırların gereksiz GPU/CPU maliyetini azaltır.
+     bkz. components/principal/tabs/branch-staff.tsx, bulk-import-wizard.tsx */
+  .long-list {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 640px;
+  }
+
+  /* .long-list ile aynı amaç, tek satırlık kompakt satırlar için (örn.
+     toplu içe aktarma doğrulama/sonuç önizlemesi) — contain-intrinsic-size
+     gerçek satır yüksekliğine yakın olmalı, aksi halde kaydırma çubuğu
+     boyu/sıçraması yanlış hesaplanır. */
+  .long-list-compact {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 44px;
   }
 }
 

@@ -149,7 +149,7 @@ export function InstitutionDetailModal({ institutionId, onClose }: { institution
               {rows.map((row) => (
                 <div
                   key={row.id}
-                  className="flex items-center gap-1.5 rounded-xl bg-cream-card px-3 py-2.5 pr-2 dark:bg-white/5"
+                  className="long-list-compact flex items-center gap-1.5 rounded-xl bg-cream-card px-3 py-2.5 pr-2 dark:bg-white/5"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-espresso dark:text-cream">{row.name}</p>

@@ -86,7 +86,7 @@ export function ExecutiveOverviewTab({ segment = "ALL", onNavigate }: { segment?
             // oturumda test ederken benim) "düzenleme/kalem ikonu yok"
             // sanıp asıl sekmeyi hiç bulamamasına yol açıyordu.
             onClick={() => (card.id === "staff" && onNavigate ? onNavigate("students") : setOpenModalId(card.id))}
-            className="flex flex-col items-start gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-left shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+            className="flex flex-col items-start gap-2 rounded-2xl border border-hairline bg-white/70 p-4 text-left shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-600/15">
               <card.icon className="h-4 w-4" />
@@ -102,7 +102,7 @@ export function ExecutiveOverviewTab({ segment = "ALL", onNavigate }: { segment?
       <div className="grid gap-4 lg:grid-cols-2">
         <motion.div
           whileHover={{ scale: 1.01, y: -3 }}
-          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
         >
           <h2 className="mb-4 text-sm font-semibold text-espresso dark:text-cream">Şube Bazlı Ödev Tamamlama Karşılaştırması</h2>
           <div className="space-y-4">
@@ -130,7 +130,7 @@ export function ExecutiveOverviewTab({ segment = "ALL", onNavigate }: { segment?
 
         <motion.div
           whileHover={{ scale: 1.01, y: -3 }}
-          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
         >
           <h2 className="mb-1 text-sm font-semibold text-espresso dark:text-cream">Deneme Bazlı Net Ortalaması</h2>
           <p className="mb-4 text-[11px] text-espresso-muted dark:text-cream/40">

@@ -170,7 +170,7 @@ export function ScheduleMatrixTab() {
         <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
           <motion.div
             whileHover={{ scale: 1.005, y: -2 }}
-            className="rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+            className="rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <p className="mb-3 text-xs font-semibold text-espresso dark:text-cream">Öğretmen Paleti</p>
             <div className="space-y-2">
@@ -197,7 +197,7 @@ export function ScheduleMatrixTab() {
 
           <motion.div
             whileHover={{ scale: 1.005, y: -2 }}
-            className="overflow-x-auto rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+            className="overflow-x-auto rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <h2 className="mb-3 text-sm font-semibold text-espresso dark:text-cream">{selectedBranch.name} — Haftalık Program</h2>
             <div className="grid min-w-[640px] grid-cols-5 gap-2">
@@ -257,7 +257,7 @@ export function ScheduleMatrixTab() {
           {SCHEDULE_DAYS.map((day) => (
             <div
               key={day}
-              className="overflow-x-auto rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+              className="overflow-x-auto rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
             >
               <h3 className="mb-2 text-xs font-semibold text-espresso dark:text-cream">{day}</h3>
               <table className="w-full min-w-[560px] border-collapse text-xs">

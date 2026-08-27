@@ -166,7 +166,7 @@ export function HomeworkCheckMatrixTab() {
 
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
-        className="overflow-x-auto rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="overflow-x-auto rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         {homework ? (
           <>

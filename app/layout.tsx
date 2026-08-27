@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { RoleProvider } from "@/lib/role-context";
@@ -15,11 +15,30 @@ export const metadata: Metadata = {
   description: "Dershane & Okul Yönetim Paneli",
 };
 
+// viewportFit: "cover" — mobil Safari'de (çentikli/Dynamic Island'lı
+// cihazlar) içeriğin güvenli alanın DIŞINA, tam ekrana yayılmasını sağlar;
+// globals.css'teki env(safe-area-inset-*) dolgularıyla birlikte çalışır.
+// ⚠️ theme-color BİLEREK burada (Next'in viewport.themeColor medya-sorgulu
+// dizisiyle) DEĞİL, aşağıda TEK bir <meta> etiketi olarak elle yazılıyor:
+// medya-sorgulu iki ayrı etiket OS tercihini takip eder, ama bu uygulamanın
+// teması OS'tan BAĞIMSIZ elle değiştirilebiliyor (bkz. lib/theme-context.tsx)
+// — kullanıcı OS light iken uygulamayı elle dark yaparsa, medya-sorgulu
+// yaklaşımda "dark" etiketi hiç eşleşmediği için tarayıcı kromu yanlış
+// kalırdı. Tek etiket + JS senkronizasyonu bu çelişkiyi ortadan kaldırır.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 const THEME_INIT_SCRIPT = `
 (function () {
   try {
     var stored = window.localStorage.getItem("routinix-kampus-theme");
-    if (stored === "dark") document.documentElement.classList.add("dark");
+    var isDark = stored === "dark";
+    if (isDark) document.documentElement.classList.add("dark");
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", isDark ? "#12100D" : "#FDFBF7");
   } catch (e) {}
 })();
 `;
@@ -51,6 +70,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="tr">
       <head>
+        {/* Varsayılan (light) — SSR her zaman "light" state'iyle başlar (bkz.
+            lib/theme-context.tsx), THEME_INIT_SCRIPT hydration'dan ÖNCE
+            gerçek değere düzeltir; sonraki elle tema değişimlerini de AYNI
+            ThemeProvider effect'i senkronize tutar. */}
+        <meta name="theme-color" content="#FDFBF7" />
         {/* Hydration'dan önce çalışır — dark mod / özel vurgu rengi tercihi varsa
             flash (varsayılan görünümün bir anlığına yanıp sönmesi) olmadan
             doğrudan uygulanır. */}

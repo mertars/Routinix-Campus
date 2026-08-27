@@ -32,7 +32,7 @@ export function SystemSettingsTab() {
   return (
     <motion.div
       whileHover={{ scale: 1.01, y: -3 }}
-      className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+      className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
     >
       <h2 className="mb-4 text-sm font-semibold text-espresso dark:text-cream">Nudge Parametreleri</h2>
       <div className="divide-y divide-hairline dark:divide-white/10">

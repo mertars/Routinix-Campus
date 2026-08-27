@@ -44,7 +44,7 @@ export function TercihRobotuTab() {
 
   if (track === "genel") {
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2 rounded-3xl border border-hairline bg-white/70 p-8 text-center backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-2 rounded-3xl border border-hairline bg-white/70 p-8 text-center backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <Compass className="h-8 w-8 text-espresso-muted dark:text-cream/30" />
         <p className="text-sm font-medium text-espresso dark:text-cream">Tercih Robotu bu sınıf seviyesinde aktif değil</p>
         <p className="text-xs text-espresso-muted dark:text-cream/40">Bu modül 8. sınıf (LGS) ve 11/12/Mezun (YKS) öğrencileri için etkinleşir.</p>
@@ -67,7 +67,7 @@ export function TercihRobotuTab() {
         const items = matches.filter((m) => m.category === cat);
         if (items.length === 0) return null;
         return (
-          <motion.div key={cat} whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+          <motion.div key={cat} whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
             <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
               <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", CATEGORY_STYLES[cat])}>{PREFERENCE_CATEGORY_LABEL[cat]}</span>
             </h2>

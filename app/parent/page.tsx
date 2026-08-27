@@ -86,7 +86,7 @@ export default function ParentPage() {
           </p>
 
           {students.length > 1 && (
-            <div className="mb-8 rounded-2xl border border-hairline bg-white p-6 shadow-sm dark:border-white/5 dark:bg-midnight-card/50 dark:backdrop-blur-xl">
+            <div className="mb-8 rounded-2xl border border-hairline bg-white p-6 shadow-sm dark:border-white/5 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
               <label htmlFor="student-select" className="mb-3 block text-sm font-medium text-espresso dark:text-cream">
                 Öğrenci Seç
               </label>
@@ -144,7 +144,7 @@ function PerformanceCard({ detail }: { detail: StudentDetail }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      className="rounded-2xl border border-hairline bg-white p-6 shadow-sm transition-colors duration-300 dark:border-white/5 dark:bg-midnight-card/50 dark:backdrop-blur-xl dark:hover:border-brand-500/20"
+      className="rounded-2xl border border-hairline bg-white p-6 shadow-sm transition-colors duration-300 dark:border-white/5 dark:bg-midnight-card/50 dark:backdrop-blur-sm dark:hover:border-brand-500/20"
     >
       <div className="mb-6 flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-espresso/8 text-espresso dark:bg-brand-500/10 dark:text-brand-400">

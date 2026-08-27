@@ -29,7 +29,7 @@ function NationwideExamCard({ exam, index }: { exam: (typeof NATIONWIDE_EXAMS)[n
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06 }}
       whileHover={{ scale: 1.02, y: -4 }}
-      className="flex flex-col justify-between rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+      className="flex flex-col justify-between rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
     >
       <div>
         <div className="flex items-start justify-between gap-2">
@@ -80,7 +80,7 @@ export function CampusCalendarTab() {
     <div className="space-y-6">
       <motion.div
         whileHover={{ scale: 1.01, y: -3 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <h2 className="mb-1 text-sm font-semibold text-espresso dark:text-cream">Türkiye Geneli Deneme Takvimi</h2>
         <p className="mb-4 text-xs text-espresso-muted dark:text-cream/40">
@@ -95,7 +95,7 @@ export function CampusCalendarTab() {
 
       <motion.div
         whileHover={{ scale: 1.01, y: -3 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <h2 className="mb-1 text-sm font-semibold text-espresso dark:text-cream">Dershane Etkinlik Takvimi</h2>
         <p className="mb-4 text-xs text-espresso-muted dark:text-cream/40">

@@ -391,7 +391,7 @@ export default function LoginPage() {
 
             <div className="relative">
               <div className="absolute -inset-1 rounded-[2rem] bg-gradient-to-br from-[#FF6B00]/25 via-[#FF8C00]/10 to-transparent opacity-60 blur-2xl" aria-hidden />
-              <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+              <div className="relative rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl backdrop-blur-sm sm:p-8">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={state.step}

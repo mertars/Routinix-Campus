@@ -262,7 +262,7 @@ export function SegmentSelector({ selected, onSelect }: { selected: Segment; onS
     <div ref={containerRef} className="relative z-50">
       {/* Masaüstü: tek satır bar + açılır popover'lar (değişmedi) */}
       <div className="hidden flex-wrap items-center gap-2 md:flex">
-        <div className="inline-flex h-10 items-center gap-1 rounded-full border border-hairline bg-white/70 px-1 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <div className="inline-flex h-10 items-center gap-1 rounded-full border border-hairline bg-white/70 px-1 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <TriggerPill isActive={selected === "ALL"} onClick={() => handleSelect("ALL")} layoutId="segmentPill">
             <Globe2 className="h-3.5 w-3.5" /> Genel
           </TriggerPill>

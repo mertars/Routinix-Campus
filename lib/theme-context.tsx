@@ -23,6 +23,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
+    // Mobil Safari/Chrome'un adres çubuğu + alt gezinme çubuğu rengini
+    // (Android) uygulama temasıyla senkronize tutar — aksi halde tema
+    // koyuyken bile tarayıcı kromu açık renkte kalıp "kenarlarda beyazlık"
+    // hissi verir (bkz. app/layout.tsx'teki THEME_INIT_SCRIPT, ilk boyama
+    // için AYNI mantığı hydration'dan önce uygular).
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#12100D" : "#FDFBF7");
   }, [theme]);
 
   function toggleTheme() {

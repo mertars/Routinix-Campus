@@ -78,7 +78,7 @@ export function Hero({ name, title }: { name: string; title: string }) {
             initial={{ opacity: 0, y: -16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 px-5 py-3 backdrop-blur-sm transition-colors dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-xl dark:hover:border-brand-500/40"
+            className="flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 px-5 py-3 backdrop-blur-sm transition-colors dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm dark:hover:border-brand-500/40"
           >
             <motion.span
               animate={{ rotate: [0, 180, 180, 0, 0] }}
@@ -108,7 +108,7 @@ export function Hero({ name, title }: { name: string; title: string }) {
               "flex items-center gap-2 rounded-2xl border px-5 py-3 text-sm font-medium transition-colors",
               campMode
                 ? "border-brand-500/50 bg-brand-600 text-white shadow-[0_0_30px_-6px_rgb(var(--brand-600)/0.7)]"
-                : "border-hairline bg-white/70 text-espresso backdrop-blur-sm hover:border-brand-600/40 dark:border-brand-500/20 dark:bg-midnight-card/50 dark:text-cream dark:backdrop-blur-xl dark:hover:border-brand-500/40"
+                : "border-hairline bg-white/70 text-espresso backdrop-blur-sm hover:border-brand-600/40 dark:border-brand-500/20 dark:bg-midnight-card/50 dark:text-cream dark:backdrop-blur-sm dark:hover:border-brand-500/40"
             )}
           >
             <Flame className={cn("h-4 w-4", campMode && "animate-pulse")} />

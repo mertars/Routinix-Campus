@@ -75,7 +75,7 @@ export function RiskRadarTab() {
   return (
     <motion.div
       whileHover={{ scale: 1.01, y: -3 }}
-      className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+      className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
     >
       <div className="mb-4 flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 text-rose-500" />

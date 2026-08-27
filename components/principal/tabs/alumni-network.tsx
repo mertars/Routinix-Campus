@@ -74,7 +74,7 @@ export function AlumniNetworkTab() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.05 }}
             whileHover={{ scale: 1.02, y: -4 }}
-            className="flex flex-col rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+            className="flex flex-col rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
           >
             <div className="mb-3 flex items-center gap-3">
               <AvatarInitials name={alumnus.name} className="h-11 w-11 text-sm" />

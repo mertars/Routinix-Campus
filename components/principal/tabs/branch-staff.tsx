@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, memo } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil } from "lucide-react";
@@ -27,6 +27,87 @@ type DirectoryRole = "STUDENT" | "TEACHER";
 type StudentRow = { id: string; firstName: string; lastName: string; studentNumber: string; branchId: string; branchName: string };
 type TeacherRow = { id: string; firstName: string; lastName: string; subject: string; mobilePhone: string; institutionalCode: string | null; branchNames: string[] };
 
+// PERFORMANS: kadro büyüdükçe (100+ öğrenci) her arama tuşuna basışta TÜM
+// satırların yeniden render edilmesi hissedilir bir gecikmeye yol açıyordu.
+// React.memo, sadece KENDİ verisi değişen satırın yeniden çizilmesini
+// sağlar — bunun işe yaraması için onClick callback'lerinin PARENT'ta
+// useCallback ile SABİT referanslı olması şart (aksi halde memo etkisiz
+// kalır, her render'da "yeni" prop görür); bkz. handleInspect/handleEdit.
+const StudentRowCard = memo(function StudentRowCard({
+  student,
+  onInspect,
+  onEdit,
+}: {
+  student: StudentRow;
+  onInspect: (id: string, role: DirectoryRole, name: string) => void;
+  onEdit: (id: string, role: DirectoryRole, name: string) => void;
+}) {
+  const fullName = `${student.firstName} ${student.lastName}`;
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      className="flex items-center gap-1.5 rounded-xl bg-cream-card pr-2 transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
+    >
+      <button onClick={() => onInspect(student.id, "STUDENT", fullName)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left">
+        <AvatarInitials name={fullName} className="h-9 w-9 text-xs" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-espresso dark:text-cream">{fullName}</p>
+          <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">{student.branchName} · No: {student.studentNumber}</p>
+        </div>
+      </button>
+      <button
+        onClick={() => onEdit(student.id, "STUDENT", fullName)}
+        aria-label="Öğrenciyi düzenle"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-brand-600 dark:text-cream/40 dark:hover:bg-white/10"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+    </motion.div>
+  );
+});
+
+const TeacherRowCard = memo(function TeacherRowCard({
+  teacher,
+  onInspect,
+  onEdit,
+}: {
+  teacher: TeacherRow;
+  onInspect: (id: string, role: DirectoryRole, name: string) => void;
+  onEdit: (id: string, role: DirectoryRole, name: string) => void;
+}) {
+  const fullName = `${teacher.firstName} ${teacher.lastName}`;
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      className="flex items-center gap-1.5 rounded-xl bg-cream-card pr-2 transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
+    >
+      <button onClick={() => onInspect(teacher.id, "TEACHER", fullName)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left">
+        <AvatarInitials name={fullName} className="h-9 w-9 text-xs" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-espresso dark:text-cream">{fullName}</p>
+          <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">
+            {teacher.subject} · {teacher.branchNames.join(", ") || "Danışman şube yok"}
+            {teacher.institutionalCode && <span className="font-mono"> · {teacher.institutionalCode}</span>}
+          </p>
+        </div>
+      </button>
+      <button
+        onClick={() => onEdit(teacher.id, "TEACHER", fullName)}
+        aria-label="Öğretmeni düzenle"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-brand-600 dark:text-cream/40 dark:hover:bg-white/10"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+    </motion.div>
+  );
+});
+
 export function BranchStaffTab() {
   const { showError } = useToast();
   const [role, setRole] = useState<DirectoryRole>("STUDENT");
@@ -43,6 +124,11 @@ export function BranchStaffTab() {
   const [credentials, setCredentials] = useState<NewUserCredentials | null>(null);
   const [inspectorTarget, setInspectorTarget] = useState<{ id: string; role: DirectoryRole; name: string } | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
+
+  // Sabit referanslar — StudentRowCard/TeacherRowCard'ın React.memo'su
+  // ancak bu callback'ler HER render'da "yeni" fonksiyon olmazsa işe yarar.
+  const handleInspect = useCallback((id: string, role: DirectoryRole, name: string) => setInspectorTarget({ id, role, name }), []);
+  const handleEdit = useCallback((id: string, role: DirectoryRole, name: string) => setEditTarget({ id, role, name }), []);
 
   async function loadDirectory() {
     setLoading(true);
@@ -90,7 +176,7 @@ export function BranchStaffTab() {
     <div className="space-y-4">
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -163,67 +249,8 @@ export function BranchStaffTab() {
         <div className="grid gap-2 sm:grid-cols-2">
           <AnimatePresence mode="popLayout">
             {role === "STUDENT"
-              ? students.map((s, index) => (
-                  <motion.div
-                    key={s.id}
-                    layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ delay: index * 0.02 }}
-                    className="flex items-center gap-1.5 rounded-xl bg-cream-card pr-2 transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
-                  >
-                    <button
-                      onClick={() => setInspectorTarget({ id: s.id, role: "STUDENT", name: `${s.firstName} ${s.lastName}` })}
-                      className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left"
-                    >
-                      <AvatarInitials name={`${s.firstName} ${s.lastName}`} className="h-9 w-9 text-xs" />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-espresso dark:text-cream">{s.firstName} {s.lastName}</p>
-                        <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">{s.branchName} · No: {s.studentNumber}</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setEditTarget({ id: s.id, role: "STUDENT", name: `${s.firstName} ${s.lastName}` })}
-                      aria-label="Öğrenciyi düzenle"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-brand-600 dark:text-cream/40 dark:hover:bg-white/10"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </motion.div>
-                ))
-              : teachers.map((t, index) => (
-                  <motion.div
-                    key={t.id}
-                    layout
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ delay: index * 0.02 }}
-                    className="flex items-center gap-1.5 rounded-xl bg-cream-card pr-2 transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
-                  >
-                    <button
-                      onClick={() => setInspectorTarget({ id: t.id, role: "TEACHER", name: `${t.firstName} ${t.lastName}` })}
-                      className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left"
-                    >
-                      <AvatarInitials name={`${t.firstName} ${t.lastName}`} className="h-9 w-9 text-xs" />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-espresso dark:text-cream">{t.firstName} {t.lastName}</p>
-                        <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">
-                          {t.subject} · {t.branchNames.join(", ") || "Danışman şube yok"}
-                          {t.institutionalCode && <span className="font-mono"> · {t.institutionalCode}</span>}
-                        </p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setEditTarget({ id: t.id, role: "TEACHER", name: `${t.firstName} ${t.lastName}` })}
-                      aria-label="Öğretmeni düzenle"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-brand-600 dark:text-cream/40 dark:hover:bg-white/10"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </motion.div>
-                ))}
+              ? students.map((s) => <StudentRowCard key={s.id} student={s} onInspect={handleInspect} onEdit={handleEdit} />)
+              : teachers.map((t) => <TeacherRowCard key={t.id} teacher={t} onInspect={handleInspect} onEdit={handleEdit} />)}
           </AnimatePresence>
           {!loading && totalCount === 0 && (
             <p className="col-span-full flex items-center gap-1.5 py-6 text-center text-xs text-espresso-muted dark:text-cream/40">

@@ -79,7 +79,7 @@ export function PomodoroTab() {
         <Lock className="h-4 w-4 shrink-0" /> Bu veriler sadece bu cihazda saklanır, öğretmen/yönetici panellerine yansımaz.
       </div>
 
-      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-6 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-6 text-center shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <p className={cn("mb-1 text-xs font-semibold uppercase tracking-widest", mode === "work" ? "text-brand-600" : "text-green-600 dark:text-green-400")}>
           {mode === "work" ? "Odaklanma Süresi" : "Mola Zamanı"}
         </p>
@@ -100,7 +100,7 @@ export function PomodoroTab() {
         <p className="mt-3 text-[11px] text-espresso-muted dark:text-cream/40">Bugün tamamlanan oturum: {progress.sessionsCompleted}</p>
       </motion.div>
 
-      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <Timer className="h-4 w-4 text-brand-600" /> Günlük Hedeflerim
         </h2>

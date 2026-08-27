@@ -104,19 +104,19 @@ export function AttendanceCommandTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <p className="text-2xl font-semibold text-green-600 dark:text-green-400">{counts.present}</p>
           <p className="text-[11px] text-espresso-muted dark:text-cream/40">Geldi</p>
         </div>
-        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <p className="text-2xl font-semibold text-brand-600">{counts.late}</p>
           <p className="text-[11px] text-espresso-muted dark:text-cream/40">Geç Kaldı</p>
         </div>
-        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <p className="text-2xl font-semibold text-rose-600 dark:text-rose-400">{counts.absent}</p>
           <p className="text-[11px] text-espresso-muted dark:text-cream/40">Gelmedi</p>
         </div>
-        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <p className="text-2xl font-semibold text-espresso dark:text-cream">{counts.unmarked}</p>
           <p className="text-[11px] text-espresso-muted dark:text-cream/40">İşaretlenmedi</p>
         </div>
@@ -124,7 +124,7 @@ export function AttendanceCommandTab() {
 
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <Users className="h-4 w-4 text-brand-600" /> Bugünkü Yoklama Matrisi

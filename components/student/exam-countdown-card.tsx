@@ -63,7 +63,7 @@ export function ExamCountdownChip() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25 }}
       whileHover={{ y: -2 }}
-      className="flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 px-5 py-3 backdrop-blur-sm transition-colors dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-xl dark:hover:border-brand-500/40"
+      className="flex items-center gap-2 rounded-2xl border border-hairline bg-white/70 px-5 py-3 backdrop-blur-sm transition-colors dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm dark:hover:border-brand-500/40"
     >
       <motion.span
         animate={{ rotate: [0, 180, 180, 0, 0] }}

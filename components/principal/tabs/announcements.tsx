@@ -171,7 +171,7 @@ function TransparentReportGenerator() {
   return (
     <motion.div
       whileHover={{ scale: 1.01, y: -3 }}
-      className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+      className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
     >
       <h2 className="mb-4 text-sm font-semibold text-espresso dark:text-cream">Velilere Özel Şeffaf Karne</h2>
 
@@ -314,7 +314,7 @@ export function AnnouncementsTab() {
     <div className="grid gap-4 lg:grid-cols-2">
       <motion.div
         whileHover={{ scale: 1.01, y: -3 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-espresso dark:text-cream">Kampüs Panosu</h2>

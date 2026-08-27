@@ -26,7 +26,7 @@ export function TopBar() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
         {/* Mobil düzen: sol logo, sağda (küçülebilen) kurum rozeti + hamburger */}
         <div className="flex w-full items-center gap-2 md:hidden">
-          <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-xl">
+          <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "whitespace-nowrap text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>
           </div>
@@ -48,7 +48,7 @@ export function TopBar() {
 
         {/* Masaüstü düzen: değişmedi */}
         <div className="hidden items-center justify-start gap-3 md:flex">
-          <div className="flex items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-xl">
+          <div className="flex items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>
           </div>

@@ -50,7 +50,7 @@ function LiveSessionCard({ session, index }: { session: Session; index: number }
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06 }}
       whileHover={{ scale: 1.015, y: -3 }}
-      className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+      className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
     >
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-espresso dark:text-cream">{session.teacherName}</p>
@@ -119,15 +119,15 @@ export function LiveTutoringTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <p className="text-2xl font-semibold text-espresso dark:text-cream">{data.stats.completedToday}</p>
           <p className="text-[11px] text-espresso-muted dark:text-cream/40">Bugün Tamamlanan Etüt</p>
         </div>
-        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <p className="text-2xl font-semibold text-green-600 dark:text-green-400">{data.stats.liveNow}</p>
           <p className="text-[11px] text-espresso-muted dark:text-cream/40">Şu An Canlı</p>
         </div>
-        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <div className="rounded-2xl border border-hairline bg-white/70 p-4 text-center shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
           <p className="text-2xl font-semibold text-espresso dark:text-cream">{data.stats.avgDurationMinutes} dk</p>
           <p className="text-[11px] text-espresso-muted dark:text-cream/40">Ortalama Süre</p>
         </div>
@@ -149,7 +149,7 @@ export function LiveTutoringTab() {
 
       <motion.div
         whileHover={{ scale: 1.01, y: -3 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <CalendarClock className="h-4 w-4 text-brand-600" /> Yaklaşan Randevular

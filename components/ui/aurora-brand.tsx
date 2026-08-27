@@ -1,7 +1,7 @@
 "use client";
 
 import { Space_Grotesk } from "next/font/google";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 // Routinix marka kimliğinin paylaşılan görsel parçaları — "dış ekranlar"
@@ -19,22 +19,30 @@ export const BRAND_HEX = {
 } as const;
 
 // Yavaşça süzülen, "nefes alan" mesh-gradient küreleri — dış ekranlar için.
+// Boyut/blur PanelAurora ile AYNI performans gerekçesiyle küçültüldü (bkz.
+// oradaki not) — giriş/rol-seçim ekranları da dahil, tüm sürekli-animasyonlu
+// arka planlar aynı standarda çekildi.
 export function AuroraOrbs() {
+  const reduceMotion = useReducedMotion();
+
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <motion.div
-        className="absolute -left-32 -top-24 h-[34rem] w-[34rem] rounded-full bg-[#FF6B00]/30 blur-[110px] mix-blend-screen"
-        animate={{ x: [0, 60, -20, 0], y: [0, 40, -30, 0], scale: [1, 1.08, 0.96, 1] }}
+        className="absolute -left-28 -top-20 h-[23rem] w-[23rem] rounded-full bg-[#FF6B00]/30 blur-[64px] mix-blend-screen"
+        style={AURORA_BLOB_WILL_CHANGE}
+        animate={reduceMotion ? undefined : { x: [0, 42, -14, 0], y: [0, 28, -20, 0], scale: [1, 1.06, 0.97, 1] }}
         transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -right-40 top-1/3 h-[30rem] w-[30rem] rounded-full bg-[#8C3A2B]/30 blur-[110px] mix-blend-screen"
-        animate={{ x: [0, -50, 30, 0], y: [0, -35, 25, 0], scale: [1, 0.94, 1.06, 1] }}
+        className="absolute -right-32 top-1/3 h-[20rem] w-[20rem] rounded-full bg-[#8C3A2B]/30 blur-[64px] mix-blend-screen"
+        style={AURORA_BLOB_WILL_CHANGE}
+        animate={reduceMotion ? undefined : { x: [0, -35, 20, 0], y: [0, -24, 18, 0], scale: [1, 0.96, 1.04, 1] }}
         transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -bottom-40 left-1/4 h-[28rem] w-[28rem] rounded-full bg-[#D8A13B]/25 blur-[100px] mix-blend-screen"
-        animate={{ x: [0, 40, -40, 0], y: [0, -20, 30, 0] }}
+        className="absolute -bottom-28 left-1/4 h-[19rem] w-[19rem] rounded-full bg-[#D8A13B]/25 blur-[58px] mix-blend-screen"
+        style={AURORA_BLOB_WILL_CHANGE}
+        animate={reduceMotion ? undefined : { x: [0, 28, -28, 0], y: [0, -14, 20, 0] }}
         transition={{ duration: 19, repeat: Infinity, ease: "easeInOut" }}
       />
     </div>
@@ -72,6 +80,16 @@ export const AURORA_GRID_STYLE = {
   backgroundSize: "56px 56px",
 };
 
+// PERFORMANS: h-[38rem]/blur-[130px] gibi büyük+bulanık+sürekli hareketli
+// katmanlar (bkz. PanelAurora altta) cihaz GPU/CPU'sunu sürekli meşgul
+// ediyordu — özellikle koyu temada, TÜM panellerde AYNI ANDA açık kalan bu
+// bileşen + üstündeki onlarca kartın backdrop-blur'ı bileşince mobilde
+// gözle görülür ısınma/kasmaya yol açıyordu (kullanıcı geri bildirimi).
+// Boyut/blur yarıçapı burada BİLEREK küçültüldü — "köşelerde yumuşak parlama"
+// karakteri korunuyor, sadece her karede yeniden hesaplanan piksel alanı
+// çok daha küçük.
+const AURORA_BLOB_WILL_CHANGE = { willChange: "transform" } as const;
+
 // İnce bir film-grain dokusu — düz, "temiz vektör" hissini kırıp saten/kağıt
 // gibi maddesel bir derinlik katar (premium dashboard'ların klasik hilesi).
 // Saf CSS/SVG, ek bir asset indirmez.
@@ -96,32 +114,39 @@ const GRAIN_STYLE = {
 // değerlerle aynı görünümü üretir — bu bir davranış değişikliği değil,
 // sadece sabit rengi CSS değişkenine bağlamaktır.
 export function PanelAurora() {
+  // Cihazın/OS'un "hareketi azalt" tercihine saygı — hem erişilebilirlik
+  // hem de bu tercihi AÇIK olan kullanıcılar genelde tam bu tür sürekli
+  // animasyonlardan rahatsız olan/performans sorunu yaşayan cihazlardadır.
+  // true ise blob'lar TAMAMEN durur, sadece sabit bir yumuşak parlama kalır
+  // (blur/mix-blend maliyeti tek seferlik paint'e düşer, per-frame olmaz).
+  const reduceMotion = useReducedMotion();
+
   return (
     <div className="pointer-events-none fixed inset-0 -z-10 hidden overflow-hidden dark:block">
       <div className="absolute inset-0 bg-midnight" />
 
       <motion.div
-        className="absolute -left-40 -top-32 h-[38rem] w-[38rem] rounded-full blur-[130px] mix-blend-screen"
-        style={{ backgroundColor: "rgb(var(--brand-600) / 0.25)" }}
-        animate={{ x: [0, 55, -20, 0], y: [0, 35, -25, 0], scale: [1, 1.08, 0.96, 1] }}
+        className="absolute -left-32 -top-24 h-[26rem] w-[26rem] rounded-full blur-[70px] mix-blend-screen"
+        style={{ backgroundColor: "rgb(var(--brand-600) / 0.25)", ...AURORA_BLOB_WILL_CHANGE }}
+        animate={reduceMotion ? undefined : { x: [0, 40, -15, 0], y: [0, 25, -18, 0], scale: [1, 1.06, 0.97, 1] }}
         transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -right-40 -top-20 h-[26rem] w-[26rem] rounded-full blur-[120px] mix-blend-screen"
-        style={{ backgroundColor: "rgb(var(--brand-400) / 0.16)" }}
-        animate={{ x: [0, -35, 20, 0], y: [0, 30, -15, 0] }}
+        className="absolute -right-28 -top-16 h-[19rem] w-[19rem] rounded-full blur-[64px] mix-blend-screen"
+        style={{ backgroundColor: "rgb(var(--brand-400) / 0.16)", ...AURORA_BLOB_WILL_CHANGE }}
+        animate={reduceMotion ? undefined : { x: [0, -25, 15, 0], y: [0, 22, -10, 0] }}
         transition={{ duration: 31, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -right-48 bottom-0 h-[34rem] w-[34rem] rounded-full blur-[130px] mix-blend-screen"
-        style={{ backgroundColor: "rgb(var(--brand-800) / 0.22)" }}
-        animate={{ x: [0, -40, 25, 0], y: [0, -30, 20, 0], scale: [1, 0.95, 1.05, 1] }}
+        className="absolute -right-32 bottom-0 h-[23rem] w-[23rem] rounded-full blur-[70px] mix-blend-screen"
+        style={{ backgroundColor: "rgb(var(--brand-800) / 0.22)", ...AURORA_BLOB_WILL_CHANGE }}
+        animate={reduceMotion ? undefined : { x: [0, -28, 18, 0], y: [0, -22, 15, 0], scale: [1, 0.96, 1.04, 1] }}
         transition={{ duration: 33, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
-        className="absolute -bottom-48 left-1/4 h-[34rem] w-[34rem] rounded-full blur-[120px] mix-blend-screen"
-        style={{ backgroundColor: "rgb(var(--brand-500) / 0.20)" }}
-        animate={{ x: [0, 35, -35, 0], y: [0, -25, 25, 0] }}
+        className="absolute -bottom-32 left-1/4 h-[23rem] w-[23rem] rounded-full blur-[64px] mix-blend-screen"
+        style={{ backgroundColor: "rgb(var(--brand-500) / 0.20)", ...AURORA_BLOB_WILL_CHANGE }}
+        animate={reduceMotion ? undefined : { x: [0, 25, -25, 0], y: [0, -18, 18, 0] }}
         transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }}
       />
 

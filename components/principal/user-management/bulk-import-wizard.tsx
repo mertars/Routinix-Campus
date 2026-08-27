@@ -325,7 +325,7 @@ export function BulkImportWizard({
                   <div
                     key={row.rowIndex}
                     className={cn(
-                      "flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs",
+                      "long-list-compact flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs",
                       row.isValid ? "bg-green-50 dark:bg-green-500/10" : "bg-rose-50 dark:bg-rose-500/10"
                     )}
                   >
@@ -384,7 +384,7 @@ export function BulkImportWizard({
 
                   <div className="max-h-56 space-y-1.5 overflow-y-auto rounded-xl border border-hairline p-2 dark:border-white/10">
                     {results.map((r) => (
-                      <div key={r.rowIndex} className={cn("flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs", r.status === "success" ? "bg-green-50 dark:bg-green-500/10" : "bg-rose-50 dark:bg-rose-500/10")}>
+                      <div key={r.rowIndex} className={cn("long-list-compact flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-xs", r.status === "success" ? "bg-green-50 dark:bg-green-500/10" : "bg-rose-50 dark:bg-rose-500/10")}>
                         <span className="font-medium text-espresso dark:text-cream">{r.fullName}</span>
                         {r.status === "success" ? (
                           <span className="font-mono text-[10px] text-green-700 dark:text-green-400">{r.username}</span>

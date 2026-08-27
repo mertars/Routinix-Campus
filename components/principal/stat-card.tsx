@@ -78,7 +78,7 @@ export function StatCard({
   return (
     <MagneticCard
       onClick={onClick}
-      className="cursor-pointer rounded-2xl border border-hairline bg-white/80 p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 dark:border-white/10 dark:bg-midnight-card/50 dark:backdrop-blur-xl dark:hover:border-brand-500/40 dark:hover:shadow-[0_0_30px_-8px_rgb(var(--brand-600)/0.5)]"
+      className="cursor-pointer rounded-2xl border border-hairline bg-white/80 p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 dark:border-white/10 dark:bg-midnight-card/50 dark:backdrop-blur-sm dark:hover:border-brand-500/40 dark:hover:shadow-[0_0_30px_-8px_rgb(var(--brand-600)/0.5)]"
     >
       <div className="flex items-center justify-between">
         <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${TONE_STYLES[tone]}`}>

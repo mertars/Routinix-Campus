@@ -25,7 +25,7 @@ export function RoleCard({
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.98 }}
       onClick={onSelect}
-      className="group relative flex min-h-[196px] flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-center shadow-xl backdrop-blur-xl transition-colors duration-300 hover:border-[#FF8C00]/40"
+      className="group relative flex min-h-[196px] flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-center shadow-xl backdrop-blur-sm transition-colors duration-300 hover:border-[#FF8C00]/40"
     >
       <div
         className="pointer-events-none absolute -inset-1 rounded-[1.5rem] bg-gradient-to-br from-[#FF6B00]/0 to-transparent opacity-0 blur-xl transition-opacity duration-300 group-hover:from-[#FF6B00]/40 group-hover:opacity-100"
