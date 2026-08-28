@@ -16,8 +16,14 @@ export type PdfGridResult = { grid: string[][]; warnings: string[] };
 type TextItem = { x: number; xEnd: number; y: number; text: string };
 
 const Y_TOLERANCE = 4; // pt — aynı satır sayılacak dikey yakınlık
-const BIN_WIDTH = 2; // pt — yatay doluluk histogramının çözünürlüğü
-const MIN_GUTTER_WIDTH_PT = 6; // pt — bir boşluğun "sütun ayracı" sayılması için asgari genişlik
+const BIN_WIDTH = 1; // pt — yatay doluluk histogramının çözünürlüğü
+// ⚠️ Gerçek bir optik okuma raporu örneğinde (kullanıcıdan alındı) her ders
+// için D/Y/N üçlüsü YAN YANA, çok dar aralıklarla basılıyor — sentetik
+// test PDF'imdeki (bilerek geniş CSS padding'li) sütunlardan çok daha sıkı.
+// Eski 6pt eşiği bu tür dar sütunları TEK hücrede birleştirebilirdi. 3pt'e
+// düşürüldü — kelime İÇİ karakter boşluklarını (genelde <1-2pt) hâlâ
+// yanlışlıkla ayraç saymaz, ama gerçek dar sütun boşluklarını yakalar.
+const MIN_GUTTER_WIDTH_PT = 3; // pt — bir boşluğun "sütun ayracı" sayılması için asgari genişlik
 const OCCUPANCY_TOLERANCE_RATIO = 0.08; // satırların bu oranından azında metin varsa "boş" say
 const MAX_BINS = 20000; // aşırı geniş/bozuk sayfalarda sonsuz döngü/performans koruması
 
