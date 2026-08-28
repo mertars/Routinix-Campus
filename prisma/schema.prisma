@@ -99,10 +99,10 @@ model PlatformOwner {
 }
 
 model Institution {
-  id                  String              @id @default(cuid())
+  id                  String                   @id @default(cuid())
   name                String
-  slug                String              @unique
-  isActive            Boolean             @default(true)
+  slug                String                   @unique
+  isActive            Boolean                  @default(true)
   branches            Branch[]
   students            Student[]
   teachers            Teacher[]
@@ -114,8 +114,8 @@ model Institution {
   auditLogs           AuditLog[]
   classrooms          Classroom[]
   scheduleSlots       ScheduleSlotDefinition[]
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 }
 
 model Branch {
@@ -209,6 +209,8 @@ model Student {
   preferences         StudentPreference[]
   guidancePrograms    GuidanceProgram[]
   remediationTasks    RemediationTask[]
+  alumniProfile       AlumniProfile?
+  sentMentorRequests  MentorRequest[]      @relation("MentorRequestsSent")
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
@@ -993,6 +995,7 @@ enum AuditAction {
   USER_DEACTIVATED
   USER_DELETED_PERMANENTLY
   CLASSROOM_CREATED
+  ALUMNI_PROFILE_CREATED
 }
 
 model AuditLog {
@@ -1013,4 +1016,53 @@ model AuditLog {
   @@index([institutionId, createdAt])
   @@index([actorId])
   @@index([targetType, targetId])
+}
+
+// ----------------------------------------------------------------------------
+// Mezun Gurur Tablosu & Mentorluk — önceden tamamen mock veriydi (ALUMNI,
+// lib/mock-data.ts). "Mezun" burada AYRI bir kişi kaydı DEĞİL — kurumda
+// GERÇEKTEN kayıtlı olmuş bir Student'a bağlı, mezuniyet SONRASI bilgileri
+// (üniversite, mentorluk durumu vb.) tutan bir PROFİL. Student kaydı
+// silinirse (kalıcı silme) bu profil de anlamsız kalır, bu yüzden Cascade.
+// ----------------------------------------------------------------------------
+
+model AlumniProfile {
+  id             String          @id @default(cuid())
+  studentId      String          @unique
+  student        Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  graduationYear Int
+  highSchoolRank String? // "Kurum 1.si" gibi — isteğe bağlı, gurur tablosunda rozet olarak gösterilir
+  admittedTo     String // "Boğaziçi Üniversitesi — Bilgisayar Mühendisliği"
+  examScope      String // "YKS" | "LGS"
+  isMentor       Boolean         @default(false)
+  mentorNote     String? // mezunun kendi sözleriyle, ne konuda destek verdiği
+  // Mentorluk onaylandığında öğrenciye/veliye gösterilecek iletişim bilgisi
+  // — Student.phone'dan BİLEREK ayrı: mezun, okuldaki kaydından FARKLI
+  // (güncel) bir numara vermek isteyebilir.
+  contactPhone   String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  mentorRequests MentorRequest[]
+
+  @@index([studentId])
+}
+
+// Bir öğrencinin bir mezun-mentora gönderdiği destek talebi. Mezunun kendisi
+// sisteme giriş yapmıyor (hesabı zaten deaktive/silinmiş olabilir) — bu
+// yüzden onay akışı yönetici/rehberlik üzerinden yürür: yönetici mezunla
+// OKUL DIŞI bir kanaldan (telefon, WhatsApp) iletişime geçip onaylar,
+// onaylanınca AlumniProfile.contactPhone talep eden öğrenciye açılır.
+model MentorRequest {
+  id                 String        @id @default(cuid())
+  alumniProfileId    String
+  alumniProfile      AlumniProfile @relation(fields: [alumniProfileId], references: [id], onDelete: Cascade)
+  requesterStudentId String
+  requesterStudent   Student       @relation("MentorRequestsSent", fields: [requesterStudentId], references: [id], onDelete: Cascade)
+  message            String?
+  status             String        @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt          DateTime      @default(now())
+  resolvedAt         DateTime?
+
+  @@index([alumniProfileId])
+  @@index([requesterStudentId])
 }

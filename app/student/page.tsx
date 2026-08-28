@@ -21,6 +21,7 @@ import {
   Ticket,
   FileText,
   UserCog,
+  Trophy,
 } from "lucide-react";
 import { type NavTab } from "@/components/principal/floating-nav";
 import { DualFloatingNav } from "@/components/principal/dual-floating-nav";
@@ -44,6 +45,7 @@ import { ExamCountdownTab } from "@/components/student/tabs/exam-countdown";
 import { TercihRobotuTab } from "@/components/student/tabs/tercih-robotu";
 import { KelebekTab } from "@/components/student/tabs/kelebek";
 import { ReportCardTab } from "@/components/student/tabs/report-card";
+import { MentorshipTab } from "@/components/student/tabs/mentorship";
 import { ProfileTab } from "@/components/student/tabs/profile";
 import { useSessionName } from "@/lib/institution-scope";
 
@@ -64,6 +66,7 @@ const TABS = [
   { id: "guidance", label: "Rehberlik & Koçluk Talebi", icon: HeartHandshake, Component: GuidanceTab, side: "right" },
   { id: "exam-countdown", label: "Sınav Geri Sayımı & Motivasyon", icon: Hourglass, Component: ExamCountdownTab, side: "right" },
   { id: "kelebek", label: "Kelebek Sistemi Masa No", icon: Ticket, Component: KelebekTab, side: "right" },
+  { id: "mentorship", label: "Mezunlar & Mentorluk", icon: Trophy, Component: MentorshipTab, side: "right" },
   { id: "report-card", label: "Gelişim Karnesi (PDF)", icon: FileText, Component: ReportCardTab, side: "right" },
   { id: "profile", label: "Profil & Ayarlar", icon: UserCog, Component: ProfileTab, side: "right" },
 ] as const satisfies readonly (NavTab & { Component: (props: { onNavigate?: (tabId: string) => void }) => JSX.Element; side: "left" | "right" })[];
