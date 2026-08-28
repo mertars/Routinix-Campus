@@ -61,6 +61,7 @@ export function AskQuestionTab() {
   }
 
   async function loadQuestions() {
+    if (!studentId) return;
     setQuestionsLoading(true);
     try {
       const res = await fetch(`/api/questions?studentId=${encodeURIComponent(studentId)}`);
@@ -77,8 +78,27 @@ export function AskQuestionTab() {
   useEffect(() => {
     loadTeachers();
     loadQuestions();
+    // Öğretmenin cevabı elle yenileme beklemeden görünsün — pop-quiz/ödev
+    // kontrol matrisindeki AYNI polling deseni (bkz. lib/use-active-quiz.ts).
+    const interval = setInterval(loadQuestions, 7000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
+
+  async function markSolved(questionId: string) {
+    try {
+      const res = await fetch(`/api/questions/${questionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "SOLVED" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "İşaretlenemedi.");
+      setQuestions((prev) => prev.map((q) => (q.id === questionId ? { ...q, status: "SOLVED" } : q)));
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "İşaretlenemedi.");
+    }
+  }
 
   function pickFile(file: File | undefined) {
     if (!file) return;
@@ -233,6 +253,14 @@ export function AskQuestionTab() {
                 <p className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-green-50 px-2.5 py-2 text-xs text-green-700 dark:bg-green-500/10 dark:text-green-400">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {q.answerText}
                 </p>
+              )}
+              {q.status === "ANSWERED" && (
+                <button
+                  onClick={() => markSolved(q.id)}
+                  className="mt-2 flex min-h-[36px] w-full items-center justify-center gap-1.5 rounded-lg border border-hairline text-xs font-medium text-espresso transition hover:bg-white dark:border-white/10 dark:text-cream dark:hover:bg-white/10"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Anladım, Kapat
+                </button>
               )}
               <p className="mt-1 text-[10px] text-espresso-muted/70 dark:text-cream/30">{new Date(q.createdAt).toLocaleString("tr-TR")}</p>
             </div>

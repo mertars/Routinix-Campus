@@ -15,6 +15,7 @@ export function KelebekTab() {
   const [assignment, setAssignment] = useState<Assignment | null>(null);
 
   useEffect(() => {
+    if (!studentId) return;
     fetch(`/api/exam-seating?studentId=${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data) => setAssignment(data.assignment ?? null))

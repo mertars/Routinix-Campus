@@ -66,24 +66,30 @@ export function QuestionPoolTab() {
   const [loadError, setLoadError] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  async function loadQuestions() {
-    setLoading(true);
-    setLoadError(false);
+  async function loadQuestions(showErrorOnFail = true) {
+    if (showErrorOnFail) setLoading(true);
     try {
       const res = await fetch(`/api/questions?teacherId=${encodeURIComponent(staffRecord.id)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Sorular yüklenemedi.");
       setQuestions(data.questions ?? []);
+      setLoadError(false);
     } catch (error) {
-      setLoadError(true);
-      showError(error instanceof Error ? error.message : "Sorular yüklenemedi, veritabanı bağlantısını kontrol edin.");
+      if (showErrorOnFail) {
+        setLoadError(true);
+        showError(error instanceof Error ? error.message : "Sorular yüklenemedi, veritabanı bağlantısını kontrol edin.");
+      }
     } finally {
-      setLoading(false);
+      if (showErrorOnFail) setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadQuestions();
+    if (!staffRecord.id) return;
+    loadQuestions(true);
+    // Öğrencinin gönderdiği yeni soru elle yenileme beklemeden görünsün.
+    const interval = setInterval(() => loadQuestions(false), 7000);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffRecord.id]);
 
@@ -116,7 +122,7 @@ export function QuestionPoolTab() {
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
             <HelpCircle className="h-4 w-4 text-brand-600" /> Soru Çözüm Havuzu — Öğrencilerden Gelenler
           </h2>
-          <button onClick={loadQuestions} className="flex h-7 w-7 items-center justify-center rounded-full text-espresso-muted hover:bg-cream-card dark:text-cream/40 dark:hover:bg-white/5">
+          <button onClick={() => loadQuestions(true)} className="flex h-7 w-7 items-center justify-center rounded-full text-espresso-muted hover:bg-cream-card dark:text-cream/40 dark:hover:bg-white/5">
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
         </div>

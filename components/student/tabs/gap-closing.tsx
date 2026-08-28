@@ -26,6 +26,7 @@ export function GapClosingTab() {
   const [myTasks, setMyTasks] = useState<RemediationTask[]>([]);
 
   useEffect(() => {
+    if (!studentId) return;
     fetch(`/api/remediation-tasks?studentId=${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data) => setMyTasks(data.tasks ?? []))

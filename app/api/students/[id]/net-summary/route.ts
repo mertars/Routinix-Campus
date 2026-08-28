@@ -34,6 +34,18 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
       (trendBySubject[r.subject] ??= []).push({ examLabel: r.exam.name, net: r.net });
     }
 
+    // Deneme Bazlı Röntgen Karnesi'nin gerçek veri kaynağı — netResults zaten
+    // examDate'e göre artan sırada geldiği için grup sırası da kronolojik kalır.
+    const examBreakdownMap = new Map<string, { examId: string; examName: string; examDate: string; subjects: { subject: string; net: number }[] }>();
+    for (const r of netResults) {
+      const entry = examBreakdownMap.get(r.examId) ?? { examId: r.examId, examName: r.exam.name, examDate: r.exam.examDate.toISOString(), subjects: [] };
+      entry.subjects.push({ subject: r.subject, net: r.net });
+      examBreakdownMap.set(r.examId, entry);
+    }
+    const examBreakdown = [...examBreakdownMap.values()]
+      .map((entry) => ({ ...entry, totalNet: Math.round(entry.subjects.reduce((sum, s) => sum + s.net, 0) * 100) / 100 }))
+      .reverse(); // en yeni deneme en üstte
+
     const latestExamId = netResults.at(-1)?.examId ?? null;
     const actualNet = latestExamId
       ? Math.round(netResults.filter((r) => r.examId === latestExamId).reduce((sum, r) => sum + r.net, 0) * 100) / 100
@@ -69,6 +81,7 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
       segment: student.branch.segment,
       actualNet,
       trendBySubject,
+      examBreakdown,
       branchRank,
       institutionRank,
       estimatedNationwidePercentile,

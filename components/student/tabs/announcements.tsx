@@ -56,6 +56,7 @@ export function AnnouncementsTab() {
   const [announcements, setAnnouncements] = useState<AnnouncementEntry[]>([]);
 
   useEffect(() => {
+    if (!studentId) return;
     fetch(`/api/announcements?studentId=${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data) => {
