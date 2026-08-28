@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, LifeBuoy, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertTriangle, LifeBuoy, CheckCircle2, Loader2, Scan } from "lucide-react";
 import { RISK_REASON_LABEL, type RiskReason } from "@/lib/mock-data";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 type RiskEntry = { id: string; name: string; branch: string; riskScore: number; reason: RiskReason };
 
-export function RiskReferralTab() {
+export function RiskReferralTab({ onInspectStudent }: { onInspectStudent?: (studentId: string) => void } = {}) {
   const { teacherName, staffRecord } = useTeacherScope();
   const { showError, showSuccess } = useToast();
   const [risky, setRisky] = useState<RiskEntry[]>([]);
@@ -18,6 +18,7 @@ export function RiskReferralTab() {
   const [referring, setReferring] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!staffRecord.id) return;
     fetch(`/api/risk-radar?teacherId=${encodeURIComponent(staffRecord.id)}`)
       .then((res) => res.json())
       .then((data) => setRisky((data.entries ?? []).filter((e: RiskEntry) => e.riskScore >= 30)))
@@ -80,28 +81,39 @@ export function RiskReferralTab() {
                     {entry.branch} · {RISK_REASON_LABEL[entry.reason]} · Risk {entry.riskScore}
                   </p>
                 </div>
-                <button
-                  onClick={() => refer(entry)}
-                  disabled={isReferred || referring === entry.id}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition",
-                    isReferred
-                      ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400"
-                      : "bg-espresso text-cream hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+                <div className="flex items-center gap-2">
+                  {onInspectStudent && (
+                    <button
+                      onClick={() => onInspectStudent(entry.id)}
+                      title="Röntgen Karnesini İncele"
+                      className="flex items-center gap-1.5 rounded-full border border-hairline px-2.5 py-1 text-[11px] font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                    >
+                      <Scan className="h-3 w-3" /> İncele
+                    </button>
                   )}
-                >
-                  {referring === entry.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : isReferred ? (
-                    <>
-                      <CheckCircle2 className="h-3 w-3" /> Sevk Edildi
-                    </>
-                  ) : (
-                    <>
-                      <LifeBuoy className="h-3 w-3" /> Rehberliğe Sevk Et
-                    </>
-                  )}
-                </button>
+                  <button
+                    onClick={() => refer(entry)}
+                    disabled={isReferred || referring === entry.id}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition",
+                      isReferred
+                        ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400"
+                        : "bg-espresso text-cream hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+                    )}
+                  >
+                    {referring === entry.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : isReferred ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3" /> Sevk Edildi
+                      </>
+                    ) : (
+                      <>
+                        <LifeBuoy className="h-3 w-3" /> Rehberliğe Sevk Et
+                      </>
+                    )}
+                  </button>
+                </div>
               </motion.div>
             );
           })}

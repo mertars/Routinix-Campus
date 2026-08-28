@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
+import { buildStatusCountMap } from "@/lib/server/risk/status-count-map";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withTtlCache } from "@/lib/server/cache/ttl-cache";
@@ -83,27 +84,15 @@ async function computeRiskRadar(institutionId: string, teacherId: string | null)
     prisma.homeworkSubmission.groupBy({ by: ["studentId", "status"], where: { student: studentWhere }, _count: true }),
   ]);
 
-  const attendanceByStudent = new Map<string, { presentOrLate: number; total: number }>();
-  for (const row of attendanceCounts) {
-    const entry = attendanceByStudent.get(row.studentId) ?? { presentOrLate: 0, total: 0 };
-    entry.total += row._count;
-    if (row.status === "PRESENT" || row.status === "LATE") entry.presentOrLate += row._count;
-    attendanceByStudent.set(row.studentId, entry);
-  }
-  const homeworkByStudent = new Map<string, { done: number; total: number }>();
-  for (const row of homeworkCounts) {
-    const entry = homeworkByStudent.get(row.studentId) ?? { done: 0, total: 0 };
-    entry.total += row._count;
-    if (row.status === "DONE") entry.done += row._count;
-    homeworkByStudent.set(row.studentId, entry);
-  }
+  const attendanceByStudent = buildStatusCountMap(attendanceCounts, ["PRESENT", "LATE"]);
+  const homeworkByStudent = buildStatusCountMap(homeworkCounts, ["DONE"]);
 
   const entries = students.map((student) => {
     const att = attendanceByStudent.get(student.id);
-    const attendanceRate = att && att.total > 0 ? Math.round((att.presentOrLate / att.total) * 100) : 100;
+    const attendanceRate = att && att.total > 0 ? Math.round((att.positive / att.total) * 100) : 100;
     const hw = homeworkByStudent.get(student.id);
     const homeworkTotal = hw?.total ?? 0;
-    const homeworkDone = hw?.done ?? 0;
+    const homeworkDone = hw?.positive ?? 0;
     const homeworkSuccessRate = homeworkTotal === 0 ? null : Math.round((homeworkDone / homeworkTotal) * 100);
     const { riskScore, reason } = computeRisk({
       attendanceRate,

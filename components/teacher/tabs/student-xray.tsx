@@ -41,7 +41,10 @@ type Analytics = {
   riskReason: RiskReason;
 };
 
-export function StudentXrayTab() {
+export function StudentXrayTab({
+  focusStudentId,
+  onFocusConsumed,
+}: { focusStudentId?: string | null; onFocusConsumed?: () => void } = {}) {
   const { teacherName, subject, assignedBranches } = useTeacherScope();
   const { showError } = useToast();
   const [students, setStudents] = useState<RosterStudent[]>([]);
@@ -69,6 +72,17 @@ export function StudentXrayTab() {
       .catch(() => showError("Öğrenci listesi yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignedBranches.map((b) => b.id).join(",")]);
+
+  // Risk Alarmı sekmesinden "İncele" ile gelindiğinde, o öğrenciyi doğrudan
+  // seç — roster fetch'i (yukarıdaki effect) henüz tamamlanmamış olsa bile
+  // sıra farkı sorun değil: setSelectedId(current => current || ...) roster
+  // dönüşünde zaten dolu olan selectedId'yi ezmiyor (bkz. o effect).
+  useEffect(() => {
+    if (!focusStudentId) return;
+    setSelectedId(focusStudentId);
+    onFocusConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusStudentId]);
 
   useEffect(() => {
     if (!selectedId) return;

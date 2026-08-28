@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, LifeBuoy, CheckCheck, Loader2 } from "lucide-react";
+import { AlertTriangle, LifeBuoy, CheckCheck, Loader2, Scan } from "lucide-react";
 import { RISK_REASON_LABEL, type RiskReason } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { PerformanceInspectorModal } from "@/components/principal/user-management/performance-inspector-modal";
+
+// Öğretmen tarafındaki Rehberlik Sevk & Risk Alarmı ekranıyla AYNI eşik
+// (bkz. components/teacher/tabs/risk-referral.tsx) — kurum genelinde
+// "risk" tanımı ekrandan ekrana değişmesin diye.
+const RISK_THRESHOLD = 30;
 
 type RiskEntry = { id: string; name: string; branch: string; riskScore: number; reason: RiskReason };
 
@@ -36,11 +42,12 @@ export function RiskRadarTab() {
   const [entries, setEntries] = useState<RiskEntry[]>([]);
   const [referred, setReferred] = useState<string[]>([]);
   const [referring, setReferring] = useState<string | null>(null);
+  const [inspecting, setInspecting] = useState<{ id: string; role: "STUDENT"; name: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/risk-radar")
       .then((res) => res.json())
-      .then((data) => setEntries((data.entries ?? []).slice(0, 12)))
+      .then((data) => setEntries((data.entries ?? []).filter((e: RiskEntry) => e.riskScore >= RISK_THRESHOLD)))
       .catch(() => showError("Risk radarı yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -149,6 +156,13 @@ export function RiskRadarTab() {
                 <div className="flex items-center gap-3">
                   <span className={cn("text-sm font-semibold", tone.label)}>{entry.riskScore}</span>
                   <button
+                    onClick={() => setInspecting({ id: entry.id, role: "STUDENT", name: entry.name })}
+                    title="Röntgen Karnesini İncele"
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-hairline text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                  >
+                    <Scan className="h-3.5 w-3.5" />
+                  </button>
+                  <button
                     onClick={() => refer(entry)}
                     disabled={isReferred || referring === entry.id}
                     title="Rehberliğe Sevk Et"
@@ -169,6 +183,8 @@ export function RiskRadarTab() {
           {entries.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Risk uyarısı yok.</p>}
         </div>
       </div>
+
+      <PerformanceInspectorModal target={inspecting} onClose={() => setInspecting(null)} />
     </motion.div>
   );
 }

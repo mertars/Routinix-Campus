@@ -77,6 +77,7 @@ const sectionVariants = {
 export default function TeacherPage() {
   const teacherName = useSessionName("İrfan Hoca");
   const [activeTab, setActiveTab] = useState<TabId>("attendance");
+  const [focusStudentId, setFocusStudentId] = useState<string | null>(null);
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? LiveAttendanceTab;
 
   return (
@@ -111,7 +112,18 @@ export default function TeacherPage() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
-                <ActiveComponent />
+                {activeTab === "risk-referral" ? (
+                  <RiskReferralTab
+                    onInspectStudent={(id) => {
+                      setFocusStudentId(id);
+                      setActiveTab("xray");
+                    }}
+                  />
+                ) : activeTab === "xray" ? (
+                  <StudentXrayTab focusStudentId={focusStudentId} onFocusConsumed={() => setFocusStudentId(null)} />
+                ) : (
+                  <ActiveComponent />
+                )}
               </motion.div>
             </AnimatePresence>
           </motion.div>

@@ -2,7 +2,12 @@
 // RISK_RADAR mock'unun yerini, gerçek devam/net-trend/ödev sinyallerinden
 // türetilen şeffaf bir kural-bazlı puan alır. computeAttendanceRate ve
 // Aktiflik Skoru ile aynı "gerçek veriden türet, açıkça etiketle" ilkesi.
-export type RiskReason = "net_drop" | "study_gap";
+//
+// RiskReason lib/mock-data.ts'te tanımlı (client bileşenlerin lib/server/*
+// içe aktarmaması gerektiği için tek doğru kaynak orası — bkz. bu oturumun
+// "server/ önek tuzağı" dersi) ve buradan sadece TİP olarak kullanılıyor.
+import type { RiskReason } from "@/lib/mock-data";
+export type { RiskReason };
 
 export function computeRisk(input: {
   attendanceRate: number;
@@ -24,7 +29,14 @@ export function computeRisk(input: {
   }
 
   const riskScore = Math.round(Math.min(100, attendancePenalty + homeworkPenalty + netPenalty));
-  const reason: RiskReason = netPenalty >= Math.max(attendancePenalty, homeworkPenalty) ? "net_drop" : "study_gap";
+
+  // Üç cezadan en büyüğü asıl neden sayılır (eskiden devam+ödev cezaları
+  // "study_gap" adı altında tek bir belirsiz etikette birleşiyordu — hangi
+  // ikisinin gerçek neden olduğunu kaybediyordu). Eşitlikte net_drop > devam
+  // > ödev öncelik sırası korunuyor (eski davranışla tutarlı).
+  let reason: RiskReason = "net_drop";
+  if (attendancePenalty > netPenalty && attendancePenalty >= homeworkPenalty) reason = "attendance_gap";
+  else if (homeworkPenalty > netPenalty && homeworkPenalty > attendancePenalty) reason = "homework_gap";
 
   return { riskScore, reason };
 }
