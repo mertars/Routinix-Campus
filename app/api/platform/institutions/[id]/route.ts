@@ -22,14 +22,18 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
     const institution = await prisma.institution.findUnique({ where: { id: params.id }, select: { id: true, name: true } });
     if (!institution) return NextResponse.json({ error: "Kurum bulunamadı." }, { status: 404 });
 
+    // ⚠️ isActive: true — pasifleştirilmiş (bkz. Student/Teacher.isActive)
+    // hesaplar burada SAYILMAZ. Bu uç ücretlendirmenin gerçek kaynağı
+    // olduğundan, yönetici bir öğrenci/öğretmenin üyeliğini sonlandırdığında
+    // o kişi bir sonraki faturalama görünümünde artık sayılmamalı.
     const [students, teachers] = await Promise.all([
       prisma.student.findMany({
-        where: { institutionId: params.id },
+        where: { institutionId: params.id, isActive: true },
         select: { id: true, firstName: true, lastName: true, phone: true, createdAt: true, branch: { select: { name: true } } },
         orderBy: { createdAt: "desc" },
       }),
       prisma.teacher.findMany({
-        where: { institutionId: params.id },
+        where: { institutionId: params.id, isActive: true },
         select: { id: true, firstName: true, lastName: true, mobilePhone: true, subject: true, createdAt: true },
         orderBy: { createdAt: "desc" },
       }),

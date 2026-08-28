@@ -6,7 +6,7 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/admin/users/directory?role=STUDENT|TEACHER&query=&branchId=&subject=
+// GET /api/admin/users/directory?role=STUDENT|TEACHER&query=&branchId=&subject=&includeInactive=1
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
@@ -16,13 +16,14 @@ async function handleGet(request: NextRequest) {
     const query = request.nextUrl.searchParams.get("query")?.trim() ?? undefined;
     const branchId = request.nextUrl.searchParams.get("branchId") ?? undefined;
     const subject = request.nextUrl.searchParams.get("subject") ?? undefined;
+    const includeInactive = request.nextUrl.searchParams.get("includeInactive") === "1";
 
     if (role === "TEACHER") {
-      const teachers = await listTeacherDirectory(session.institutionId, { query, subject });
+      const teachers = await listTeacherDirectory(session.institutionId, { query, subject, includeInactive });
       return NextResponse.json({ teachers, total: teachers.length });
     }
 
-    const students = await listStudentDirectory(session.institutionId, { query, branchId });
+    const students = await listStudentDirectory(session.institutionId, { query, branchId, includeInactive });
     return NextResponse.json({ students, total: students.length });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

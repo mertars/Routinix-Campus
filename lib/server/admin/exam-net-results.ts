@@ -18,7 +18,7 @@ export type RosterStudentForMatching = {
 // gerekli, bu yüzden ayrı ve dar kapsamlı tutuldu.
 export async function listStudentRosterForMatching(institutionId: string): Promise<RosterStudentForMatching[]> {
   const students = await prisma.student.findMany({
-    where: { institutionId },
+    where: { institutionId, isActive: true },
     select: { id: true, firstName: true, lastName: true, nationalId: true, studentNumber: true, branch: { select: { id: true, name: true } } },
     orderBy: [{ firstName: "asc" }],
   });

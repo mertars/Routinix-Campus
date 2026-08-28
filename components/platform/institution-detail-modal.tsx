@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import * as XLSX from "xlsx";
-import { GraduationCap, UserCog2, FileSpreadsheet, Loader2, Plus, FileUp, Layers, Pencil } from "lucide-react";
+import { GraduationCap, UserCog2, FileSpreadsheet, Loader2, Plus, FileUp, Layers, Pencil, UserX } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { AddBranchModal } from "@/components/principal/user-management/add-branch-modal";
 import { AddUserModal } from "@/components/principal/user-management/add-user-modal";
 import { EditUserModal, type EditTarget } from "@/components/principal/user-management/edit-user-modal";
 import { CredentialsCardModal, type NewUserCredentials } from "@/components/principal/user-management/credentials-card-modal";
+import { DeactivateConfirmModal, type DeactivateTarget } from "@/components/principal/user-management/deactivate-confirm-modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ export function InstitutionDetailModal({ institutionId, onClose }: { institution
   const [isAddBranchOpen, setIsAddBranchOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<DeactivateTarget>(null);
   const [newCredentials, setNewCredentials] = useState<NewUserCredentials | null>(null);
 
   async function loadAll() {
@@ -164,6 +166,13 @@ export function InstitutionDetailModal({ institutionId, onClose }: { institution
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
+                  <button
+                    onClick={() => setDeactivateTarget({ id: row.id, role: tab, name: row.name, isActive: true })}
+                    aria-label={tab === "STUDENT" ? "Öğrenciyi pasifleştir" : "Öğretmeni pasifleştir"}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-red-600 dark:text-cream/40 dark:hover:bg-white/10"
+                  >
+                    <UserX className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               ))}
               {rows.length === 0 && (
@@ -193,6 +202,7 @@ export function InstitutionDetailModal({ institutionId, onClose }: { institution
         onUpdated={loadAll}
         onPasswordReset={setNewCredentials}
       />
+      <DeactivateConfirmModal target={deactivateTarget} onClose={() => setDeactivateTarget(null)} onChanged={loadAll} apiBase={apiBase} />
       <BulkImportWizard
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}

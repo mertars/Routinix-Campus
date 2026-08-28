@@ -61,9 +61,13 @@ export async function findAccountByPhone(phone: string): Promise<FoundAccount | 
   // Askıya alınmış (isActive=false) bir kuruma ait hesaplar telefonla dahi
   // "bulunamaz" — statik JWT'si hâlâ geçerli olan biri için ayrıca
   // requireSession() de aynı kontrolü tekrarlar (bkz. session-guard.ts).
+  // Öğrenci/öğretmen tarafında AYRICA kendi isActive alanı (bkz.
+  // lib/server/admin/deactivate-user.ts) kontrol edilir — yönetici bir
+  // kaydı pasifleştirdiğinde o kişi de aynı "bulunamadı" sonucunu alır,
+  // hesabın var olup olmadığını sızdırmaz.
   const activeInstitution = { institution: { isActive: true } };
 
-  const teacher = await prisma.teacher.findFirst({ where: { mobilePhone: { endsWith: digits }, ...activeInstitution } });
+  const teacher = await prisma.teacher.findFirst({ where: { mobilePhone: { endsWith: digits }, isActive: true, ...activeInstitution } });
   if (teacher) {
     return {
       id: teacher.id,
@@ -76,7 +80,7 @@ export async function findAccountByPhone(phone: string): Promise<FoundAccount | 
     };
   }
 
-  const student = await prisma.student.findFirst({ where: { phone: { endsWith: digits }, ...activeInstitution } });
+  const student = await prisma.student.findFirst({ where: { phone: { endsWith: digits }, isActive: true, ...activeInstitution } });
   if (student) {
     return {
       id: student.id,

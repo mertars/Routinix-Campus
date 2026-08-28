@@ -18,7 +18,17 @@ async function handleGet() {
     await requirePlatformSession();
     const institutions = await prisma.institution.findMany({
       orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, slug: true, isActive: true, createdAt: true, _count: { select: { students: true, teachers: true, branches: true } } },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        isActive: true,
+        createdAt: true,
+        // Pasifleştirilmiş (bkz. Student/Teacher.isActive) öğrenci/öğretmenler
+        // burada sayılmaz — bkz. institutions/[id]/route.ts'teki aynı gerekçe,
+        // bu liste kurulum ekranındaki AYNI ücretlendirme sayısını gösterir.
+        _count: { select: { students: { where: { isActive: true } }, teachers: { where: { isActive: true } }, branches: true } },
+      },
     });
     return NextResponse.json({
       institutions: institutions.map((i) => ({

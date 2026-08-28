@@ -181,6 +181,14 @@ model Student {
   weeklyStudyHours    Int?
   passwordHash        String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
   mustChangePassword  Boolean              @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  // Yönetici "sil" dediğinde HARD DELETE yapılmaz — Student'a bağlı ~13 ayrı
+  // ilişkide (ExamNetResult, AttendanceRecord, ReportCard, vb.) onDelete
+  // tanımlı değil (Postgres varsayılanı fiilen RESTRICT), gerçek bir kayıt
+  // geçmişi olan öğrenci silinmeye çalışılınca FK hatasıyla patlar — ve
+  // "çalışsa bile" yıllarca birikmiş not/devamsızlık geçmişini geri
+  // dönüşsüz siler. Bunun yerine pasifleştirilir: giriş engellenir, genel
+  // listelerden düşer, geçmiş veri korunur.
+  isActive            Boolean              @default(true)
   parents             ParentStudent[]
   netResults          ExamNetResult[]
   attendanceRecords   AttendanceRecord[]
@@ -258,6 +266,8 @@ model Teacher {
   institutionalCode     String? // "TCH-102" — kısa, insan-okur öğretmen kodu (giriş kullanıcı adı DEĞİL — o T.C. No'dur), kurum içinde benzersiz
   passwordHash          String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
   mustChangePassword    Boolean                 @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  // bkz. Student.isActive'teki AYNI gerekçe (hard delete yerine pasifleştirme).
+  isActive              Boolean                 @default(true)
   advisorBranches       Branch[]                @relation("BranchAdvisor")
   teachingBranches      Branch[]                @relation("BranchTeaching")
   advisedStudents       Student[]               @relation("StudentAdvisor")
@@ -921,6 +931,7 @@ enum AuditAction {
   PASSWORD_CHANGED
   BRANCH_CREATED
   PASSWORD_RESET_BY_ADMIN
+  USER_DEACTIVATED
 }
 
 model AuditLog {

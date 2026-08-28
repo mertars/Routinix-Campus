@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { computeAttendanceRate } from "@/lib/server/report-card/analyzer";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
@@ -48,6 +47,12 @@ async function handleGet(request: NextRequest) {
   }
 }
 
+// ⚠️ attendanceRecords/homeworkSubmissions önceden HER öğrenci için tam
+// geçmişiyle çekilip computeAttendanceRate ile satır satır JS'te
+// indirgeniyordu (bkz. app/api/admin/dashboard/route.ts'teki AYNI düzeltme,
+// aynı gerekçe) — büyük kurumlarda öğrenci başına yüzlerce devam/ödev
+// satırı anlamına geliyordu. Sadece ORAN gerektiği için ham satırlar
+// yerine groupBy ile öğrenci başına durum sayıları çekiliyor.
 async function computeRiskRadar(institutionId: string, teacherId: string | null) {
   let branchIds: string[] | null = null;
   if (teacherId) {
@@ -55,20 +60,50 @@ async function computeRiskRadar(institutionId: string, teacherId: string | null)
     branchIds = teacher && teacher.institutionId === institutionId ? teacher.teachingBranches.map((b) => b.id) : [];
   }
 
-  const students = await prisma.student.findMany({
-    where: branchIds ? { branchId: { in: branchIds } } : { institutionId },
-    include: {
-      branch: { select: { name: true } },
-      netResults: { include: { exam: true }, orderBy: { exam: { examDate: "asc" } } },
-      attendanceRecords: { select: { status: true } },
-      homeworkSubmissions: { select: { status: true } },
-    },
-  });
+  const studentWhere = branchIds ? { branchId: { in: branchIds } } : { institutionId };
+  // ⚠️ attendance/homework sorguları artık ÖNCE öğrencileri çekip id
+  // listesine indirgemeyi BEKLEMİYOR — aynı studentWhere koşulunu
+  // `student: {...}` ilişki filtresiyle doğrudan uyguluyor, bu yüzden
+  // öğrenci sorgusuyla AYNI Promise.all turunda, tek round-trip'te
+  // çalışabiliyor (bkz. app/api/admin/dashboard/route.ts'teki AYNI
+  // gerekçe/desen — sıralı aşama sayısı, satır hacminden bağımsız gerçek
+  // bir gecikme kaynağıydı).
+  const [students, attendanceCounts, homeworkCounts] = await Promise.all([
+    prisma.student.findMany({
+      where: studentWhere,
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        branch: { select: { name: true } },
+        netResults: { select: { net: true }, orderBy: { exam: { examDate: "asc" } } },
+      },
+    }),
+    prisma.attendanceRecord.groupBy({ by: ["studentId", "status"], where: { student: studentWhere }, _count: true }),
+    prisma.homeworkSubmission.groupBy({ by: ["studentId", "status"], where: { student: studentWhere }, _count: true }),
+  ]);
+
+  const attendanceByStudent = new Map<string, { presentOrLate: number; total: number }>();
+  for (const row of attendanceCounts) {
+    const entry = attendanceByStudent.get(row.studentId) ?? { presentOrLate: 0, total: 0 };
+    entry.total += row._count;
+    if (row.status === "PRESENT" || row.status === "LATE") entry.presentOrLate += row._count;
+    attendanceByStudent.set(row.studentId, entry);
+  }
+  const homeworkByStudent = new Map<string, { done: number; total: number }>();
+  for (const row of homeworkCounts) {
+    const entry = homeworkByStudent.get(row.studentId) ?? { done: 0, total: 0 };
+    entry.total += row._count;
+    if (row.status === "DONE") entry.done += row._count;
+    homeworkByStudent.set(row.studentId, entry);
+  }
 
   const entries = students.map((student) => {
-    const attendanceRate = computeAttendanceRate(student.attendanceRecords);
-    const homeworkTotal = student.homeworkSubmissions.length;
-    const homeworkDone = student.homeworkSubmissions.filter((s) => s.status === "DONE").length;
+    const att = attendanceByStudent.get(student.id);
+    const attendanceRate = att && att.total > 0 ? Math.round((att.presentOrLate / att.total) * 100) : 100;
+    const hw = homeworkByStudent.get(student.id);
+    const homeworkTotal = hw?.total ?? 0;
+    const homeworkDone = hw?.done ?? 0;
     const homeworkSuccessRate = homeworkTotal === 0 ? null : Math.round((homeworkDone / homeworkTotal) * 100);
     const { riskScore, reason } = computeRisk({
       attendanceRate,

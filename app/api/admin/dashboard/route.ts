@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
-import { computeAttendanceRate } from "@/lib/server/report-card/analyzer";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
-import { branchMatchesSegment } from "@/lib/server/segment";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withTtlCache } from "@/lib/server/cache/ttl-cache";
@@ -44,29 +43,87 @@ async function handleGet(request: NextRequest) {
   }
 }
 
+// "ALL"/"LGS"/"YKS"/"MEZUN"/sınıf-seviyesi segment filtresini (bkz.
+// lib/server/segment.ts > branchMatchesSegment, tek gerçek mantık kaynağı
+// budur) doğrudan Prisma `where`'e çevirir — önceden TÜM şubeler çekilip
+// JS'te filtreleniyordu, şimdi eşleşmeyen şubeler DB'den hiç dönmüyor.
+function branchWhereForSegment(institutionId: string, segment: string): Prisma.BranchWhereInput {
+  if (segment === "LGS" || segment === "YKS" || segment === "MEZUN") return { institutionId, segment };
+  const gradeNum = Number(segment);
+  if (!Number.isNaN(gradeNum)) return { institutionId, grade: gradeNum };
+  return { institutionId }; // "ALL" veya tanınmayan değer — hepsini say
+}
+
 async function computeDashboard(institutionId: string, segment: string) {
-  const allBranches = await prisma.branch.findMany({
-    where: { institutionId },
-    include: { advisor: { select: { firstName: true, lastName: true } } },
-    orderBy: { grade: "asc" },
-  });
-  const branches = allBranches.filter((b) => branchMatchesSegment(b, segment));
+  const branchWhere = branchWhereForSegment(institutionId, segment);
+
+  // ⚠️ Önceki sürüm burada 3 AYRI SIRALI aşama vardı: şubeleri çek → onların
+  // id'leriyle öğrencileri çek → öğrencilerin id'leriyle devam/ödev say —
+  // her aşama bir önceki aşamanın sonucuna (id listesine) muhtaç olduğu için
+  // Promise.all bile 3 ayrı ağ round-trip'ini engelleyemiyordu. Canlıda
+  // ölçüldü: veri hacmi neredeyse SIFIR olan (eşleşen şubesi olmayan bir
+  // segment) bir istek bile ~1.1sn sürüyordu — demek ki asıl maliyet artık
+  // SATIR HACMİ değil, round-trip SAYISIYDI (bu makineden Neon'a her round-
+  // trip ~300-400ms). Çözüm: öğrenci/devam/ödev sorgularının hiçbiri artık
+  // şubelerin ÖNCE ÇEKİLİP id listesine indirgenmesini beklemiyor — aynı
+  // `branchWhere` koşulunu `branch: {...}` ilişki filtresiyle DOĞRUDAN
+  // uyguluyorlar, bu yüzden TÜMÜ aynı anda, TEK round-trip turunda çalışır.
+  // Son sınavın sonuç sayısı da ayrı bir sorgu yerine `_count` ilişki
+  // seçimiyle AYNI sorguda geliyor — ikinci aşamayı da ortadan kaldırır.
+  const [branches, teachers, latestExamRow, students, attendanceCounts, homeworkCounts] = await Promise.all([
+    prisma.branch.findMany({
+      where: branchWhere,
+      include: { advisor: { select: { firstName: true, lastName: true } } },
+      orderBy: { grade: "asc" },
+    }),
+    prisma.teacher.findMany({
+      where: { institutionId },
+      include: { teachingBranches: { select: { id: true, name: true } } },
+    }),
+    prisma.exam.findFirst({
+      where: { institutionId },
+      orderBy: { examDate: "desc" },
+      include: { _count: { select: { results: true } } },
+    }),
+    prisma.student.findMany({
+      where: { branch: branchWhere },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        branchId: true,
+        targetNet: true,
+        branch: { select: { name: true } },
+        netResults: { select: { net: true, examId: true, exam: { select: { name: true, examDate: true } } } },
+      },
+    }),
+    // ⚠️ Önceki sürüm attendanceRecords/homeworkSubmissions'ı HER öğrenci
+    // için TAM geçmişiyle (bir akademik yılda öğrenci başına yüzlerce satır)
+    // çekip oranı JS'te satır satır indirgiyordu — 16 öğrencide bile
+    // dashboard'un 2-3 saniye sürmesinin asıl nedeni buydu (canlıda
+    // doğrulandı). Sadece ORAN gerektiği için ham satır yerine groupBy ile
+    // öğrenci başına durum sayıları çekiliyor.
+    prisma.attendanceRecord.groupBy({ by: ["studentId", "status"], where: { student: { branch: branchWhere } }, _count: true }),
+    prisma.homeworkSubmission.groupBy({ by: ["studentId", "status"], where: { student: { branch: branchWhere } }, _count: true }),
+  ]);
   const branchIds = branches.map((b) => b.id);
+  const latestExamResultCount = latestExamRow?._count.results ?? 0;
 
-  const students = await prisma.student.findMany({
-    where: { branchId: { in: branchIds } },
-    include: {
-      branch: { select: { name: true } },
-      netResults: { include: { exam: true } },
-      attendanceRecords: { select: { status: true } },
-      homeworkSubmissions: { select: { status: true } },
-    },
-  });
+  const attendanceByStudent = new Map<string, { presentOrLate: number; total: number }>();
+  for (const row of attendanceCounts) {
+    const entry = attendanceByStudent.get(row.studentId) ?? { presentOrLate: 0, total: 0 };
+    entry.total += row._count;
+    if (row.status === "PRESENT" || row.status === "LATE") entry.presentOrLate += row._count;
+    attendanceByStudent.set(row.studentId, entry);
+  }
+  const homeworkByStudent = new Map<string, { done: number; total: number }>();
+  for (const row of homeworkCounts) {
+    const entry = homeworkByStudent.get(row.studentId) ?? { done: 0, total: 0 };
+    entry.total += row._count;
+    if (row.status === "DONE") entry.done += row._count;
+    homeworkByStudent.set(row.studentId, entry);
+  }
 
-  const teachers = await prisma.teacher.findMany({
-    where: { institutionId },
-    include: { teachingBranches: { select: { id: true, name: true } } },
-  });
   const staff = teachers
     .filter((t) => t.teachingBranches.some((b) => branchIds.includes(b.id)))
     .map((t) => ({
@@ -79,15 +136,24 @@ async function computeDashboard(institutionId: string, segment: string) {
   // Öğrenci bazlı: güncel net (en son denemedeki branş netlerinin toplamı),
   // devam oranı, ödev tamamlama, risk skoru — hepsi gerçek sinyalden.
   const studentRows = students.map((s) => {
-    const latestExamId = [...s.netResults].sort((a, b) => b.exam.examDate.getTime() - a.exam.examDate.getTime())[0]?.examId ?? null;
+    // ⚠️ netResults hiçbir ORDER BY olmadan geliyordu — computeRisk'in
+    // erken/geç yarı karşılaştırması (bkz. lib/server/risk/compute-risk.ts)
+    // dizinin KRONOLOJİK sırada olduğunu varsayıyor; garanti olmadığı için
+    // burada açıkça tarihe göre sıralanıyor (aksi halde risk skoru rastgele
+    // hatalı çıkabilirdi — bununla uğraşırken fark edilen ayrı bir doğruluk
+    // sorunu, performansla ilgisi yok).
+    const sortedResults = [...s.netResults].sort((a, b) => a.exam.examDate.getTime() - b.exam.examDate.getTime());
+    const latestExamId = sortedResults[sortedResults.length - 1]?.examId ?? null;
     const actualNet = latestExamId
       ? Math.round(s.netResults.filter((r) => r.examId === latestExamId).reduce((sum, r) => sum + r.net, 0) * 100) / 100
       : null;
-    const attendanceRate = computeAttendanceRate(s.attendanceRecords);
-    const homeworkTotal = s.homeworkSubmissions.length;
-    const homeworkDone = s.homeworkSubmissions.filter((sub) => sub.status === "DONE").length;
+    const att = attendanceByStudent.get(s.id);
+    const attendanceRate = att && att.total > 0 ? Math.round((att.presentOrLate / att.total) * 100) : 100;
+    const hw = homeworkByStudent.get(s.id);
+    const homeworkTotal = hw?.total ?? 0;
+    const homeworkDone = hw?.done ?? 0;
     const homeworkSuccessRate = homeworkTotal === 0 ? null : Math.round((homeworkDone / homeworkTotal) * 100);
-    const { riskScore, reason } = computeRisk({ attendanceRate, homeworkSuccessRate, nets: s.netResults.map((r) => r.net) });
+    const { riskScore, reason } = computeRisk({ attendanceRate, homeworkSuccessRate, nets: sortedResults.map((r) => r.net) });
     return {
       id: s.id,
       name: `${s.firstName} ${s.lastName}`,
@@ -143,10 +209,7 @@ async function computeDashboard(institutionId: string, segment: string) {
       actual: Math.round((e.nets.reduce((sum, n) => sum + n, 0) / e.nets.length) * 100) / 100,
     }));
 
-  const latestExamRow = await prisma.exam.findFirst({ where: { institutionId }, orderBy: { examDate: "desc" } });
-  const latestExam = latestExamRow
-    ? { name: latestExamRow.name, examDate: latestExamRow.examDate, resultCount: await prisma.examNetResult.count({ where: { examId: latestExamRow.id } }) }
-    : null;
+  const latestExam = latestExamRow ? { name: latestExamRow.name, examDate: latestExamRow.examDate, resultCount: latestExamResultCount } : null;
 
   return {
     totalStudents,

@@ -16,13 +16,14 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
     const query = request.nextUrl.searchParams.get("query")?.trim() ?? undefined;
     const branchId = request.nextUrl.searchParams.get("branchId") ?? undefined;
     const subject = request.nextUrl.searchParams.get("subject") ?? undefined;
+    const includeInactive = request.nextUrl.searchParams.get("includeInactive") === "1";
 
     if (role === "TEACHER") {
-      const teachers = await listTeacherDirectory(params.id, { query, subject });
+      const teachers = await listTeacherDirectory(params.id, { query, subject, includeInactive });
       return NextResponse.json({ teachers, total: teachers.length });
     }
 
-    const students = await listStudentDirectory(params.id, { query, branchId });
+    const students = await listStudentDirectory(params.id, { query, branchId, includeInactive });
     return NextResponse.json({ students, total: students.length });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

@@ -216,3 +216,100 @@ export async function resetUserPassword(input: {
     institutionalCode: existing.institutionalCode ?? undefined,
   };
 }
+
+// Hard delete YOK — bkz. prisma/schema.prisma > Student.isActive'teki
+// gerekçe (yıllarca birikmiş not/devamsızlık geçmişini geri dönüşsüz
+// silmemek için pasifleştirme). Pasifleştirilen hesap giriş yapamaz
+// (bkz. lib/server/auth/otp.ts > findAccountByPhone) ve genel listelerden
+// düşer (bkz. lib/server/admin/directory.ts) ama geçmiş kayıtları
+// (notlar, devamsızlık vb.) olduğu gibi durur.
+export async function deactivateUserAccount(input: {
+  id: string;
+  role: "STUDENT" | "TEACHER";
+  institutionId: string;
+  actorId: string;
+}): Promise<{ name: string }> {
+  if (input.role === "STUDENT") {
+    const existing = await prisma.student.findUnique({
+      where: { id: input.id },
+      select: { institutionId: true, firstName: true, lastName: true, isActive: true },
+    });
+    if (!existing || existing.institutionId !== input.institutionId) throw new AdminCreateError("Öğrenci bulunamadı.", 404);
+    if (!existing.isActive) throw new AdminCreateError("Bu öğrenci zaten pasif.", 409);
+
+    await prisma.student.update({ where: { id: input.id }, data: { isActive: false } });
+    await recordAuditLog({
+      institutionId: input.institutionId,
+      actorId: input.actorId,
+      actorRole: "ADMIN",
+      action: "USER_DEACTIVATED",
+      targetType: "Student",
+      targetId: input.id,
+    });
+    return { name: `${existing.firstName} ${existing.lastName}` };
+  }
+
+  const existing = await prisma.teacher.findUnique({
+    where: { id: input.id },
+    select: { institutionId: true, firstName: true, lastName: true, isActive: true },
+  });
+  if (!existing || existing.institutionId !== input.institutionId) throw new AdminCreateError("Öğretmen bulunamadı.", 404);
+  if (!existing.isActive) throw new AdminCreateError("Bu öğretmen zaten pasif.", 409);
+
+  await prisma.teacher.update({ where: { id: input.id }, data: { isActive: false } });
+  await recordAuditLog({
+    institutionId: input.institutionId,
+    actorId: input.actorId,
+    actorRole: "ADMIN",
+    action: "USER_DEACTIVATED",
+    targetType: "Teacher",
+    targetId: input.id,
+  });
+  return { name: `${existing.firstName} ${existing.lastName}` };
+}
+
+// deactivateUserAccount'un tersi — yanlışlıkla pasifleştirilen ya da
+// kurumla ilişkisi yeniden başlayan bir kaydı, kimlik/geçmiş verisine
+// DOKUNMADAN tekrar aktif eder (giriş tekrar açılır, listelere geri döner).
+export async function reactivateUserAccount(input: {
+  id: string;
+  role: "STUDENT" | "TEACHER";
+  institutionId: string;
+  actorId: string;
+}): Promise<{ name: string }> {
+  if (input.role === "STUDENT") {
+    const existing = await prisma.student.findUnique({
+      where: { id: input.id },
+      select: { institutionId: true, firstName: true, lastName: true },
+    });
+    if (!existing || existing.institutionId !== input.institutionId) throw new AdminCreateError("Öğrenci bulunamadı.", 404);
+    await prisma.student.update({ where: { id: input.id }, data: { isActive: true } });
+    await recordAuditLog({
+      institutionId: input.institutionId,
+      actorId: input.actorId,
+      actorRole: "ADMIN",
+      action: "USER_UPDATED",
+      targetType: "Student",
+      targetId: input.id,
+      metadata: { reactivated: true },
+    });
+    return { name: `${existing.firstName} ${existing.lastName}` };
+  }
+
+  const existing = await prisma.teacher.findUnique({
+    where: { id: input.id },
+    select: { institutionId: true, firstName: true, lastName: true },
+  });
+  if (!existing || existing.institutionId !== input.institutionId) throw new AdminCreateError("Öğretmen bulunamadı.", 404);
+  await prisma.teacher.update({ where: { id: input.id }, data: { isActive: true } });
+  await recordAuditLog({
+    institutionId: input.institutionId,
+    actorId: input.actorId,
+    actorRole: "ADMIN",
+    action: "USER_UPDATED",
+    targetType: "Teacher",
+    targetId: input.id,
+    metadata: { reactivated: true },
+  });
+  return { name: `${existing.firstName} ${existing.lastName}` };
+}
