@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { INITIAL_BRANCHES, SCHEDULE_DAYS, SCHEDULE_SLOTS, type ScheduleAssignment } from "./mock-data";
+import { SCHEDULE_DAYS, type ScheduleAssignment } from "./mock-data";
+import { parseSlotRange } from "./schedule-time";
 
 export type ScopeBranch = { id: string; name: string; grade?: number; track?: string | null };
 
@@ -52,11 +53,12 @@ export function useTeacherScope() {
       .then((data) => {
         if (cancelled) return;
         const rows: ScheduleAssignment[] = (data.slots ?? []).map(
-          (row: { id: string; branchId: string; day: string; slot: string; subject: string; teacherName: string }) => ({
+          (row: { id: string; branchId: string; branchName: string; day: string; slot: string; subject: string; teacherName: string }) => ({
             id: row.id,
             branchId: row.branchId,
+            branchName: row.branchName,
             day: row.day as ScheduleAssignment["day"],
-            slot: row.slot as ScheduleAssignment["slot"],
+            slot: row.slot,
             teacherName: row.teacherName,
             subject: row.subject,
           })
@@ -74,15 +76,6 @@ export function useTeacherScope() {
   const staffRecord = { id: teacherId, name: teacherName };
 
   return { teacherName, teacherId, subject, staffRecord, assignedBranches, mySchedule };
-}
-
-function parseSlotRange(slot: string): [number, number] {
-  const [start, end] = slot.split("-");
-  const toMinutes = (value: string) => {
-    const [h, m] = value.split(":").map(Number);
-    return h * 60 + m;
-  };
-  return [toMinutes(start), toMinutes(end)];
 }
 
 const JS_DAY_TO_TR: Record<number, (typeof SCHEDULE_DAYS)[number] | null> = {
@@ -117,8 +110,7 @@ export function useCurrentLesson(mySchedule: ScheduleAssignment[]) {
     : undefined;
 
   if (current) {
-    const branch = INITIAL_BRANCHES.find((b) => b.id === current.branchId);
-    return { isLive: true as const, branchName: branch?.name ?? current.branchId, slot: current.slot, subject: current.subject };
+    return { isLive: true as const, branchName: current.branchName, slot: current.slot, subject: current.subject };
   }
 
   // Aktif ders yoksa, haftanın geri kalanında sıradaki dersi bul (bugünden
@@ -130,11 +122,10 @@ export function useCurrentLesson(mySchedule: ScheduleAssignment[]) {
     const candidates = mySchedule
       .filter((row) => row.day === day)
       .filter((row) => (day === today ? parseSlotRange(row.slot)[0] > nowMinutes : true))
-      .sort((a, b) => SCHEDULE_SLOTS.indexOf(a.slot) - SCHEDULE_SLOTS.indexOf(b.slot));
+      .sort((a, b) => parseSlotRange(a.slot)[0] - parseSlotRange(b.slot)[0]);
     if (candidates.length > 0) {
       const next = candidates[0];
-      const branch = INITIAL_BRANCHES.find((b) => b.id === next.branchId);
-      return { isLive: false as const, branchName: branch?.name ?? next.branchId, slot: next.slot, day: next.day, subject: next.subject };
+      return { isLive: false as const, branchName: next.branchName, slot: next.slot, day: next.day, subject: next.subject };
     }
   }
 

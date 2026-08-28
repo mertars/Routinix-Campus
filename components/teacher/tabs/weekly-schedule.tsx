@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, FileText, Database, ImageIcon } from "lucide-react";
-import { INITIAL_BRANCHES } from "@/lib/mock-data";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { TeacherSchedulePrintModal } from "@/components/teacher/teacher-schedule-print-modal";
 import { WeeklyGrid, type WeeklyGridCell } from "@/components/teacher/weekly-grid";
@@ -41,10 +40,7 @@ export function WeeklyScheduleTab() {
       });
   }, [staffRecord.id]);
 
-  const scheduleWithBranch = mySchedule.map((row) => ({
-    ...row,
-    branchName: INITIAL_BRANCHES.find((b) => b.id === row.branchId)?.name ?? row.branchId,
-  }));
+  const scheduleWithBranch = mySchedule;
 
   const CELL_STYLES = {
     ders: "border-brand-600/40 bg-brand-50 dark:border-brand-600/20 dark:bg-brand-600/10",

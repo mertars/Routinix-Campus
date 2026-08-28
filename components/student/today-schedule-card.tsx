@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, Radio, Clock, Maximize2 } from "lucide-react";
-import { SCHEDULE_SLOTS, type ScheduleAssignment, type ScheduleDay, type ScheduleSlot } from "@/lib/mock-data";
+import { type ScheduleAssignment, type ScheduleDay } from "@/lib/mock-data";
+import { parseSlotRange } from "@/lib/schedule-time";
 import { useStudentScope } from "@/lib/student-scope";
 import { useCurrentLesson } from "@/lib/teacher-scope";
 import { FullWeekScheduleModal } from "@/components/student/full-week-schedule-modal";
@@ -22,7 +23,7 @@ const JS_DAY_TO_TR: Record<number, ScheduleDay | null> = {
   6: null,
 };
 
-type RawSlot = { id: string; branchId: string; day: string; slot: string; subject: string; teacherName: string };
+type RawSlot = { id: string; branchId: string; branchName: string; day: string; slot: string; subject: string; teacherName: string };
 
 // Eski dev "YKS Geri Sayımı" kartının yerini alan widget — sayaç artık
 // StudentHero'da küçük bir kapsül (bkz. exam-countdown-card.tsx > ExamCountdownChip),
@@ -54,8 +55,9 @@ export function TodayScheduleCard() {
           (data.slots ?? []).map((s: RawSlot) => ({
             id: s.id,
             branchId: s.branchId,
+            branchName: s.branchName,
             day: s.day as ScheduleDay,
-            slot: s.slot as ScheduleSlot,
+            slot: s.slot,
             teacherName: s.teacherName,
             subject: s.subject,
           }))
@@ -69,7 +71,7 @@ export function TodayScheduleCard() {
   const lesson = useCurrentLesson(mySchedule);
 
   const todaysLessons = todayTR
-    ? mySchedule.filter((row) => row.day === todayTR).sort((a, b) => SCHEDULE_SLOTS.indexOf(a.slot) - SCHEDULE_SLOTS.indexOf(b.slot))
+    ? mySchedule.filter((row) => row.day === todayTR).sort((a, b) => parseSlotRange(a.slot)[0] - parseSlotRange(b.slot)[0])
     : [];
 
   return (

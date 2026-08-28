@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/server/prisma";
 import { createAdminAccount, AdminCreateError } from "@/lib/server/admin/create-user";
+import { createDefaultScheduleSlots } from "@/lib/server/admin/schedule-slots";
 
 // scripts/onboard-institution.ts (terminal/CI erişimi olan biri için) VE
 // app/api/platform/institutions (Süper Admin paneli üzerinden self-servis)
@@ -41,6 +42,7 @@ export async function onboardInstitution(input: {
   }
 
   const institution = await prisma.institution.create({ data: { name, slug, isActive: true } });
+  await createDefaultScheduleSlots(institution.id);
 
   const admin = await createAdminAccount({
     institutionId: institution.id,

@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Share2, FileDown, Loader2, Send, Clock, CheckCircle2 } from "lucide-react";
-import { INITIAL_BRANCHES } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { cn } from "@/lib/utils";
@@ -259,7 +258,8 @@ export function AnnouncementsTab() {
   const [category, setCategory] = useState<AnnouncementCategory>("GENERAL");
   const [scopeType, setScopeType] = useState<ScopeType>("ALL_SCHOOL");
   const [scopeGrade, setScopeGrade] = useState(String(GRADE_OPTIONS[0]));
-  const [scopeBranchId, setScopeBranchId] = useState(INITIAL_BRANCHES[0]?.id ?? "");
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
+  const [scopeBranchId, setScopeBranchId] = useState("");
   const [publishing, setPublishing] = useState(false);
 
   async function loadAnnouncements() {
@@ -274,6 +274,16 @@ export function AnnouncementsTab() {
 
   useEffect(() => {
     loadAnnouncements();
+    fetch("/api/admin/branches")
+      .then((res) => res.json())
+      .then((data) => {
+        const list: { id: string; name: string }[] = data.branches ?? [];
+        setBranches(list);
+        setScopeBranchId((current) => current || list[0]?.id || "");
+      })
+      .catch(() => {
+        // sessiz — şube kapsamı seçilemez ama diğer kapsamlarla duyuru gönderilebilir
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -398,7 +408,7 @@ export function AnnouncementsTab() {
                   onChange={(event) => setScopeBranchId(event.target.value)}
                   className="mb-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
                 >
-                  {INITIAL_BRANCHES.map((b) => (
+                  {branches.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
@@ -434,7 +444,7 @@ export function AnnouncementsTab() {
               <p className="mt-1 text-[10px] text-espresso-muted/60 dark:text-cream/30">
                 {SCOPE_OPTIONS.find((s) => s.id === item.scopeType)?.label}
                 {item.scopeType === "GRADE" && ` · ${item.scopeValue}. Sınıf`}
-                {item.scopeType === "BRANCH" && ` · ${INITIAL_BRANCHES.find((b) => b.id === item.scopeValue)?.name ?? item.scopeValue}`}
+                {item.scopeType === "BRANCH" && ` · ${branches.find((b) => b.id === item.scopeValue)?.name ?? item.scopeValue}`}
                 {" · "}
                 {new Date(item.createdAt).toLocaleString("tr-TR")}
               </p>

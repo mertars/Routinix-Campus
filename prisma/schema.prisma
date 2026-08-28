@@ -113,6 +113,7 @@ model Institution {
   notificationBatches NotificationBatch[]
   auditLogs           AuditLog[]
   classrooms          Classroom[]
+  scheduleSlots       ScheduleSlotDefinition[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 }
@@ -900,6 +901,26 @@ model LessonSlot {
 
   @@unique([branchId, day, slot])
   @@index([teacherId])
+}
+
+// Kurumun ders programı ekranında kullandığı saat dilimi ETİKETLERİ
+// ("16:00-17:00" gibi) — önceden sabit 4 saatlik bir listeye (SCHEDULE_SLOTS,
+// lib/mock-data.ts) kilitliydi, artık yönetici kendi kurumunun gerçek
+// çalışma saatlerine göre ekleyip/silip/yeniden adlandırabiliyor.
+// LessonSlot.slot/TeacherDutySlot.slot ile GERÇEK bir FK ilişkisi YOK
+// (o alanlar serbest metin) — silme/yeniden adlandırma sırasındaki
+// tutarlılık uygulama katmanında sağlanır (bkz. lib/server/admin/schedule-slots.ts).
+// label "HH:MM-HH:MM" formatında OLMALI — lib/schedule-time.ts > parseSlotRange
+// bu formatı varsayarak "şu an hangi ders" gibi zaman karşılaştırmaları yapar.
+model ScheduleSlotDefinition {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  label         String
+  createdAt     DateTime    @default(now())
+
+  @@unique([institutionId, label])
+  @@index([institutionId])
 }
 
 model TeacherDutySlot {

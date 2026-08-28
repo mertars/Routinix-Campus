@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Rocket, Timer, ChevronLeft, ChevronRight, PartyPopper, Zap, Loader2 } from "lucide-react";
-import { INITIAL_BRANCHES } from "@/lib/mock-data";
 import { useStudentScope } from "@/lib/student-scope";
 import { useActiveQuiz, type ActiveQuiz } from "@/lib/use-active-quiz";
 import { useToast } from "@/lib/toast-context";
@@ -133,8 +132,7 @@ function QuizTakingModal({
 }
 
 export function PopQuizTab() {
-  const { studentId, branchName } = useStudentScope();
-  const branchId = INITIAL_BRANCHES.find((b) => b.name === branchName)?.id ?? "";
+  const { studentId, branchId } = useStudentScope();
   const { quiz: activeQuiz, alreadySubmitted, refetch } = useActiveQuiz(branchId, studentId);
   const [isOpen, setIsOpen] = useState(false);
 

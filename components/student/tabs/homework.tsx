@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileCheck2, Camera, Paperclip, CheckCircle2, Circle, ShieldCheck, AlertOctagon, Link as LinkIcon, ListChecks, Loader2 } from "lucide-react";
-import { INITIAL_BRANCHES } from "@/lib/mock-data";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
 import { Modal } from "@/components/ui/modal";
@@ -159,9 +158,8 @@ function HomeworkCard({ item, status, onOpen }: { item: HomeworkEntry; status: H
 }
 
 export function HomeworkTab() {
-  const { studentId, branchName } = useStudentScope();
+  const { studentId, branchId } = useStudentScope();
   const { showError } = useToast();
-  const branchId = INITIAL_BRANCHES.find((b) => b.name === branchName)?.id ?? "";
   const [myHomeworks, setMyHomeworks] = useState<HomeworkEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);

@@ -36,13 +36,14 @@ async function handleGet(request: NextRequest) {
         ...(branchId ? { branchId } : {}),
         ...(teacherId || branchId ? {} : { branch: { institutionId: session.institutionId } }),
       },
-      include: { teacher: { select: { firstName: true, lastName: true } } },
+      include: { teacher: { select: { firstName: true, lastName: true } }, branch: { select: { name: true } } },
     });
 
     return NextResponse.json({
       slots: slots.map((s) => ({
         id: s.id,
         branchId: s.branchId,
+        branchName: s.branch.name,
         day: s.day,
         slot: s.slot,
         subject: s.subject,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { getTodayTrDayName, parseSlotRange, nowMinutes } from "@/lib/server/schedule/slot-time";
+import { getTodayTrDayName, parseSlotRange, nowMinutes } from "@/lib/schedule-time";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";

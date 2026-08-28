@@ -2,7 +2,8 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Printer } from "lucide-react";
-import { SCHEDULE_DAYS, SCHEDULE_SLOTS, type ScheduleAssignment } from "@/lib/mock-data";
+import { SCHEDULE_DAYS, type ScheduleAssignment } from "@/lib/mock-data";
+import { parseSlotRange } from "@/lib/schedule-time";
 import { useInstitutionName } from "@/lib/institution-scope";
 
 export function TeacherSchedulePrintModal({
@@ -95,7 +96,7 @@ export function TeacherSchedulePrintModal({
                         {SCHEDULE_DAYS.map((day) => {
                           const dayRows = schedule
                             .filter((row) => row.day === day)
-                            .sort((a, b) => SCHEDULE_SLOTS.indexOf(a.slot) - SCHEDULE_SLOTS.indexOf(b.slot));
+                            .sort((a, b) => parseSlotRange(a.slot)[0] - parseSlotRange(b.slot)[0]);
                           if (dayRows.length === 0) {
                             return (
                               <tr key={day} className="border-t border-hairline">
