@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Clock, CalendarCheck, Table2, Ban, Loader2 } from "lucide-react";
-import { SCHEDULE_DAYS, SCHEDULE_SLOTS, type ScheduleDay, type ScheduleSlot } from "@/lib/mock-data";
+import { Check, X, Clock, CalendarCheck, Coffee, Plus, Trash2, Loader2 } from "lucide-react";
+import { SCHEDULE_DAYS, type ScheduleDay } from "@/lib/mock-data";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
-import { WeeklyGrid, type WeeklyGridCell } from "@/components/teacher/weekly-grid";
 import { cn } from "@/lib/utils";
 
 type AppointmentStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -18,6 +17,7 @@ type AppointmentEntry = {
   status: AppointmentStatus;
   student: { firstName: string; lastName: string };
 };
+type AvailabilityRange = { id: string; day: string; startTime: string; endTime: string };
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
   PENDING: "bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300",
@@ -25,12 +25,58 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
   REJECTED: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
 };
 
+function AddRangeRow({ day, onAdd }: { day: ScheduleDay; onAdd: (start: string, end: string) => Promise<void> }) {
+  const [start, setStart] = useState("15:00");
+  const [end, setEnd] = useState("16:00");
+  const [adding, setAdding] = useState(false);
+
+  async function submit() {
+    if (start >= end) return;
+    setAdding(true);
+    try {
+      await onAdd(start, end);
+      // eslint-disable-next-line no-empty
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        type="time"
+        value={start}
+        onChange={(event) => setStart(event.target.value)}
+        className="min-w-0 flex-1 rounded-lg border border-hairline bg-white px-2 py-1.5 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+      />
+      <span className="text-espresso-muted dark:text-cream/40">–</span>
+      <input
+        type="time"
+        value={end}
+        onChange={(event) => setEnd(event.target.value)}
+        className="min-w-0 flex-1 rounded-lg border border-hairline bg-white px-2 py-1.5 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+      />
+      <button
+        onClick={submit}
+        disabled={adding || start >= end}
+        title={`${day} için aralık ekle`}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-espresso text-cream transition hover:bg-caramel disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
+      >
+        {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+      </button>
+    </div>
+  );
+}
+
 export function AppointmentApprovalTab() {
   const { staffRecord } = useTeacherScope();
   const { showError, showSuccess } = useToast();
   const [requests, setRequests] = useState<AppointmentEntry[]>([]);
-  const [blocks, setBlocks] = useState<Set<string>>(new Set());
   const [decidingId, setDecidingId] = useState<string | null>(null);
+
+  const [ranges, setRanges] = useState<AvailabilityRange[]>([]);
+  const [breakMinutes, setBreakMinutes] = useState("10");
+  const [savingBreak, setSavingBreak] = useState(false);
 
   async function loadRequests() {
     try {
@@ -43,20 +89,22 @@ export function AppointmentApprovalTab() {
     }
   }
 
-  async function loadBlocks() {
+  async function loadAvailability() {
     try {
-      const res = await fetch(`/api/teacher-availability?teacherId=${encodeURIComponent(staffRecord.id)}`);
+      const res = await fetch(`/api/teacher-etut-availability?teacherId=${encodeURIComponent(staffRecord.id)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error);
-      setBlocks(new Set((data.blocks ?? []).map((b: { day: string; slot: string }) => `${b.day}__${b.slot}`)));
+      setRanges(data.ranges ?? []);
+      setBreakMinutes(String(data.breakMinutes ?? 10));
     } catch {
       showError("Müsaitlik bilgisi yüklenemedi.");
     }
   }
 
   useEffect(() => {
+    if (!staffRecord.id) return;
     loadRequests();
-    loadBlocks();
+    loadAvailability();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffRecord.id]);
 
@@ -71,7 +119,7 @@ export function AppointmentApprovalTab() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Karar kaydedilemedi.");
       setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
-      if (status === "APPROVED") showSuccess("Randevu onaylandı, haftalık çizelgeye işlendi.");
+      if (status === "APPROVED") showSuccess("Randevu onaylandı, öğrenciye bildirilecek.");
     } catch (error) {
       showError(error instanceof Error ? error.message : "Karar kaydedilemedi.");
     } finally {
@@ -79,36 +127,53 @@ export function AppointmentApprovalTab() {
     }
   }
 
-  async function toggleBlock(day: ScheduleDay, slot: ScheduleSlot) {
-    const key = `${day}__${slot}`;
-    const nextUnavailable = !blocks.has(key);
-    setBlocks((prev) => {
-      const next = new Set(prev);
-      if (nextUnavailable) next.add(key);
-      else next.delete(key);
-      return next;
-    });
+  async function addRange(day: ScheduleDay, start: string, end: string) {
     try {
-      await fetch("/api/teacher-availability", {
+      const res = await fetch("/api/teacher-etut-availability", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teacherId: staffRecord.id, day, slot, unavailable: nextUnavailable }),
+        body: JSON.stringify({ teacherId: staffRecord.id, day, startTime: start, endTime: end }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Aralık eklenemedi.");
+      setRanges((prev) => [...prev, data.range]);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Aralık eklenemedi.");
+    }
+  }
+
+  async function removeRange(id: string) {
+    setRanges((prev) => prev.filter((r) => r.id !== id));
+    try {
+      const res = await fetch(`/api/teacher-etut-availability/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
     } catch {
-      showError("Müsaitlik güncellenemedi.");
+      showError("Aralık silinemedi, sayfayı yenileyip tekrar deneyin.");
+      loadAvailability();
+    }
+  }
+
+  async function saveBreakMinutes() {
+    setSavingBreak(true);
+    try {
+      const res = await fetch("/api/teacher-etut-availability", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teacherId: staffRecord.id, breakMinutes: Number(breakMinutes) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Kaydedilemedi.");
+      showSuccess("Mola süresi güncellendi.");
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Kaydedilemedi.");
+    } finally {
+      setSavingBreak(false);
     }
   }
 
   const pending = requests.filter((r) => r.status === "PENDING");
   const resolved = requests.filter((r) => r.status !== "PENDING");
   const approved = requests.filter((r) => r.status === "APPROVED");
-
-  function getCell(day: ScheduleDay, slot: ScheduleSlot): WeeklyGridCell {
-    const row = approved.find((item) => item.day === day && item.slot === slot);
-    if (row) return { label: `${row.student.firstName} ${row.student.lastName}`, tone: "border-green-500/40 bg-green-50 dark:border-green-500/20 dark:bg-green-500/10" };
-    if (blocks.has(`${day}__${slot}`)) return { label: "Bloke", tone: "border-hairline bg-cream-card text-espresso-muted/50 dark:border-white/10 dark:bg-white/5" };
-    return null;
-  }
 
   return (
     <div className="space-y-4">
@@ -161,37 +226,56 @@ export function AppointmentApprovalTab() {
         className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
         <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-          <Ban className="h-4 w-4 text-brand-600" /> Müsait Olmadığım Saatler
+          <CalendarCheck className="h-4 w-4 text-brand-600" /> Etüt Müsaitliğim
         </h2>
         <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
-          Etüt alamayacağınız saatleri işaretleyin — öğrenciler bu saatlere randevu talep edemez.
+          Her gün için birden fazla saat aralığı girebilirsin — sistem bunları kurum etüt süresine göre otomatik slotlara böler.
         </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {SCHEDULE_DAYS.flatMap((day) =>
-            SCHEDULE_SLOTS.map((slot) => {
-              const key = `${day}__${slot}`;
-              const isBlocked = blocks.has(key);
-              const isBooked = approved.some((r) => r.day === day && r.slot === slot);
-              return (
-                <button
-                  key={key}
-                  onClick={() => !isBooked && toggleBlock(day, slot)}
-                  disabled={isBooked}
-                  className={cn(
-                    "flex min-h-[52px] flex-col items-center justify-center rounded-xl text-center text-[10px] font-medium transition disabled:opacity-50",
-                    isBooked
-                      ? "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400"
-                      : isBlocked
-                        ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
-                        : "bg-cream-card text-espresso-muted hover:bg-brand-50 dark:bg-white/5 dark:text-cream/40"
-                  )}
-                >
-                  <span>{day.slice(0, 3)}</span>
-                  <span>{slot}</span>
-                </button>
-              );
-            })
-          )}
+
+        <div className="mb-4 flex items-end gap-2 rounded-2xl bg-cream-card p-3 dark:bg-white/5">
+          <label className="flex-1">
+            <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+              <Coffee className="h-3 w-3" /> Etütler Arası Mola (dk)
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={60}
+              value={breakMinutes}
+              onChange={(event) => setBreakMinutes(event.target.value)}
+              className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+            />
+          </label>
+          <button
+            onClick={saveBreakMinutes}
+            disabled={savingBreak}
+            className="flex min-h-[40px] items-center gap-1.5 rounded-lg bg-espresso px-3 text-xs font-semibold text-cream transition hover:bg-caramel disabled:opacity-60 dark:bg-brand-600 dark:hover:bg-brand-500"
+          >
+            {savingBreak ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Kaydet"}
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {SCHEDULE_DAYS.map((day) => {
+            const dayRanges = ranges.filter((r) => r.day === day);
+            return (
+              <div key={day} className="rounded-2xl bg-cream-card p-3 dark:bg-white/5">
+                <p className="mb-2 text-xs font-semibold text-espresso dark:text-cream">{day}</p>
+                <div className="mb-2 space-y-1.5">
+                  {dayRanges.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 dark:bg-midnight-card">
+                      <span className="text-xs font-medium text-espresso dark:text-cream">{r.startTime} – {r.endTime}</span>
+                      <button onClick={() => removeRange(r.id)} className="text-rose-500 transition hover:text-rose-600" aria-label="Aralığı sil">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {dayRanges.length === 0 && <p className="text-[11px] text-espresso-muted/70 dark:text-cream/30">Bu gün için aralık girilmedi.</p>}
+                </div>
+                <AddRangeRow day={day} onAdd={(start, end) => addRange(day, start, end)} />
+              </div>
+            );
+          })}
         </div>
       </motion.div>
 
@@ -199,13 +283,21 @@ export function AppointmentApprovalTab() {
         whileHover={{ scale: 1.005, y: -2 }}
         className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
-        <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-          <Table2 className="h-4 w-4 text-brand-600" /> Haftalık Etüt Çizelgesi
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+          <CalendarCheck className="h-4 w-4 text-brand-600" /> Onaylanan Etütler ({approved.length})
         </h2>
-        <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
-          Onayladığınız etütler otomatik olarak &quot;Haftalık Program&quot; sekmenize de işlenir.
-        </p>
-        <WeeklyGrid getCell={getCell} />
+        <div className="space-y-2">
+          {approved.map((r) => (
+            <div key={r.id} className="flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2.5 dark:bg-green-500/10">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-espresso dark:text-cream">{r.student.firstName} {r.student.lastName}</p>
+                <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">{r.topic}</p>
+              </div>
+              <span className="shrink-0 text-xs font-semibold text-green-700 dark:text-green-400">{r.day} · {r.slot}</span>
+            </div>
+          ))}
+          {approved.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Henüz onaylanmış etüt yok.</p>}
+        </div>
       </motion.div>
 
       <motion.div

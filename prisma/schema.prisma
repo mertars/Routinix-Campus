@@ -114,6 +114,7 @@ model Institution {
   auditLogs           AuditLog[]
   classrooms          Classroom[]
   scheduleSlots       ScheduleSlotDefinition[]
+  etutSetting         EtutSetting?
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
 }
@@ -283,6 +284,10 @@ model Teacher {
   mustChangePassword    Boolean                    @default(true) // ilk giriş / şifre değiştirme zorunluluğu
   // bkz. Student.isActive'teki AYNI gerekçe (hard delete yerine pasifleştirme).
   isActive              Boolean                    @default(true)
+  // Etüt Randevu Modülü: öğretmenin etütler arasına bırakmak istediği mola
+  // süresi (dk) — bkz. lib/server/etut/compute-available-slots.ts. Aralık
+  // bazında değil öğretmen bazında TEK bir değer (kullanıcı isteği).
+  etutBreakMinutes      Int                        @default(10)
   advisorBranches       Branch[]                   @relation("BranchAdvisor")
   teachingBranches      Branch[]                   @relation("BranchTeaching")
   advisedStudents       Student[]                  @relation("StudentAdvisor")
@@ -293,6 +298,7 @@ model Teacher {
   attendanceSubmissions AttendanceSubmission[]
   unavailability        TeacherUnavailability[]
   appointmentRequests   AppointmentRequest[]
+  etutAvailability      TeacherEtutAvailability[]
   classbookNotes        ClassbookNote[]
   yearlyPlanRows        YearlyPlanRow[]
   materials             TeacherMaterial[]
@@ -634,6 +640,13 @@ enum AppointmentStatus {
   REJECTED
 }
 
+// AppointmentRequest'in day/slot alanları (String, "HH:MM-HH:MM") Etüt Randevu
+// Modülü'nün DİNAMİK olarak hesapladığı slot etiketleriyle birebir uyumlu —
+// bu yüzden booking modeli olarak AYNEN korunuyor, yeni bir "EtutAppointment"
+// modeline gerek yok (bkz. lib/server/etut/compute-available-slots.ts).
+// status PENDING veya APPROVED olan HER kayıt, mola tamponuyla birlikte
+// slotu "dolu" sayar — bir öğrenci talep GÖNDERDİĞİ anda (öğretmen henüz
+// onaylamadan) o saat başka bir öğrenciye teklif edilmez.
 model AppointmentRequest {
   id          String            @id @default(cuid())
   studentId   String
@@ -649,6 +662,33 @@ model AppointmentRequest {
 
   @@index([teacherId])
   @@index([studentId])
+}
+
+// Kurum geneli etüt süresi (dk) — Yönetici panelinden ayarlanır, varsayılan
+// 20. Kayıt yoksa (yeni kurum onboarding'i unutursa) API tarafı 20'yi
+// varsayılan kabul eder (bkz. lib/server/etut/compute-available-slots.ts).
+model EtutSetting {
+  id              String      @id @default(cuid())
+  institutionId   String      @unique
+  institution     Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  durationMinutes Int         @default(20)
+  updatedAt       DateTime    @updatedAt
+}
+
+// Öğretmenin etüt için müsait olduğu SERBEST aralıklar — TeacherUnavailability
+// (ders programı atama çakışma kontrolü için kullanılan, ayrı ve dokunulmamış
+// bir model) ile KARIŞTIRILMAMALI. Bir öğretmen aynı gün için birden fazla
+// aralık girebilir (ör. Pazartesi 12:00-14:00 VE 15:00-16:30) — iki ayrı satır.
+model TeacherEtutAvailability {
+  id        String   @id @default(cuid())
+  teacherId String
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  day       String // "Pazartesi".."Cuma"
+  startTime String // "HH:MM"
+  endTime   String // "HH:MM"
+  createdAt DateTime @default(now())
+
+  @@index([teacherId, day])
 }
 
 // ----------------------------------------------------------------------------

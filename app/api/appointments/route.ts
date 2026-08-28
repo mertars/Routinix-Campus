@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
+import { getTeacherDaySlots } from "@/lib/server/etut/get-teacher-day-slots";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -33,9 +34,12 @@ async function handlePost(request: NextRequest) {
       return NextResponse.json({ error: "Öğretmen bulunamadı." }, { status: 404 });
     }
 
-    const conflict = await prisma.appointmentRequest.findFirst({ where: { teacherId, day, slot, status: "APPROVED" } });
-    if (conflict) {
-      return NextResponse.json({ error: "Bu saat başka bir öğrenciye onaylanmış, lütfen başka bir saat seçin." }, { status: 409 });
+    // Sabit "aynı slot" karşılaştırması yerine ŞU AN gerçekten müsait olan
+    // slot listesiyle doğrulama — mola tamponunu ve PENDING taleplerin de
+    // yer tuttuğunu hesaba katar (bkz. lib/server/etut/get-teacher-day-slots.ts).
+    const currentlyAvailable = await getTeacherDaySlots(session.institutionId, teacherId, day);
+    if (!currentlyAvailable.includes(slot)) {
+      return NextResponse.json({ error: "Bu saat artık müsait değil, lütfen başka bir saat seçin." }, { status: 409 });
     }
 
     const appointment = await prisma.appointmentRequest.create({

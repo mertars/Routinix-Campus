@@ -3,6 +3,7 @@ import type { AppointmentStatus } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
+import { getTeacherDaySlots } from "@/lib/server/etut/get-teacher-day-slots";
 import { withApiLogging, logger } from "@/lib/logger";
 
 const VALID_STATUSES = new Set<AppointmentStatus>(["APPROVED", "REJECTED"]);
@@ -26,11 +27,13 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
     }
 
     if (status === "APPROVED") {
-      const conflict = await prisma.appointmentRequest.findFirst({
-        where: { teacherId: existing.teacherId, day: existing.day, slot: existing.slot, status: "APPROVED", id: { not: existing.id } },
-      });
-      if (conflict) {
-        return NextResponse.json({ error: "Bu saat için zaten onaylanmış başka bir randevu var." }, { status: 409 });
+      // Bu talebin kendisini "dolu" saymadan (excludeRequestId) o gün hâlâ
+      // mola-tamponuyla müsait mi diye yeniden doğrula — normalde PENDING
+      // talep zaten oluşturulduğu anda çakışmaları önlediği için bu bir
+      // yarış durumuna karşı savunma katmanıdır.
+      const stillAvailable = await getTeacherDaySlots(session.institutionId, existing.teacherId, existing.day, existing.id);
+      if (!stillAvailable.includes(existing.slot)) {
+        return NextResponse.json({ error: "Bu saat artık müsait değil (başka bir randevuyla çakışıyor)." }, { status: 409 });
       }
     }
 
