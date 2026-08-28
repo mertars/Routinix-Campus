@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Target, Users, Trophy, Globe2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, Users, Trophy, Globe2, Pencil } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
+import { TargetNetModal, type TargetNetValues } from "@/components/student/target-net-modal";
 import { cn } from "@/lib/utils";
 
 type NetSummary = {
   targetNet: number | null;
+  targetNetTyt: number | null;
+  targetNetAyt: number | null;
+  segment: "LGS" | "YKS" | "MEZUN";
   actualNet: number;
   trendBySubject: Record<string, { examLabel: string; net: number }[]>;
   branchRank: number;
@@ -57,6 +61,7 @@ export function NetTrackerTab() {
   const { studentId } = useStudentScope();
   const { showError } = useToast();
   const [summary, setSummary] = useState<NetSummary | null>(null);
+  const [editingTarget, setEditingTarget] = useState(false);
 
   useEffect(() => {
     if (!studentId) return;
@@ -80,9 +85,21 @@ export function NetTrackerTab() {
           <Target className="h-4 w-4 text-brand-600" /> Hedef vs. Gerçekleşen Net
         </h2>
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl bg-cream-card p-4 text-center dark:bg-white/5">
+          <div className="relative rounded-2xl bg-cream-card p-4 text-center dark:bg-white/5">
+            <button
+              onClick={() => setEditingTarget(true)}
+              aria-label="Hedef Neti Düzenle"
+              className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-espresso-muted transition hover:text-brand-600 dark:bg-white/10 dark:text-cream/50"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">Hedef Net</p>
             <p className="mt-1 text-2xl font-bold text-espresso dark:text-cream">{summary.targetNet ?? "—"}</p>
+            {summary.segment === "YKS" && (summary.targetNetTyt !== null || summary.targetNetAyt !== null) && (
+              <p className="mt-1 text-[10px] text-espresso-muted dark:text-cream/40">
+                TYT {summary.targetNetTyt ?? "—"} · AYT {summary.targetNetAyt ?? "—"}
+              </p>
+            )}
           </div>
           <div className="rounded-2xl bg-brand-600 p-4 text-center text-white">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-white/70">Gerçekleşen Net</p>
@@ -124,6 +141,15 @@ export function NetTrackerTab() {
       <p className="text-center text-[10px] text-espresso-muted/70 dark:text-cream/30">
         Türkiye geneli dilim, resmi bir ÖSYM/MEB verisi değil, temsili bir tahmindir.
       </p>
+
+      <TargetNetModal
+        isOpen={editingTarget}
+        onClose={() => setEditingTarget(false)}
+        studentId={studentId}
+        segment={summary.segment}
+        initial={{ targetNet: summary.targetNet, targetNetTyt: summary.targetNetTyt, targetNetAyt: summary.targetNetAyt }}
+        onSaved={(next: TargetNetValues) => setSummary((prev) => (prev ? { ...prev, ...next } : prev))}
+      />
     </div>
   );
 }

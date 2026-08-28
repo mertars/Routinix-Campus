@@ -64,6 +64,9 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
 
     return NextResponse.json({
       targetNet: student.targetNet,
+      targetNetTyt: student.targetNetTyt,
+      targetNetAyt: student.targetNetAyt,
+      segment: student.branch.segment,
       actualNet,
       trendBySubject,
       branchRank,

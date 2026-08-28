@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Student" ADD COLUMN "targetNetTyt" DOUBLE PRECISION;
+ALTER TABLE "Student" ADD COLUMN "targetNetAyt" DOUBLE PRECISION;
+
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'HOMEWORK_SUBMITTED';

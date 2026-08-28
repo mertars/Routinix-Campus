@@ -11,7 +11,6 @@ import {
   TrendingUp,
   Scan,
   Puzzle,
-  Camera,
   CalendarDays,
   Timer,
   HelpCircle,
@@ -36,7 +35,6 @@ import { AnnouncementsTab } from "@/components/student/tabs/announcements";
 import { NetTrackerTab } from "@/components/student/tabs/net-tracker";
 import { XrayTab } from "@/components/student/tabs/xray";
 import { GapClosingTab } from "@/components/student/tabs/gap-closing";
-import { OpticalScannerTab } from "@/components/student/tabs/optical-scanner";
 import { WeeklyScheduleTab } from "@/components/student/tabs/weekly-schedule";
 import { PomodoroTab } from "@/components/student/tabs/pomodoro";
 import { AskQuestionTab } from "@/components/student/tabs/ask-question";
@@ -56,7 +54,6 @@ const TABS = [
   { id: "net-tracker", label: "Net & Derece Takipçisi", icon: TrendingUp, Component: NetTrackerTab, side: "left" },
   { id: "xray", label: "Röntgen Karnesi & Isı Haritası", icon: Scan, Component: XrayTab, side: "left" },
   { id: "gap-closing", label: "Eksik Kapatma & Soru Bankası", icon: Puzzle, Component: GapClosingTab, side: "left" },
-  { id: "optical-scanner", label: "Optik Tarama & Çözüm Videoları", icon: Camera, Component: OpticalScannerTab, side: "left" },
   { id: "weekly-schedule", label: "Haftalık Program & Müfredat", icon: CalendarDays, Component: WeeklyScheduleTab, side: "left" },
   { id: "tercih-robotu", label: "Tercih Robotu", icon: Compass, Component: TercihRobotuTab, side: "left" },
   { id: "etut", label: "Birebir Etüt & Randevu", icon: CalendarCheck, Component: EtutTab, side: "right" },

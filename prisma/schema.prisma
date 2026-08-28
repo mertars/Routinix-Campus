@@ -181,9 +181,14 @@ model Student {
   healthNote                String? // Özel sağlık/alerji notu
   // Hedef net & haftalık çalışma saati — gerçek bir ölçüm/entegrasyon
   // kaynağı yok (Pomodoro cihazda kalır, bkz. gizlilik kuralı), bu yüzden
-  // isteğe bağlı alanlar: danışman öğretmen Röntgen ekranından girer, boşsa
-  // arayüzde "—" gösterilir.
+  // isteğe bağlı alanlar. targetNet, dashboard/xray/veli/karne gibi TÜM
+  // mevcut tüketicilerin okuduğu TEK "toplam hedef net" alanı olmaya devam
+  // eder — YKS öğrencisi TYT/AYT'yi ayrı ayrı girdiğinde (bkz. POST
+  // /api/students/[id]/target-net) targetNet bu ikisinin toplamı olarak
+  // otomatik güncellenir, mevcut tüketiciler dokunulmadan doğru kalır.
   targetNet                 Float?
+  targetNetTyt              Float?
+  targetNetAyt              Float?
   weeklyStudyHours          Int?
   passwordHash              String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
   mustChangePassword        Boolean                    @default(true) // ilk giriş / şifre değiştirme zorunluluğu
@@ -1037,6 +1042,7 @@ enum AuditAction {
   USER_DELETED_PERMANENTLY
   CLASSROOM_CREATED
   ALUMNI_PROFILE_CREATED
+  HOMEWORK_SUBMITTED
 }
 
 model AuditLog {

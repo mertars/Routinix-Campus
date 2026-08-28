@@ -3,6 +3,7 @@ import type { HomeworkStatus } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
+import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { withApiLogging, logger } from "@/lib/logger";
 
 const VALID_STATUSES = new Set<HomeworkStatus>(["NOT_DONE", "HALF", "DONE", "LATE"]);
@@ -28,7 +29,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
 
     const homework = await prisma.homework.findUnique({
       where: { id: params.id },
-      select: { id: true, teacherId: true, teacher: { select: { institutionId: true } } },
+      select: { id: true, teacherId: true, title: true, teacher: { select: { institutionId: true } } },
     });
     if (!homework || homework.teacher.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Ödev bulunamadı." }, { status: 404 });
@@ -55,6 +56,22 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
         })
       )
     );
+
+    // Öğrenci kendi durumunu DONE/LATE'e çektiğinde öğretmene ve yöneticiye
+    // giden "kayıt" — bkz. lib/server/audit/audit-log.ts. Öğretmenin canlı
+    // görmesi ayrıca homework-check-matrix.tsx'teki polling ile sağlanıyor;
+    // bu log, yöneticinin (ve ileride bir denetim ekranının) tek gerçek izi.
+    if (session.role === "STUDENT" && (updates[0].status === "DONE" || updates[0].status === "LATE")) {
+      await recordAuditLog({
+        institutionId: homework.teacher.institutionId,
+        actorId: session.sub,
+        actorRole: session.role,
+        action: "HOMEWORK_SUBMITTED",
+        targetType: "Homework",
+        targetId: homework.id,
+        metadata: { studentId: session.sub, status: updates[0].status, homeworkTitle: homework.title, teacherId: homework.teacherId },
+      });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

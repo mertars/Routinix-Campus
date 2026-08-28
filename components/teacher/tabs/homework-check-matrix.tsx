@@ -58,10 +58,26 @@ export function HomeworkCheckMatrixTab() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/homework?teacherId=${encodeURIComponent(staffRecord.id)}`)
-      .then((res) => res.json())
-      .then((data) => setMyAssignments(data.homeworks ?? []))
-      .catch(() => showError("Ödevler yüklenemedi."));
+    if (!staffRecord.id) return;
+    let cancelled = false;
+    function load(showErrorOnFail: boolean) {
+      fetch(`/api/homework?teacherId=${encodeURIComponent(staffRecord.id)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (!cancelled) setMyAssignments(data.homeworks ?? []);
+        })
+        .catch(() => {
+          if (showErrorOnFail) showError("Ödevler yüklenemedi.");
+        });
+    }
+    load(true);
+    // Öğrencinin "Tamamlandı" işaretlemesi bu ekrana anlık yansısın diye
+    // — pop-quiz sekmesindeki aynı deseni (useActiveQuiz) tekrarlıyor.
+    const interval = setInterval(() => load(false), 6000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffRecord.id]);
 

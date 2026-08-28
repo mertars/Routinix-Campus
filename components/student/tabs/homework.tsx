@@ -138,11 +138,15 @@ function HomeworkDetailModal({
 
 function HomeworkCard({ item, status, onOpen }: { item: HomeworkEntry; status: HomeworkStatus; onOpen: () => void }) {
   const Icon = STATE_ICON[status];
+  const overdue = (status === "NOT_DONE" || status === "HALF") && isOverdue(item.dueAt);
   return (
     <motion.button
       onClick={onOpen}
       whileHover={{ scale: 1.01 }}
-      className="flex w-full items-center justify-between gap-3 rounded-2xl bg-cream-card p-3.5 text-left dark:bg-white/5"
+      className={cn(
+        "flex w-full items-center justify-between gap-3 rounded-2xl p-3.5 text-left",
+        overdue ? "bg-rose-50 dark:bg-rose-500/10" : "bg-cream-card dark:bg-white/5"
+      )}
     >
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-espresso dark:text-cream">{item.title}</p>
@@ -150,9 +154,16 @@ function HomeworkCard({ item, status, onOpen }: { item: HomeworkEntry; status: H
           {item.teacher.firstName} {item.teacher.lastName} · {item.dueAt ? item.dueAt.replace("T", " ").slice(0, 16) : "Süresiz"}
         </p>
       </div>
-      <span className={cn("flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold", STATE_STYLES[status])}>
-        <Icon className="h-3 w-3" /> {STATE_LABEL[status]}
-      </span>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span className={cn("flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold", STATE_STYLES[status])}>
+          <Icon className="h-3 w-3" /> {STATE_LABEL[status]}
+        </span>
+        {overdue && (
+          <span className="flex items-center gap-1 text-[10px] font-medium text-rose-600 dark:text-rose-400">
+            <AlertOctagon className="h-3 w-3" /> Süresi geçti
+          </span>
+        )}
+      </div>
     </motion.button>
   );
 }
@@ -211,7 +222,16 @@ export function HomeworkTab() {
     }
   }
 
-  const active = myHomeworks.filter((item) => ["NOT_DONE", "HALF"].includes(statusFor(item)));
+  const active = myHomeworks
+    .filter((item) => ["NOT_DONE", "HALF"].includes(statusFor(item)))
+    .sort((a, b) => {
+      const aOverdue = isOverdue(a.dueAt);
+      const bOverdue = isOverdue(b.dueAt);
+      if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+      if (!a.dueAt) return 1;
+      if (!b.dueAt) return -1;
+      return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    });
   const completed = myHomeworks.filter((item) => statusFor(item) === "DONE");
   const late = myHomeworks.filter((item) => statusFor(item) === "LATE");
   const openItem = myHomeworks.find((item) => item.id === openId) ?? null;

@@ -30,6 +30,13 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Quiz bulunamadı." }, { status: 404 });
     }
 
+    // institutionId eşleşmesi tek başına yeterli değil — aynı kurumun
+    // BAŞKA bir şubesindeki öğrenci quiz id'sini bilse bile yanıt gönderemez.
+    const student = await prisma.student.findUnique({ where: { id: studentId }, select: { branchId: true } });
+    if (!student || student.branchId !== quiz.branchId) {
+      return NextResponse.json({ error: "Quiz bulunamadı." }, { status: 404 });
+    }
+
     let correct = 0;
     for (const question of quiz.questions) {
       const given = answers.find((a) => a.questionId === question.id)?.value ?? "";
