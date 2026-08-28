@@ -2,21 +2,57 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Download, TrendingUp, CalendarCheck, AlertCircle, Loader2 } from "lucide-react";
+import { FileText, Download, TrendingUp, CalendarCheck, AlertCircle, Loader2, Share2, Copy, Check } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
+
+const PERIOD_LABEL = "2025-2026 Güncel Dönem";
 
 export function ReportCardTab() {
   const { studentId, studentName, report } = useStudentScope();
   const { showError, showSuccess } = useToast();
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function createShareLink() {
+    setSharing(true);
+    try {
+      const res = await fetch(`/api/report-cards/${studentId}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ donem: PERIOD_LABEL }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Paylaşım linki oluşturulamadı.");
+      setShareUrl(data.shareUrl);
+      setCopied(false);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Paylaşım linki oluşturulamadı.");
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function copyShareUrl() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      showSuccess("Link kopyalandı.");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      showError("Kopyalanamadı, linki elle seçip kopyala.");
+    }
+  }
 
   async function downloadPdf() {
     setStatus("loading");
     setErrorMessage("");
     try {
-      const res = await fetch(`/api/report-cards/${studentId}?donem=${encodeURIComponent("2025-2026 Güncel Dönem")}`);
+      const res = await fetch(`/api/report-cards/${studentId}?donem=${encodeURIComponent(PERIOD_LABEL)}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res.ok || !contentType.includes("application/pdf")) {
         const data = contentType.includes("application/json") ? await res.json() : null;
@@ -77,6 +113,36 @@ export function ReportCardTab() {
           <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-rose-50 px-3 py-2.5 text-xs text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {errorMessage} Lütfen daha sonra tekrar deneyin ya da sistem yöneticinize başvurun.
           </p>
+        )}
+      </motion.div>
+
+      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+          <Share2 className="h-4 w-4 text-brand-600" /> Veliyle Paylaş
+        </h2>
+        <p className="mb-3 text-xs text-espresso-muted dark:text-cream/40">
+          Oturum açmadan görüntülenebilen, 7 gün geçerli bir bağlantı oluştur — WhatsApp veya SMS ile paylaşabilirsin.
+        </p>
+        {shareUrl ? (
+          <div className="flex items-center gap-2 rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5">
+            <p className="min-w-0 flex-1 truncate text-xs text-espresso dark:text-cream">{shareUrl}</p>
+            <button
+              onClick={copyShareUrl}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg bg-espresso px-3 py-1.5 text-xs font-medium text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "Kopyalandı" : "Kopyala"}
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={createShareLink}
+            disabled={sharing}
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-hairline text-sm font-medium text-espresso transition hover:bg-cream-card disabled:opacity-70 dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+          >
+            {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+            {sharing ? "Oluşturuluyor..." : "Paylaşılabilir Link Oluştur"}
+          </button>
         )}
       </motion.div>
     </div>

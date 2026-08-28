@@ -31,6 +31,9 @@
   .guidance h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #5C3D2E; }
   .guidance ul { margin: 0; padding-left: 18px; }
   .guidance li { margin-bottom: 6px; font-size: 12.5px; line-height: 1.4; }
+  .teacher-comment { margin-top: 16px; background: #FDF6EC; border: 1px solid #F0DCB8; border-radius: 14px; padding: 16px 18px; }
+  .teacher-comment h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #92450E; }
+  .teacher-comment p { margin: 0; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
   .footer { position: absolute; bottom: 14mm; right: 18mm; font-size: 10px; font-style: italic; color: #786C66; }
 </style>
 </head>
@@ -90,6 +93,13 @@
         {{/each}}
       </ul>
     </div>
+
+    {{#if teacherComment}}
+    <div class="teacher-comment">
+      <h3>Danışman Öğretmen Yorumu</h3>
+      <p>{{teacherComment}}</p>
+    </div>
+    {{/if}}
 
     <div class="footer">Powered by Routinix Kampüs</div>
   </div>

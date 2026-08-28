@@ -157,36 +157,36 @@ model Branch {
 // ----------------------------------------------------------------------------
 
 model Student {
-  id                  String               @id @default(cuid())
-  institutionId       String
-  institution         Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  nationalId          String               @unique // TC Kimlik No — v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
-  firstName           String
-  lastName            String
-  birthDate           DateTime?
-  gender              Gender?
-  bloodType           BloodType            @default(UNKNOWN)
-  studentNumber       String // Öğrenci No — kurum içinde benzersiz (bkz. @@unique altta)
-  branchId            String
-  branch              Branch               @relation(fields: [branchId], references: [id])
-  track               String? // Alan/Dal (şube varsayılanını ezmek gerekirse)
-  advisorTeacherId    String? // Danışman ID
+  id                        String                     @id @default(cuid())
+  institutionId             String
+  institution               Institution                @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  nationalId                String                     @unique // TC Kimlik No — v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
+  firstName                 String
+  lastName                  String
+  birthDate                 DateTime?
+  gender                    Gender?
+  bloodType                 BloodType                  @default(UNKNOWN)
+  studentNumber             String // Öğrenci No — kurum içinde benzersiz (bkz. @@unique altta)
+  branchId                  String
+  branch                    Branch                     @relation(fields: [branchId], references: [id])
+  track                     String? // Alan/Dal (şube varsayılanını ezmek gerekirse)
+  advisorTeacherId          String? // Danışman ID
   // SetNull (Cascade DEĞİL) — bir öğretmen tamamen silinince danışmanı
   // olduğu ÖĞRENCİ asla silinmemeli, sadece danışmansız kalır.
-  advisorTeacher      Teacher?             @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id], onDelete: SetNull)
-  transportMethod     TransportMethod?
-  residenceAddress    String?
-  email               String?
-  phone               String?
-  healthNote          String? // Özel sağlık/alerji notu
+  advisorTeacher            Teacher?                   @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id], onDelete: SetNull)
+  transportMethod           TransportMethod?
+  residenceAddress          String?
+  email                     String?
+  phone                     String?
+  healthNote                String? // Özel sağlık/alerji notu
   // Hedef net & haftalık çalışma saati — gerçek bir ölçüm/entegrasyon
   // kaynağı yok (Pomodoro cihazda kalır, bkz. gizlilik kuralı), bu yüzden
   // isteğe bağlı alanlar: danışman öğretmen Röntgen ekranından girer, boşsa
   // arayüzde "—" gösterilir.
-  targetNet           Float?
-  weeklyStudyHours    Int?
-  passwordHash        String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
-  mustChangePassword  Boolean              @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  targetNet                 Float?
+  weeklyStudyHours          Int?
+  passwordHash              String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
+  mustChangePassword        Boolean                    @default(true) // ilk giriş / şifre değiştirme zorunluluğu
   // Yönetici "sil" dediğinde HARD DELETE yapılmaz — Student'a bağlı ~13 ayrı
   // ilişkide (ExamNetResult, AttendanceRecord, ReportCard, vb.) onDelete
   // tanımlı değil (Postgres varsayılanı fiilen RESTRICT), gerçek bir kayıt
@@ -194,25 +194,27 @@ model Student {
   // "çalışsa bile" yıllarca birikmiş not/devamsızlık geçmişini geri
   // dönüşsüz siler. Bunun yerine pasifleştirilir: giriş engellenir, genel
   // listelerden düşer, geçmiş veri korunur.
-  isActive            Boolean              @default(true)
-  parents             ParentStudent[]
-  netResults          ExamNetResult[]
-  attendanceRecords   AttendanceRecord[]
-  reportCards         ReportCard[]
-  questions           Question[]
-  homeworkSubmissions HomeworkSubmission[]
-  quizSubmissions     QuizSubmission[]
-  appointmentRequests AppointmentRequest[]
-  guidanceNotes       GuidanceNote[]
-  announcementReads   AnnouncementRead[]
-  seatAssignments     ExamSeatAssignment[]
-  preferences         StudentPreference[]
-  guidancePrograms    GuidanceProgram[]
-  remediationTasks    RemediationTask[]
-  alumniProfile       AlumniProfile?
-  sentMentorRequests  MentorRequest[]      @relation("MentorRequestsSent")
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  isActive                  Boolean                    @default(true)
+  parents                   ParentStudent[]
+  netResults                ExamNetResult[]
+  attendanceRecords         AttendanceRecord[]
+  reportCards               ReportCard[]
+  reportCardShareLinks      ReportCardShareLink[]
+  reportCardTeacherComments ReportCardTeacherComment[]
+  questions                 Question[]
+  homeworkSubmissions       HomeworkSubmission[]
+  quizSubmissions           QuizSubmission[]
+  appointmentRequests       AppointmentRequest[]
+  guidanceNotes             GuidanceNote[]
+  announcementReads         AnnouncementRead[]
+  seatAssignments           ExamSeatAssignment[]
+  preferences               StudentPreference[]
+  guidancePrograms          GuidanceProgram[]
+  remediationTasks          RemediationTask[]
+  alumniProfile             AlumniProfile?
+  sentMentorRequests        MentorRequest[]            @relation("MentorRequestsSent")
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
 
   @@unique([institutionId, studentNumber])
   @@index([branchId])
@@ -259,10 +261,10 @@ model ParentStudent {
 }
 
 model Teacher {
-  id                    String                  @id @default(cuid())
+  id                    String                     @id @default(cuid())
   institutionId         String
-  institution           Institution             @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  nationalId            String                  @unique // v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
+  institution           Institution                @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  nationalId            String                     @unique // v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
   firstName             String
   lastName              String
   subject               String // Branş
@@ -273,12 +275,12 @@ model Teacher {
   dutyDays              String[] // Nöbet Günleri
   institutionalCode     String? // "TCH-102" — kısa, insan-okur öğretmen kodu (giriş kullanıcı adı DEĞİL — o T.C. No'dur), kurum içinde benzersiz
   passwordHash          String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
-  mustChangePassword    Boolean                 @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  mustChangePassword    Boolean                    @default(true) // ilk giriş / şifre değiştirme zorunluluğu
   // bkz. Student.isActive'teki AYNI gerekçe (hard delete yerine pasifleştirme).
-  isActive              Boolean                 @default(true)
-  advisorBranches       Branch[]                @relation("BranchAdvisor")
-  teachingBranches      Branch[]                @relation("BranchTeaching")
-  advisedStudents       Student[]               @relation("StudentAdvisor")
+  isActive              Boolean                    @default(true)
+  advisorBranches       Branch[]                   @relation("BranchAdvisor")
+  teachingBranches      Branch[]                   @relation("BranchTeaching")
+  advisedStudents       Student[]                  @relation("StudentAdvisor")
   questions             Question[]
   homeworks             Homework[]
   quizzes               Quiz[]
@@ -291,8 +293,9 @@ model Teacher {
   materials             TeacherMaterial[]
   lessonSlots           LessonSlot[]
   dutySlots             TeacherDutySlot[]
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
+  reportCardComments    ReportCardTeacherComment[]
+  createdAt             DateTime                   @default(now())
+  updatedAt             DateTime                   @updatedAt
 
   @@unique([institutionId, institutionalCode])
   @@index([institutionId])
@@ -733,6 +736,44 @@ model ReportCard {
   periodLabel String // "2025-2026 1. Dönem"
   generatedAt DateTime @default(now())
 
+  @@index([studentId])
+}
+
+// Oturum açmadan (token bazlı, süreli) karne PDF'ine erişim — veli/öğrenci
+// karneyi WhatsApp/SMS ile PAYLAŞABİLSİN diye. Token, karneyi zaten
+// görüntüleme yetkisi olan biri (öğrenci/danışman-branş öğretmeni/veli/
+// yönetici — bkz. GET /api/report-cards/[studentId]'teki aynı sahiplik
+// kuralı) tarafından üretilir; süresi dolunca (varsayılan 7 gün) geçersiz
+// olur, kalıcı bir "herkese açık" link DEĞİLDİR.
+model ReportCardShareLink {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  periodLabel String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([studentId])
+}
+
+// Danışman/branş öğretmeninin karneye eklediği SERBEST METİN yorum —
+// analyzer.ts'teki kural-bazlı otomatik rehberlik notlarından BİLEREK
+// ayrı (o notlar hep aynı sabit eşiklerden üretilir, bu ise öğretmenin
+// KENDİ gözlemi). Dönem başına TEK yorum (öğretmen istediği zaman
+// günceller) — bu yüzden studentId+periodLabel benzersiz.
+model ReportCardTeacherComment {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  periodLabel String
+  teacherId   String
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  comment     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([studentId, periodLabel])
   @@index([studentId])
 }
 

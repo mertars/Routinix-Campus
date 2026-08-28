@@ -3,7 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { computeAttendanceRate } from "@/lib/server/report-card/analyzer";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
 import { computeActivityScore } from "@/lib/server/teacher-activity";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, requireInstitution, assertTeacherOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
@@ -99,11 +99,21 @@ async function teacherAnalytics(teacherId: string, institutionId: string) {
 async function handleGet(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
-    requireRole(session, "principal");
 
     const role = request.nextUrl.searchParams.get("role");
     if (role !== "STUDENT" && role !== "TEACHER") {
       return NextResponse.json({ error: "role parametresi 'STUDENT' veya 'TEACHER' olmalı." }, { status: 400 });
+    }
+
+    if (role === "STUDENT" && session.role === "TEACHER") {
+      // Akademik Röntgen Karnesi: öğretmen SADECE kendi öğrencisinin (danışmanı
+      // olduğu/branşında ders verdiği) analizini görebilir — bkz. assertTeacherOwnsStudent.
+      const student = await prisma.student.findUnique({ where: { id: params.id }, select: { institutionId: true } });
+      if (!student) return NextResponse.json({ error: "Kayıt bulunamadı." }, { status: 404 });
+      requireInstitution(session, student.institutionId);
+      await assertTeacherOwnsStudent(session.sub, params.id);
+    } else {
+      requireRole(session, "principal");
     }
 
     const result =

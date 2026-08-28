@@ -39,6 +39,13 @@ export async function generateReportCardPdf(studentId: string, periodLabel: stri
     student.attendanceRecords
   );
 
+  // Danışman/branş öğretmeninin bu DÖNEM için yazdığı serbest metin yorum
+  // (varsa) — analyzer.ts'teki kural-bazlı otomatik notlardan BİLEREK ayrı
+  // bir bölüm olarak eklenir (bkz. ReportCardTeacherComment şemasındaki not).
+  const teacherComment = await prisma.reportCardTeacherComment.findUnique({
+    where: { studentId_periodLabel: { studentId, periodLabel } },
+  });
+
   const template = await getTemplate();
   const html = template({
     institutionName: student.institution.name,
@@ -53,6 +60,7 @@ export async function generateReportCardPdf(studentId: string, periodLabel: stri
       deltaLabel: `${summary.delta >= 0 ? "+" : ""}${summary.delta}`,
     })),
     guidanceNotes: analysis.guidanceNotes,
+    teacherComment: teacherComment?.comment,
   });
 
   const pdfBuffer = await renderHtmlToPdf(html);
