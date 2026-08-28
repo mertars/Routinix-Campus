@@ -219,6 +219,7 @@ model Student {
   remediationTasks          RemediationTask[]
   alumniProfile             AlumniProfile?
   sentMentorRequests        MentorRequest[]            @relation("MentorRequestsSent")
+  studyGoals                StudyGoal[]
   createdAt                 DateTime                   @default(now())
   updatedAt                 DateTime                   @updatedAt
 
@@ -1152,4 +1153,48 @@ model MentorRequest {
 
   @@index([alumniProfileId])
   @@index([requesterStudentId])
+}
+
+// Pomodoro & Hedef Yönetimi — GİZLİLİK KURALI KORUNDU: bu iki model SADECE
+// öğrencinin kendi API uçlarından (assertOwnsSelf) erişilebilir, hiçbir
+// öğretmen/yönetici/veli ucu bu veriyi OKUMAZ (bkz. components/student/tabs/
+// pomodoro.tsx'teki mevcut gizlilik notu — önceden tarayıcı localStorage'ında
+// tutulan bu veri artık kalıcı/geçmişli olması için DB'ye taşındı, ama
+// "kimseye görünmez" ilkesi API erişim kontrolünde AYNEN sürdürülüyor).
+//
+// Bir öğrencinin TEK bir aktif (isCompleted=false) genel hedefi olabilir —
+// yeni bir hedef belirlendiğinde eskisi otomatik tamamlanıp "Geçmiş
+// Hedeflerim"e düşer (bkz. app/api/study-goals/route.ts).
+model StudyGoal {
+  id                String           @id @default(cuid())
+  studentId         String
+  student           Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  targetQuestions   Int?
+  targetMinutes     Int?
+  progressQuestions Int              @default(0)
+  progressMinutes   Int              @default(0)
+  isCompleted       Boolean          @default(false)
+  createdAt         DateTime         @default(now())
+  completedAt       DateTime?
+  topicGoals        StudyTopicGoal[]
+
+  @@index([studentId, isCompleted])
+}
+
+// Genel hedefin altına eklenen özel konu/görev hedefi (ör. "Trigonometri —
+// 30 Dakika — 20 Soru", açıklama: "Çıkmış sorular çözülecek").
+model StudyTopicGoal {
+  id                String    @id @default(cuid())
+  studyGoalId       String
+  studyGoal         StudyGoal @relation(fields: [studyGoalId], references: [id], onDelete: Cascade)
+  title             String
+  description       String?
+  targetMinutes     Int?
+  targetQuestions   Int?
+  progressMinutes   Int       @default(0)
+  progressQuestions Int       @default(0)
+  isCompleted       Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+
+  @@index([studyGoalId])
 }
