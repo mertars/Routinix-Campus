@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, X, Send, FileText, CheckCircle2, History, PenLine, AlertTriangle, Loader2 } from "lucide-react";
+import { Plus, X, Send, FileText, CheckCircle2, History, PenLine, AlertTriangle, Loader2, Search, ExternalLink } from "lucide-react";
 import { DAYS_OF_WEEK, STUDENT_TOPIC_ANALYSIS, type DayOfWeek, type WeeklyProgramEntry } from "@/lib/mock-data";
 import { A4ProgramPreview } from "@/components/principal/guidance/a4-program-preview";
 import { useToast } from "@/lib/toast-context";
@@ -121,8 +121,92 @@ function DayColumn({
   );
 }
 
+// Öğrenci seçici — kurum onlarca/yüzlerce öğrenciye ulaştığında düz bir
+// <select> içinde ismi arayarak bulmak pratik değil; roster zaten tek
+// seferde tam olarak client'a çekiliyor (bkz. GuidanceProgramTab'daki
+// fetch), bu yüzden arama sunucuya gitmeden burada, yerel olarak yapılır.
+function StudentSearchSelect({
+  students,
+  selectedStudentId,
+  onSelect,
+}: {
+  students: StudentOption[];
+  selectedStudentId: string;
+  onSelect: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selected = students.find((row) => row.id === selectedStudentId);
+  const normalizedQuery = query.trim().toLocaleLowerCase("tr-TR");
+  const filtered = normalizedQuery
+    ? students.filter((row) => `${row.firstName} ${row.lastName} ${row.branchName}`.toLocaleLowerCase("tr-TR").includes(normalizedQuery))
+    : students;
+
+  return (
+    <div ref={containerRef} className="relative w-full max-w-xs">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
+        <input
+          value={open ? query : selected ? `${selected.firstName} ${selected.lastName} — ${selected.branchName}` : ""}
+          onChange={(event) => setQuery(event.target.value)}
+          onFocus={() => {
+            setOpen(true);
+            setQuery("");
+          }}
+          placeholder="Öğrenci ara (ad veya şube)..."
+          className="w-full rounded-lg border border-hairline bg-white py-2 pl-8 pr-3 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+        />
+      </div>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-hairline bg-white p-1 shadow-xl dark:border-white/10 dark:bg-midnight-card"
+          >
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-espresso-muted dark:text-cream/40">Sonuç bulunamadı.</p>
+            ) : (
+              filtered.map((row) => (
+                <button
+                  key={row.id}
+                  onClick={() => {
+                    onSelect(row.id);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition hover:bg-cream-card dark:hover:bg-white/5",
+                    row.id === selectedStudentId && "bg-brand-50 dark:bg-brand-600/10"
+                  )}
+                >
+                  <span className="font-medium text-espresso dark:text-cream">
+                    {row.firstName} {row.lastName}
+                  </span>
+                  <span className="text-espresso-muted dark:text-cream/40">{row.branchName}</span>
+                </button>
+              ))
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function GuidanceProgramTab() {
-  const { showError } = useToast();
+  const { showError, showToast } = useToast();
   const [studentOptions, setStudentOptions] = useState<StudentOption[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [view, setView] = useState<"builder" | "history">("builder");
@@ -190,6 +274,15 @@ export function GuidanceProgramTab() {
     }
   }
 
+  // "Routinix'e Aktar" — Routinix Kampüs'ün DIŞINDA, ayrı bir sistem
+  // (kullanıcının kendi tanımı). Gerçek entegrasyon (API/kimlik bilgisi)
+  // henüz sağlanmadı; sahte/stub bir bağlantı kurmak yerine buton
+  // BİLEREK burada durduruluyor, gerçek bilgi geldiğinde bu handler
+  // gerçek bir isteğe bağlanacak.
+  function handleTransferToRoutinix() {
+    showToast("info", "Routinix entegrasyonu henüz bağlanmadı — gerekli API bilgileri sağlandığında bu buton aktif olacak.");
+  }
+
   if (!student) {
     return <p className="text-xs text-espresso-muted dark:text-cream/40">Öğrenci bulunamadı.</p>;
   }
@@ -197,17 +290,7 @@ export function GuidanceProgramTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <select
-          value={selectedStudentId}
-          onChange={(event) => setSelectedStudentId(event.target.value)}
-          className="rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-        >
-          {studentOptions.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.firstName} {row.lastName} — {row.branchName}
-            </option>
-          ))}
-        </select>
+        <StudentSearchSelect students={studentOptions} selectedStudentId={selectedStudentId} onSelect={setSelectedStudentId} />
 
         <div className="flex gap-1.5 rounded-full border border-hairline bg-white/70 p-1 dark:border-white/10 dark:bg-midnight-card/50">
           <button
@@ -272,6 +355,12 @@ export function GuidanceProgramTab() {
               className="flex items-center gap-2 rounded-lg border border-hairline px-4 py-2 text-xs font-medium text-espresso transition hover:bg-cream-card disabled:opacity-50 dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
             >
               <FileText className="h-3.5 w-3.5" /> Kurumsal A4 PDF Çıktısı Al
+            </button>
+            <button
+              onClick={handleTransferToRoutinix}
+              className="flex items-center gap-2 rounded-lg border border-dashed border-hairline px-4 py-2 text-xs font-medium text-espresso-muted transition hover:border-brand-600/50 hover:text-espresso dark:border-white/10 dark:text-cream/40 dark:hover:text-cream"
+            >
+              <ExternalLink className="h-3.5 w-3.5" /> Routinix&apos;e Aktar
             </button>
           </div>
         </motion.div>

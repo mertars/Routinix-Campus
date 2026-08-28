@@ -1,23 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
+import {
+  requireSession,
+  requireRole,
+  requireInstitution,
+  assertOwnsSelf,
+  assertTeacherOwnsStudent,
+  assertParentOwnsStudent,
+} from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/guidance-program?studentId=X — rehberlik biriminin öğrenciye
-// gönderdiği kişisel çalışma programlarının geçmişi (yönetici paneli).
+// gönderdiği kişisel çalışma programlarının geçmişi. Yönetici panelindeki
+// geçmiş görünümü VE öğrencinin kendi portalındaki "Rehberlik" sekmesi
+// (bkz. components/student/tabs/guidance.tsx) AYNI ucu kullanır — bu
+// yüzden sahiplik kontrolü exam-seating'teki (GET /api/exam-seating) ile
+// birebir aynı desene sahip: principal her öğrenciyi görür, öğrenci/
+// öğretmen/veli sadece kendi ilişkili öğrencisini görebilir.
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
-    requireRole(session, "principal");
 
     const studentId = request.nextUrl.searchParams.get("studentId");
     if (!studentId) return NextResponse.json({ error: "studentId parametresi zorunludur." }, { status: 400 });
     const student = await prisma.student.findUnique({ where: { id: studentId }, select: { institutionId: true } });
     if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
     requireInstitution(session, student.institutionId);
+    if (session.role === "STUDENT") assertOwnsSelf(session, studentId);
+    else if (session.role === "TEACHER") await assertTeacherOwnsStudent(session.sub, studentId);
+    else if (session.role === "PARENT") await assertParentOwnsStudent(session.sub, studentId);
+    else requireRole(session, "principal");
 
     const programs = await prisma.guidanceProgram.findMany({
       where: { studentId },

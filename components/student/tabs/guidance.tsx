@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { HeartHandshake, Send, Clock, Loader2 } from "lucide-react";
+import { HeartHandshake, Send, Clock, Loader2, CalendarCheck2, Target } from "lucide-react";
 import { DAYS_OF_WEEK } from "@/lib/mock-data";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils";
 
 type AppointmentStatus = "PENDING" | "APPROVED" | "REJECTED";
 type AppointmentEntry = { id: string; topic: string; day: string; slot: string; status: AppointmentStatus; requestedAt: string; teacher: { firstName: string; lastName: string } };
+
+type ProgramEntry = { id: string; day: string; time: string; subject: string; topic: string; questionTarget: number };
+type Program = { id: string; weekLabel: string; createdAt: string; entries: ProgramEntry[] };
 
 const REASONS = ["Sınav Kaygısı", "Motivasyon", "Ders/Bölüm Seçimi", "Kişisel Gelişim", "Diğer"];
 
@@ -36,6 +39,8 @@ export function GuidanceTab() {
   const [sending, setSending] = useState(false);
   const [myRequests, setMyRequests] = useState<AppointmentEntry[]>([]);
   const [counselor, setCounselor] = useState<Counselor | null>(null);
+  const [latestProgram, setLatestProgram] = useState<Program | null>(null);
+  const [loadingProgram, setLoadingProgram] = useState(true);
 
   useEffect(() => {
     fetch("/api/teachers?subject=Rehberlik")
@@ -44,6 +49,17 @@ export function GuidanceTab() {
       .catch(() => showError("Rehberlik uzmanı bilgisi yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!studentId) return;
+    setLoadingProgram(true);
+    fetch(`/api/guidance-program?studentId=${encodeURIComponent(studentId)}`)
+      .then((res) => res.json())
+      .then((data: { programs?: Program[] }) => setLatestProgram(data.programs?.[0] ?? null))
+      .catch(() => showError("Çalışma programı yüklenemedi."))
+      .finally(() => setLoadingProgram(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentId]);
 
   async function loadRequests() {
     if (!counselor) return;
@@ -91,8 +107,53 @@ export function GuidanceTab() {
     }
   }
 
+  const entriesByDay = latestProgram
+    ? DAYS_OF_WEEK.map((d) => ({ day: d, entries: latestProgram.entries.filter((e) => e.day === d) })).filter((g) => g.entries.length > 0)
+    : [];
+
   return (
     <div className="space-y-4">
+      <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+          <CalendarCheck2 className="h-4 w-4 text-brand-600" /> Haftalık Çalışma Programın
+        </h2>
+        {loadingProgram ? (
+          <div className="flex items-center justify-center py-8 text-espresso-muted dark:text-cream/40">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : !latestProgram ? (
+          <p className="text-xs text-espresso-muted dark:text-cream/40">
+            Rehberlik/danışman öğretmenin henüz sana bir çalışma programı göndermedi.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-[11px] text-espresso-muted dark:text-cream/40">
+              {latestProgram.weekLabel} · {new Date(latestProgram.createdAt).toLocaleDateString("tr-TR")} tarihinde gönderildi
+            </p>
+            <div className="space-y-2">
+              {entriesByDay.map(({ day, entries }) => (
+                <div key={day} className="rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5">
+                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-600">{day}</p>
+                  <div className="space-y-1.5">
+                    {entries.map((entry) => (
+                      <div key={entry.id} className="flex items-center justify-between gap-3 text-xs">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-espresso dark:text-cream">{entry.subject} — {entry.topic}</p>
+                          <p className="text-[10px] text-espresso-muted dark:text-cream/40">{entry.time}</p>
+                        </div>
+                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700 dark:bg-brand-600/15 dark:text-brand-300">
+                          <Target className="h-3 w-3" /> {entry.questionTarget} soru
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </motion.div>
+
       <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <HeartHandshake className="h-4 w-4 text-brand-600" /> Rehberlik Görüşme Talebi
