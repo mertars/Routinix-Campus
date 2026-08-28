@@ -52,9 +52,17 @@ export async function createBranch(input: {
 }
 
 export async function listBranches(institutionId: string) {
-  return prisma.branch.findMany({
+  const branches = await prisma.branch.findMany({
     where: { institutionId },
-    select: { id: true, name: true, grade: true, segment: true, track: true },
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      segment: true,
+      track: true,
+      _count: { select: { students: { where: { isActive: true } } } },
+    },
     orderBy: [{ grade: "asc" }, { name: "asc" }],
   });
+  return branches.map(({ _count, ...branch }) => ({ ...branch, studentCount: _count.students }));
 }

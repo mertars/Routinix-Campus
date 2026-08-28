@@ -112,6 +112,7 @@ model Institution {
   announcements       Announcement[]
   notificationBatches NotificationBatch[]
   auditLogs           AuditLog[]
+  classrooms          Classroom[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 }
@@ -816,20 +817,50 @@ model TeacherMaterial {
 // atamaları (öğrenci + öğretmen + yönetici aynı gerçek veriyi görür).
 // ----------------------------------------------------------------------------
 
+// Şubeden BAĞIMSIZ fiziksel sınav odası — yönetici serbestçe adlandırır ve
+// kroki (desk yerleşimi) tasarlar. `layout`, x/y serbest konumlu masaların
+// JSON dizisidir (sabit satır/sütun ızgarası DEĞİL — U-düzeni gibi keyfi
+// yerleşimlere izin vermek için, bkz. lib/server/seating/types.ts).
+model Classroom {
+  id              String               @id @default(cuid())
+  institutionId   String
+  institution     Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  name            String
+  layout          Json
+  seatAssignments ExamSeatAssignment[]
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@unique([institutionId, name])
+  @@index([institutionId])
+}
+
 model ExamSeatAssignment {
-  id         String   @id @default(cuid())
-  examId     String
-  exam       Exam     @relation(fields: [examId], references: [id])
-  studentId  String
-  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  hall       String
-  seatNumber Int
-  rowNum     Int
-  colNum     Int
-  createdAt  DateTime @default(now())
+  id          String     @id @default(cuid())
+  examId      String
+  exam        Exam       @relation(fields: [examId], references: [id])
+  studentId   String
+  student     Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  // classroomId nullable — eski (Sınıf kavramından ÖNceki) kayıtlar sadece
+  // hall serbest metnine sahip, geriye dönük bozulmasın diye zorunlu
+  // yapılmadı. ⚠️ Prisma, OPSİYONEL ilişkilerde onDelete belirtilmezse
+  // varsayılan olarak SetNull uygular (RESTRICT DEĞİL — bu, FAZ 1'de
+  // yanlış varsayılmıştı, 0_init migration'ında zaten SetNull olduğu
+  // görülünce fark edildi). Burada AÇIKÇA Restrict isteniyor — geçmiş
+  // sınav oturma kaydı olan bir Sınıf sessizce "unutulmasın", silinmek
+  // istenirse önce o geçmiş taşınmalı/temizlenmeli.
+  classroomId String?
+  classroom   Classroom? @relation(fields: [classroomId], references: [id], onDelete: Restrict)
+  deskId      String? // layout içindeki Desk.id — hangi masada oturduğu (komşuluk denetimi/ileri kroki görünümü için)
+  hall        String
+  seatNumber  Int
+  rowNum      Int
+  colNum      Int
+  createdAt   DateTime   @default(now())
 
   @@unique([examId, studentId])
   @@index([studentId])
+  @@index([classroomId])
 }
 
 // ----------------------------------------------------------------------------
@@ -940,6 +971,7 @@ enum AuditAction {
   PASSWORD_RESET_BY_ADMIN
   USER_DEACTIVATED
   USER_DELETED_PERMANENTLY
+  CLASSROOM_CREATED
 }
 
 model AuditLog {
