@@ -6,8 +6,13 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-function today(): Date {
-  const date = new Date();
+// bkz. app/api/admin/attendance-today/route.ts (bu ucun eski adı) —
+// FAZ 4'te "sadece bugün" kısıtlaması kaldırılıp isteğe bağlı date/branchId
+// filtresine genişletildi, bu yüzden yol adı da (attendance-today ->
+// attendance) daha doğru bir isme taşındı. Tek tüketici
+// components/principal/tabs/attendance-command.tsx olduğu için güvenli.
+function parseDateParam(value: string | null): Date {
+  const date = value ? new Date(value) : new Date();
   date.setHours(0, 0, 0, 0);
   return date;
 }
@@ -15,21 +20,26 @@ function today(): Date {
 const TO_LOWER: Record<string, "present" | "absent" | "late"> = { PRESENT: "present", ABSENT: "absent", LATE: "late" };
 const TO_UPPER: Record<string, "PRESENT" | "ABSENT" | "LATE"> = { present: "PRESENT", absent: "ABSENT", late: "LATE" };
 
-// GET /api/admin/attendance-today — TÜM kurumun bugünkü yoklama durumu, şube
-// bazında değil kurum geneli. Aynı AttendanceRecord tablosunu (öğretmenin
-// Canlı Yoklama ekranıyla) paylaşır — iki panel arasında çelişkili veri yok.
-async function handleGet() {
+// GET /api/admin/attendance?date=YYYY-MM-DD&branchId=X — kurumun (isteğe
+// bağlı bir şubeye daraltılmış) belirli bir gündeki yoklama durumu. Aynı
+// AttendanceRecord tablosunu (öğretmenin Canlı Yoklama ekranıyla) paylaşır
+// — iki panel arasında çelişkili veri yok.
+async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
 
+    const date = parseDateParam(request.nextUrl.searchParams.get("date"));
+    const branchId = request.nextUrl.searchParams.get("branchId") || undefined;
+
     const [students, records] = await Promise.all([
       prisma.student.findMany({
-        where: { institutionId: session.institutionId },
+        where: { institutionId: session.institutionId, branchId, isActive: true },
         select: { id: true, firstName: true, lastName: true, branch: { select: { name: true } } },
+        orderBy: [{ firstName: "asc" }],
       }),
       prisma.attendanceRecord.findMany({
-        where: { date: today(), student: { institutionId: session.institutionId } },
+        where: { date, student: { institutionId: session.institutionId, branchId } },
         select: { studentId: true, status: true },
       }),
     ]);
@@ -45,21 +55,23 @@ async function handleGet() {
     return NextResponse.json({ rows });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("admin_attendance_today_failed", { error: error instanceof Error ? error.message : String(error) });
+    logger.error("admin_attendance_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }
 }
 
-// POST /api/admin/attendance-today — yönetici tek bir öğrencinin bugünkü
-// durumunu doğrudan düzeltir (öğretmenin sınıf-geneli Yoklama gönderimiyle
-// aynı AttendanceRecord satırı üzerinde çalışır).
+// POST /api/admin/attendance — yönetici tek bir öğrencinin belirli bir
+// GÜNKÜ (varsayılan: bugün) durumunu doğrudan düzeltir — geçmiş bir günü
+// görüntülerken de kullanılabilir (retroaktif düzeltme). Öğretmenin
+// sınıf-geneli Yoklama gönderimiyle aynı AttendanceRecord satırı üzerinde
+// çalışır.
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
 
     const body = await request.json();
-    const { studentId, status } = body as { studentId?: string; status?: string };
+    const { studentId, status, date: dateParam } = body as { studentId?: string; status?: string; date?: string };
     if (!studentId || !status || !(status in TO_UPPER)) {
       return NextResponse.json({ error: "studentId ve geçerli bir status ('present'|'absent'|'late') zorunludur." }, { status: 400 });
     }
@@ -67,7 +79,7 @@ async function handlePost(request: NextRequest) {
     if (!student || student.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
     }
-    const date = today();
+    const date = parseDateParam(dateParam ?? null);
     await prisma.attendanceRecord.upsert({
       where: { studentId_date: { studentId, date } },
       update: { status: TO_UPPER[status] },
@@ -76,10 +88,10 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("admin_attendance_today_update_failed", { error: error instanceof Error ? error.message : String(error) });
+    logger.error("admin_attendance_update_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
   }
 }
 
-export const GET = withApiLogging("GET /api/admin/attendance-today", handleGet);
-export const POST = withApiLogging("POST /api/admin/attendance-today", handlePost);
+export const GET = withApiLogging("GET /api/admin/attendance", handleGet);
+export const POST = withApiLogging("POST /api/admin/attendance", handlePost);

@@ -65,7 +65,7 @@ const TABS = [
   { id: "exam-seating", label: "Kelebek Sınav Oturma Planı", icon: Shuffle, Component: ExamSeatingTab, side: "left" },
   { id: "live-tutoring", label: "Canlı Birebir Etüt & Randevu", icon: Radio, Component: LiveTutoringTab, side: "left" },
   { id: "guidance-program", label: "Rehberlik & A4 Program Yapıcı", icon: NotebookPen, Component: GuidanceProgramTab, side: "left" },
-  { id: "attendance", label: "Günlük Yoklama & Devamsızlık", icon: ClipboardCheck, Component: AttendanceCommandTab, side: "left" },
+  { id: "attendance", label: "Yoklama Takibi & Devamsızlık", icon: ClipboardCheck, Component: AttendanceCommandTab, side: "left" },
   { id: "teachers", label: "Öğretmen Performansı", icon: UserCog, Component: TeacherPerformanceTab, side: "left" },
   { id: "preference-robot", label: "YKS / LGS Tercih Robotu", icon: Wand2, Component: PreferenceRobotTab, side: "right" },
   { id: "schedule-matrix", label: "Çakışmasız Ders Programı", icon: Table2, Component: ScheduleMatrixTab, side: "right" },
