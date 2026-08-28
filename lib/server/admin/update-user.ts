@@ -313,3 +313,57 @@ export async function reactivateUserAccount(input: {
   });
   return { name: `${existing.firstName} ${existing.lastName}` };
 }
+
+// ⚠️ GERÇEK, GERİ ALINAMAZ silme — deactivateUserAccount'un aksine. Kayıt
+// ve TÜM bağlı verisi (not, devamsızlık, ödev, sınav sonucu, rehberlik
+// notu vb. — bkz. prisma/schema.prisma > Student/Teacher üzerindeki
+// onDelete: Cascade tanımları) veritabanından fiziksel olarak kalkar.
+// Danışmanlık gibi kimliği KORUNMASI gereken bağlar (Branch.advisorId,
+// Student.advisorTeacherId) Cascade DEĞİL SetNull'dür — bir öğretmen
+// tamamen silinince danışmanı olduğu şube/öğrenciler silinmez, sadece
+// danışmansız kalır. Silinen kaydın kimliği (ad, T.C. No) SADECE audit
+// log'a — kaydın kendisine değil — bir kerelik iz olarak yazılır.
+export async function deleteUserAccountPermanently(input: {
+  id: string;
+  role: "STUDENT" | "TEACHER";
+  institutionId: string;
+  actorId: string;
+}): Promise<{ name: string }> {
+  if (input.role === "STUDENT") {
+    const existing = await prisma.student.findUnique({
+      where: { id: input.id },
+      select: { institutionId: true, firstName: true, lastName: true, nationalId: true, studentNumber: true },
+    });
+    if (!existing || existing.institutionId !== input.institutionId) throw new AdminCreateError("Öğrenci bulunamadı.", 404);
+
+    await prisma.student.delete({ where: { id: input.id } });
+    await recordAuditLog({
+      institutionId: input.institutionId,
+      actorId: input.actorId,
+      actorRole: "ADMIN",
+      action: "USER_DELETED_PERMANENTLY",
+      targetType: "Student",
+      targetId: input.id,
+      metadata: { name: `${existing.firstName} ${existing.lastName}`, nationalId: existing.nationalId, studentNumber: existing.studentNumber },
+    });
+    return { name: `${existing.firstName} ${existing.lastName}` };
+  }
+
+  const existing = await prisma.teacher.findUnique({
+    where: { id: input.id },
+    select: { institutionId: true, firstName: true, lastName: true, nationalId: true, institutionalCode: true },
+  });
+  if (!existing || existing.institutionId !== input.institutionId) throw new AdminCreateError("Öğretmen bulunamadı.", 404);
+
+  await prisma.teacher.delete({ where: { id: input.id } });
+  await recordAuditLog({
+    institutionId: input.institutionId,
+    actorId: input.actorId,
+    actorRole: "ADMIN",
+    action: "USER_DELETED_PERMANENTLY",
+    targetType: "Teacher",
+    targetId: input.id,
+    metadata: { name: `${existing.firstName} ${existing.lastName}`, nationalId: existing.nationalId, institutionalCode: existing.institutionalCode },
+  });
+  return { name: `${existing.firstName} ${existing.lastName}` };
+}

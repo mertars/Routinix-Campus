@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, memo } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil, UserX, UserCheck } from "lucide-react";
+import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil, UserX, UserCheck, Trash2 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import { AddUserModal } from "@/components/principal/user-management/add-user-modal";
@@ -12,6 +12,7 @@ import { EditUserModal, type EditTarget } from "@/components/principal/user-mana
 import { CredentialsCardModal, type NewUserCredentials } from "@/components/principal/user-management/credentials-card-modal";
 import { PerformanceInspectorModal } from "@/components/principal/user-management/performance-inspector-modal";
 import { DeactivateConfirmModal, type DeactivateTarget } from "@/components/principal/user-management/deactivate-confirm-modal";
+import { PermanentDeleteConfirmModal, type PermanentDeleteTarget } from "@/components/principal/user-management/permanent-delete-confirm-modal";
 import { cn } from "@/lib/utils";
 
 type BranchOption = { id: string; name: string };
@@ -39,11 +40,13 @@ const StudentRowCard = memo(function StudentRowCard({
   onInspect,
   onEdit,
   onDeactivate,
+  onDelete,
 }: {
   student: StudentRow;
   onInspect: (id: string, role: DirectoryRole, name: string) => void;
   onEdit: (id: string, role: DirectoryRole, name: string) => void;
   onDeactivate: (id: string, role: DirectoryRole, name: string, isActive: boolean) => void;
+  onDelete: (id: string, role: DirectoryRole, name: string) => void;
 }) {
   const fullName = `${student.firstName} ${student.lastName}`;
   return (
@@ -85,6 +88,13 @@ const StudentRowCard = memo(function StudentRowCard({
       >
         {student.isActive ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
       </button>
+      <button
+        onClick={() => onDelete(student.id, "STUDENT", fullName)}
+        aria-label="Öğrenciyi kalıcı olarak sil"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-red-700 dark:text-cream/40 dark:hover:bg-white/10"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
     </motion.div>
   );
 });
@@ -94,11 +104,13 @@ const TeacherRowCard = memo(function TeacherRowCard({
   onInspect,
   onEdit,
   onDeactivate,
+  onDelete,
 }: {
   teacher: TeacherRow;
   onInspect: (id: string, role: DirectoryRole, name: string) => void;
   onEdit: (id: string, role: DirectoryRole, name: string) => void;
   onDeactivate: (id: string, role: DirectoryRole, name: string, isActive: boolean) => void;
+  onDelete: (id: string, role: DirectoryRole, name: string) => void;
 }) {
   const fullName = `${teacher.firstName} ${teacher.lastName}`;
   return (
@@ -143,6 +155,13 @@ const TeacherRowCard = memo(function TeacherRowCard({
       >
         {teacher.isActive ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
       </button>
+      <button
+        onClick={() => onDelete(teacher.id, "TEACHER", fullName)}
+        aria-label="Öğretmeni kalıcı olarak sil"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-red-700 dark:text-cream/40 dark:hover:bg-white/10"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
     </motion.div>
   );
 });
@@ -165,6 +184,7 @@ export function BranchStaffTab() {
   const [inspectorTarget, setInspectorTarget] = useState<{ id: string; role: DirectoryRole; name: string } | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<DeactivateTarget>(null);
+  const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<PermanentDeleteTarget>(null);
 
   // Sabit referanslar — StudentRowCard/TeacherRowCard'ın React.memo'su
   // ancak bu callback'ler HER render'da "yeni" fonksiyon olmazsa işe yarar.
@@ -174,6 +194,7 @@ export function BranchStaffTab() {
     (id: string, role: DirectoryRole, name: string, isActive: boolean) => setDeactivateTarget({ id, role, name, isActive }),
     []
   );
+  const handleDelete = useCallback((id: string, role: DirectoryRole, name: string) => setPermanentDeleteTarget({ id, role, name }), []);
 
   async function loadDirectory() {
     setLoading(true);
@@ -299,8 +320,12 @@ export function BranchStaffTab() {
         <div className="grid gap-2 sm:grid-cols-2">
           <AnimatePresence mode="popLayout">
             {role === "STUDENT"
-              ? students.map((s) => <StudentRowCard key={s.id} student={s} onInspect={handleInspect} onEdit={handleEdit} onDeactivate={handleDeactivate} />)
-              : teachers.map((t) => <TeacherRowCard key={t.id} teacher={t} onInspect={handleInspect} onEdit={handleEdit} onDeactivate={handleDeactivate} />)}
+              ? students.map((s) => (
+                  <StudentRowCard key={s.id} student={s} onInspect={handleInspect} onEdit={handleEdit} onDeactivate={handleDeactivate} onDelete={handleDelete} />
+                ))
+              : teachers.map((t) => (
+                  <TeacherRowCard key={t.id} teacher={t} onInspect={handleInspect} onEdit={handleEdit} onDeactivate={handleDeactivate} onDelete={handleDelete} />
+                ))}
           </AnimatePresence>
           {!loading && totalCount === 0 && (
             <p className="col-span-full flex items-center gap-1.5 py-6 text-center text-xs text-espresso-muted dark:text-cream/40">
@@ -334,6 +359,7 @@ export function BranchStaffTab() {
         onPasswordReset={setCredentials}
       />
       <DeactivateConfirmModal target={deactivateTarget} onClose={() => setDeactivateTarget(null)} onChanged={loadDirectory} />
+      <PermanentDeleteConfirmModal target={permanentDeleteTarget} onClose={() => setPermanentDeleteTarget(null)} onDeleted={loadDirectory} />
       <BulkImportWizard
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}

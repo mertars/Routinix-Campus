@@ -126,7 +126,9 @@ model Branch {
   institutionalCode     String? // "RTX-IST01" — karne/QR gibi insan-okur yüzeylerde kullanılan kısa kod, kurum içinde benzersiz
   track                 String? // Alan/Dal: Sayısal, Eşit Ağırlık, Sözel, TM vb.
   advisorId             String?
-  advisor               Teacher?               @relation("BranchAdvisor", fields: [advisorId], references: [id])
+  // SetNull (Cascade DEĞİL) — bir öğretmen tamamen silinince o şubenin
+  // danışmansız kalması gerekir, ŞUBENİN KENDİSİ asla silinmemeli.
+  advisor               Teacher?               @relation("BranchAdvisor", fields: [advisorId], references: [id], onDelete: SetNull)
   // Danışman (advisor) TEK öğretmendir; bir şubede birden fazla branş
   // öğretmeni ders verebilir — bu çoka-çok ilişki o gerçek "kim nerede ders
   // veriyor" bilgisini taşır (öğretmen panelindeki assignedBranches kapsamı,
@@ -167,7 +169,9 @@ model Student {
   branch              Branch               @relation(fields: [branchId], references: [id])
   track               String? // Alan/Dal (şube varsayılanını ezmek gerekirse)
   advisorTeacherId    String? // Danışman ID
-  advisorTeacher      Teacher?             @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id])
+  // SetNull (Cascade DEĞİL) — bir öğretmen tamamen silinince danışmanı
+  // olduğu ÖĞRENCİ asla silinmemeli, sadece danışmansız kalır.
+  advisorTeacher      Teacher?             @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id], onDelete: SetNull)
   transportMethod     TransportMethod?
   residenceAddress    String?
   email               String?
@@ -245,7 +249,7 @@ model ParentStudent {
   parentId  String
   parent    Parent  @relation(fields: [parentId], references: [id])
   studentId String
-  student   Student @relation(fields: [studentId], references: [id])
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([parentId, studentId])
 }
@@ -358,7 +362,7 @@ model ExamNetResult {
   examId    String
   exam      Exam     @relation(fields: [examId], references: [id])
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject   String // "Matematik"
   net       Float
   createdAt DateTime @default(now())
@@ -370,7 +374,7 @@ model ExamNetResult {
 model AttendanceRecord {
   id        String   @id @default(cuid())
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   date      DateTime
   status    String // PRESENT | ABSENT | LATE
   createdAt DateTime @default(now())
@@ -385,7 +389,7 @@ model AttendanceRecord {
 model AttendanceSubmission {
   id          String   @id @default(cuid())
   teacherId   String
-  teacher     Teacher  @relation(fields: [teacherId], references: [id])
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   branchId    String
   branch      Branch   @relation(fields: [branchId], references: [id])
   date        DateTime
@@ -470,9 +474,12 @@ enum QuestionStatus {
 model Question {
   id          String         @id @default(cuid())
   studentId   String
-  student     Student        @relation(fields: [studentId], references: [id])
+  student     Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacherId   String
-  teacher     Teacher        @relation(fields: [teacherId], references: [id])
+  // ⚠️ Cascade — Question.teacherId NOT NULL olduğundan SetNull mümkün
+  // değil; öğretmen tamamen silindiğinde ona yöneltilmiş sorular da gider
+  // (bkz. "tamamen sil" özelliğinin genel gerekçesi, Student için de aynı).
+  teacher     Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   subject     String // Ders/Branş adı — öğretmenin branşından bağımsız olarak öğrencinin seçtiği ders
   imageUrl    String // Yüklenen soru fotoğrafının yolu (bkz. lib/server/uploads)
   studentNote String? // "3. adımı anlamadım" vb.
@@ -501,7 +508,7 @@ enum HomeworkStatus {
 model Homework {
   id                  String               @id @default(cuid())
   teacherId           String
-  teacher             Teacher              @relation(fields: [teacherId], references: [id])
+  teacher             Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   branchIds           String[] // aynı ödev birden fazla şubeye atanabilir
   title               String
   description         String?
@@ -519,9 +526,9 @@ model Homework {
 model HomeworkSubmission {
   id         String         @id @default(cuid())
   homeworkId String
-  homework   Homework       @relation(fields: [homeworkId], references: [id])
+  homework   Homework       @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
   studentId  String
-  student    Student        @relation(fields: [studentId], references: [id])
+  student    Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   status     HomeworkStatus @default(NOT_DONE)
   updatedAt  DateTime       @updatedAt
 
@@ -541,7 +548,7 @@ enum QuizStage {
 model Quiz {
   id              String           @id @default(cuid())
   teacherId       String
-  teacher         Teacher          @relation(fields: [teacherId], references: [id])
+  teacher         Teacher          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   branchId        String
   branch          Branch           @relation(fields: [branchId], references: [id])
   name            String
@@ -559,7 +566,7 @@ model Quiz {
 model QuizQuestion {
   id         String @id @default(cuid())
   quizId     String
-  quiz       Quiz   @relation(fields: [quizId], references: [id])
+  quiz       Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
   imageLabel String
   answer     String
   position   Int
@@ -568,9 +575,9 @@ model QuizQuestion {
 model QuizSubmission {
   id          String   @id @default(cuid())
   quizId      String
-  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
   studentId   String
-  student     Student  @relation(fields: [studentId], references: [id])
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   correct     Int
   wrong       Int
   submittedAt DateTime @default(now())
@@ -583,7 +590,7 @@ model QuizSubmission {
 model QuizBankQuestion {
   id         String   @id @default(cuid())
   teacherId  String
-  teacher    Teacher  @relation(fields: [teacherId], references: [id])
+  teacher    Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   imageLabel String
   answer     String
   addedAt    DateTime @default(now())
@@ -602,7 +609,7 @@ model QuizBankQuestion {
 model TeacherUnavailability {
   id        String  @id @default(cuid())
   teacherId String
-  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   day       String // "Pazartesi".."Cuma"
   slot      String // "16:00-17:00" vb.
 
@@ -618,9 +625,9 @@ enum AppointmentStatus {
 model AppointmentRequest {
   id          String            @id @default(cuid())
   studentId   String
-  student     Student           @relation(fields: [studentId], references: [id])
+  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
   teacherId   String
-  teacher     Teacher           @relation(fields: [teacherId], references: [id])
+  teacher     Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   topic       String
   day         String
   slot        String
@@ -654,7 +661,7 @@ enum ConfidentialityLevel {
 model GuidanceNote {
   id                   String               @id @default(cuid())
   studentId            String
-  student              Student              @relation(fields: [studentId], references: [id])
+  student              Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
   authorName           String
   category             GuidanceCategory     @default(ACADEMIC)
   confidentialityLevel ConfidentialityLevel @default(RESTRICTED)
@@ -705,7 +712,7 @@ model AnnouncementRead {
   announcementId String
   announcement   Announcement @relation(fields: [announcementId], references: [id])
   studentId      String
-  student        Student      @relation(fields: [studentId], references: [id])
+  student        Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   readAt         DateTime     @default(now())
 
   @@unique([announcementId, studentId])
@@ -718,7 +725,7 @@ model AnnouncementRead {
 model ReportCard {
   id          String   @id @default(cuid())
   studentId   String
-  student     Student  @relation(fields: [studentId], references: [id])
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   periodLabel String // "2025-2026 1. Dönem"
   generatedAt DateTime @default(now())
 
@@ -732,7 +739,7 @@ model ReportCard {
 model ClassbookNote {
   id        String   @id @default(cuid())
   teacherId String
-  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   branchId  String
   branch    Branch   @relation(fields: [branchId], references: [id])
   note      String
@@ -744,7 +751,7 @@ model ClassbookNote {
 model YearlyPlanRow {
   id           String   @id @default(cuid())
   teacherId    String
-  teacher      Teacher  @relation(fields: [teacherId], references: [id])
+  teacher      Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   weekLabel    String
   subtopicName String
   notes        String?
@@ -791,7 +798,7 @@ model SeatingArrangement {
 model TeacherMaterial {
   id        String   @id @default(cuid())
   teacherId String
-  teacher   Teacher  @relation(fields: [teacherId], references: [id])
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   branchId  String
   branch    Branch   @relation(fields: [branchId], references: [id])
   title     String
@@ -814,7 +821,7 @@ model ExamSeatAssignment {
   examId     String
   exam       Exam     @relation(fields: [examId], references: [id])
   studentId  String
-  student    Student  @relation(fields: [studentId], references: [id])
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   hall       String
   seatNumber Int
   rowNum     Int
@@ -834,7 +841,7 @@ model ExamSeatAssignment {
 model StudentPreference {
   id        String   @id @default(cuid())
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   programId String // UNIVERSITY_PROGRAMS içindeki program.id
   position  Int
   createdAt DateTime @default(now())
@@ -855,7 +862,7 @@ model LessonSlot {
   branchId  String
   branch    Branch  @relation(fields: [branchId], references: [id])
   teacherId String
-  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   subject   String
   day       String // "Pazartesi".."Cuma"
   slot      String // "16:00-17:00" vb.
@@ -867,7 +874,7 @@ model LessonSlot {
 model TeacherDutySlot {
   id        String  @id @default(cuid())
   teacherId String
-  teacher   Teacher @relation(fields: [teacherId], references: [id])
+  teacher   Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   day       String
   slot      String
   label     String
@@ -883,7 +890,7 @@ model TeacherDutySlot {
 model GuidanceProgram {
   id        String                 @id @default(cuid())
   studentId String
-  student   Student                @relation(fields: [studentId], references: [id])
+  student   Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
   weekLabel String
   createdAt DateTime               @default(now())
   entries   GuidanceProgramEntry[]
@@ -894,7 +901,7 @@ model GuidanceProgram {
 model GuidanceProgramEntry {
   id             String          @id @default(cuid())
   programId      String
-  program        GuidanceProgram @relation(fields: [programId], references: [id])
+  program        GuidanceProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
   day            String
   time           String
   subject        String
@@ -909,7 +916,7 @@ model GuidanceProgramEntry {
 model RemediationTask {
   id              String   @id @default(cuid())
   studentId       String
-  student         Student  @relation(fields: [studentId], references: [id])
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   topic           String
   taskDescription String
   assignedAt      DateTime @default(now())
@@ -932,6 +939,7 @@ enum AuditAction {
   BRANCH_CREATED
   PASSWORD_RESET_BY_ADMIN
   USER_DEACTIVATED
+  USER_DELETED_PERMANENTLY
 }
 
 model AuditLog {
