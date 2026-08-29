@@ -278,11 +278,31 @@ export const EXAM_HALLS = ["A Blok - 204 Nolu Salon", "B Blok - 108 Nolu Salon"]
 
 export type SeatRosterStudent = { id: string; name: string };
 
+// "${branchName} Öğrencisi ${i}" gibi placeholder isimler canlı tanıtım/demo
+// ekranlarında boş/sahte görünüyordu — INITIAL_STUDENT_REPORTS'ta adı
+// geçmeyen tüm doldurma koltukları artık bu gerçekçi Türkçe isim
+// havuzundan (tekrarsız, tüm roster'lar genelinde SIRAYLA tüketilen) bir
+// ad alır. Havuz INITIAL_BRANCHES'teki toplam koltuk sayısından (98) fazla
+// tutulur ki yeni bir şube eklenirse de isim tükenmesin.
+const FILLER_MALE_FIRST_NAMES = ["Mehmet", "Mustafa", "Ahmet", "Ali", "Hüseyin", "Hasan", "İbrahim", "Yusuf", "Emre", "Burak", "Onur", "Kaan", "Berkay", "Efe", "Kerem", "Arda", "Deniz", "Barış", "Kağan", "Tolga", "Serkan", "Gökhan", "Uğur", "Volkan", "Murat", "Tarık", "Ozan", "Enes", "Furkan", "Yiğit", "Baran", "Eren", "Alp", "Metehan", "Doruk", "Bora", "Salih", "Halil", "Recep", "Çınar"];
+const FILLER_FEMALE_FIRST_NAMES = ["Ayşe", "Fatma", "Emine", "Hatice", "Elif", "Merve", "Büşra", "Esra", "Ceren", "Gizem", "İrem", "Melis", "Aslı", "Nazlı", "Ece", "Dilara", "Sude", "Beyza", "Yasemin", "Pınar", "Seda", "Buse", "Duygu", "Tuğçe", "Bahar", "Gamze", "Nisa", "Aylin", "Damla", "Öykü", "Sıla", "Rüya", "Cansu", "Betül", "Nil", "Hilal", "Nehir", "Yağmur", "Defne", "İpek"];
+const FILLER_LAST_NAMES = ["Yılmaz", "Kaya", "Demir", "Şahin", "Çelik", "Yıldız", "Öztürk", "Aydın", "Özdemir", "Doğan", "Kılıç", "Aslan", "Çetin", "Kara", "Koç", "Kurt", "Özkan", "Şimşek", "Polat", "Korkmaz", "Bulut", "Aksoy", "Erdoğan", "Güneş", "Acar", "Yalçın", "Avcı", "Coşkun", "Tekin", "Ünal", "Kaplan", "Bozkurt", "Tunç", "Ateş", "Sarı", "Uçar", "Ekinci", "Karaca", "Aktaş", "Genç"];
+
+function fillerName(globalIndex: number): string {
+  const isMale = globalIndex % 2 === 0;
+  const first = isMale
+    ? FILLER_MALE_FIRST_NAMES[(globalIndex / 2) % FILLER_MALE_FIRST_NAMES.length]
+    : FILLER_FEMALE_FIRST_NAMES[((globalIndex - 1) / 2) % FILLER_FEMALE_FIRST_NAMES.length];
+  const last = FILLER_LAST_NAMES[globalIndex % FILLER_LAST_NAMES.length];
+  return `${first} ${last}`;
+}
+
+let fillerCursor = 0;
 function buildRoster(branchId: string, branchName: string, count: number): SeatRosterStudent[] {
   const knownStudents = INITIAL_STUDENT_REPORTS.filter((student) => student.branch === branchName);
   const roster: SeatRosterStudent[] = knownStudents.map((student) => ({ id: student.id, name: student.name }));
   for (let i = roster.length; i < count; i++) {
-    roster.push({ id: `${branchId}-${i + 1}`, name: `${branchName} Öğrencisi ${i + 1}` });
+    roster.push({ id: `${branchId}-${i + 1}`, name: fillerName(fillerCursor++) });
   }
   return roster;
 }

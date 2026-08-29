@@ -124,6 +124,10 @@ export function PopQuizTab() {
   const [currentQuiz, setCurrentQuiz] = useState<QuizDetail | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
 
+  useEffect(() => {
+    if (assignedBranches.length > 0 && !branchId) setBranchId(assignedBranches[0].id);
+  }, [assignedBranches, branchId]);
+
   const branch = assignedBranches.find((b) => b.id === branchId);
   const canLaunch = quizName.trim().length > 0 && questions.length >= 5 && questions.every((q) => q.answer.trim());
 

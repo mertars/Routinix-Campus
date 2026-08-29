@@ -145,7 +145,10 @@ export function LiveAttendanceTab() {
   const lesson = useCurrentLesson(mySchedule);
   const { showError, showSuccess } = useToast();
   const suggestedBranchId = assignedBranches.find((b) => b.name === lesson.branchName)?.id ?? assignedBranches[0]?.id ?? "";
-  const [selectedBranchId, setSelectedBranchId] = useState(suggestedBranchId);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  useEffect(() => {
+    setSelectedBranchId((current) => current || suggestedBranchId);
+  }, [suggestedBranchId]);
   const [roster, setRoster] = useState<RosterStudent[]>([]);
   const [statuses, setStatuses] = useState<Record<string, AttendanceStatus | "unmarked">>({});
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
