@@ -24,11 +24,19 @@ describe("ROLE_ID_BY_AUTH_ROLE", () => {
     expect(ROLE_ID_BY_AUTH_ROLE.ADMIN).toBe("principal");
   });
 
-  it("her role için REDIRECT_BY_AUTH_ROLE de tanımlıdır ve /rolId ile başlar", () => {
+  it("her role için REDIRECT_BY_AUTH_ROLE tanımlıdır", () => {
     for (const role of ALL_ROLES) {
-      const roleId = ROLE_ID_BY_AUTH_ROLE[role];
-      expect(REDIRECT_BY_AUTH_ROLE[role]).toBe(`/${roleId}`);
+      expect(REDIRECT_BY_AUTH_ROLE[role]).toBeDefined();
     }
+  });
+
+  // Kampüs V2: Yönetici/Öğretmen artık doğrudan kendi paneline değil,
+  // ÖNCE 3'lü modül seçim ekranına (Launcher/Hub) düşer.
+  it("ADMIN ve TEACHER /hub'a yönlenir (henüz tek modülleri olan STUDENT/PARENT ise kendi panellerine)", () => {
+    expect(REDIRECT_BY_AUTH_ROLE.ADMIN).toBe("/hub");
+    expect(REDIRECT_BY_AUTH_ROLE.TEACHER).toBe("/hub");
+    expect(REDIRECT_BY_AUTH_ROLE.STUDENT).toBe("/student");
+    expect(REDIRECT_BY_AUTH_ROLE.PARENT).toBe("/parent");
   });
 });
 

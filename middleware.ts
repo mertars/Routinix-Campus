@@ -73,6 +73,34 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  // /hub — Kampüs V2 modül seçim ekranı (Launcher). ROUTE_ROLE'deki diğer
+  // rotaların aksine TEK bir role değil, İKİ role (principal + teacher)
+  // açık olduğu için genel prefix->role eşlemesine sığmıyor, burada ayrı
+  // ele alınır. Öğrenci/Veli oturumuyla gelinirse (henüz tek modülleri
+  // olduğu için) kendi paneline değil, rol seçim ekranına döner — panel
+  // rotalarındaki "yanlış role" davranışıyla tutarlı.
+  if (pathname === "/hub" || pathname.startsWith("/hub/")) {
+    const token = request.cookies.get(SESSION_COOKIE)?.value;
+    const session = token ? await verifySessionToken(token) : null;
+    const roleId = session ? ROLE_ID_BY_AUTH_ROLE[session.role] : null;
+    if (roleId === "principal" || roleId === "teacher") {
+      const response = NextResponse.next({ request: { headers: requestHeaders } });
+      response.headers.set("Content-Security-Policy", cspHeader);
+      return response;
+    }
+    const url = request.nextUrl.clone();
+    if (!session) {
+      url.pathname = "/login";
+      url.search = "";
+    } else {
+      url.pathname = "/";
+      url.search = "?denied=hub";
+    }
+    const response = NextResponse.redirect(url);
+    response.headers.set("Content-Security-Policy", cspHeader);
+    return response;
+  }
+
   const matchedPrefix = Object.keys(ROUTE_ROLE).find((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
   if (!matchedPrefix) {

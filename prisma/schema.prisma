@@ -99,24 +99,48 @@ model PlatformOwner {
 }
 
 model Institution {
-  id                  String                   @id @default(cuid())
-  name                String
-  slug                String                   @unique
-  isActive            Boolean                  @default(true)
-  branches            Branch[]
-  students            Student[]
-  teachers            Teacher[]
-  admins              Admin[]
-  parents             Parent[]
-  exams               Exam[]
-  announcements       Announcement[]
-  notificationBatches NotificationBatch[]
-  auditLogs           AuditLog[]
-  classrooms          Classroom[]
-  scheduleSlots       ScheduleSlotDefinition[]
-  etutSetting         EtutSetting?
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @updatedAt
+  id                      String                   @id @default(cuid())
+  name                    String
+  slug                    String                   @unique
+  isActive                Boolean                  @default(true)
+  // Kampüs V2 — çoklu modül (K12/ERP, Röntgen, Ölçme) platformuna geçiş:
+  // kurumun kendi logosu (karne/PDF/üst bar gibi markalı yüzeylerde), SMS
+  // gönderim kredisi bakiyesi ve kurumun kendi SMS sağlayıcı anahtarı
+  // (dolarsa lib/server/sms/provider-factory.ts platform varsayılanı yerine
+  // bunu kullanabilir — bkz. FAZ sonrası entegrasyon).
+  logoUrl                 String?
+  smsCredits              Int                      @default(0)
+  smsProviderKey          String?
+  branches                Branch[]
+  students                Student[]
+  teachers                Teacher[]
+  admins                  Admin[]
+  parents                 Parent[]
+  exams                   Exam[]
+  announcements           Announcement[]
+  notificationBatches     NotificationBatch[]
+  auditLogs               AuditLog[]
+  classrooms              Classroom[]
+  scheduleSlots           ScheduleSlotDefinition[]
+  etutSetting             EtutSetting?
+  settings                InstitutionSettings?
+  institutionSmsTemplates InstitutionSmsTemplate[]
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+}
+
+// Kurum geneli, tek-satırlık genel ayarlar — EtutSetting'in (sadece etüt
+// süresi) YANINDA, ileride birikecek diğer genel bayraklar için TEK bir yer.
+// isEtutAdminManaged: true iken etüt saatlerini SADECE yönetici belirler
+// (öğretmen kendi TeacherEtutAvailability'sini giremez); false iken
+// öğretmenler kendi müsaitliklerini kendileri yönetir (bkz. Kampüs V2 >
+// Birebir Etüt modülü, ileriki bir PART'ta uygulanacak).
+model InstitutionSettings {
+  id                 String      @id @default(cuid())
+  institutionId      String      @unique
+  institution        Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  isEtutAdminManaged Boolean     @default(true)
+  updatedAt          DateTime    @updatedAt
 }
 
 model Branch {
@@ -212,6 +236,7 @@ model Student {
   quizSubmissions           QuizSubmission[]
   appointmentRequests       AppointmentRequest[]
   guidanceNotes             GuidanceNote[]
+  guidanceReferrals         GuidanceReferral[]
   announcementReads         AnnouncementRead[]
   seatAssignments           ExamSeatAssignment[]
   preferences               StudentPreference[]
@@ -306,6 +331,7 @@ model Teacher {
   lessonSlots           LessonSlot[]
   dutySlots             TeacherDutySlot[]
   reportCardComments    ReportCardTeacherComment[]
+  guidanceReferrals     GuidanceReferral[]
   createdAt             DateTime                   @default(now())
   updatedAt             DateTime                   @updatedAt
 
@@ -444,6 +470,25 @@ model SmsTemplate {
   batches   NotificationBatch[]
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
+}
+
+// ⚠️ İSİMLENDİRME NOTU: Kampüs V2 isteğinde "SmsTemplate" adıyla istenen
+// model — YUKARIDAKİ SmsTemplate zaten dolu ve FARKLI bir amaca hizmet
+// ediyor (key bazlı, TÜM kurumlar arasında paylaşılan, NotificationBatch'e
+// bağlı sabit sistem şablonları — "devamsizlik_bildirimi" gibi). İstenen
+// alan kümesi (institutionId, title, content) ise kurumun KENDİ serbest
+// metin SMS şablonlarını tutuyor; bu yüzden ayrı bir model olarak
+// InstitutionSmsTemplate adıyla eklendi — mevcut sistem şablonlarıyla
+// KARIŞTIRILMAMALI, henüz hiçbir API/UI bu modele bağlı değil.
+model InstitutionSmsTemplate {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  title         String
+  content       String
+  createdAt     DateTime    @default(now())
+
+  @@index([institutionId])
 }
 
 model NotificationBatch {
@@ -722,6 +767,33 @@ model GuidanceNote {
   createdAt            DateTime             @default(now())
 
   @@index([studentId])
+}
+
+enum GuidanceReferralStatus {
+  PENDING
+  REVIEWED
+}
+
+// Bir öğretmenin bir öğrenciyi rehberliğe SEVK ETME olayının kendisi —
+// GuidanceNote'tan (serbest metin not) BİLEREK ayrı: burada asıl bilgi
+// sabit bir "not" değil, TAKİP EDİLEBİLİR bir durumdur (PENDING/REVIEWED).
+// ⚠️ components/teacher/tabs/risk-referral.tsx'teki mevcut "Rehberliğe Sevk
+// Et" butonu HENÜZ bu modele değil, sabit metinli bir GuidanceNote'a
+// yazıyor — bu model sadece şema düzeyinde eklendi, o akışın buraya
+// taşınması (ve rehberlik tarafında PENDING/REVIEWED kuyruğu göstermesi)
+// ayrı bir PART'ta yapılacak.
+model GuidanceReferral {
+  id        String                 @id @default(cuid())
+  studentId String
+  student   Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId String
+  teacher   Teacher                @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  reason    String
+  status    GuidanceReferralStatus @default(PENDING)
+  createdAt DateTime               @default(now())
+
+  @@index([studentId])
+  @@index([teacherId])
 }
 
 // ----------------------------------------------------------------------------

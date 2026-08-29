@@ -39,10 +39,14 @@ export const ROLE_ID_BY_AUTH_ROLE: Record<AuthRole, RoleId> = {
   PARENT: "parent",
 };
 
+// Kampüs V2 — Yönetici/Öğretmen artık doğrudan panele değil, ÖNCE 3'lü
+// modül seçim ekranına (Launcher/Hub) düşer; "Kampüs ERP" kartı oradan
+// /principal veya /teacher'a yönlendirir (bkz. app/hub/page.tsx). Öğrenci/
+// Veli için davranış DEĞİŞMEDİ — henüz tek modülleri var.
 export const REDIRECT_BY_AUTH_ROLE: Record<AuthRole, string> = {
   STUDENT: "/student",
-  TEACHER: "/teacher",
-  ADMIN: "/principal",
+  TEACHER: "/hub",
+  ADMIN: "/hub",
   PARENT: "/parent",
 };
 
