@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { getTrDayNameForDate } from "@/lib/schedule-time";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+
+export const dynamic = "force-dynamic";
 
 function parseDateOnly(value: string): Date {
   const date = new Date(value);
@@ -10,9 +13,14 @@ function parseDateOnly(value: string): Date {
   return date;
 }
 
-// POST /api/attendance — öğretmen bir şube+tarih için tüm sınıfın yoklamasını
-// tek seferde kaydeder. Body: { teacherId, branchId, date (YYYY-MM-DD),
-// records: [{ studentId, status: "PRESENT"|"ABSENT"|"LATE" }] }
+// POST /api/attendance — öğretmen bir şube+tarih+DERS SAATİ için tüm sınıfın
+// yoklamasını tek seferde kaydeder. Body: { teacherId, branchId, date
+// (YYYY-MM-DD), slot ("HH:MM-HH:MM"), records: [{ studentId, status }] }
+// Part 4: bir satır artık bir GÜNÜ değil bir DERSİ temsil eder (bkz.
+// AttendanceRecord şema notu) — bu yüzden slot artık zorunlu ve LessonSlot'a
+// karşı doğrulanıyor (öğretmen kendi programında OLMAYAN bir slot için
+// yoklama giremez; subject de client'ın gönderdiği serbest metin yerine
+// buradan alınır — tek gerçek kaynak ders programıdır).
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
@@ -20,14 +28,15 @@ async function handlePost(request: NextRequest) {
     const teacherId = session.sub;
 
     const body = await request.json();
-    const { branchId, date, records } = body as {
+    const { branchId, date, slot, records } = body as {
       branchId?: string;
       date?: string;
+      slot?: string;
       records?: { studentId: string; status: string }[];
     };
 
-    if (!branchId || !date || !Array.isArray(records) || records.length === 0) {
-      return NextResponse.json({ error: "branchId, date ve records zorunludur." }, { status: 400 });
+    if (!branchId || !date || !slot || !Array.isArray(records) || records.length === 0) {
+      return NextResponse.json({ error: "branchId, date, slot ve records zorunludur." }, { status: 400 });
     }
     const validStatuses = new Set(["PRESENT", "ABSENT", "LATE"]);
     if (records.some((r) => !r.studentId || !validStatuses.has(r.status))) {
@@ -40,13 +49,23 @@ async function handlePost(request: NextRequest) {
     }
 
     const day = parseDateOnly(date);
+    const dayName = getTrDayNameForDate(day);
+    const lessonSlot = dayName
+      ? await prisma.lessonSlot.findUnique({
+          where: { branchId_day_slot: { branchId, day: dayName, slot } },
+          select: { teacherId: true, subject: true },
+        })
+      : null;
+    if (!lessonSlot || lessonSlot.teacherId !== teacherId) {
+      return NextResponse.json({ error: "Bu saatte bu şubede senin dersin görünmüyor — ders programını kontrol et." }, { status: 409 });
+    }
 
     await prisma.$transaction([
       ...records.map((record) =>
         prisma.attendanceRecord.upsert({
-          where: { studentId_date: { studentId: record.studentId, date: day } },
-          update: { status: record.status },
-          create: { studentId: record.studentId, date: day, status: record.status },
+          where: { studentId_date_slot: { studentId: record.studentId, date: day, slot } },
+          update: { status: record.status, subject: lessonSlot.subject },
+          create: { studentId: record.studentId, date: day, slot, subject: lessonSlot.subject, status: record.status },
         })
       ),
       prisma.attendanceSubmission.create({
@@ -63,9 +82,9 @@ async function handlePost(request: NextRequest) {
   }
 }
 
-// GET /api/attendance?branchId=X&date=YYYY-MM-DD — o şube+gün için mevcut
-// işaretlemeleri döner (yoklama ekranını önceden doldurmak / "bugün zaten
-// girildi mi" kontrolü için).
+// GET /api/attendance?branchId=X&date=YYYY-MM-DD&slot=HH:MM-HH:MM — o
+// şube+gün+ders saati için mevcut işaretlemeleri döner (yoklama ekranını
+// önceden doldurmak / "bu ders için zaten girildi mi" kontrolü için).
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
@@ -73,8 +92,9 @@ async function handleGet(request: NextRequest) {
 
     const branchId = request.nextUrl.searchParams.get("branchId");
     const date = request.nextUrl.searchParams.get("date");
-    if (!branchId || !date) {
-      return NextResponse.json({ error: "branchId ve date parametreleri zorunludur." }, { status: 400 });
+    const slot = request.nextUrl.searchParams.get("slot");
+    if (!branchId || !date || !slot) {
+      return NextResponse.json({ error: "branchId, date ve slot parametreleri zorunludur." }, { status: 400 });
     }
     const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { institutionId: true } });
     if (!branch || branch.institutionId !== session.institutionId) {
@@ -84,7 +104,7 @@ async function handleGet(request: NextRequest) {
     const day = parseDateOnly(date);
     const students = await prisma.student.findMany({ where: { branchId }, select: { id: true } });
     const records = await prisma.attendanceRecord.findMany({
-      where: { date: day, studentId: { in: students.map((s) => s.id) } },
+      where: { date: day, slot, studentId: { in: students.map((s) => s.id) } },
       select: { studentId: true, status: true },
     });
 

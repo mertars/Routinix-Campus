@@ -19,10 +19,9 @@ const SECURITY_HEADERS = [
 const nextConfig = {
   // Bu paketler sadece sunucu tarafında (API route'larda) kullanılıyor —
   // webpack'in bunları client bundle'a dahil etmeye çalışıp gereksiz
-  // uyarılar üretmesini (örn. handlebars'ın require.extensions kullanımı)
-  // önlemek için native Node 'require' ile yükletiyoruz.
+  // uyarılar üretmesini önlemek için native Node 'require' ile yükletiyoruz.
   experimental: {
-    serverComponentsExternalPackages: ["handlebars", "puppeteer", "@prisma/client"],
+    serverComponentsExternalPackages: ["@prisma/client"],
     // instrumentation.ts > register()'ın (env doğrulama fail-fast'i) her
     // süreç başlangıcında çalışması için gerekli (Next.js 15'te varsayılan
     // hale geldi, 14.x'te hâlâ bu flag'in açık olmasını istiyor).

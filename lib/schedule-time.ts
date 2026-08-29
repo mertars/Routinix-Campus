@@ -17,7 +17,14 @@ const JS_DAY_TO_TR: Record<number, string | null> = {
 };
 
 export function getTodayTrDayName(): string | null {
-  return JS_DAY_TO_TR[new Date().getDay()];
+  return getTrDayNameForDate(new Date());
+}
+
+// getTodayTrDayName'in KEYFİ bir tarih için genelleştirilmiş hali — Yönetici
+// Yoklama Matrisi'nde admin "bugün" DIŞINDA bir tarih seçtiğinde, o tarihin
+// hangi güne denk geldiğini bulup LessonSlot.day ile eşleştirmek için gerekir.
+export function getTrDayNameForDate(date: Date): string | null {
+  return JS_DAY_TO_TR[date.getDay()];
 }
 
 // slot her zaman "HH:MM-HH:MM" formatında olmalı (bkz.

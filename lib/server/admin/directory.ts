@@ -13,7 +13,20 @@ export async function listStudentDirectory(institutionId: string, opts: { query?
         ? [{ firstName: { contains: opts.query, mode: "insensitive" } }, { lastName: { contains: opts.query, mode: "insensitive" } }, { studentNumber: { contains: opts.query, mode: "insensitive" } }]
         : undefined,
     },
-    select: { id: true, firstName: true, lastName: true, studentNumber: true, isActive: true, branch: { select: { id: true, name: true } } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      studentNumber: true,
+      isActive: true,
+      branch: { select: { id: true, name: true } },
+      // Toplu SMS alıcı seçicisi (bkz. components/principal/tabs/bulk-sms.tsx)
+      // hangi öğrencinin velisinde SMS onayı (smsConsent) olduğunu seçim
+      // ANINDA gösterebilsin diye — /api/admin/sms/send zaten onaysız
+      // velileri sessizce atlıyor (bkz. lib/server/sms/scope-resolver.ts),
+      // bu sadece o filtrenin ÖNCEDEN görünür olmasını sağlar.
+      parents: { select: { parent: { select: { id: true, firstName: true, lastName: true, mobilePhone: true, smsConsent: true } } } },
+    },
     orderBy: [{ firstName: "asc" }],
   });
   return students.map((s) => ({
@@ -24,6 +37,12 @@ export async function listStudentDirectory(institutionId: string, opts: { query?
     isActive: s.isActive,
     branchId: s.branch.id,
     branchName: s.branch.name,
+    parents: s.parents.map((link) => ({
+      id: link.parent.id,
+      name: `${link.parent.firstName} ${link.parent.lastName}`,
+      mobilePhone: link.parent.mobilePhone,
+      smsConsent: link.parent.smsConsent,
+    })),
   }));
 }
 

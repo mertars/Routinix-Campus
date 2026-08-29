@@ -42,7 +42,7 @@ async function ensureDefaultInstitution() {
   await prisma.institution.upsert({
     where: { id: DEFAULT_INSTITUTION_ID },
     update: {},
-    create: { id: DEFAULT_INSTITUTION_ID, name: "Arslan Dershaneleri", slug: "arslan-dershaneleri", isActive: true },
+    create: { id: DEFAULT_INSTITUTION_ID, name: "Arslan Dershaneleri", slug: "arslan-dershaneleri", isActive: true, smsCredits: 1000 },
   });
 }
 
@@ -214,7 +214,12 @@ async function main() {
     }
   }
 
-  // ---- Yoklama kayıtları (Arslan) --------------------------------------
+  // ---- Yoklama kayıtları (Arslan, 12-A VIP "12a") ----------------------
+  // Part 4: bir satır artık bir GÜNÜ değil bir DERSİ temsil eder (bkz.
+  // AttendanceRecord şema notu) — slot/subject, 12-A VIP'nin gerçek
+  // seeded LessonSlot'larıyla (Pazartesi/Perşembe 16:00-17:00 Matematik,
+  // bkz. INITIAL_SCHEDULE) aynı değeri kullanır ki yeni salt-okunur
+  // Yönetici Yoklama Matrisi'nde bu geçmiş demo verisi gerçekten görünsün.
   const attendanceStatuses: { daysAgo: number; status: string }[] = [
     { daysAgo: 1, status: "PRESENT" },
     { daysAgo: 2, status: "PRESENT" },
@@ -222,14 +227,16 @@ async function main() {
     { daysAgo: 4, status: "PRESENT" },
     { daysAgo: 7, status: "ABSENT" },
   ];
+  const ATTENDANCE_SLOT = "16:00-17:00";
+  const ATTENDANCE_SUBJECT = "Matematik";
   for (const { daysAgo, status } of attendanceStatuses) {
     const date = new Date();
     date.setDate(date.getDate() - daysAgo);
     date.setHours(0, 0, 0, 0);
     await prisma.attendanceRecord.upsert({
-      where: { studentId_date: { studentId: "1", date } },
-      update: { status },
-      create: { studentId: "1", date, status },
+      where: { studentId_date_slot: { studentId: "1", date, slot: ATTENDANCE_SLOT } },
+      update: { status, subject: ATTENDANCE_SUBJECT },
+      create: { studentId: "1", date, slot: ATTENDANCE_SLOT, subject: ATTENDANCE_SUBJECT, status },
     });
   }
 

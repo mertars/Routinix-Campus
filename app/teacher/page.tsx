@@ -14,7 +14,6 @@ import {
   HelpCircle,
   Camera,
   Map,
-  Scan,
   Puzzle,
   AlertTriangle,
   CalendarDays,
@@ -35,7 +34,6 @@ import { AppointmentApprovalTab } from "@/components/teacher/tabs/appointment-ap
 import { QuestionPoolTab } from "@/components/teacher/tabs/question-pool";
 import { OpticalScannerTab } from "@/components/teacher/tabs/optical-scanner";
 import { SuccessHeatmapTab } from "@/components/teacher/tabs/success-heatmap";
-import { StudentXrayTab } from "@/components/teacher/tabs/student-xray";
 import { GapClosingTab } from "@/components/teacher/tabs/gap-closing";
 import { RiskReferralTab } from "@/components/teacher/tabs/risk-referral";
 import { WeeklyScheduleTab } from "@/components/teacher/tabs/weekly-schedule";
@@ -54,7 +52,6 @@ const TABS = [
   { id: "question-pool", label: "Soru Çözüm Havuzu", icon: HelpCircle, Component: QuestionPoolTab, side: "right" },
   { id: "scanner", label: "Mobil Optik Okuyucu", icon: Camera, Component: OpticalScannerTab, side: "right" },
   { id: "heatmap", label: "Başarı Isı Haritası", icon: Map, Component: SuccessHeatmapTab, side: "right" },
-  { id: "xray", label: "Akademik Röntgen Karnesi", icon: Scan, Component: StudentXrayTab, side: "right" },
   { id: "gap-closing", label: "Eksik Kapatma", icon: Puzzle, Component: GapClosingTab, side: "right" },
   { id: "risk-referral", label: "Rehberlik Sevk & Risk", icon: AlertTriangle, Component: RiskReferralTab, side: "right" },
   { id: "weekly-schedule", label: "Haftalık Program & Soru Bankası", icon: CalendarDays, Component: WeeklyScheduleTab, side: "right" },
@@ -77,7 +74,6 @@ const sectionVariants = {
 export default function TeacherPage() {
   const teacherName = useSessionName("İrfan Hoca");
   const [activeTab, setActiveTab] = useState<TabId>("attendance");
-  const [focusStudentId, setFocusStudentId] = useState<string | null>(null);
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? LiveAttendanceTab;
 
   return (
@@ -112,18 +108,7 @@ export default function TeacherPage() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
-                {activeTab === "risk-referral" ? (
-                  <RiskReferralTab
-                    onInspectStudent={(id) => {
-                      setFocusStudentId(id);
-                      setActiveTab("xray");
-                    }}
-                  />
-                ) : activeTab === "xray" ? (
-                  <StudentXrayTab focusStudentId={focusStudentId} onFocusConsumed={() => setFocusStudentId(null)} />
-                ) : (
-                  <ActiveComponent />
-                )}
+                {activeTab === "risk-referral" ? <RiskReferralTab /> : <ActiveComponent />}
               </motion.div>
             </AnimatePresence>
           </motion.div>

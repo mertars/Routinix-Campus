@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
+import { getAbsenceSummary } from "@/lib/server/attendance/absence-summary";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/admin/attendance-history?studentId=X — bir öğrencinin TÜM
-// devamsızlık geçmişi, kronolojik (en yeni önce) + özet sayaçlar. Yoklama
-// Matrisi'ndeki bir satıra tıklayınca açılan detay görünümünü besler.
+// devamsızlık geçmişi (artık ders bazlı, bkz. Part 4 şema notu), kronolojik
+// (en yeni önce) + "ekranın üstünde" gösterilecek İKİ ayrı özet: Günlük
+// Devamsızlık (kaç farklı gün) ve Ders Devamsızlığı (kaç ayrı ders saati) —
+// bkz. lib/server/attendance/absence-summary.ts.
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
@@ -25,17 +28,14 @@ async function handleGet(request: NextRequest) {
       return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
     }
 
-    const records = await prisma.attendanceRecord.findMany({
-      where: { studentId },
-      select: { date: true, status: true },
-      orderBy: { date: "desc" },
-    });
-
-    const summary = {
-      present: records.filter((r) => r.status === "PRESENT").length,
-      absent: records.filter((r) => r.status === "ABSENT").length,
-      late: records.filter((r) => r.status === "LATE").length,
-    };
+    const [records, summary] = await Promise.all([
+      prisma.attendanceRecord.findMany({
+        where: { studentId },
+        select: { date: true, slot: true, subject: true, status: true },
+        orderBy: [{ date: "desc" }, { slot: "asc" }],
+      }),
+      getAbsenceSummary(studentId),
+    ]);
 
     return NextResponse.json({
       student: { firstName: student.firstName, lastName: student.lastName, branchName: student.branch.name },

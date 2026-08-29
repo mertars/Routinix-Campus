@@ -80,3 +80,36 @@ export function useAdminProfile(fallbackName: string, fallbackTitle: string): { 
 
   return profile;
 }
+
+let cachedEtutAdminManaged: boolean | null = null;
+let etutAdminManagedInflight: Promise<boolean> | null = null;
+
+function fetchEtutAdminManaged(): Promise<boolean> {
+  if (cachedEtutAdminManaged !== null) return Promise.resolve(cachedEtutAdminManaged);
+  if (!etutAdminManagedInflight) {
+    etutAdminManagedInflight = fetch("/api/admin/institution-settings")
+      .then((res) => res.json())
+      .then((data) => {
+        cachedEtutAdminManaged = data.isEtutAdminManaged ?? true;
+        return cachedEtutAdminManaged as boolean;
+      })
+      .catch(() => true);
+  }
+  return etutAdminManagedInflight;
+}
+
+// Etüt Yönetimi Merkezi (Kampüs V2 Part 2): InstitutionSettings.isEtutAdminManaged
+// AÇIK olduğunda öğretmen/öğrenci panellerindeki bireysel etüt alma/verme
+// akışları gizlenir — TÜM atama yönetici panelindeki "Etüt Yönetimi"
+// ekranından yapılır (bkz. app/api/admin/etut-management). Varsayılan TRUE
+// (şemadaki varsayılanla aynı) — henüz hiç ayarlanmamış bir kurumda bile
+// bireysel butonlar YANLIŞLIKLA açık kalmasın diye.
+export function useEtutAdminManaged(): boolean {
+  const [managed, setManaged] = useState(cachedEtutAdminManaged ?? true);
+
+  useEffect(() => {
+    fetchEtutAdminManaged().then(setManaged);
+  }, []);
+
+  return managed;
+}

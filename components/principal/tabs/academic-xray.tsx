@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Scan,
@@ -14,18 +14,15 @@ import {
   CheckCheck,
   Loader2,
   Download,
-  MessageSquarePlus,
-  Save,
   Share2,
   Copy,
   Check,
+  Search,
 } from "lucide-react";
 import { STUDENT_TOPIC_ANALYSIS, RISK_REASON_LABEL, type RiskReason } from "@/lib/mock-data";
-import { useTeacherScope } from "@/lib/teacher-scope";
+import { useAdminProfile } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
-
-const PERIOD_LABEL = "2025-2026 Güncel Dönem";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string };
 
@@ -41,48 +38,55 @@ type Analytics = {
   riskReason: RiskReason;
 };
 
-export function StudentXrayTab({
-  focusStudentId,
-  onFocusConsumed,
-}: { focusStudentId?: string | null; onFocusConsumed?: () => void } = {}) {
-  const { teacherName, subject, assignedBranches } = useTeacherScope();
+// Akademik Röntgen Karnesi — Kampüs V2 Part 2: bu modül öğretmen panelinden
+// TAMAMEN kaldırılıp buraya (Yönetici Paneli) taşındı. Öğretmen versiyonundan
+// (artık silinen components/teacher/tabs/student-xray.tsx) İKİ temel farkla
+// ayrışır: (1) öğrenci havuzu tek bir öğretmenin şubeleriyle değil TÜM kurum
+// rosteriyle sınırlı (bkz. /api/admin/users/directory), (2) net trendi tek
+// bir branşa (öğretmenin kendi branşı) kilitli değil — yönetici bir öğrencinin
+// TÜM derslerini görebilmeli, bu yüzden aşağıda bir ders seçici eklendi.
+// Karneye Yorum Ekle bölümü BİLEREK YOK — PUT /api/report-cards/[id]/comment
+// sadece danışman/branş öğretmenine açık (ReportCardTeacherComment.teacherId
+// gerçek bir Teacher kaydına bağlı, yöneticinin öğretmen kimliği yok).
+export function AcademicXrayTab() {
+  const { name: adminName } = useAdminProfile("Yönetici", "Kurum Müdürü");
   const { showError } = useToast();
   const [students, setStudents] = useState<RosterStudent[]>([]);
+  const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [subject, setSubject] = useState("");
   const [referring, setReferring] = useState(false);
   const [referred, setReferred] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [comment, setComment] = useState("");
-  const [savedComment, setSavedComment] = useState<string | null>(null);
-  const [savingComment, setSavingComment] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (assignedBranches.length === 0) return;
-    fetch(`/api/students?branchIds=${assignedBranches.map((b) => b.id).join(",")}`)
+    fetch("/api/admin/users/directory?role=STUDENT")
       .then((res) => res.json())
       .then((data) => {
-        const roster: RosterStudent[] = data.students ?? [];
+        const roster: RosterStudent[] = (data.students ?? []).map(
+          (s: { id: string; firstName: string; lastName: string; branchName: string }) => ({
+            id: s.id,
+            firstName: s.firstName,
+            lastName: s.lastName,
+            branchName: s.branchName,
+          })
+        );
         setStudents(roster);
         setSelectedId((current) => current || roster[0]?.id || "");
       })
       .catch(() => showError("Öğrenci listesi yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignedBranches.map((b) => b.id).join(",")]);
+  }, []);
 
-  // Risk Alarmı sekmesinden "İncele" ile gelindiğinde, o öğrenciyi doğrudan
-  // seç — roster fetch'i (yukarıdaki effect) henüz tamamlanmamış olsa bile
-  // sıra farkı sorun değil: setSelectedId(current => current || ...) roster
-  // dönüşünde zaten dolu olan selectedId'yi ezmiyor (bkz. o effect).
-  useEffect(() => {
-    if (!focusStudentId) return;
-    setSelectedId(focusStudentId);
-    onFocusConsumed?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusStudentId]);
+  const filteredStudents = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase("tr-TR");
+    if (!q) return students;
+    return students.filter((s) => `${s.firstName} ${s.lastName}`.toLocaleLowerCase("tr-TR").includes(q));
+  }, [students, query]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -91,21 +95,16 @@ export function StudentXrayTab({
     setShareUrl(null);
     fetch(`/api/admin/users/${encodeURIComponent(selectedId)}/analytics?role=STUDENT`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
-      .then((data) => setAnalytics(data))
-      .catch(() => showError("Öğrenci verisi yüklenemedi."));
-    fetch(`/api/report-cards/${encodeURIComponent(selectedId)}/comment?donem=${encodeURIComponent(PERIOD_LABEL)}`)
-      .then((res) => res.json())
       .then((data) => {
-        setComment(data.comment ?? "");
-        setSavedComment(data.comment ?? null);
+        setAnalytics(data);
+        setSubject((current) => (data.netTrend.some((n: { subject: string }) => n.subject === current) ? current : data.netTrend[0]?.subject ?? ""));
       })
-      .catch(() => {
-        // sessiz — yorum alanı boş başlar
-      });
+      .catch(() => showError("Öğrenci verisi yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
   const analysis = STUDENT_TOPIC_ANALYSIS[selectedId] ?? [];
+  const subjects = useMemo(() => [...new Set((analytics?.netTrend ?? []).map((n) => n.subject))], [analytics]);
   const netTrend = (analytics?.netTrend ?? []).filter((n) => n.subject === subject);
   const maxNet = Math.max(...netTrend.map((p) => p.net), 1);
 
@@ -118,10 +117,10 @@ export function StudentXrayTab({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentId: selectedId,
-          authorName: teacherName,
+          authorName: adminName,
           category: "ACADEMIC",
           confidentialityLevel: "RESTRICTED",
-          note: "Öğretmen tarafından röntgen karnesi üzerinden tavsiye edildi.",
+          note: "Yönetici tarafından röntgen karnesi üzerinden tavsiye edildi.",
         }),
       });
       const data = await res.json();
@@ -135,25 +134,6 @@ export function StudentXrayTab({
     }
   }
 
-  async function saveComment() {
-    if (!selectedId || !comment.trim()) return;
-    setSavingComment(true);
-    try {
-      const res = await fetch(`/api/report-cards/${selectedId}/comment`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ donem: PERIOD_LABEL, comment }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Yorum kaydedilemedi.");
-      setSavedComment(data.comment);
-    } catch (error) {
-      showError(error instanceof Error ? error.message : "Yorum kaydedilemedi.");
-    } finally {
-      setSavingComment(false);
-    }
-  }
-
   async function createShareLink() {
     if (!selectedId) return;
     setSharing(true);
@@ -161,7 +141,7 @@ export function StudentXrayTab({
       const res = await fetch(`/api/report-cards/${selectedId}/share`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ donem: PERIOD_LABEL }),
+        body: JSON.stringify({ donem: "2025-2026 Güncel Dönem" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Paylaşım linki oluşturulamadı.");
@@ -189,7 +169,7 @@ export function StudentXrayTab({
     if (!selectedId || !analytics) return;
     setDownloading(true);
     try {
-      const res = await fetch(`/api/report-cards/${selectedId}?donem=${encodeURIComponent(PERIOD_LABEL)}`);
+      const res = await fetch(`/api/report-cards/${selectedId}?donem=${encodeURIComponent("2025-2026 Güncel Dönem")}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res.ok || !contentType.includes("application/pdf")) {
         const data = contentType.includes("application/json") ? await res.json() : null;
@@ -212,7 +192,7 @@ export function StudentXrayTab({
   }
 
   if (!analytics) {
-    return <p className="text-xs text-espresso-muted dark:text-cream/40">Girdiğiniz sınıflarda gösterilecek öğrenci verisi yok.</p>;
+    return <p className="text-xs text-espresso-muted dark:text-cream/40">Kurumda gösterilecek öğrenci verisi yok.</p>;
   }
 
   const diff = (analytics.targetNet ?? 0) === 0 ? 0 : (netTrend.at(-1)?.net ?? 0) - (analytics.targetNet ?? 0);
@@ -220,17 +200,28 @@ export function StudentXrayTab({
 
   return (
     <div className="space-y-4">
-      <select
-        value={selectedId}
-        onChange={(event) => setSelectedId(event.target.value)}
-        className="rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-      >
-        {students.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.firstName} {s.lastName} — {s.branchName}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Öğrenci ara..."
+            className="w-full rounded-lg border border-hairline bg-white py-2 pl-8 pr-3 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          />
+        </div>
+        <select
+          value={selectedId}
+          onChange={(event) => setSelectedId(event.target.value)}
+          className="rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+        >
+          {filteredStudents.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.firstName} {s.lastName} — {s.branchName}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
@@ -276,9 +267,24 @@ export function StudentXrayTab({
           </div>
         </div>
 
-        <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
-          <LineChart className="h-3.5 w-3.5 text-brand-600" /> {subject} Net Trendi
-        </h3>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
+            <LineChart className="h-3.5 w-3.5 text-brand-600" /> Net Trendi
+          </h3>
+          {subjects.length > 0 && (
+            <select
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              className="rounded-lg border border-hairline bg-white px-2 py-1 text-[11px] text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+            >
+              {subjects.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
         {netTrend.length > 0 ? (
           <div className="mb-5 flex items-end gap-2 rounded-xl bg-cream-card p-3 dark:bg-white/5" style={{ height: 96 }}>
             {netTrend.map((point, index) => (
@@ -347,34 +353,6 @@ export function StudentXrayTab({
             {downloading ? "Hazırlanıyor..." : "PDF İndir"}
           </button>
         </div>
-      </motion.div>
-
-      <motion.div
-        whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
-      >
-        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-          <MessageSquarePlus className="h-4 w-4 text-brand-600" /> Karneye Yorum Ekle
-        </h2>
-        <p className="mb-3 text-xs text-espresso-muted dark:text-cream/40">
-          Otomatik rehberlik notlarının yanına, öğrenciyi tanıyan öğretmenin kendi gözlemi eklenir — karne PDF&apos;inde ayrı bir bölüm olarak görünür.
-        </p>
-        <textarea
-          value={comment}
-          onChange={(event) => setComment(event.target.value)}
-          rows={3}
-          placeholder="Örn. Bu dönem soru çözüm hızında belirgin bir artış gözlemledim, aynı disiplinle devam etmesini öneriyorum."
-          className="mb-2 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
-        />
-        <button
-          onClick={saveComment}
-          disabled={savingComment || !comment.trim()}
-          className="flex min-h-[40px] items-center gap-2 rounded-lg bg-espresso px-4 text-xs font-medium text-cream transition hover:bg-caramel disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
-        >
-          {savingComment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          {savingComment ? "Kaydediliyor..." : savedComment ? "Yorumu Güncelle" : "Yorumu Kaydet"}
-        </button>
-        {savedComment && <p className="mt-2 text-[11px] text-green-700 dark:text-green-400">Karnede görünen güncel yorum kaydedildi.</p>}
       </motion.div>
 
       <motion.div

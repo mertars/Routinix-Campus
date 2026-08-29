@@ -22,6 +22,9 @@ import {
   Table2,
   Wand2,
   Trophy,
+  Scan,
+  CalendarCheck,
+  MessageSquareText,
 } from "lucide-react";
 import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { type NavTab } from "@/components/principal/floating-nav";
@@ -44,8 +47,11 @@ import { SystemSettingsTab } from "@/components/principal/tabs/system-settings";
 import { AttendanceCommandTab } from "@/components/principal/tabs/attendance-command";
 import { ExamSeatingTab } from "@/components/principal/tabs/exam-seating";
 import { ScheduleMatrixTab } from "@/components/principal/tabs/schedule-matrix";
+import { EtutManagementTab } from "@/components/principal/tabs/etut-management";
+import { AcademicXrayTab } from "@/components/principal/tabs/academic-xray";
 import { PreferenceRobotTab } from "@/components/principal/tabs/preference-robot";
 import { AlumniNetworkTab } from "@/components/principal/tabs/alumni-network";
+import { BulkSmsTab } from "@/components/principal/tabs/bulk-sms";
 import { Modal } from "@/components/ui/modal";
 import {
   StudentsListContent,
@@ -61,6 +67,7 @@ import { useToast } from "@/lib/toast-context";
 const TABS = [
   { id: "overview", label: "Genel Bakış", icon: LayoutDashboard, Component: ExecutiveOverviewTab, side: "left" },
   { id: "students", label: "Kullanıcı Yönetimi & Performans", icon: GraduationCap, Component: BranchStaffTab, side: "left" },
+  { id: "academic-xray", label: "Akademik Röntgen Karnesi", icon: Scan, Component: AcademicXrayTab, side: "left" },
   { id: "upload", label: "Sınav & Optik Yükleme", icon: ScanLine, Component: ExamResultsImportTab, side: "left" },
   { id: "exam-seating", label: "Kelebek Sınav Oturma Planı", icon: Shuffle, Component: ExamSeatingTab, side: "left" },
   { id: "live-tutoring", label: "Canlı Birebir Etüt & Randevu", icon: Radio, Component: LiveTutoringTab, side: "left" },
@@ -69,7 +76,9 @@ const TABS = [
   { id: "teachers", label: "Öğretmen Performansı", icon: UserCog, Component: TeacherPerformanceTab, side: "left" },
   { id: "preference-robot", label: "YKS / LGS Tercih Robotu", icon: Wand2, Component: PreferenceRobotTab, side: "right" },
   { id: "schedule-matrix", label: "Çakışmasız Ders Programı", icon: Table2, Component: ScheduleMatrixTab, side: "right" },
+  { id: "etut-management", label: "Etüt Yönetimi Merkezi", icon: CalendarCheck, Component: EtutManagementTab, side: "right" },
   { id: "campus", label: "Kampüs Pano & Toplu Duyuru", icon: Megaphone, Component: AnnouncementsTab, side: "right" },
+  { id: "bulk-sms", label: "Toplu SMS", icon: MessageSquareText, Component: BulkSmsTab, side: "right" },
   { id: "alumni", label: "Mezun Takip (Alumnus)", icon: Trophy, Component: AlumniNetworkTab, side: "right" },
   { id: "risk", label: "Risk Radarı", icon: Radar, Component: RiskRadarTab, side: "right" },
   { id: "calendar", label: "Etkinlik Takvimi", icon: CalendarDays, Component: CampusCalendarTab, side: "right" },

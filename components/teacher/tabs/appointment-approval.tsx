@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Clock, CalendarCheck, Coffee, Plus, Trash2, Loader2 } from "lucide-react";
+import { Check, X, Clock, CalendarCheck, Coffee, Plus, Trash2, Loader2, UserCog } from "lucide-react";
 import { SCHEDULE_DAYS, type ScheduleDay } from "@/lib/mock-data";
 import { useTeacherScope } from "@/lib/teacher-scope";
+import { useEtutAdminManaged } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +116,7 @@ const PendingRequestCard = memo(function PendingRequestCard({
 
 export function AppointmentApprovalTab() {
   const { staffRecord } = useTeacherScope();
+  const isAdminManaged = useEtutAdminManaged();
   const { showError, showSuccess } = useToast();
   const [requests, setRequests] = useState<AppointmentEntry[]>([]);
   const [decidingId, setDecidingId] = useState<string | null>(null);
@@ -225,86 +227,101 @@ export function AppointmentApprovalTab() {
 
   return (
     <div className="space-y-4">
-      <motion.div
-        whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
-      >
-        <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-          <Clock className="h-4 w-4 text-brand-600" /> Onay Bekleyen Randevular ({pending.length})
-        </h2>
-        <div className="space-y-2">
-          <AnimatePresence>
-            {pending.map((request) => (
-              <PendingRequestCard
-                key={request.id}
-                request={request}
-                isDeciding={decidingId === request.id}
-                onApprove={approveRequest}
-                onReject={rejectRequest}
+      {isAdminManaged && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2.5 rounded-2xl border border-hairline bg-white/70 px-4 py-3 text-xs text-espresso-muted shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream/50"
+        >
+          <UserCog className="h-4 w-4 shrink-0 text-brand-600" />
+          Etüt saatleri ve öğrenci ataması şu anda kurum yöneticisi tarafından belirleniyor — sana atanan etütleri aşağıda görebilirsin.
+        </motion.div>
+      )}
+
+      {!isAdminManaged && (
+        <motion.div
+          whileHover={{ scale: 1.005, y: -2 }}
+          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        >
+          <h2 className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+            <Clock className="h-4 w-4 text-brand-600" /> Onay Bekleyen Randevular ({pending.length})
+          </h2>
+          <div className="space-y-2">
+            <AnimatePresence>
+              {pending.map((request) => (
+                <PendingRequestCard
+                  key={request.id}
+                  request={request}
+                  isDeciding={decidingId === request.id}
+                  onApprove={approveRequest}
+                  onReject={rejectRequest}
+                />
+              ))}
+            </AnimatePresence>
+            {pending.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Bekleyen randevu talebi yok.</p>}
+          </div>
+        </motion.div>
+      )}
+
+      {!isAdminManaged && (
+        <motion.div
+          whileHover={{ scale: 1.005, y: -2 }}
+          className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
+        >
+          <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+            <CalendarCheck className="h-4 w-4 text-brand-600" /> Etüt Müsaitliğim
+          </h2>
+          <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
+            Her gün için birden fazla saat aralığı girebilirsin — sistem bunları kurum etüt süresine göre otomatik slotlara böler.
+          </p>
+
+          <div className="mb-4 flex items-end gap-2 rounded-2xl bg-cream-card p-3 dark:bg-white/5">
+            <label className="flex-1">
+              <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+                <Coffee className="h-3 w-3" /> Etütler Arası Mola (dk)
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={60}
+                value={breakMinutes}
+                onChange={(event) => setBreakMinutes(event.target.value)}
+                className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
               />
-            ))}
-          </AnimatePresence>
-          {pending.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Bekleyen randevu talebi yok.</p>}
-        </div>
-      </motion.div>
+            </label>
+            <button
+              onClick={saveBreakMinutes}
+              disabled={savingBreak}
+              className="flex min-h-[40px] items-center gap-1.5 rounded-lg bg-espresso px-3 text-xs font-semibold text-cream transition hover:bg-caramel disabled:opacity-60 dark:bg-brand-600 dark:hover:bg-brand-500"
+            >
+              {savingBreak ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Kaydet"}
+            </button>
+          </div>
 
-      <motion.div
-        whileHover={{ scale: 1.005, y: -2 }}
-        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
-      >
-        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-          <CalendarCheck className="h-4 w-4 text-brand-600" /> Etüt Müsaitliğim
-        </h2>
-        <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
-          Her gün için birden fazla saat aralığı girebilirsin — sistem bunları kurum etüt süresine göre otomatik slotlara böler.
-        </p>
-
-        <div className="mb-4 flex items-end gap-2 rounded-2xl bg-cream-card p-3 dark:bg-white/5">
-          <label className="flex-1">
-            <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
-              <Coffee className="h-3 w-3" /> Etütler Arası Mola (dk)
-            </span>
-            <input
-              type="number"
-              min={0}
-              max={60}
-              value={breakMinutes}
-              onChange={(event) => setBreakMinutes(event.target.value)}
-              className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
-            />
-          </label>
-          <button
-            onClick={saveBreakMinutes}
-            disabled={savingBreak}
-            className="flex min-h-[40px] items-center gap-1.5 rounded-lg bg-espresso px-3 text-xs font-semibold text-cream transition hover:bg-caramel disabled:opacity-60 dark:bg-brand-600 dark:hover:bg-brand-500"
-          >
-            {savingBreak ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Kaydet"}
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {SCHEDULE_DAYS.map((day) => {
-            const dayRanges = ranges.filter((r) => r.day === day);
-            return (
-              <div key={day} className="rounded-2xl bg-cream-card p-3 dark:bg-white/5">
-                <p className="mb-2 text-xs font-semibold text-espresso dark:text-cream">{day}</p>
-                <div className="mb-2 space-y-1.5">
-                  {dayRanges.map((r) => (
-                    <div key={r.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 dark:bg-midnight-card">
-                      <span className="text-xs font-medium text-espresso dark:text-cream">{r.startTime} – {r.endTime}</span>
-                      <button onClick={() => removeRange(r.id)} className="text-rose-500 transition hover:text-rose-600" aria-label="Aralığı sil">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  {dayRanges.length === 0 && <p className="text-[11px] text-espresso-muted/70 dark:text-cream/30">Bu gün için aralık girilmedi.</p>}
+          <div className="space-y-3">
+            {SCHEDULE_DAYS.map((day) => {
+              const dayRanges = ranges.filter((r) => r.day === day);
+              return (
+                <div key={day} className="rounded-2xl bg-cream-card p-3 dark:bg-white/5">
+                  <p className="mb-2 text-xs font-semibold text-espresso dark:text-cream">{day}</p>
+                  <div className="mb-2 space-y-1.5">
+                    {dayRanges.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 dark:bg-midnight-card">
+                        <span className="text-xs font-medium text-espresso dark:text-cream">{r.startTime} – {r.endTime}</span>
+                        <button onClick={() => removeRange(r.id)} className="text-rose-500 transition hover:text-rose-600" aria-label="Aralığı sil">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    {dayRanges.length === 0 && <p className="text-[11px] text-espresso-muted/70 dark:text-cream/30">Bu gün için aralık girilmedi.</p>}
+                  </div>
+                  <AddRangeRow day={day} onAdd={(start, end) => addRange(day, start, end)} />
                 </div>
-                <AddRangeRow day={day} onAdd={(start, end) => addRange(day, start, end)} />
-              </div>
-            );
-          })}
-        </div>
-      </motion.div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
 
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}

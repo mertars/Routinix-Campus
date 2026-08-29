@@ -416,15 +416,27 @@ model ExamNetResult {
   @@index([studentId])
 }
 
+// Kampüs V2 Part 4 — Gelişmiş Yoklama Matrisi: bir satır artık bir GÜNÜ
+// değil, o günün TEK bir DERSİNİ (slot) temsil eder — aynı öğrenci aynı gün
+// içinde birden fazla derse (birden fazla satır) sahip olabilir. slot/subject
+// BİLEREK denormalize edilmiş (LessonSlot'a canlı join yerine yazıldığı anki
+// değer saklanır) — ders programı sonradan değişse/silinse bile geçmiş bir
+// yoklama kaydının "hangi ders" olduğu bilgisi kaybolmaz (bkz. NotificationLog'daki
+// AYNI gerekçe). "Günlük Devamsızlık" (kaç FARKLI gün) ile "Ders Devamsızlığı"
+// (kaç ayrı ders saati) BİLEREK bu TEK tablodan iki farklı aggregation ile
+// hesaplanır — ayrı bir "günlük özet" tablosu YOK (bkz.
+// lib/server/attendance/absence-summary.ts).
 model AttendanceRecord {
   id        String   @id @default(cuid())
   studentId String
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   date      DateTime
+  slot      String   @default("") // "HH:MM-HH:MM" — LessonSlot.slot ile aynı format/değer
+  subject   String   @default("Genel")
   status    String // PRESENT | ABSENT | LATE
   createdAt DateTime @default(now())
 
-  @@unique([studentId, date])
+  @@unique([studentId, date, slot])
 }
 
 // Bir öğretmenin belirli bir şube+tarih için yoklamayı "gönderdiği" olayın
@@ -1148,6 +1160,7 @@ enum AuditAction {
   USER_UPDATED
   GRADE_ENTERED
   GUIDANCE_NOTE_CREATED
+  GUIDANCE_REFERRAL_CREATED
   PASSWORD_CHANGED
   BRANCH_CREATED
   PASSWORD_RESET_BY_ADMIN

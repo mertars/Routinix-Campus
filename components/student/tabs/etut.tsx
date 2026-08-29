@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarCheck, Check, Clock, Loader2, BookOpen } from "lucide-react";
+import { CalendarCheck, Check, Clock, Loader2, BookOpen, UserCog } from "lucide-react";
 import { SCHEDULE_DAYS, type ScheduleDay } from "@/lib/mock-data";
 import { useStudentScope } from "@/lib/student-scope";
+import { useEtutAdminManaged } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ type EligibleTeacher = { id: string; firstName: string; lastName: string; subjec
 // Rehberlik Görüşmesi modülünde (guidance.tsx) hedeflenir.
 export function EtutTab() {
   const { studentId, branchId } = useStudentScope();
+  const isAdminManaged = useEtutAdminManaged();
   const { showError, showSuccess } = useToast();
 
   const [eligibleTeachers, setEligibleTeachers] = useState<EligibleTeacher[]>([]);
@@ -127,6 +129,18 @@ export function EtutTab() {
 
   return (
     <div className="space-y-4">
+      {isAdminManaged && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2.5 rounded-2xl border border-hairline bg-white/70 px-4 py-3 text-xs text-espresso-muted shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream/50"
+        >
+          <UserCog className="h-4 w-4 shrink-0 text-brand-600" />
+          Etüt saatleri kurum yöneticisi tarafından atanıyor — sana ayarlanan etütleri aşağıda &quot;Taleplerim&quot; altında görebilirsin.
+        </motion.div>
+      )}
+
+      {!isAdminManaged && (
       <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <CalendarCheck className="h-4 w-4 text-brand-600" /> Birebir Etüt Talep Et
@@ -195,6 +209,7 @@ export function EtutTab() {
           <p className="mt-2 text-xs text-espresso-muted dark:text-cream/40">{selectedTeacher ? `${selectedTeacher.firstName} ${selectedTeacher.lastName} bu gün için müsait değil.` : "Öğretmen seçin."}</p>
         )}
       </motion.div>
+      )}
 
       <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">

@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { HelpCircle, Camera, Images, X, Send, Clock, RotateCcw, Loader2, CheckCircle2 } from "lucide-react";
+import { HelpCircle, Camera, Images, X, Send, Clock, RotateCcw, Loader2, CheckCircle2, Globe2, Inbox } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
+import { GlobalQuestionFeed } from "@/components/student/tabs/global-question-feed";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ const STATUS_BADGE: Record<QuestionStatus, string> = {
 
 export function AskQuestionTab() {
   const { studentId } = useStudentScope();
+  const [view, setView] = useState<"mine" | "global">("mine");
 
   const [teachers, setTeachers] = useState<TeacherOption[]>([]);
   const [teachersError, setTeachersError] = useState(false);
@@ -145,7 +147,33 @@ export function AskQuestionTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-center">
+        <div className="flex gap-1.5 rounded-full border border-hairline bg-white/70 p-1 dark:border-white/10 dark:bg-midnight-card/50">
+          <button
+            onClick={() => setView("mine")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition",
+              view === "mine" ? "bg-brand-600 text-white" : "text-espresso-muted dark:text-cream/40"
+            )}
+          >
+            <Inbox className="h-3.5 w-3.5" /> Sorularım
+          </button>
+          <button
+            onClick={() => setView("global")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition",
+              view === "global" ? "bg-brand-600 text-white" : "text-espresso-muted dark:text-cream/40"
+            )}
+          >
+            <Globe2 className="h-3.5 w-3.5" /> Tüm Çözülen Sorular (Global)
+          </button>
+        </div>
+      </div>
 
+      {view === "global" ? (
+        <GlobalQuestionFeed />
+      ) : (
+        <>
       <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
         <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
           <HelpCircle className="h-4 w-4 text-brand-600" /> Yeni Soru Sor
@@ -269,6 +297,8 @@ export function AskQuestionTab() {
           {questionsLoading && <p className="text-xs text-espresso-muted dark:text-cream/40">Yükleniyor...</p>}
         </div>
       </motion.div>
+        </>
+      )}
     </div>
   );
 }

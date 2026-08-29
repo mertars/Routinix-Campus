@@ -1,20 +1,16 @@
-import fs from "fs/promises";
-import path from "path";
-import Handlebars from "handlebars";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/server/prisma";
 import { buildReportCardAnalysis } from "./analyzer";
-import { renderHtmlToPdf } from "./pdf-generator";
+import { PdfReportCard } from "@/components/pdf/pdf-report-card";
 
-let compiledTemplate: Handlebars.TemplateDelegate | null = null;
-
-async function getTemplate(): Promise<Handlebars.TemplateDelegate> {
-  if (compiledTemplate) return compiledTemplate;
-  const templatePath = path.join(process.cwd(), "lib/server/report-card/template.hbs");
-  const source = await fs.readFile(templatePath, "utf-8");
-  compiledTemplate = Handlebars.compile(source);
-  return compiledTemplate;
-}
-
+// Kampüs V2 Part 5 — bu fonksiyon eskiden Handlebars+Puppeteer (headless
+// Chromium açıp HTML'i PDF'e "yazdırıyordu") kullanıyordu; bu yaklaşım
+// tipik sunucusuz/PaaS barındırma ortamlarında ağır Chromium ikili dosyası
+// yüzünden GÜVENİLİR ÇALIŞMIYORDU (görevin "çalışmayan PDF sistemi" tanımı
+// tam olarak bu). Artık @react-pdf/renderer ile SAF JavaScript'te,
+// tarayıcı/Chromium GEREKTİRMEDEN Buffer üretiliyor — çağıran taraflar
+// (app/api/report-cards/[studentId]/route.ts, .../shared/[token]/route.ts)
+// HİÇ değişmedi, imza (studentId, periodLabel) => Promise<Buffer> AYNI.
 export async function generateReportCardPdf(studentId: string, periodLabel: string): Promise<Buffer> {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -46,24 +42,19 @@ export async function generateReportCardPdf(studentId: string, periodLabel: stri
     where: { studentId_periodLabel: { studentId, periodLabel } },
   });
 
-  const template = await getTemplate();
-  const html = template({
-    institutionName: student.institution.name,
-    studentName: `${student.firstName} ${student.lastName}`,
-    branchName: student.branch.name,
-    periodLabel,
-    attendanceRate: analysis.attendanceRate,
-    subjectCount: analysis.subjectSummaries.length,
-    subjectSummaries: analysis.subjectSummaries.map((summary) => ({
-      ...summary,
-      isPositive: summary.delta >= 0,
-      deltaLabel: `${summary.delta >= 0 ? "+" : ""}${summary.delta}`,
-    })),
-    guidanceNotes: analysis.guidanceNotes,
-    teacherComment: teacherComment?.comment,
-  });
-
-  const pdfBuffer = await renderHtmlToPdf(html);
+  const pdfBuffer = await renderToBuffer(
+    <PdfReportCard
+      institutionName={student.institution.name}
+      logoUrl={student.institution.logoUrl}
+      studentName={`${student.firstName} ${student.lastName}`}
+      branchName={student.branch.name}
+      periodLabel={periodLabel}
+      attendanceRate={analysis.attendanceRate}
+      subjectSummaries={analysis.subjectSummaries}
+      guidanceNotes={analysis.guidanceNotes}
+      teacherComment={teacherComment?.comment}
+    />
+  );
 
   await prisma.reportCard.create({ data: { studentId, periodLabel } });
 

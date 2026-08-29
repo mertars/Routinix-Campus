@@ -6,6 +6,14 @@ import { requireSession, requireRole, requireInstitution, assertOwnsSelf, assert
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
+// Global Soru Havuzu akışında sınıf arkadaşlarına HANGİ öğrencinin soruyu
+// sorduğunu tam adıyla YAYINLAMAMAK için (kurum geneline açık bir akışta bu
+// gereksiz bir sosyal ifşa olurdu) sadece ad + soyadın baş harfi kullanılır —
+// bkz. GET ?scope=global.
+function toDisplayName(firstName: string, lastName: string): string {
+  return `${firstName} ${lastName.charAt(0)}.`;
+}
+
 // POST /api/questions — öğrenci KENDİSİ, çözemediği bir sorunun fotoğrafını
 // seçtiği öğretmene gönderir (multipart/form-data: teacherId, subject,
 // studentNote?, image). studentId body'den değil oturumdan alınır.
@@ -80,13 +88,55 @@ async function handlePost(request: NextRequest) {
   }
 }
 
-// GET /api/questions?teacherId=...  veya  ?studentId=...  (biri zorunlu —
-// aksi halde sistemdeki tüm soruların dışarı sızmasını engellemek için 400 döner)
+// GET /api/questions?scope=global[&branchOnly=1]  veya  ?teacherId=...  veya
+// ?studentId=... (üçünden biri zorunlu — aksi halde sistemdeki tüm soruların
+// dışarı sızmasını engellemek için 400 döner).
+// scope=global: Part 4 — Öğrenci Soru Havuzu'nun "Tüm Çözülen Sorular
+// (Global)" akışı. SADECE öğrenci erişebilir, SADECE zaten yanıtlanmış
+// (ANSWERED/SOLVED) sorular döner — PENDING (henüz cevapsız) hiçbir zaman
+// bu akışta görünmez. branchOnly=1 verilirse kurum geneli yerine sadece
+// kendi şubesindeki sorularla sınırlanır.
 // teacherId: sadece o öğretmenin kendisi ya da yönetici. studentId: öğrencinin
 // kendisi / danışman-branş öğretmeni / velisi / yönetici.
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
+    const scope = request.nextUrl.searchParams.get("scope");
+
+    if (scope === "global") {
+      requireRole(session, "student");
+      const branchOnly = request.nextUrl.searchParams.get("branchOnly") === "1";
+
+      const student = await prisma.student.findUnique({ where: { id: session.sub }, select: { branchId: true } });
+      if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
+
+      const questions = await prisma.question.findMany({
+        where: {
+          status: { in: ["ANSWERED", "SOLVED"] },
+          student: { institutionId: session.institutionId, branchId: branchOnly ? student.branchId : undefined },
+        },
+        include: {
+          student: { select: { firstName: true, lastName: true, branch: { select: { name: true } } } },
+          teacher: { select: { firstName: true, lastName: true, subject: true } },
+        },
+        orderBy: { answeredAt: "desc" },
+        take: 100,
+      });
+
+      return NextResponse.json({
+        questions: questions.map((q) => ({
+          id: q.id,
+          subject: q.subject,
+          imageUrl: q.imageUrl,
+          answerText: q.answerText,
+          answeredAt: q.answeredAt,
+          studentDisplayName: toDisplayName(q.student.firstName, q.student.lastName),
+          branchName: q.student.branch.name,
+          teacher: { firstName: q.teacher.firstName, lastName: q.teacher.lastName, subject: q.teacher.subject },
+        })),
+      });
+    }
+
     const teacherId = request.nextUrl.searchParams.get("teacherId");
     const studentId = request.nextUrl.searchParams.get("studentId");
 

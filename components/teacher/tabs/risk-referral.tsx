@@ -2,20 +2,71 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, LifeBuoy, CheckCircle2, Loader2, Scan } from "lucide-react";
+import { AlertTriangle, LifeBuoy, CheckCircle2, Loader2, Send } from "lucide-react";
 import { RISK_REASON_LABEL, type RiskReason } from "@/lib/mock-data";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
+import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
 type RiskEntry = { id: string; name: string; branch: string; riskScore: number; reason: RiskReason };
 
-export function RiskReferralTab({ onInspectStudent }: { onInspectStudent?: (studentId: string) => void } = {}) {
-  const { teacherName, staffRecord } = useTeacherScope();
+// Rehberliğe sevk için kısa bir not (reason) isteyen modal — GuidanceReferral
+// kaydı (studentId, teacherId, reason, status: PENDING) bu notla oluşturulur.
+// GuidanceNote'taki sabit metinli eski akıştan BİLEREK ayrı: burada gerçek
+// bir öğretmen gözlemi zorunlu, kayıt PENDING/REVIEWED olarak takip edilebilir
+// (bkz. app/api/guidance-referrals/route.ts).
+function ReferralReasonModal({
+  target,
+  submitting,
+  onClose,
+  onSubmit,
+}: {
+  target: RiskEntry | null;
+  submitting: boolean;
+  onClose: () => void;
+  onSubmit: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (!target) setReason("");
+  }, [target]);
+
+  return (
+    <Modal isOpen={!!target} onClose={onClose} title="Rehberliğe Sevk Et">
+      {target && (
+        <div className="space-y-3">
+          <p className="rounded-xl bg-cream-card px-3 py-2.5 text-xs text-espresso dark:bg-white/5 dark:text-cream">
+            {target.name} · {target.branch}
+          </p>
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            rows={3}
+            placeholder="Sevk gerekçeni kısaca yaz (örn. Son iki denemede net düşüşü ve tekrarlayan devamsızlık)."
+            className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+          />
+          <button
+            onClick={() => onSubmit(reason)}
+            disabled={!reason.trim() || submitting}
+            className="flex min-h-[48px] w-full items-center justify-center gap-1.5 rounded-xl bg-espresso text-sm font-semibold text-cream transition hover:bg-caramel disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
+          >
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Sevki Gönder
+          </button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+export function RiskReferralTab() {
+  const { staffRecord } = useTeacherScope();
   const { showError, showSuccess } = useToast();
   const [risky, setRisky] = useState<RiskEntry[]>([]);
   const [referred, setReferred] = useState<string[]>([]);
-  const [referring, setReferring] = useState<string | null>(null);
+  const [referTarget, setReferTarget] = useState<RiskEntry | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!staffRecord.id) return;
@@ -26,28 +77,24 @@ export function RiskReferralTab({ onInspectStudent }: { onInspectStudent?: (stud
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffRecord.id]);
 
-  async function refer(entry: RiskEntry) {
-    setReferring(entry.id);
+  async function submitReferral(reason: string) {
+    if (!referTarget || !reason.trim()) return;
+    setSubmitting(true);
     try {
-      const res = await fetch("/api/guidance-notes", {
+      const res = await fetch("/api/guidance-referrals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId: entry.id,
-          authorName: teacherName,
-          category: "ACADEMIC",
-          confidentialityLevel: "RESTRICTED",
-          note: "Risk radarı üzerinden doğrudan sevk edildi.",
-        }),
+        body: JSON.stringify({ studentId: referTarget.id, reason: reason.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Sevk gönderilemedi.");
-      setReferred((prev) => [...prev, entry.id]);
-      showSuccess(`${entry.name} rehberliğe sevk edildi.`);
+      setReferred((prev) => [...prev, referTarget.id]);
+      showSuccess(`${referTarget.name} rehberliğe sevk edildi.`);
+      setReferTarget(null);
     } catch (error) {
       showError(error instanceof Error ? error.message : "Sevk gönderilemedi.");
     } finally {
-      setReferring(null);
+      setSubmitting(false);
     }
   }
 
@@ -82,18 +129,9 @@ export function RiskReferralTab({ onInspectStudent }: { onInspectStudent?: (stud
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {onInspectStudent && (
-                    <button
-                      onClick={() => onInspectStudent(entry.id)}
-                      title="Röntgen Karnesini İncele"
-                      className="flex items-center gap-1.5 rounded-full border border-hairline px-2.5 py-1 text-[11px] font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
-                    >
-                      <Scan className="h-3 w-3" /> İncele
-                    </button>
-                  )}
                   <button
-                    onClick={() => refer(entry)}
-                    disabled={isReferred || referring === entry.id}
+                    onClick={() => setReferTarget(entry)}
+                    disabled={isReferred}
                     className={cn(
                       "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition",
                       isReferred
@@ -101,9 +139,7 @@ export function RiskReferralTab({ onInspectStudent }: { onInspectStudent?: (stud
                         : "bg-espresso text-cream hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
                     )}
                   >
-                    {referring === entry.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : isReferred ? (
+                    {isReferred ? (
                       <>
                         <CheckCircle2 className="h-3 w-3" /> Sevk Edildi
                       </>
@@ -120,6 +156,8 @@ export function RiskReferralTab({ onInspectStudent }: { onInspectStudent?: (stud
           {risky.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Girdiğiniz sınıflarda risk uyarısı yok.</p>}
         </div>
       </motion.div>
+
+      <ReferralReasonModal target={referTarget} submitting={submitting} onClose={() => setReferTarget(null)} onSubmit={submitReferral} />
     </div>
   );
 }

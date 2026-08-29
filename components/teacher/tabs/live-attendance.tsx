@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Check, X, Clock, Bell, Loader2, CheckCheck, Radio, Archive, BarChart2, Send, CheckCircle2 } from "lucide-react";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
+import { getTodayTrDayName, parseSlotRange } from "@/lib/schedule-time";
 import { useToast } from "@/lib/toast-context";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
@@ -159,24 +160,40 @@ export function LiveAttendanceTab() {
 
   const branch = assignedBranches.find((b) => b.id === selectedBranchId);
 
+  // Part 4 — yoklama artık bir GÜNÜ değil bir DERSİ hedefler (bkz.
+  // AttendanceRecord şema notu): öğretmen aynı gün aynı şubede birden fazla
+  // ders saatine sahip olabilir (örn. Pazartesi 16:00 ve Perşembe 16:00 AYNI
+  // gün değil ama iki farklı şubede aynı gün iki ders olabilir), bu yüzden
+  // hangi ders saati için yoklama girildiğini AÇIKÇA seçtiriyoruz — mySchedule
+  // (öğretmenin TÜM haftalık programı, zaten yüklü) bugünün gün adına ve
+  // seçili şubeye göre süzülüyor, ayrı bir istek gerekmiyor.
+  const todayDayName = getTodayTrDayName();
+  const todaysLessonsForBranch = useMemo(
+    () =>
+      mySchedule
+        .filter((row) => row.day === todayDayName && row.branchId === selectedBranchId)
+        .sort((a, b) => parseSlotRange(a.slot)[0] - parseSlotRange(b.slot)[0]),
+    [mySchedule, todayDayName, selectedBranchId]
+  );
+  const [selectedSlot, setSelectedSlot] = useState("");
+  useEffect(() => {
+    setSelectedSlot((current) => {
+      if (todaysLessonsForBranch.some((row) => row.slot === current)) return current;
+      const live = todaysLessonsForBranch.find((row) => row.slot === lesson.slot);
+      return live?.slot ?? todaysLessonsForBranch[0]?.slot ?? "";
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todaysLessonsForBranch]);
+
   useEffect(() => {
     if (!selectedBranchId) return;
     let cancelled = false;
     setRoster([]);
-    setStatuses({});
     (async () => {
       try {
-        const [studentsRes, marksRes] = await Promise.all([
-          fetch(`/api/students?branchId=${encodeURIComponent(selectedBranchId)}`),
-          fetch(`/api/attendance?branchId=${encodeURIComponent(selectedBranchId)}&date=${todayIso()}`),
-        ]);
-        const studentsData = await studentsRes.json();
-        const marksData = await marksRes.json();
-        if (cancelled) return;
-        setRoster(studentsData.students ?? []);
-        const prefill: Record<string, AttendanceStatus> = {};
-        for (const record of marksData.records ?? []) prefill[record.studentId] = record.status;
-        setStatuses(prefill);
+        const res = await fetch(`/api/students?branchId=${encodeURIComponent(selectedBranchId)}`);
+        const data = await res.json();
+        if (!cancelled) setRoster(data.students ?? []);
       } catch {
         if (!cancelled) showError("Sınıf listesi yüklenemedi, veritabanı bağlantısını kontrol edin.");
       }
@@ -185,6 +202,29 @@ export function LiveAttendanceTab() {
       cancelled = true;
     };
   }, [selectedBranchId, showError]);
+
+  useEffect(() => {
+    setStatuses({});
+    if (!selectedBranchId || !selectedSlot) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/attendance?branchId=${encodeURIComponent(selectedBranchId)}&date=${todayIso()}&slot=${encodeURIComponent(selectedSlot)}`
+        );
+        const data = await res.json();
+        if (cancelled) return;
+        const prefill: Record<string, AttendanceStatus> = {};
+        for (const record of data.records ?? []) prefill[record.studentId] = record.status;
+        setStatuses(prefill);
+      } catch {
+        // sessiz — boş (unmarked) durumla devam edilir
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBranchId, selectedSlot]);
 
   function setStatus(studentId: string, status: AttendanceStatus) {
     setStatuses((prev) => ({ ...prev, [studentId]: status }));
@@ -202,7 +242,7 @@ export function LiveAttendanceTab() {
   }
 
   async function handleSubmit() {
-    if (!branch || roster.length === 0) return;
+    if (!branch || !selectedSlot || roster.length === 0) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/attendance", {
@@ -212,6 +252,7 @@ export function LiveAttendanceTab() {
           teacherId: staffRecord.id,
           branchId: branch.id,
           date: todayIso(),
+          slot: selectedSlot,
           records: roster.map((student) => ({ studentId: student.id, status: statuses[student.id] ?? "PRESENT" })),
         }),
       });
@@ -252,6 +293,23 @@ export function LiveAttendanceTab() {
               </option>
             ))}
           </select>
+          {todaysLessonsForBranch.length > 0 ? (
+            <select
+              value={selectedSlot}
+              onChange={(event) => setSelectedSlot(event.target.value)}
+              className="min-h-[44px] rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+            >
+              {todaysLessonsForBranch.map((row) => (
+                <option key={row.slot} value={row.slot}>
+                  {row.slot} · {row.subject}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+              Bugün bu şube için programda dersin görünmüyor
+            </span>
+          )}
           <span className="text-xs text-espresso-muted dark:text-cream/40">{roster.length} öğrenci</span>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:flex sm:flex-wrap">
