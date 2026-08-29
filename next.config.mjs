@@ -26,6 +26,14 @@ const nextConfig = {
     // süreç başlangıcında çalışması için gerekli (Next.js 15'te varsayılan
     // hale geldi, 14.x'te hâlâ bu flag'in açık olmasını istiyor).
     instrumentationHook: true,
+    // PDF üretiminin (bkz. lib/server/pdf/fonts.ts) çalışma anında okuduğu
+    // Noto Sans font dosyaları — Vercel'in serverless fonksiyon paketleme
+    // izleyicisi (file tracing) public/ altındaki dosyaları BAZI durumlarda
+    // otomatik dahil etmeyebiliyor (yerelde çalışıp üretimde "PDF açılmıyor"
+    // hatasına yol açan asıl neden buydu); burada AÇIKÇA zorunlu kılınıyor.
+    outputFileTracingIncludes: {
+      "/api/report-cards/**": ["./public/fonts/**"],
+    },
   },
   async headers() {
     return [
