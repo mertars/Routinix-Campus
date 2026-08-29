@@ -42,28 +42,48 @@ async function handleGet(request: NextRequest) {
       },
     });
 
-    const entries = await Promise.all(
-      submissions.map(async (submission) => {
-        const students = await prisma.student.findMany({
-          where: { branchId: submission.branchId },
-          select: { id: true, firstName: true, lastName: true },
-        });
-        const records = await prisma.attendanceRecord.findMany({
-          where: { date: submission.date, studentId: { in: students.map((s) => s.id) } },
-          select: { studentId: true, status: true },
-        });
-        const studentById = new Map(students.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));
+    // ⚠️ Önceki sürüm HER submission için 2 ayrı sorgu (öğrenci listesi +
+    // devam kaydı) çalıştırıyordu — 50 submission'da ~100 ekstra sorgu
+    // demekti. Aynı sonucu üreten iki toplu sorguya indirgendi: TÜM ilgili
+    // şubelerin öğrencileri bir seferde, TÜM ilgili tarihlerin devam
+    // kayıtları bir seferde çekilip JS'te (şube+tarih) anahtarıyla gruplanıyor.
+    const branchIds = [...new Set(submissions.map((s) => s.branchId))];
+    const students = branchIds.length
+      ? await prisma.student.findMany({ where: { branchId: { in: branchIds } }, select: { id: true, firstName: true, lastName: true, branchId: true } })
+      : [];
+    const nameById = new Map(students.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));
+    const branchIdByStudent = new Map(students.map((s) => [s.id, s.branchId]));
+    const studentIds = students.map((s) => s.id);
 
-        return {
-          id: submission.id,
-          teacherName: `${submission.teacher.firstName} ${submission.teacher.lastName}`,
-          branchName: submission.branch.name,
-          date: submission.date.toISOString().slice(0, 10),
-          submittedAt: submission.createdAt.toISOString(),
-          records: records.map((r) => ({ studentName: studentById.get(r.studentId) ?? "Bilinmiyor", status: r.status })),
-        };
-      })
-    );
+    const dates = [...new Set(submissions.map((s) => s.date.getTime()))].map((t) => new Date(t));
+    const records = studentIds.length && dates.length
+      ? await prisma.attendanceRecord.findMany({
+          where: { studentId: { in: studentIds }, date: { in: dates } },
+          select: { studentId: true, status: true, date: true },
+        })
+      : [];
+    const recordsByBranchDate = new Map<string, { studentId: string; status: string }[]>();
+    for (const r of records) {
+      const branchId = branchIdByStudent.get(r.studentId);
+      if (!branchId) continue;
+      const key = `${branchId}|${r.date.getTime()}`;
+      const list = recordsByBranchDate.get(key) ?? [];
+      list.push({ studentId: r.studentId, status: r.status });
+      recordsByBranchDate.set(key, list);
+    }
+
+    const entries = submissions.map((submission) => {
+      const key = `${submission.branchId}|${submission.date.getTime()}`;
+      const submissionRecords = recordsByBranchDate.get(key) ?? [];
+      return {
+        id: submission.id,
+        teacherName: `${submission.teacher.firstName} ${submission.teacher.lastName}`,
+        branchName: submission.branch.name,
+        date: submission.date.toISOString().slice(0, 10),
+        submittedAt: submission.createdAt.toISOString(),
+        records: submissionRecords.map((r) => ({ studentName: nameById.get(r.studentId) ?? "Bilinmiyor", status: r.status })),
+      };
+    });
 
     return NextResponse.json({ entries });
   } catch (error) {

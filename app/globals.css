@@ -123,6 +123,30 @@ html.dark body {
   }
 }
 
+/* ----------------------------------------------------------------------
+ * Mobil dokunmatik hız — SADECE davranış, hiçbir görsel etki yok.
+ * touch-action: manipulation, tıklanabilir elemanlarda tarayıcının
+ * çift-dokunma/yakınlaştırma jestini bekleyip getirdiği ~300ms'lik
+ * dokunma gecikmesini kaldırır. -webkit-overflow-scrolling: touch, eski
+ * iOS Safari'de kaydırılabilir kutulara donanım hızlandırmalı momentum
+ * kaydırması kazandırır (güncel Safari'de zaten varsayılan, zararsız).
+ * ---------------------------------------------------------------------- */
+@layer base {
+  button,
+  a,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"] {
+    touch-action: manipulation;
+  }
+
+  .overflow-x-auto,
+  .overflow-y-auto,
+  .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 /* A4 Kurumsal PDF önizlemesi yazdırılırken sayfada SADECE bu alan görünsün. */
 @media print {
   body * {

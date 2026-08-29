@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { AlertTriangle, LifeBuoy, CheckCheck, Loader2, Scan } from "lucide-react";
 import { RISK_REASON_LABEL, type RiskReason } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
-import { PerformanceInspectorModal } from "@/components/principal/user-management/performance-inspector-modal";
+
+// "İncele" ile nadiren açılan bir modal — branch-staff.tsx'teki AYNI
+// tembel yükleme deseni.
+const PerformanceInspectorModal = dynamic(
+  () => import("@/components/principal/user-management/performance-inspector-modal").then((mod) => mod.PerformanceInspectorModal),
+  { ssr: false }
+);
 
 // Öğretmen tarafındaki Rehberlik Sevk & Risk Alarmı ekranıyla AYNI eşik
 // (bkz. components/teacher/tabs/risk-referral.tsx) — kurum genelinde
@@ -77,7 +84,7 @@ export function RiskRadarTab() {
     }
   }
 
-  const sorted = [...entries].sort((a, b) => b.riskScore - a.riskScore);
+  const sorted = useMemo(() => [...entries].sort((a, b) => b.riskScore - a.riskScore), [entries]);
 
   return (
     <motion.div

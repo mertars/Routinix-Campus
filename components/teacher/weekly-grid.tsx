@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import { SCHEDULE_DAYS, SCHEDULE_SLOTS, type ScheduleDay, type ScheduleSlot } from "@/lib/mock-data";
@@ -9,8 +9,10 @@ import { cn } from "@/lib/utils";
 export type WeeklyGridCell = { label: string; tone: string } | null;
 
 // Masaüstünde 5x4 tam matris grid, mobilde gün bazlı akordiyon — aynı
-// 'getCell' veri kaynağından iki farklı yerleşim üretir.
-export function WeeklyGrid({ getCell }: { getCell: (day: ScheduleDay, slot: ScheduleSlot) => WeeklyGridCell }) {
+// 'getCell' veri kaynağından iki farklı yerleşim üretir. memo ile sarılı —
+// tam faydası için çağıranların 'getCell' prop'unu useCallback'le kararlı
+// bir referansta tutması gerekir (bkz. kullanım yerleri).
+export const WeeklyGrid = memo(function WeeklyGrid({ getCell }: { getCell: (day: ScheduleDay, slot: ScheduleSlot) => WeeklyGridCell }) {
   const [expandedDay, setExpandedDay] = useState<ScheduleDay | null>(SCHEDULE_DAYS[0]);
 
   return (
@@ -98,4 +100,4 @@ export function WeeklyGrid({ getCell }: { getCell: (day: ScheduleDay, slot: Sche
       </div>
     </>
   );
-}
+});

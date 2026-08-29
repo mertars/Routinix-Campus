@@ -6,6 +6,19 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
+// bkz. app/api/study-goals/route.ts — aynı alan listesi, UI'nin gerçekten
+// okuduğuyla birebir.
+const TOPIC_GOAL_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  targetMinutes: true,
+  targetQuestions: true,
+  progressMinutes: true,
+  progressQuestions: true,
+  isCompleted: true,
+} as const;
+
 // PATCH /api/study-goals/:id — { addQuestions?, addMinutes?, complete? }
 // SADECE hedefin sahibi öğrenci güncelleyebilir (bkz. gizlilik notu,
 // schema.prisma > StudyGoal).
@@ -31,7 +44,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
         ...(Number.isFinite(mDelta) && mDelta !== 0 ? { progressMinutes: { increment: mDelta } } : {}),
         ...(complete === true ? { isCompleted: true, completedAt: new Date() } : {}),
       },
-      include: { topicGoals: { orderBy: { createdAt: "asc" } } },
+      include: { topicGoals: { orderBy: { createdAt: "asc" }, select: TOPIC_GOAL_SELECT } },
     });
 
     return NextResponse.json({ goal });

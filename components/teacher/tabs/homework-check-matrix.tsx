@@ -50,7 +50,17 @@ export function HomeworkCheckMatrixTab() {
   const { showError, showSuccess } = useToast();
 
   const [myAssignments, setMyAssignments] = useState<HomeworkEntry[]>([]);
-  const [branchId, setBranchId] = useState(assignedBranches[0]?.id ?? "");
+  // ⚠️ assignedBranches useTeacherScope'un KENDİ asenkron isteğinden gelir —
+  // ilk render'da her zaman boştur. useState(assignedBranches[0]?.id ?? "")
+  // bu boş değeri KALICI olarak dondurup branchId'yi sonsuza dek "" bırakıyordu
+  // (öğretmen elle şube değiştirmeden), bu da branchAssignments'ın hiçbir
+  // zaman eşleşmemesine ve ekranın hep "Atanan ödev yok" göstermesine yol
+  // açıyordu — schedule-matrix.tsx'teki AYNI "veri gelince bir kere doldur"
+  // deseniyle düzeltildi.
+  const [branchId, setBranchId] = useState("");
+  useEffect(() => {
+    setBranchId((current) => current || assignedBranches[0]?.id || "");
+  }, [assignedBranches]);
   const [roster, setRoster] = useState<RosterStudent[]>([]);
   const [homeworkId, setHomeworkId] = useState("");
   const [draft, setDraft] = useState<Record<string, HomeworkStatus>>({});
@@ -101,9 +111,18 @@ export function HomeworkCheckMatrixTab() {
 
   const homework = branchAssignments.find((item) => item.id === homeworkId);
 
+  // roster.map her satırda homework.submissions içinde .find() yapıyordu
+  // (O(öğrenci×kayıt)) — 6sn'de bir gelen poll'da tekrarlanan bir maliyet.
+  // Tek geçişte kurulan bir Map ile O(1) arama.
+  const statusByStudent = useMemo(() => {
+    const map = new Map<string, HomeworkStatus>();
+    for (const s of homework?.submissions ?? []) map.set(s.studentId, s.status);
+    return map;
+  }, [homework]);
+
   function cycle(studentId: string) {
     if (!homework) return;
-    const current = draft[studentId] ?? homework.submissions.find((s) => s.studentId === studentId)?.status ?? "NOT_DONE";
+    const current = draft[studentId] ?? statusByStudent.get(studentId) ?? "NOT_DONE";
     setDraft((prev) => ({ ...prev, [studentId]: NEXT_STATE[current] }));
   }
 
@@ -188,7 +207,7 @@ export function HomeworkCheckMatrixTab() {
           <>
             <div className="mb-3 grid gap-2 sm:grid-cols-2">
               {roster.map((student, index) => {
-                const status = draft[student.id] ?? homework.submissions.find((s) => s.studentId === student.id)?.status ?? "NOT_DONE";
+                const status = draft[student.id] ?? statusByStudent.get(student.id) ?? "NOT_DONE";
                 const Icon = STATE_ICON[status];
                 return (
                   <motion.div

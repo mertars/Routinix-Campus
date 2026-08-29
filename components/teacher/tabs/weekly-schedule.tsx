@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, FileText, Database, ImageIcon } from "lucide-react";
 import { useTeacherScope } from "@/lib/teacher-scope";
@@ -11,6 +11,12 @@ type BankQuestion = { id: string; imageLabel: string; answer: string; addedAt: s
 type ApprovedAppointment = { day: string; slot: string; student: { firstName: string; lastName: string } };
 
 type DutySlot = { day: string; slot: string; label: string };
+
+const CELL_STYLES = {
+  ders: "border-brand-600/40 bg-brand-50 dark:border-brand-600/20 dark:bg-brand-600/10",
+  etut: "border-green-500/40 bg-green-50 dark:border-green-500/20 dark:bg-green-500/10",
+  nobet: "border-purple-400/40 bg-purple-50 dark:border-purple-400/20 dark:bg-purple-500/10",
+} as const;
 
 export function WeeklyScheduleTab() {
   const { teacherName, staffRecord, subject, mySchedule } = useTeacherScope();
@@ -42,21 +48,18 @@ export function WeeklyScheduleTab() {
 
   const scheduleWithBranch = mySchedule;
 
-  const CELL_STYLES = {
-    ders: "border-brand-600/40 bg-brand-50 dark:border-brand-600/20 dark:bg-brand-600/10",
-    etut: "border-green-500/40 bg-green-50 dark:border-green-500/20 dark:bg-green-500/10",
-    nobet: "border-purple-400/40 bg-purple-50 dark:border-purple-400/20 dark:bg-purple-500/10",
-  };
-
-  function getCell(day: string, slot: string): WeeklyGridCell {
-    const lesson = scheduleWithBranch.find((row) => row.day === day && row.slot === slot);
-    if (lesson) return { label: lesson.branchName, tone: CELL_STYLES.ders };
-    const etut = myEtutSlots.find((row) => row.day === day && row.slot === slot);
-    if (etut) return { label: `${etut.student.firstName} ${etut.student.lastName}`, tone: CELL_STYLES.etut };
-    const duty = myDutySlots.find((row) => row.day === day && row.slot === slot);
-    if (duty) return { label: duty.label, tone: CELL_STYLES.nobet };
-    return null;
-  }
+  const getCell = useCallback(
+    (day: string, slot: string): WeeklyGridCell => {
+      const lesson = scheduleWithBranch.find((row) => row.day === day && row.slot === slot);
+      if (lesson) return { label: lesson.branchName, tone: CELL_STYLES.ders };
+      const etut = myEtutSlots.find((row) => row.day === day && row.slot === slot);
+      if (etut) return { label: `${etut.student.firstName} ${etut.student.lastName}`, tone: CELL_STYLES.etut };
+      const duty = myDutySlots.find((row) => row.day === day && row.slot === slot);
+      if (duty) return { label: duty.label, tone: CELL_STYLES.nobet };
+      return null;
+    },
+    [scheduleWithBranch, myEtutSlots, myDutySlots]
+  );
 
   return (
     <div className="space-y-4">

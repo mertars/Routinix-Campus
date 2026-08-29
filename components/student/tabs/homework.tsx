@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileCheck2, Camera, Paperclip, CheckCircle2, Circle, ShieldCheck, AlertOctagon, Link as LinkIcon, ListChecks, Loader2 } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
@@ -136,12 +136,20 @@ function HomeworkDetailModal({
   );
 }
 
-function HomeworkCard({ item, status, onOpen }: { item: HomeworkEntry; status: HomeworkStatus; onOpen: () => void }) {
+const HomeworkCard = memo(function HomeworkCard({
+  item,
+  status,
+  onOpen,
+}: {
+  item: HomeworkEntry;
+  status: HomeworkStatus;
+  onOpen: (id: string) => void;
+}) {
   const Icon = STATE_ICON[status];
   const overdue = (status === "NOT_DONE" || status === "HALF") && isOverdue(item.dueAt);
   return (
     <motion.button
-      onClick={onOpen}
+      onClick={() => onOpen(item.id)}
       whileHover={{ scale: 1.01 }}
       className={cn(
         "flex w-full items-center justify-between gap-3 rounded-2xl p-3.5 text-left",
@@ -166,7 +174,7 @@ function HomeworkCard({ item, status, onOpen }: { item: HomeworkEntry; status: H
       </div>
     </motion.button>
   );
-}
+});
 
 export function HomeworkTab() {
   const { studentId, branchId } = useStudentScope();
@@ -222,18 +230,25 @@ export function HomeworkTab() {
     }
   }
 
-  const active = myHomeworks
-    .filter((item) => ["NOT_DONE", "HALF"].includes(statusFor(item)))
-    .sort((a, b) => {
-      const aOverdue = isOverdue(a.dueAt);
-      const bOverdue = isOverdue(b.dueAt);
-      if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
-      if (!a.dueAt) return 1;
-      if (!b.dueAt) return -1;
-      return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
-    });
-  const completed = myHomeworks.filter((item) => statusFor(item) === "DONE");
-  const late = myHomeworks.filter((item) => statusFor(item) === "LATE");
+  const openHomework = useCallback((id: string) => setOpenId(id), []);
+
+  const active = useMemo(
+    () =>
+      myHomeworks
+        .filter((item) => ["NOT_DONE", "HALF"].includes(statusFor(item)))
+        .sort((a, b) => {
+          const aOverdue = isOverdue(a.dueAt);
+          const bOverdue = isOverdue(b.dueAt);
+          if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
+          if (!a.dueAt) return 1;
+          if (!b.dueAt) return -1;
+          return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [myHomeworks, studentId]
+  );
+  const completed = useMemo(() => myHomeworks.filter((item) => statusFor(item) === "DONE"), [myHomeworks, studentId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const late = useMemo(() => myHomeworks.filter((item) => statusFor(item) === "LATE"), [myHomeworks, studentId]); // eslint-disable-line react-hooks/exhaustive-deps
   const openItem = myHomeworks.find((item) => item.id === openId) ?? null;
 
   return (
@@ -245,7 +260,7 @@ export function HomeworkTab() {
         <div className="space-y-2">
           <AnimatePresence>
             {active.map((item) => (
-              <HomeworkCard key={item.id} item={item} status={statusFor(item)} onOpen={() => setOpenId(item.id)} />
+              <HomeworkCard key={item.id} item={item} status={statusFor(item)} onOpen={openHomework} />
             ))}
           </AnimatePresence>
           {!loading && active.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Aktif ödevin yok, harika gidiyorsun!</p>}
@@ -260,7 +275,7 @@ export function HomeworkTab() {
           </h2>
           <div className="space-y-2">
             {late.map((item) => (
-              <HomeworkCard key={item.id} item={item} status="LATE" onOpen={() => setOpenId(item.id)} />
+              <HomeworkCard key={item.id} item={item} status="LATE" onOpen={openHomework} />
             ))}
           </div>
         </motion.div>
@@ -272,7 +287,7 @@ export function HomeworkTab() {
         </h2>
         <div className="space-y-2">
           {completed.map((item) => (
-            <HomeworkCard key={item.id} item={item} status="DONE" onOpen={() => setOpenId(item.id)} />
+            <HomeworkCard key={item.id} item={item} status="DONE" onOpen={openHomework} />
           ))}
           {completed.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Henüz tamamlanan ödev yok.</p>}
         </div>

@@ -16,7 +16,17 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
 
     const student = await prisma.student.findUnique({
       where: { id: params.id },
-      include: { branch: true },
+      select: {
+        id: true,
+        institutionId: true,
+        firstName: true,
+        lastName: true,
+        studentNumber: true,
+        branchId: true,
+        targetNet: true,
+        weeklyStudyHours: true,
+        branch: { select: { name: true, grade: true } },
+      },
     });
     if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
 
@@ -27,7 +37,9 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
 
     const [attendanceRecords, netResults] = await Promise.all([
       prisma.attendanceRecord.findMany({ where: { studentId: student.id }, select: { status: true } }),
-      prisma.examNetResult.findMany({ where: { studentId: student.id }, include: { exam: true }, orderBy: { exam: { examDate: "desc" } } }),
+      // orderBy ilişkiyi SQL JOIN'iyle sıralar, include GEREKTİRMEZ — exam
+      // objesinin kendisi hiç okunmuyordu (sadece examId/net kullanılıyor).
+      prisma.examNetResult.findMany({ where: { studentId: student.id }, select: { examId: true, net: true }, orderBy: { exam: { examDate: "desc" } } }),
     ]);
 
     // "Güncel Net": en son denemedeki tüm branşların net toplamı.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, Clock, CalendarCheck, Coffee, Plus, Trash2, Loader2 } from "lucide-react";
 import { SCHEDULE_DAYS, type ScheduleDay } from "@/lib/mock-data";
@@ -68,6 +68,51 @@ function AddRangeRow({ day, onAdd }: { day: ScheduleDay; onAdd: (start: string, 
   );
 }
 
+// memo + kararlı (useCallback'li) onApprove/onReject sayesinde, ebeveynde
+// mola süresi inputuna her tuş vuruşunda TÜM bekleyen talep kartları
+// yeniden render edilmiyor — sadece gerçekten değişen kart.
+const PendingRequestCard = memo(function PendingRequestCard({
+  request,
+  isDeciding,
+  onApprove,
+  onReject,
+}: {
+  request: AppointmentEntry;
+  isDeciding: boolean;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+      className="rounded-2xl bg-cream-card p-3 dark:bg-white/5"
+    >
+      <div className="mb-2">
+        <p className="text-sm font-medium text-espresso dark:text-cream">{request.student.firstName} {request.student.lastName}</p>
+        <p className="text-[11px] text-espresso-muted dark:text-cream/40">{request.topic} · {request.day} {request.slot}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        <button
+          onClick={() => onApprove(request.id)}
+          disabled={isDeciding}
+          className="flex min-h-[40px] items-center justify-center gap-1 rounded-full bg-green-600 text-[11px] font-medium text-white transition hover:bg-green-700 disabled:opacity-60"
+        >
+          {isDeciding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Onayla
+        </button>
+        <button
+          onClick={() => onReject(request.id)}
+          disabled={isDeciding}
+          className="flex min-h-[40px] items-center justify-center gap-1 rounded-full bg-rose-100 text-[11px] font-medium text-rose-700 transition hover:bg-rose-200 disabled:opacity-60 dark:bg-rose-500/15 dark:text-rose-300"
+        >
+          <X className="h-3 w-3" /> Reddet
+        </button>
+      </div>
+    </motion.div>
+  );
+});
+
 export function AppointmentApprovalTab() {
   const { staffRecord } = useTeacherScope();
   const { showError, showSuccess } = useToast();
@@ -108,7 +153,7 @@ export function AppointmentApprovalTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffRecord.id]);
 
-  async function updateStatus(id: string, status: "APPROVED" | "REJECTED") {
+  const updateStatus = useCallback(async (id: string, status: "APPROVED" | "REJECTED") => {
     setDecidingId(id);
     try {
       const res = await fetch(`/api/appointments/${id}`, {
@@ -125,7 +170,10 @@ export function AppointmentApprovalTab() {
     } finally {
       setDecidingId(null);
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showError, showSuccess]);
+  const approveRequest = useCallback((id: string) => updateStatus(id, "APPROVED"), [updateStatus]);
+  const rejectRequest = useCallback((id: string) => updateStatus(id, "REJECTED"), [updateStatus]);
 
   async function addRange(day: ScheduleDay, start: string, end: string) {
     try {
@@ -171,9 +219,9 @@ export function AppointmentApprovalTab() {
     }
   }
 
-  const pending = requests.filter((r) => r.status === "PENDING");
-  const resolved = requests.filter((r) => r.status !== "PENDING");
-  const approved = requests.filter((r) => r.status === "APPROVED");
+  const pending = useMemo(() => requests.filter((r) => r.status === "PENDING"), [requests]);
+  const resolved = useMemo(() => requests.filter((r) => r.status !== "PENDING"), [requests]);
+  const approved = useMemo(() => requests.filter((r) => r.status === "APPROVED"), [requests]);
 
   return (
     <div className="space-y-4">
@@ -187,34 +235,13 @@ export function AppointmentApprovalTab() {
         <div className="space-y-2">
           <AnimatePresence>
             {pending.map((request) => (
-              <motion.div
+              <PendingRequestCard
                 key={request.id}
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="rounded-2xl bg-cream-card p-3 dark:bg-white/5"
-              >
-                <div className="mb-2">
-                  <p className="text-sm font-medium text-espresso dark:text-cream">{request.student.firstName} {request.student.lastName}</p>
-                  <p className="text-[11px] text-espresso-muted dark:text-cream/40">{request.topic} · {request.day} {request.slot}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={() => updateStatus(request.id, "APPROVED")}
-                    disabled={decidingId === request.id}
-                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-full bg-green-600 text-[11px] font-medium text-white transition hover:bg-green-700 disabled:opacity-60"
-                  >
-                    {decidingId === request.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Onayla
-                  </button>
-                  <button
-                    onClick={() => updateStatus(request.id, "REJECTED")}
-                    disabled={decidingId === request.id}
-                    className="flex min-h-[40px] items-center justify-center gap-1 rounded-full bg-rose-100 text-[11px] font-medium text-rose-700 transition hover:bg-rose-200 disabled:opacity-60 dark:bg-rose-500/15 dark:text-rose-300"
-                  >
-                    <X className="h-3 w-3" /> Reddet
-                  </button>
-                </div>
-              </motion.div>
+                request={request}
+                isDeciding={decidingId === request.id}
+                onApprove={approveRequest}
+                onReject={rejectRequest}
+              />
             ))}
           </AnimatePresence>
           {pending.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Bekleyen randevu talebi yok.</p>}

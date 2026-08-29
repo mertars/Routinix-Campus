@@ -6,22 +6,38 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil, UserX, UserCheck, Trash2 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
-import { AddUserModal } from "@/components/principal/user-management/add-user-modal";
-import { AddBranchModal } from "@/components/principal/user-management/add-branch-modal";
-import { EditUserModal, type EditTarget } from "@/components/principal/user-management/edit-user-modal";
-import { CredentialsCardModal, type NewUserCredentials } from "@/components/principal/user-management/credentials-card-modal";
-import { PerformanceInspectorModal } from "@/components/principal/user-management/performance-inspector-modal";
-import { DeactivateConfirmModal, type DeactivateTarget } from "@/components/principal/user-management/deactivate-confirm-modal";
-import { PermanentDeleteConfirmModal, type PermanentDeleteTarget } from "@/components/principal/user-management/permanent-delete-confirm-modal";
+import type { EditTarget } from "@/components/principal/user-management/edit-user-modal";
+import type { NewUserCredentials } from "@/components/principal/user-management/credentials-card-modal";
+import type { DeactivateTarget } from "@/components/principal/user-management/deactivate-confirm-modal";
+import type { PermanentDeleteTarget } from "@/components/principal/user-management/permanent-delete-confirm-modal";
 import { cn } from "@/lib/utils";
 
 type BranchOption = { id: string; name: string };
 
-// xlsx + pdfjs-dist büyük kütüphaneler — sadece sihirbaz gerçekten açıldığında
-// (nadir bir işlem) ayrı bir chunk olarak yüklensin diye dinamik import
-// ediliyor; aksi halde Kadro Dizini'ne her girişte ~150KB fazladan JS iner.
+// Bu modallerin hepsi sadece belirli bir butona tıklanınca (nadiren) açılır
+// — hepsi ilk sayfa yüklemesinde gereksiz JS taşımaması için next/dynamic
+// ile tembel yükleniyor (xlsx/pdfjs'li BulkImportWizard'daki AYNI desen).
 const BulkImportWizard = dynamic(
   () => import("@/components/principal/user-management/bulk-import-wizard").then((mod) => mod.BulkImportWizard),
+  { ssr: false }
+);
+const AddUserModal = dynamic(() => import("@/components/principal/user-management/add-user-modal").then((mod) => mod.AddUserModal), { ssr: false });
+const AddBranchModal = dynamic(() => import("@/components/principal/user-management/add-branch-modal").then((mod) => mod.AddBranchModal), { ssr: false });
+const EditUserModal = dynamic(() => import("@/components/principal/user-management/edit-user-modal").then((mod) => mod.EditUserModal), { ssr: false });
+const CredentialsCardModal = dynamic(
+  () => import("@/components/principal/user-management/credentials-card-modal").then((mod) => mod.CredentialsCardModal),
+  { ssr: false }
+);
+const PerformanceInspectorModal = dynamic(
+  () => import("@/components/principal/user-management/performance-inspector-modal").then((mod) => mod.PerformanceInspectorModal),
+  { ssr: false }
+);
+const DeactivateConfirmModal = dynamic(
+  () => import("@/components/principal/user-management/deactivate-confirm-modal").then((mod) => mod.DeactivateConfirmModal),
+  { ssr: false }
+);
+const PermanentDeleteConfirmModal = dynamic(
+  () => import("@/components/principal/user-management/permanent-delete-confirm-modal").then((mod) => mod.PermanentDeleteConfirmModal),
   { ssr: false }
 );
 

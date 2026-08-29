@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { Modal } from "@/components/ui/modal";
 import { WeeklyGrid, type WeeklyGridCell } from "@/components/teacher/weekly-grid";
 import type { ScheduleAssignment, ScheduleDay, ScheduleSlot } from "@/lib/mock-data";
@@ -16,11 +17,14 @@ export function FullWeekScheduleModal({
   onClose: () => void;
   schedule: ScheduleAssignment[];
 }) {
-  function getCell(day: ScheduleDay, slot: ScheduleSlot): WeeklyGridCell {
-    const row = schedule.find((item) => item.day === day && item.slot === slot);
-    if (!row) return null;
-    return { label: `${row.subject} · ${row.teacherName}`, tone: "border-brand-500/40 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-600/10" };
-  }
+  const getCell = useCallback(
+    (day: ScheduleDay, slot: ScheduleSlot): WeeklyGridCell => {
+      const row = schedule.find((item) => item.day === day && item.slot === slot);
+      if (!row) return null;
+      return { label: `${row.subject} · ${row.teacherName}`, tone: "border-brand-500/40 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-600/10" };
+    },
+    [schedule]
+  );
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Haftalık Ders Programı" widthClassName="max-w-4xl">

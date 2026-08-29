@@ -104,7 +104,12 @@ async function handleGet(request: NextRequest) {
 
     const homeworks = await prisma.homework.findMany({
       where: teacherId ? { teacherId } : { branchIds: { has: branchId! } },
-      include: { submissions: true, teacher: { select: { firstName: true, lastName: true } } },
+      include: {
+        // Öğrenci (homework.tsx) ve öğretmen (6sn'de bir polling yapan
+        // homework-check-matrix.tsx) tarafı SADECE studentId+status okuyor.
+        submissions: { select: { studentId: true, status: true } },
+        teacher: { select: { firstName: true, lastName: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
 

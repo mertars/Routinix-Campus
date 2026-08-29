@@ -9,6 +9,19 @@ export const dynamic = "force-dynamic";
 const MAX_TARGET = 5000;
 const HISTORY_TAKE = 30;
 
+// UI'nin (pomodoro.tsx) gerçekten okuduğu alanlarla birebir — studyGoalId/
+// createdAt istemciye hiç gitmiyor, include yerine select ile taşıma yükü azaltılıyor.
+const TOPIC_GOAL_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  targetMinutes: true,
+  targetQuestions: true,
+  progressMinutes: true,
+  progressQuestions: true,
+  isCompleted: true,
+} as const;
+
 // GİZLİLİK KURALI: bu uçlar SADECE oturum sahibi öğrencinin kendi verisine
 // erişmesine izin verir — session.sub !== studentId ise 404 (öğretmen/veli/
 // yönetici erişimi buraya HİÇ eklenmez, bkz. schema.prisma'daki not).
@@ -31,11 +44,11 @@ async function handleGet(request: NextRequest) {
     const [active, history] = await Promise.all([
       prisma.studyGoal.findFirst({
         where: { studentId, isCompleted: false },
-        include: { topicGoals: { orderBy: { createdAt: "asc" } } },
+        include: { topicGoals: { orderBy: { createdAt: "asc" }, select: TOPIC_GOAL_SELECT } },
       }),
       prisma.studyGoal.findMany({
         where: { studentId, isCompleted: true },
-        include: { topicGoals: { orderBy: { createdAt: "asc" } } },
+        include: { topicGoals: { orderBy: { createdAt: "asc" }, select: TOPIC_GOAL_SELECT } },
         orderBy: { completedAt: "desc" },
         take: HISTORY_TAKE,
       }),
@@ -80,7 +93,7 @@ async function handlePost(request: NextRequest) {
       });
       return tx.studyGoal.create({
         data: { studentId, targetQuestions: q, targetMinutes: m },
-        include: { topicGoals: true },
+        include: { topicGoals: { select: TOPIC_GOAL_SELECT } },
       });
     });
 

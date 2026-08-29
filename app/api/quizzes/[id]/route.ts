@@ -19,19 +19,26 @@ async function assertQuizAccess(session: { role: string; sub: string; institutio
   }
 }
 
-// GET /api/quizzes/:id — quiz'i AÇAN öğretmenin kendi canlı ekranı için tam
-// detay (sorular + cevap anahtarı + o ana kadarki yanıtlar). Bu endpoint
-// öğrenci tarafından çağrılmaz — öğrenciler cevapsız görünüm için
-// /api/quizzes/active kullanır.
+// GET /api/quizzes/:id — quiz'i AÇAN öğretmenin canlı sonuç ekranı 2.5
+// saniyede bir bu ucu yoklar (bkz. components/teacher/tabs/pop-quiz.tsx).
+// Sorular hazırlık aşamasında zaten CLIENT'IN KENDİ state'inde tutulduğu
+// için (cevap anahtarı dahil) yanıt sadece canlı sonuç panelinin okuduğu
+// alanları taşıyor — polling sıklığı düşünülürse gereksiz `questions`
+// ilişkisini her seferinde taşımamak gerçek bir kazanç.
 async function handleGet(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
 
     const quiz = await prisma.quiz.findUnique({
       where: { id: params.id },
-      include: {
-        questions: { orderBy: { position: "asc" } },
-        submissions: { include: { student: { select: { firstName: true, lastName: true } } } },
+      select: {
+        id: true,
+        name: true,
+        branchId: true,
+        durationSeconds: true,
+        launchedAt: true,
+        teacherId: true,
+        submissions: { select: { correct: true, wrong: true, student: { select: { firstName: true, lastName: true } } } },
         branch: { select: { institutionId: true } },
       },
     });

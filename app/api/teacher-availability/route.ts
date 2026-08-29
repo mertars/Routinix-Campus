@@ -10,12 +10,34 @@ export const dynamic = "force-dynamic";
 // (etüt ALAMAYACAĞI) gün+saatler. Bunun dışındaki her saat, o an başka bir
 // onaylı randevuyla dolu olmadığı sürece müsaittir. Kurum içindeki herhangi
 // bir oturum okuyabilir (öğrenci randevu alırken müsaitliği kontrol eder).
+//
+// GET ?teacherIds=A,B,C — TOPLU biçim (ör. schedule-matrix.tsx'in ders
+// programı ızgarası tüm öğretmenlerin müsaitliğini aynı anda gösterir).
+// Önceden her öğretmen için ayrı bir istek atılıyordu (N öğretmen = N
+// round-trip); tek sorguda tüm bloke kayıtları teacherId etiketiyle döner.
+// Tekil ?teacherId= davranışı DEĞİŞMEDİ — geriye dönük tam uyumlu.
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
     const teacherId = request.nextUrl.searchParams.get("teacherId");
+    const teacherIdsParam = request.nextUrl.searchParams.get("teacherIds");
+
+    if (teacherIdsParam) {
+      const ids = teacherIdsParam.split(",").map((id) => id.trim()).filter(Boolean);
+      if (ids.length === 0) return NextResponse.json({ blocks: [] });
+      const validCount = await prisma.teacher.count({ where: { id: { in: ids }, institutionId: session.institutionId } });
+      if (validCount !== ids.length) {
+        return NextResponse.json({ error: "Bir veya daha fazla öğretmen bulunamadı." }, { status: 404 });
+      }
+      const blocks = await prisma.teacherUnavailability.findMany({
+        where: { teacherId: { in: ids } },
+        select: { teacherId: true, day: true, slot: true },
+      });
+      return NextResponse.json({ blocks });
+    }
+
     if (!teacherId) {
-      return NextResponse.json({ error: "teacherId parametresi zorunludur." }, { status: 400 });
+      return NextResponse.json({ error: "teacherId ya da teacherIds parametresi zorunludur." }, { status: 400 });
     }
     const teacher = await prisma.teacher.findUnique({ where: { id: teacherId }, select: { institutionId: true } });
     if (!teacher || teacher.institutionId !== session.institutionId) {

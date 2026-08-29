@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GripVertical, Lock, X, LayoutGrid, Table2, AlertCircle, Clock3, Plus, Pencil, Trash2, Check } from "lucide-react";
 import { SCHEDULE_DAYS, type ScheduleAssignment, type ScheduleDay } from "@/lib/mock-data";
@@ -205,8 +205,34 @@ export function ScheduleMatrixTab() {
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [isSlotManagerOpen, setIsSlotManagerOpen] = useState(false);
 
-  const sortedSlots = [...slots].sort((a, b) => parseSlotRange(a.label)[0] - parseSlotRange(b.label)[0]);
+  const sortedSlots = useMemo(() => [...slots].sort((a, b) => parseSlotRange(a.label)[0] - parseSlotRange(b.label)[0]), [slots]);
   const selectedBranch = branches.find((branch) => branch.id === selectedBranchId);
+
+  // Izgara (gün×saat, şube×saat) hücre başına O(1) arama için ön-indekslenmiş
+  // bakış tabloları — önceden her hücre TÜM assignments/unavailable dizisini
+  // .find() ile tarıyordu (kurum büyüdükçe fark yaratan bir maliyet).
+  const assignmentByKey = useMemo(() => {
+    const map = new Map<string, ScheduleAssignment>();
+    for (const row of assignments) map.set(`${row.branchId}|${row.day}|${row.slot}`, row);
+    return map;
+  }, [assignments]);
+
+  const assignmentsByDaySlot = useMemo(() => {
+    const map = new Map<string, ScheduleAssignment[]>();
+    for (const row of assignments) {
+      const key = `${row.day}|${row.slot}`;
+      const list = map.get(key) ?? [];
+      list.push(row);
+      map.set(key, list);
+    }
+    return map;
+  }, [assignments]);
+
+  const unavailableSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of unavailable) set.add(`${row.teacherId}|${row.day}|${row.slot}`);
+    return set;
+  }, [unavailable]);
 
   async function loadAll() {
     try {
@@ -239,14 +265,17 @@ export function ScheduleMatrixTab() {
         )
       );
       setTeachers(teachersData.teachers ?? []);
-      const unavailability = await Promise.all(
-        (teachersData.teachers ?? []).map((t: Teacher) =>
-          fetch(`/api/teacher-availability?teacherId=${encodeURIComponent(t.id)}`)
-            .then((res) => res.json())
-            .then((data) => (data.blocks ?? []).map((b: { day: string; slot: string }) => ({ teacherId: t.id, ...b })))
-        )
-      );
-      setUnavailable(unavailability.flat());
+      // Önceden öğretmen başına ayrı bir istek atılıyordu (N round-trip);
+      // artık tüm öğretmenlerin müsaitliği tek toplu istekte geliyor
+      // (bkz. app/api/teacher-availability/route.ts > ?teacherIds=).
+      const teacherIds: string[] = (teachersData.teachers ?? []).map((t: Teacher) => t.id);
+      if (teacherIds.length > 0) {
+        const unavailRes = await fetch(`/api/teacher-availability?teacherIds=${teacherIds.map(encodeURIComponent).join(",")}`);
+        const unavailData = await unavailRes.json();
+        setUnavailable(unavailData.blocks ?? []);
+      } else {
+        setUnavailable([]);
+      }
     } catch {
       showError("Ders programı yüklenemedi.");
     }
@@ -258,17 +287,15 @@ export function ScheduleMatrixTab() {
   }, []);
 
   function findAssignment(branchId: string, day: ScheduleDay, slot: string) {
-    return assignments.find((row) => row.branchId === branchId && row.day === day && row.slot === slot);
+    return assignmentByKey.get(`${branchId}|${day}|${slot}`);
   }
 
   function isLockedForDragging(day: ScheduleDay, slot: string) {
     if (!draggingTeacher) return null;
-    const conflict = assignments.find(
-      (row) => row.day === day && row.slot === slot && row.teacherName === draggingTeacher.name && row.branchId !== selectedBranchId
-    );
+    const candidates = assignmentsByDaySlot.get(`${day}|${slot}`) ?? [];
+    const conflict = candidates.find((row) => row.teacherName === draggingTeacher.name && row.branchId !== selectedBranchId);
     if (conflict) return `${draggingTeacher.name} bu saatte ${branches.find((b) => b.id === conflict.branchId)?.name} şubesinde ders veriyor`;
-    const blocked = unavailable.find((row) => row.teacherId === draggingTeacher.id && row.day === day && row.slot === slot);
-    if (blocked) return `${draggingTeacher.name} bu saatte müsait değil`;
+    if (unavailableSet.has(`${draggingTeacher.id}|${day}|${slot}`)) return `${draggingTeacher.name} bu saatte müsait değil`;
     return null;
   }
 

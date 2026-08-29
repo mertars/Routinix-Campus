@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarDays, Radio, Clock, BookOpen, ChevronDown, CheckCircle2, Circle, FileText, Download, Check } from "lucide-react";
 import { CURRICULUM_TREE, type ScheduleAssignment, type ScheduleDay, type ScheduleSlot } from "@/lib/mock-data";
@@ -94,11 +94,14 @@ export function WeeklyScheduleTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchId]);
 
-  function getCell(day: (typeof mySchedule)[number]["day"], slot: (typeof mySchedule)[number]["slot"]): WeeklyGridCell {
-    const row = mySchedule.find((item) => item.day === day && item.slot === slot);
-    if (!row) return null;
-    return { label: `${row.subject} · ${row.teacherName}`, tone: "border-brand-500/40 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-600/10" };
-  }
+  const getCell = useCallback(
+    (day: (typeof mySchedule)[number]["day"], slot: (typeof mySchedule)[number]["slot"]): WeeklyGridCell => {
+      const row = mySchedule.find((item) => item.day === day && item.slot === slot);
+      if (!row) return null;
+      return { label: `${row.subject} · ${row.teacherName}`, tone: "border-brand-500/40 bg-brand-50 dark:border-brand-500/20 dark:bg-brand-600/10" };
+    },
+    [mySchedule]
+  );
 
   return (
     <div className="space-y-4">

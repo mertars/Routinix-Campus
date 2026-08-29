@@ -24,7 +24,18 @@ async function handleGet() {
 
   const parent = await prisma.parent.findUnique({
     where: { id: session.sub },
-    include: { students: { include: { student: { include: { branch: true } } } } },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      students: {
+        select: {
+          student: {
+            select: { id: true, firstName: true, lastName: true, targetNet: true, branch: { select: { name: true, grade: true } } },
+          },
+        },
+      },
+    },
   });
   if (!parent) {
     return NextResponse.json({ error: "Veli kaydı bulunamadı." }, { status: 404 });
@@ -34,7 +45,7 @@ async function handleGet() {
     parent.students.map(async ({ student }) => {
       const [attendanceRecords, netResults] = await Promise.all([
         prisma.attendanceRecord.findMany({ where: { studentId: student.id }, select: { status: true } }),
-        prisma.examNetResult.findMany({ where: { studentId: student.id }, orderBy: { examId: "desc" } }),
+        prisma.examNetResult.findMany({ where: { studentId: student.id }, select: { examId: true, net: true }, orderBy: { examId: "desc" } }),
       ]);
       const latestExamId = netResults[0]?.examId ?? null;
       const actualNet = latestExamId

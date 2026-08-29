@@ -15,15 +15,33 @@ export const dynamic = "force-dynamic";
 async function studentAnalytics(studentId: string, institutionId: string) {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    include: { branch: true },
+    select: {
+      id: true,
+      institutionId: true,
+      firstName: true,
+      lastName: true,
+      branchId: true,
+      targetNet: true,
+      weeklyStudyHours: true,
+      branch: { select: { name: true } },
+    },
   });
   if (!student || student.institutionId !== institutionId) return null;
 
   const [netResults, attendanceRecords, homeworkSubmissions, guidanceNotes] = await Promise.all([
-    prisma.examNetResult.findMany({ where: { studentId }, include: { exam: true }, orderBy: { exam: { examDate: "asc" } } }),
-    prisma.attendanceRecord.findMany({ where: { studentId } }),
-    prisma.homeworkSubmission.findMany({ where: { studentId } }),
-    prisma.guidanceNote.findMany({ where: { studentId, confidentialityLevel: { not: "CONFIDENTIAL" } }, orderBy: { createdAt: "desc" }, take: 10 }),
+    prisma.examNetResult.findMany({
+      where: { studentId },
+      select: { subject: true, net: true, exam: { select: { name: true } } },
+      orderBy: { exam: { examDate: "asc" } },
+    }),
+    prisma.attendanceRecord.findMany({ where: { studentId }, select: { status: true } }),
+    prisma.homeworkSubmission.findMany({ where: { studentId }, select: { status: true } }),
+    prisma.guidanceNote.findMany({
+      where: { studentId, confidentialityLevel: { not: "CONFIDENTIAL" } },
+      select: { id: true, category: true, note: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
   ]);
 
   const netTrend = netResults.map((r) => ({ examName: r.exam.name, subject: r.subject, net: r.net }));
@@ -59,7 +77,14 @@ async function studentAnalytics(studentId: string, institutionId: string) {
 async function teacherAnalytics(teacherId: string, institutionId: string) {
   const teacher = await prisma.teacher.findUnique({
     where: { id: teacherId },
-    include: { teachingBranches: true },
+    select: {
+      id: true,
+      institutionId: true,
+      firstName: true,
+      lastName: true,
+      subject: true,
+      teachingBranches: { select: { id: true, name: true } },
+    },
   });
   if (!teacher || teacher.institutionId !== institutionId) return null;
 
