@@ -7,6 +7,10 @@ import { ACCENT_PRESETS, DEFAULT_ACCENT_HEX } from "@/lib/color-utils";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 
+// Alttan yukarı açılan tam genişlikli sheet — principal-mobile-nav.tsx'teki
+// BottomSheetShell ile AYNI desen (sürükleyerek kapatma, safe-area alt
+// boşluğu, yuvarlatılmış üst köşeler) — önceden ekran ortasında sıkışan
+// küçük bir kart (w-[90vw] max-w-sm, -translate-x/y-1/2) modaldi.
 export function MobileMenuPopup({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { hex, setAccent, resetAccent } = useAccent();
   const logout = useLogout();
@@ -21,19 +25,34 @@ export function MobileMenuPopup({ isOpen, onClose }: { isOpen: boolean; onClose:
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-[70] bg-espresso/50 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] bg-espresso/60 backdrop-blur-sm md:hidden"
           />
-          <div className="fixed left-1/2 top-1/2 z-[80] w-[90vw] max-w-sm -translate-x-1/2 -translate-y-1/2">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 12 }}
-              transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-midnight-card/95 p-6 text-cream shadow-2xl backdrop-blur-2xl"
-            >
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 320, damping: 34 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 110 || info.velocity.y > 500) onClose();
+            }}
+            className="fixed inset-x-0 bottom-0 z-[80] flex w-full max-h-[88vh] flex-col rounded-t-3xl border-t border-white/10 bg-midnight-card/95 text-cream shadow-2xl backdrop-blur-2xl md:hidden"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <div className="flex shrink-0 justify-center pt-2.5">
+              <span className="h-1.5 w-10 rounded-full bg-white/20" />
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-3">
               <div className="mb-5 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-cream">Ayarlar</h3>
-                <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-cream/60 transition hover:bg-white/10">
+                <button
+                  onClick={onClose}
+                  aria-label="Menüyü kapat"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-cream/60 transition hover:bg-white/10"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -96,8 +115,8 @@ export function MobileMenuPopup({ isOpen, onClose }: { isOpen: boolean; onClose:
               >
                 <LogOut className="h-3.5 w-3.5" /> Çıkış Yap
               </button>
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
         </>
       )}
     </AnimatePresence>

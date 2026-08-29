@@ -17,6 +17,7 @@ export function TopBar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
+    <>
     <motion.header
       initial={{ opacity: 0, y: -16 }}
       animate={{ opacity: 1, y: 0 }}
@@ -70,8 +71,8 @@ export function TopBar() {
           </button>
         </div>
       </div>
-
-      <MobileMenuPopup isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
     </motion.header>
+    <MobileMenuPopup isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+    </>
   );
 }

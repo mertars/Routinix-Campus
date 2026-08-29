@@ -78,10 +78,10 @@ export function StatCard({
   return (
     <MagneticCard
       onClick={onClick}
-      className="cursor-pointer rounded-2xl border border-hairline bg-white/80 p-4 text-left shadow-sm backdrop-blur-sm transition-all duration-300 dark:border-white/10 dark:bg-midnight-card/50 dark:backdrop-blur-sm dark:hover:border-brand-500/40 dark:hover:shadow-[0_0_30px_-8px_rgb(var(--brand-600)/0.5)]"
+      className="cursor-pointer rounded-2xl border border-hairline bg-white/80 p-3 text-left shadow-sm backdrop-blur-sm transition-all duration-300 dark:border-white/10 dark:bg-midnight-card/50 dark:backdrop-blur-sm dark:hover:border-brand-500/40 dark:hover:shadow-[0_0_30px_-8px_rgb(var(--brand-600)/0.5)] sm:p-4"
     >
       <div className="flex items-center justify-between">
-        <span className={`flex h-9 w-9 items-center justify-center rounded-xl ${TONE_STYLES[tone]}`}>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-xl sm:h-9 sm:w-9 ${TONE_STYLES[tone]}`}>
           <Icon className="h-4 w-4" />
         </span>
         {pulse && (
@@ -95,8 +95,8 @@ export function StatCard({
           </span>
         )}
       </div>
-      <p className="mt-3 text-2xl font-semibold text-espresso dark:text-cream">{value}</p>
-      <p className="mt-0.5 text-xs text-espresso-muted dark:text-cream/50">{label}</p>
+      <p className="mt-3 text-lg font-semibold text-espresso dark:text-cream sm:text-2xl">{value}</p>
+      <p className="mt-0.5 text-[11px] leading-tight text-espresso-muted dark:text-cream/50 sm:text-xs">{label}</p>
       {progress != null && (
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
           <motion.div

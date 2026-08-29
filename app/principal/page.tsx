@@ -162,7 +162,7 @@ export default function PrincipalPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -14 }}
                 transition={{ duration: 0.3, ease: "easeOut" }}
-                className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
+                className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4"
               >
                 <StatCard
                   label="Toplam Öğrenci"

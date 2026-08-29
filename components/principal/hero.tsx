@@ -59,7 +59,7 @@ export function Hero({ name, title }: { name: string; title: string }) {
             initial={{ opacity: 0, y: -24 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-            className={cn(spaceGrotesk.className, "mt-2 text-5xl font-bold tracking-tight text-espresso dark:text-cream sm:text-6xl md:text-7xl")}
+            className={cn(spaceGrotesk.className, "mt-2 break-words text-3xl font-bold tracking-tight text-espresso dark:text-cream sm:text-6xl md:text-7xl")}
           >
             {name}
           </motion.h1>
