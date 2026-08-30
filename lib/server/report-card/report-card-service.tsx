@@ -1,6 +1,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/server/prisma";
-import { buildReportCardAnalysis } from "./analyzer";
+import { buildReportCardAnalysis, generateXrayGuidanceNotes } from "./analyzer";
+import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { PdfReportCard } from "@/components/pdf/pdf-report-card";
 
 // Kampüs V2 Part 5 — bu fonksiyon eskiden Handlebars+Puppeteer (headless
@@ -42,6 +43,20 @@ export async function generateReportCardPdf(studentId: string, periodLabel: stri
     where: { studentId_periodLabel: { studentId, periodLabel } },
   });
 
+  // Faz S — röntgen kırmızı bölgesi ("3 sistemi birbirine bağlama").
+  // Röntgen verisi olmayan (henüz test edilmemiş/lise dışı) öğrenciler
+  // için bu sorgu boş döner, karne davranışı DEĞİŞMEZ.
+  const redZoneAssessments = await prisma.topicMasteryAssessment.findMany({
+    where: { studentId, masteryScore: { lt: 30 } },
+    select: { subject: true, subtopicId: true },
+  });
+  const redZoneSubtopics = redZoneAssessments.map((a) => {
+    const topics = CURRICULUM_TREE[a.subject] ?? [];
+    const name = topics.flatMap((t) => t.subtopics).find((s) => s.id === a.subtopicId)?.name ?? a.subtopicId;
+    return { subject: a.subject, name };
+  });
+  const guidanceNotes = [...analysis.guidanceNotes, ...generateXrayGuidanceNotes(redZoneSubtopics)];
+
   const pdfBuffer = await renderToBuffer(
     <PdfReportCard
       institutionName={student.institution.name}
@@ -51,7 +66,7 @@ export async function generateReportCardPdf(studentId: string, periodLabel: stri
       periodLabel={periodLabel}
       attendanceRate={analysis.attendanceRate}
       subjectSummaries={analysis.subjectSummaries}
-      guidanceNotes={analysis.guidanceNotes}
+      guidanceNotes={guidanceNotes}
       teacherComment={teacherComment?.comment}
     />
   );

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { maybeCreateAutoReferral } from "@/lib/server/xray/auto-referral";
 import { requireSession, requireRole, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -42,6 +44,8 @@ async function handlePost(_request: Request, { params }: { params: { id: string 
       await prisma.topicMasteryHistory.create({
         data: { studentId: assignment.studentId, subject: assignment.subject, subtopicId: assignment.subtopicId, masteryScore, source: "LOCKED_EXAM" },
       });
+      const subtopicName = CURRICULUM_TREE[assignment.subject]?.flatMap((t) => t.subtopics).find((s) => s.id === assignment.subtopicId)?.name ?? assignment.subtopicId;
+      await maybeCreateAutoReferral(assignment.studentId, assignment.subject, subtopicName, masteryScore);
     }
 
     return NextResponse.json({ total: totalQuestions, answered: answers.length, correct });

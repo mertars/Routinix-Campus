@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
+import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { maybeCreateAutoReferral } from "@/lib/server/xray/auto-referral";
 import { requireSession, requireRole, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -49,6 +51,8 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       await prisma.topicMasteryHistory.create({
         data: { studentId: attempt.studentId, subject: attempt.subject, subtopicId: attempt.subtopicId, masteryScore, source: "PRACTICE_SELF_REPORT" },
       });
+      const subtopicName = CURRICULUM_TREE[attempt.subject]?.flatMap((t) => t.subtopics).find((s) => s.id === attempt.subtopicId)?.name ?? attempt.subtopicId;
+      await maybeCreateAutoReferral(attempt.studentId, attempt.subject, subtopicName, masteryScore);
     }
 
     return NextResponse.json({ total: attemptQuestions.length, correct, missedChecks });

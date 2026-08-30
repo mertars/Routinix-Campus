@@ -50,6 +50,19 @@ export function generateGuidanceNotes(subjectSummaries: SubjectNetSummary[], att
   return notes;
 }
 
+// Faz S — Akademik Röntgen'i karneye BAĞLAMA ("3 sistemi birbirine
+// bağlama" — net/devam [ERP] yanında röntgen'deki kırmızı bölge tespiti
+// de artık VELİNİN ZATEN ALDIĞI resmi karneye düşüyor, ayrı bir yüzey
+// GEREKMİYOR). generateGuidanceNotes'un imzası/davranışı BİLEREK
+// DEĞİŞTİRİLMEDİ (başka çağıranı/testi olabilir) — bu ayrı, birleştirilen
+// bir fonksiyon. En kritik en fazla 3 konuyla sınırlı — karne kısa/
+// basılabilir kalmalı, uzun bir liste amacına aykırı olurdu.
+export function generateXrayGuidanceNotes(redZoneSubtopics: { subject: string; name: string }[]): string[] {
+  return redZoneSubtopics
+    .slice(0, 3)
+    .map((s) => `Akademik Röntgen: ${s.subject} dersinde ${s.name} konusunda temelden eksik tespit edildi — öncelikli tekrar programı önerilir.`);
+}
+
 export function buildReportCardAnalysis(
   studentNets: { subject: string; net: number }[],
   classAverages: Record<string, number>,

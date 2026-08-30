@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { pickNextQuestion, computeSubtopicMastery, type AnsweredQuestion } from "@/lib/server/xray/adaptive-engine";
+import { maybeCreateAutoReferral } from "@/lib/server/xray/auto-referral";
 import { requireSession, requireRole, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -80,6 +81,8 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
       await prisma.topicMasteryHistory.create({
         data: { studentId: testSession.studentId, subject: testSession.subject, subtopicId, masteryScore, source: "AI_TEST" },
       });
+      const subtopicName = CURRICULUM_TREE[testSession.subject]?.flatMap((t) => t.subtopics).find((s) => s.id === subtopicId)?.name ?? subtopicId;
+      await maybeCreateAutoReferral(testSession.studentId, testSession.subject, subtopicName, masteryScore);
     }
     await prisma.xrayTestSession.update({ where: { id: testSession.id }, data: { status: "COMPLETED", completedAt: new Date() } });
 
