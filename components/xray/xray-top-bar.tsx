@@ -31,7 +31,7 @@ export function XrayTopBar({ roleLabel }: { roleLabel: string }) {
       transition={{ duration: 0.4 }}
       className="sticky top-0 z-40 border-b border-hairline bg-cream/80 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md dark:border-white/10 dark:bg-midnight/80 md:px-10"
     >
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-[1600px]">
         {/* Mobil düzen: geri + kompakt rozet + tema + çıkış (ikon-only) */}
         <div className="flex items-center justify-between gap-2 md:hidden">
           <div className="flex min-w-0 items-center gap-2">
