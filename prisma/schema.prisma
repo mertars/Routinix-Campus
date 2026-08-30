@@ -182,28 +182,28 @@ model Branch {
 // ----------------------------------------------------------------------------
 
 model Student {
-  id                        String                     @id @default(cuid())
-  institutionId             String
-  institution               Institution                @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  nationalId                String                     @unique // TC Kimlik No — v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
-  firstName                 String
-  lastName                  String
-  birthDate                 DateTime?
-  gender                    Gender?
-  bloodType                 BloodType                  @default(UNKNOWN)
-  studentNumber             String // Öğrenci No — kurum içinde benzersiz (bkz. @@unique altta)
-  branchId                  String
-  branch                    Branch                     @relation(fields: [branchId], references: [id])
-  track                     String? // Alan/Dal (şube varsayılanını ezmek gerekirse)
-  advisorTeacherId          String? // Danışman ID
+  id                           String                        @id @default(cuid())
+  institutionId                String
+  institution                  Institution                   @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  nationalId                   String                        @unique // TC Kimlik No — v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
+  firstName                    String
+  lastName                     String
+  birthDate                    DateTime?
+  gender                       Gender?
+  bloodType                    BloodType                     @default(UNKNOWN)
+  studentNumber                String // Öğrenci No — kurum içinde benzersiz (bkz. @@unique altta)
+  branchId                     String
+  branch                       Branch                        @relation(fields: [branchId], references: [id])
+  track                        String? // Alan/Dal (şube varsayılanını ezmek gerekirse)
+  advisorTeacherId             String? // Danışman ID
   // SetNull (Cascade DEĞİL) — bir öğretmen tamamen silinince danışmanı
   // olduğu ÖĞRENCİ asla silinmemeli, sadece danışmansız kalır.
-  advisorTeacher            Teacher?                   @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id], onDelete: SetNull)
-  transportMethod           TransportMethod?
-  residenceAddress          String?
-  email                     String?
-  phone                     String?
-  healthNote                String? // Özel sağlık/alerji notu
+  advisorTeacher               Teacher?                      @relation("StudentAdvisor", fields: [advisorTeacherId], references: [id], onDelete: SetNull)
+  transportMethod              TransportMethod?
+  residenceAddress             String?
+  email                        String?
+  phone                        String?
+  healthNote                   String? // Özel sağlık/alerji notu
   // Hedef net & haftalık çalışma saati — gerçek bir ölçüm/entegrasyon
   // kaynağı yok (Pomodoro cihazda kalır, bkz. gizlilik kuralı), bu yüzden
   // isteğe bağlı alanlar. targetNet, dashboard/xray/veli/karne gibi TÜM
@@ -211,12 +211,12 @@ model Student {
   // eder — YKS öğrencisi TYT/AYT'yi ayrı ayrı girdiğinde (bkz. POST
   // /api/students/[id]/target-net) targetNet bu ikisinin toplamı olarak
   // otomatik güncellenir, mevcut tüketiciler dokunulmadan doğru kalır.
-  targetNet                 Float?
-  targetNetTyt              Float?
-  targetNetAyt              Float?
-  weeklyStudyHours          Int?
-  passwordHash              String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
-  mustChangePassword        Boolean                    @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  targetNet                    Float?
+  targetNetTyt                 Float?
+  targetNetAyt                 Float?
+  weeklyStudyHours             Int?
+  passwordHash                 String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
+  mustChangePassword           Boolean                       @default(true) // ilk giriş / şifre değiştirme zorunluluğu
   // Yönetici "sil" dediğinde HARD DELETE yapılmaz — Student'a bağlı ~13 ayrı
   // ilişkide (ExamNetResult, AttendanceRecord, ReportCard, vb.) onDelete
   // tanımlı değil (Postgres varsayılanı fiilen RESTRICT), gerçek bir kayıt
@@ -224,31 +224,33 @@ model Student {
   // "çalışsa bile" yıllarca birikmiş not/devamsızlık geçmişini geri
   // dönüşsüz siler. Bunun yerine pasifleştirilir: giriş engellenir, genel
   // listelerden düşer, geçmiş veri korunur.
-  isActive                  Boolean                    @default(true)
-  parents                   ParentStudent[]
-  netResults                ExamNetResult[]
-  topicMasteryAssessments   TopicMasteryAssessment[]
-  xrayTestSessions          XrayTestSession[]
-  attendanceRecords         AttendanceRecord[]
-  reportCards               ReportCard[]
-  reportCardShareLinks      ReportCardShareLink[]
-  reportCardTeacherComments ReportCardTeacherComment[]
-  questions                 Question[]
-  homeworkSubmissions       HomeworkSubmission[]
-  quizSubmissions           QuizSubmission[]
-  appointmentRequests       AppointmentRequest[]
-  guidanceNotes             GuidanceNote[]
-  guidanceReferrals         GuidanceReferral[]
-  announcementReads         AnnouncementRead[]
-  seatAssignments           ExamSeatAssignment[]
-  preferences               StudentPreference[]
-  guidancePrograms          GuidanceProgram[]
-  remediationTasks          RemediationTask[]
-  alumniProfile             AlumniProfile?
-  sentMentorRequests        MentorRequest[]            @relation("MentorRequestsSent")
-  studyGoals                StudyGoal[]
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
+  isActive                     Boolean                       @default(true)
+  parents                      ParentStudent[]
+  netResults                   ExamNetResult[]
+  topicMasteryAssessments      TopicMasteryAssessment[]
+  xrayTestSessions             XrayTestSession[]
+  xrayPracticeAttempts         XrayPracticeAttempt[]
+  xrayComprehensionAssignments XrayComprehensionAssignment[]
+  attendanceRecords            AttendanceRecord[]
+  reportCards                  ReportCard[]
+  reportCardShareLinks         ReportCardShareLink[]
+  reportCardTeacherComments    ReportCardTeacherComment[]
+  questions                    Question[]
+  homeworkSubmissions          HomeworkSubmission[]
+  quizSubmissions              QuizSubmission[]
+  appointmentRequests          AppointmentRequest[]
+  guidanceNotes                GuidanceNote[]
+  guidanceReferrals            GuidanceReferral[]
+  announcementReads            AnnouncementRead[]
+  seatAssignments              ExamSeatAssignment[]
+  preferences                  StudentPreference[]
+  guidancePrograms             GuidanceProgram[]
+  remediationTasks             RemediationTask[]
+  alumniProfile                AlumniProfile?
+  sentMentorRequests           MentorRequest[]               @relation("MentorRequestsSent")
+  studyGoals                   StudyGoal[]
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
 
   @@unique([institutionId, studentNumber])
   @@index([branchId])
@@ -370,20 +372,21 @@ model LoginAttempt {
 }
 
 model Admin {
-  id                  String              @id @default(cuid())
-  institutionId       String
-  institution         Institution         @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  firstName           String
-  lastName            String
-  title               String
-  authorityLevel      AdminAuthorityLevel @default(BRANCH_MANAGER)
-  institutionalMobile String
-  email               String
-  extensionNumber     String? // Dahili No
-  passwordHash        String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
-  mustChangePassword  Boolean             @default(true) // ilk giriş / şifre değiştirme zorunluluğu
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  id                           String                        @id @default(cuid())
+  institutionId                String
+  institution                  Institution                   @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  firstName                    String
+  lastName                     String
+  title                        String
+  authorityLevel               AdminAuthorityLevel           @default(BRANCH_MANAGER)
+  institutionalMobile          String
+  email                        String
+  extensionNumber              String? // Dahili No
+  passwordHash                 String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
+  mustChangePassword           Boolean                       @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  xrayComprehensionAssignments XrayComprehensionAssignment[]
 
   @@index([institutionId])
 }
@@ -1386,4 +1389,167 @@ model TopicMasteryAssessment {
   @@unique([studentId, subtopicId])
   @@index([studentId])
   @@index([assessedById])
+}
+
+// ----------------------------------------------------------------------------
+// Akademik Röntgen — Faz A: iki ayrı test türü (Kampüs V2 Part 6 devamı)
+// ----------------------------------------------------------------------------
+//
+// Faz 2'deki tek XrayQuestion modeli (basit adaptif tanı testi) YETERSİZ
+// kaldı — kullanıcı isteği iki YAPISALca farklı test türü tanımlıyor, bu
+// yüzden BİLEREK ayrı model ağaçlarına bölünür (tek bir modele sıkıştırmak
+// nullable alan yığınına yol açardı):
+//
+// 1) Test 1 "Konu Bilgisi" (XrayPracticeQuestion) — öğrencinin kendi
+//    panelinden SERBESTÇE açtığı, süre/kilit OLMAYAN bir soru bankası.
+//    Açık uçlu + çoktan seçmeli karışık, kolaydan (temel kural/tanım) zora
+//    (çok adımlı) sıralı. Çözüm anlatımı her soruda VAR — "cevap
+//    anahtarına ulaş" akışıyla test sonunda açılır.
+// 2) Test 2 "Ne Kadar Anlamış" (XrayComprehensionQuestion) — yöneticinin
+//    belirli bir öğrenciye belirli bir konu için ATADIĞI, kilitli tam ekran
+//    sınav. SADECE çoktan seçmeli — çünkü her ŞIK (doğru olan dahil) hangi
+//    kazanımı/yanlış anlamayı temsil ettiği etiketlenir (bkz.
+//    XrayComprehensionOption.diagnosis) — gerçek bir "yanlış cevap analizi".
+//    Açık uçlu bir soruda şık bazlı bu analiz mümkün olmadığı için Test
+//    2'de format seçimi YOK, hep MCQ.
+//
+// "checks" alanı HER İKİ türde de var (Test 1'de soru bazlı, Test 2'de hem
+// soru hem şık bazlı) — kullanıcının "her sorunun bilinçli arkada yorumu
+// olmalı" isteğinin karşılığı; Faz D'deki analiz motoru bunu okuyacak.
+
+enum XrayQuestionFormat {
+  OPEN_ENDED
+  MULTIPLE_CHOICE
+}
+
+// Test 1 — Konu Bilgisi soru bankası.
+model XrayPracticeQuestion {
+  id            String             @id @default(cuid())
+  subject       String
+  subtopicId    String
+  difficulty    Int // 1 (temel kural/tanım) - 5 (çok adımlı)
+  format        XrayQuestionFormat
+  prompt        String
+  options       String[] // format=MULTIPLE_CHOICE ise dolu, OPEN_ENDED ise boş dizi
+  correctAnswer String // MCQ: doğru şıkkın metni; OPEN_ENDED: referans cevap
+  solution      String // adım adım çözüm anlatımı — cevap anahtarında gösterilir
+  checks        String // bu soru konunun HANGİ kısmını yokluyor (örn. "kök içi çarpanı ayırma kuralı")
+  createdAt     DateTime           @default(now())
+
+  answers XrayPracticeAnswer[]
+
+  @@index([subject, subtopicId, difficulty])
+}
+
+// Test 1'in bir "oturumu" — süre/kilit yok, sadece hangi sorulara
+// baktığını gruplamak için (aynı öğrenci aynı konuyu birden fazla kez
+// çalışabilir, her seferinde yeni bir attempt).
+model XrayPracticeAttempt {
+  id          String    @id @default(cuid())
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject     String
+  subtopicId  String
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  answers XrayPracticeAnswer[]
+
+  @@index([studentId])
+}
+
+// wasCorrect: MCQ sorularda sunucu tarafında otomatik hesaplanır;
+// OPEN_ENDED sorularda ve "cevap anahtarına baktım, yanlış yapmışım"
+// işaretlemelerinde öğrencinin KENDİ beyanıdır (selfReported=true).
+model XrayPracticeAnswer {
+  id           String               @id @default(cuid())
+  attemptId    String
+  attempt      XrayPracticeAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId   String
+  question     XrayPracticeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  wasCorrect   Boolean
+  selfReported Boolean
+  answeredAt   DateTime             @default(now())
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+}
+
+// Test 2 — Ne Kadar Anlamış (kilitli, yönetici atamalı sınav) sorusu.
+model XrayComprehensionQuestion {
+  id         String   @id @default(cuid())
+  subject    String
+  subtopicId String
+  difficulty Int
+  prompt     String
+  solution   String
+  createdAt  DateTime @default(now())
+
+  options XrayComprehensionOption[]
+  answers XrayComprehensionAnswer[]
+
+  @@index([subject, subtopicId])
+}
+
+// Her şık (doğru olan DAHİL) bir "diagnosis" taşır — o şık seçildiğinde
+// öğrencinin konuyu TAM OLARAK nerede/nasıl yanlış anladığını anlatan bir
+// metin (örn. "Kök içindeki çarpanı doğru ayırdı ama kök dışına çıkarmayı
+// unuttu"). position, şıkkın gösterim sırası (A/B/C/D karışmasın diye).
+model XrayComprehensionOption {
+  id         String                    @id @default(cuid())
+  questionId String
+  question   XrayComprehensionQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  label      String // "A" | "B" | "C" | "D"
+  text       String
+  isCorrect  Boolean
+  diagnosis  String
+  position   Int
+
+  answers XrayComprehensionAnswer[]
+
+  @@index([questionId])
+}
+
+enum XrayAssignmentStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  FLAGGED // kilit ihlali tespit edildi (sekme değiştirme/pencere kaybı, bkz. flagReason)
+}
+
+// Yöneticinin belirli bir öğrenciye belirli bir konu için attığı Test 2
+// ataması. Bir öğrenci aynı konudan yeniden test alabilir (yeni bir
+// assignment) — bu yüzden studentId+subtopicId üzerinde @@unique YOK.
+model XrayComprehensionAssignment {
+  id           String               @id @default(cuid())
+  studentId    String
+  student      Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject      String
+  subtopicId   String
+  assignedById String
+  assignedBy   Admin                @relation(fields: [assignedById], references: [id], onDelete: Cascade)
+  status       XrayAssignmentStatus @default(ASSIGNED)
+  assignedAt   DateTime             @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  flagReason   String? // örn. "14:32'de sekme değiştirildi, sınav otomatik teslim edildi"
+
+  answers XrayComprehensionAnswer[]
+
+  @@index([studentId])
+  @@index([assignedById])
+}
+
+model XrayComprehensionAnswer {
+  id               String                      @id @default(cuid())
+  assignmentId     String
+  assignment       XrayComprehensionAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         XrayComprehensionQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId String
+  selectedOption   XrayComprehensionOption     @relation(fields: [selectedOptionId], references: [id], onDelete: Cascade)
+  answeredAt       DateTime                    @default(now())
+
+  @@unique([assignmentId, questionId])
+  @@index([assignmentId])
 }
