@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users } from "lucide-react";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
@@ -71,6 +71,7 @@ export function XrayResultsPanel({
   const [results, setResults] = useState<ResultsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingBranch, setDownloadingBranch] = useState(false);
   const [history, setHistory] = useState<MasteryHistoryResponse | null>(null);
   const [trendOpen, setTrendOpen] = useState(false);
   const [netTrend, setNetTrend] = useState<{ examLabel: string; net: number }[] | null>(null);
@@ -128,6 +129,22 @@ export function XrayResultsPanel({
       showError(error instanceof Error ? error.message : "Rapor oluşturulamadı.");
     } finally {
       setDownloading(false);
+    }
+  }
+
+  async function downloadBranchReport() {
+    if (!selectedStudent) return;
+    setDownloadingBranch(true);
+    try {
+      await fetchAndDownloadPdf(
+        `/api/xray/branch-report?branchId=${encodeURIComponent(selectedStudent.branchId)}&subject=${encodeURIComponent(subject)}`,
+        undefined,
+        `${selectedStudent.branchName}-veli-toplantisi-raporu.pdf`.replace(/\s+/g, "-")
+      );
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Rapor oluşturulamadı.");
+    } finally {
+      setDownloadingBranch(false);
     }
   }
 
@@ -228,6 +245,15 @@ export function XrayResultsPanel({
                     </p>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={downloadBranchReport}
+                      disabled={downloadingBranch}
+                      aria-label="Veli toplantısı raporunu indir (tüm şube)"
+                      title="Veli toplantısı raporu (tüm şube)"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
+                    >
+                      {downloadingBranch ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                    </button>
                     <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
                     {averageScore !== null && (
                       <>

@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/server/prisma";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { generateXrayRecommendations, summarizeXrayDiagnosis } from "@/lib/server/xray/recommendations";
+import { computeOverallTrend } from "@/lib/server/xray/mastery-trend";
 import { PdfXrayReport } from "@/components/pdf/pdf-xray-report";
 import { requireSession, requireInstitution, assertOwnsSelf, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
@@ -30,10 +31,16 @@ async function handleGet(request: NextRequest, { params }: { params: { studentId
     const subject = request.nextUrl.searchParams.get("subject");
     if (!subject?.trim()) return NextResponse.json({ error: "subject parametresi zorunludur." }, { status: 400 });
 
-    const [institution, assessments] = await Promise.all([
+    const [institution, assessments, history] = await Promise.all([
       prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true, logoUrl: true } }),
       prisma.topicMasteryAssessment.findMany({ where: { studentId: params.studentId, subject }, select: { subtopicId: true, masteryScore: true } }),
+      prisma.topicMasteryHistory.findMany({
+        where: { studentId: params.studentId, subject },
+        select: { subtopicId: true, masteryScore: true, assessedAt: true },
+        orderBy: { assessedAt: "asc" },
+      }),
     ]);
+    const overallTrend = computeOverallTrend(history);
 
     const subtopicNameById = new Map<string, string>();
     for (const topic of CURRICULUM_TREE[subject] ?? []) {
@@ -53,6 +60,7 @@ async function handleGet(request: NextRequest, { params }: { params: { studentId
         generatedAtLabel={new Date().toLocaleDateString("tr-TR")}
         recommendations={recommendations}
         summary={summary}
+        overallTrend={overallTrend}
       />
     );
 

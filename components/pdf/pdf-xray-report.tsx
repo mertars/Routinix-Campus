@@ -1,4 +1,4 @@
-import { Document, Page, View, Text, Image, Svg, Circle, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, View, Text, Image, Svg, Circle, Polyline, Line, StyleSheet } from "@react-pdf/renderer";
 import { ensurePdfFontsRegistered, PDF_FONT_FAMILY } from "@/lib/server/pdf/fonts";
 import { turkishSafe } from "@/lib/server/pdf/turkish-text";
 import type { XrayRecommendation, XraySummary } from "@/lib/server/xray/recommendations";
@@ -78,6 +78,19 @@ const styles = StyleSheet.create({
 
   sectionLabel: { fontSize: 8.5, fontWeight: "bold", color: COLORS.accent, letterSpacing: 1.2, marginBottom: 10 },
 
+  trendBox: {
+    backgroundColor: "#111C33",
+    borderWidth: 1,
+    borderColor: COLORS.hairline,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 16,
+  },
+  trendHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  trendTitle: { fontSize: 7.5, fontWeight: "bold", color: COLORS.textMuted, letterSpacing: 0.8 },
+  trendDelta: { fontSize: 8, fontWeight: "bold" },
+  trendDateLabel: { fontSize: 6, color: COLORS.textMuted },
+
   scanRow: { marginBottom: 10 },
   scanTopRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 3 },
   scanName: { fontSize: 8.5, color: COLORS.text },
@@ -102,6 +115,8 @@ const styles = StyleSheet.create({
   watermark: { fontSize: 7, color: COLORS.textMuted, opacity: 0.7 },
 });
 
+export type PdfXrayTrendPoint = { assessedAt: string; average: number };
+
 export type PdfXrayReportProps = {
   institutionName: string;
   logoUrl?: string | null;
@@ -111,6 +126,7 @@ export type PdfXrayReportProps = {
   generatedAtLabel: string;
   recommendations: XrayRecommendation[];
   summary: XraySummary;
+  overallTrend?: PdfXrayTrendPoint[];
 };
 
 function t(value: string): string {
@@ -121,7 +137,47 @@ function t(value: string): string {
 // TEKRAR hesaplanmaz — route katmanından hazır gelir, bu bileşen sadece
 // render eder (bkz. diğer PDF bileşenlerindeki aynı "component dumb, route
 // smart" ayrımı).
-export function PdfXrayReport({ institutionName, logoUrl, studentName, branchName, subject, generatedAtLabel, recommendations, summary }: PdfXrayReportProps) {
+// Faz Q — Part 1'in mastery-history trendinin PDF'e taşınması: react-pdf
+// bir grafik kütüphanesi barındırmıyor ama Svg/Polyline/Circle PRİMİTİFLERİNİ
+// destekliyor (bkz. yukarıdaki ring chart) — client tarafındaki
+// MasterySparkline (mastery-trend-charts.tsx) ile BİREBİR AYNI matematik,
+// sadece SVG çizim API'si react-pdf'e özel.
+function TrendChart({ points }: { points: PdfXrayTrendPoint[] }) {
+  const width = 400;
+  const height = 46;
+  const values = points.map((p) => p.average);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const step = width / (points.length - 1 || 1);
+  const coords = points.map((p, i) => `${i * step},${height - ((p.average - min) / range) * (height - 10) - 5}`).join(" ");
+  const first = points[0].average;
+  const last = points[points.length - 1].average;
+  const delta = last - first;
+  const deltaColor = delta > 0 ? COLORS.strong : delta < 0 ? COLORS.critical : COLORS.textMuted;
+
+  return (
+    <View style={styles.trendBox}>
+      <View style={styles.trendHeaderRow}>
+        <Text style={styles.trendTitle}>{t("GELİŞİM TRENDİ")}</Text>
+        <Text style={[styles.trendDelta, { color: deltaColor }]}>{`${delta > 0 ? "+" : ""}${delta} (bu dönemde)`}</Text>
+      </View>
+      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+        <Line x1={0} y1={height - 5} x2={width} y2={height - 5} stroke={COLORS.trackBg} strokeWidth={1} />
+        <Polyline points={coords} fill="none" stroke={COLORS.accent} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, i) => (
+          <Circle key={i} cx={(i * step) as number} cy={height - ((p.average - min) / range) * (height - 10) - 5} r={2} fill={COLORS.accent} />
+        ))}
+      </Svg>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2 }}>
+        <Text style={styles.trendDateLabel}>{new Date(points[0].assessedAt).toLocaleDateString("tr-TR")}</Text>
+        <Text style={styles.trendDateLabel}>{new Date(points[points.length - 1].assessedAt).toLocaleDateString("tr-TR")}</Text>
+      </View>
+    </View>
+  );
+}
+
+export function PdfXrayReport({ institutionName, logoUrl, studentName, branchName, subject, generatedAtLabel, recommendations, summary, overallTrend }: PdfXrayReportProps) {
   const ringSize = 84;
   const ringCenter = ringSize / 2;
   const ringRadius = ringCenter - 8;
@@ -190,6 +246,8 @@ export function PdfXrayReport({ institutionName, logoUrl, studentName, branchNam
             </View>
           </View>
         </View>
+
+        {overallTrend && overallTrend.length >= 2 && <TrendChart points={overallTrend} />}
 
         <Text style={styles.sectionLabel}>{t("KONU BAZLI TARAMA")}</Text>
 
