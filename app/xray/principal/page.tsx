@@ -23,11 +23,13 @@ export default function XrayPrincipalPage() {
       .then((data) => {
         const students: XrayRosterStudent[] = (data.students ?? [])
           .filter((s: { grade: number | null }) => (s.grade ?? 0) >= 9)
-          .map((s: { id: string; firstName: string; lastName: string; branchName: string }) => ({
+          .map((s: { id: string; firstName: string; lastName: string; branchName: string; branchId: string; grade: number }) => ({
             id: s.id,
             firstName: s.firstName,
             lastName: s.lastName,
             branchName: s.branchName,
+            branchId: s.branchId,
+            grade: s.grade,
           }));
         setRoster(students);
       })

@@ -12,7 +12,7 @@ import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-a
 import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
 import { cn } from "@/lib/utils";
 
-export type XrayRosterStudent = { id: string; firstName: string; lastName: string; branchName: string };
+export type XrayRosterStudent = { id: string; firstName: string; lastName: string; branchName: string; branchId: string; grade: number };
 
 type SubtopicResult = { subtopicId: string; name: string; masteryScore: number | null; source: string | null; assessedAt: string | null };
 type TopicResult = { topicName: string; grade: number; subtopics: SubtopicResult[] };
@@ -302,8 +302,22 @@ export function XrayResultsPanel({
         {/* SAĞ — test atama panelleri (SADECE yönetici) */}
         {canAssign && selectedStudent && (
           <div className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
-            <XrayPracticeAssignmentSection studentId={selectedId} subject={subject} />
-            <XrayAssignmentSection studentId={selectedId} subject={subject} />
+            <XrayPracticeAssignmentSection
+              studentId={selectedId}
+              studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
+              branchId={selectedStudent.branchId}
+              branchName={selectedStudent.branchName}
+              grade={selectedStudent.grade}
+              subject={subject}
+            />
+            <XrayAssignmentSection
+              studentId={selectedId}
+              studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
+              branchId={selectedStudent.branchId}
+              branchName={selectedStudent.branchName}
+              grade={selectedStudent.grade}
+              subject={subject}
+            />
           </div>
         )}
       </div>

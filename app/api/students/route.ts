@@ -26,10 +26,12 @@ async function handleGet(request: NextRequest) {
     }
     const students = await prisma.student.findMany({
       where: { branchId: { in: branchIds }, institutionId: session.institutionId },
-      select: { id: true, firstName: true, lastName: true, branchId: true, branch: { select: { name: true } } },
+      select: { id: true, firstName: true, lastName: true, branchId: true, branch: { select: { name: true, grade: true } } },
       orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
     });
-    return NextResponse.json({ students: students.map((s) => ({ id: s.id, firstName: s.firstName, lastName: s.lastName, branchId: s.branchId, branchName: s.branch.name })) });
+    return NextResponse.json({
+      students: students.map((s) => ({ id: s.id, firstName: s.firstName, lastName: s.lastName, branchId: s.branchId, branchName: s.branch.name, grade: s.branch.grade })),
+    });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("students_list_failed", { error: error instanceof Error ? error.message : String(error) });

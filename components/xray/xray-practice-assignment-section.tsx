@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, Send, Loader2, Clock, Check, ChevronDown } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
+import { XrayAssignmentTargetPicker, type AssignmentTarget } from "@/components/xray/xray-assignment-target-picker";
 import { cn } from "@/lib/utils";
 
 type Topic = { subtopicId: string; subtopicName: string; questionCount: number; kazanimCount: number };
@@ -36,7 +37,21 @@ const STATUS_META: Record<Assignment["status"], { label: string; icon: typeof Cl
 // kilitsiz) atama ekranı. xray-assignment-section.tsx'teki (Test 2) BİREBİR
 // AYNI desen — SADECE /xray/principal'da gösterilir (bkz. XrayResultsPanel >
 // canAssign), öğretmen atayamaz.
-export function XrayPracticeAssignmentSection({ studentId, subject }: { studentId: string; subject: string }) {
+export function XrayPracticeAssignmentSection({
+  studentId,
+  studentName,
+  branchId,
+  branchName,
+  grade,
+  subject,
+}: {
+  studentId: string;
+  studentName: string;
+  branchId: string;
+  branchName: string;
+  grade: number;
+  subject: string;
+}) {
   const { showError, showToast } = useToast();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [selectedTopic, setSelectedTopic] = useState("");
@@ -45,6 +60,7 @@ export function XrayPracticeAssignmentSection({ studentId, subject }: { studentI
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [results, setResults] = useState<ResultItem[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
+  const [targetType, setTargetType] = useState<AssignmentTarget["type"]>("student");
 
   useEffect(() => {
     fetch(`/api/xray/practice-tests?subject=${encodeURIComponent(subject)}`)
@@ -58,6 +74,7 @@ export function XrayPracticeAssignmentSection({ studentId, subject }: { studentI
   }, [subject]);
 
   useEffect(() => {
+    setTargetType("student");
     fetch(`/api/xray/practice-assignments?studentId=${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data) => setAssignments(data.assignments ?? []))
@@ -69,14 +86,16 @@ export function XrayPracticeAssignmentSection({ studentId, subject }: { studentI
     if (!selectedTopic) return;
     setAssigning(true);
     try {
+      const target: AssignmentTarget =
+        targetType === "student" ? { type: "student", studentId } : targetType === "branch" ? { type: "branch", branchId } : { type: "grade", grade };
       const res = await fetch("/api/xray/practice-assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, subject, subtopicId: selectedTopic }),
+        body: JSON.stringify({ subject, subtopicId: selectedTopic, target }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Atanamadı.");
-      showToast("success", "Test atandı — öğrencinin panelinde görünecek.");
+      showToast("success", data.created > 1 ? `Test ${data.created} öğrenciye atandı.` : "Test atandı — öğrencinin panelinde görünecek.");
       const refreshed = await fetch(`/api/xray/practice-assignments?studentId=${encodeURIComponent(studentId)}`).then((r) => r.json());
       setAssignments(refreshed.assignments ?? []);
     } catch (error) {
@@ -119,26 +138,29 @@ export function XrayPracticeAssignmentSection({ studentId, subject }: { studentI
       {topics.length === 0 ? (
         <p className="text-xs text-espresso-muted dark:text-cream/40">Bu ders için soru havuzunda henüz içerik yok.</p>
       ) : (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <select
-            value={selectedTopic}
-            onChange={(event) => setSelectedTopic(event.target.value)}
-            className="flex-1 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-          >
-            {topics.map((t) => (
-              <option key={t.subtopicId} value={t.subtopicId}>
-                {t.subtopicName} ({t.questionCount} soru havuzu)
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={assign}
-            disabled={assigning}
-            className="flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
-          >
-            {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Ata
-          </button>
+        <div className="mb-4">
+          <XrayAssignmentTargetPicker studentName={studentName} branchName={branchName} grade={grade} value={targetType} onChange={setTargetType} />
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={selectedTopic}
+              onChange={(event) => setSelectedTopic(event.target.value)}
+              className="flex-1 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+            >
+              {topics.map((t) => (
+                <option key={t.subtopicId} value={t.subtopicId}>
+                  {t.subtopicName} ({t.questionCount} soru havuzu)
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={assign}
+              disabled={assigning}
+              className="flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+            >
+              {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Ata
+            </button>
+          </div>
         </div>
       )}
 

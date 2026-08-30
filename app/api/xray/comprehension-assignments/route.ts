@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { resolveTargetStudentIds, type AssignmentTarget } from "@/lib/server/xray/assignment-target";
 import { requireSession, requireRole, requireInstitution, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -43,33 +44,36 @@ async function handleGet(request: NextRequest) {
   }
 }
 
-// POST /api/xray/comprehension-assignments — { studentId, subject, subtopicId } —
-// yöneticinin "eksik bulduğu konuyu" bir öğrenciye ataması. Aynı öğrenci
-// aynı konudan TEKRAR test alabilir (bkz. şema yorumu, @@unique yok) —
-// bu yüzden mevcut bir atama kontrolü YAPILMAZ, her POST yeni bir atama oluşturur.
+// POST /api/xray/comprehension-assignments — { subject, subtopicId, target } —
+// yöneticinin "eksik bulduğu konuyu" atamasi. Faz L: artık TEK öğrenciyle
+// sınırlı değil — target {type:"student"|"branch"|"grade"} olabilir, bir
+// şubenin/sınıf seviyesinin TAMAMINA tek istekle atanabilir (bkz.
+// resolveTargetStudentIds — hedef listesi HER ZAMAN sunucuda yeniden
+// doğrulanır). Aynı öğrenci aynı konudan TEKRAR test alabilir (bkz. şema
+// yorumu, @@unique yok) — bu yüzden mevcut bir atama kontrolü YAPILMAZ,
+// her öğrenci için yeni bir atama oluşturulur.
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
 
     const body = await request.json();
-    const { studentId, subject, subtopicId } = body as { studentId?: string; subject?: string; subtopicId?: string };
-    if (!studentId || !subject?.trim() || !subtopicId?.trim()) {
-      return NextResponse.json({ error: "studentId, subject ve subtopicId zorunludur." }, { status: 400 });
+    const { subject, subtopicId, target } = body as { subject?: string; subtopicId?: string; target?: AssignmentTarget };
+    if (!subject?.trim() || !subtopicId?.trim() || !target) {
+      return NextResponse.json({ error: "subject, subtopicId ve target zorunludur." }, { status: 400 });
     }
-
-    const student = await prisma.student.findUnique({ where: { id: studentId }, select: { institutionId: true } });
-    if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
-    requireInstitution(session, student.institutionId);
 
     const questionCount = await prisma.xrayComprehensionQuestion.count({ where: { subject: subject.trim(), subtopicId: subtopicId.trim() } });
     if (questionCount === 0) return NextResponse.json({ error: "Bu konu için soru havuzunda içerik yok." }, { status: 400 });
 
-    const assignment = await prisma.xrayComprehensionAssignment.create({
-      data: { studentId, subject: subject.trim(), subtopicId: subtopicId.trim(), assignedById: session.sub },
+    const studentIds = await resolveTargetStudentIds(session.institutionId, target);
+    if (studentIds.length === 0) return NextResponse.json({ error: "Hedeflenen kapsamda öğrenci bulunamadı." }, { status: 400 });
+
+    const result = await prisma.xrayComprehensionAssignment.createMany({
+      data: studentIds.map((studentId) => ({ studentId, subject: subject.trim(), subtopicId: subtopicId.trim(), assignedById: session.sub })),
     });
 
-    return NextResponse.json({ assignmentId: assignment.id }, { status: 201 });
+    return NextResponse.json({ created: result.count }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("xray_comprehension_assignment_create_failed", { error: error instanceof Error ? error.message : String(error) });

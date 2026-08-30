@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { pickRandomTestFromPool } from "@/lib/server/xray/practice-pool";
+import { resolveTargetStudentIds, type AssignmentTarget } from "@/lib/server/xray/assignment-target";
 import { requireSession, requireRole, requireInstitution, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -46,26 +47,27 @@ async function handleGet(request: NextRequest) {
   }
 }
 
-// POST /api/xray/practice-assignments — { studentId, subject, subtopicId } —
-// yöneticinin bir öğrenciye Test 1 (Konu Bilgisi) ataması. Havuzdan
-// RASTGELE seçim ATAMA ANINDA yapılır (bkz. lib/server/xray/practice-pool.ts)
-// ve XrayPracticeAttemptQuestion'a sabitlenir — öğrenci ne zaman açarsa
-// açsın AYNI soruları görür. Aynı öğrenci aynı konudan TEKRAR atanabilir
-// (her seferinde YENİ bir rastgele seçimle, @@unique yok).
+// POST /api/xray/practice-assignments — { subject, subtopicId, target } —
+// yöneticinin Test 1 (Konu Bilgisi) ataması. Faz L: target
+// {type:"student"|"branch"|"grade"} olabilir — bir şubenin/sınıf
+// seviyesinin TAMAMINA tek istekle atanabilir (bkz. resolveTargetStudentIds).
+// Havuzdan RASTGELE seçim HER ÖĞRENCİ İÇİN AYRI AYRI ve ATAMA ANINDA
+// yapılır (bkz. lib/server/xray/practice-pool.ts) ve
+// XrayPracticeAttemptQuestion'a sabitlenir — öğrenci ne zaman açarsa açsın
+// AYNI soruları görür, ama AYNI toplu atamadaki İKİ öğrenci FARKLI
+// sorularla karşılaşabilir (kasıtlı — sınıf içi kopya riskini azaltır).
+// Aynı öğrenci aynı konudan TEKRAR atanabilir (her seferinde YENİ bir
+// rastgele seçimle, @@unique yok).
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
 
     const body = await request.json();
-    const { studentId, subject, subtopicId } = body as { studentId?: string; subject?: string; subtopicId?: string };
-    if (!studentId || !subject?.trim() || !subtopicId?.trim()) {
-      return NextResponse.json({ error: "studentId, subject ve subtopicId zorunludur." }, { status: 400 });
+    const { subject, subtopicId, target } = body as { subject?: string; subtopicId?: string; target?: AssignmentTarget };
+    if (!subject?.trim() || !subtopicId?.trim() || !target) {
+      return NextResponse.json({ error: "subject, subtopicId ve target zorunludur." }, { status: 400 });
     }
-
-    const student = await prisma.student.findUnique({ where: { id: studentId }, select: { institutionId: true } });
-    if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
-    requireInstitution(session, student.institutionId);
 
     const pool = await prisma.xrayPracticeQuestion.findMany({
       where: { subject: subject.trim(), subtopicId: subtopicId.trim() },
@@ -73,19 +75,25 @@ async function handlePost(request: NextRequest) {
     });
     if (pool.length === 0) return NextResponse.json({ error: "Bu konu için soru havuzu boş." }, { status: 400 });
 
-    const selection = pickRandomTestFromPool(pool);
+    const studentIds = await resolveTargetStudentIds(session.institutionId, target);
+    if (studentIds.length === 0) return NextResponse.json({ error: "Hedeflenen kapsamda öğrenci bulunamadı." }, { status: 400 });
 
-    const attempt = await prisma.xrayPracticeAttempt.create({
-      data: {
-        studentId,
-        subject: subject.trim(),
-        subtopicId: subtopicId.trim(),
-        assignedById: session.sub,
-        questions: { create: selection.map((s) => ({ questionId: s.id, order: s.order })) },
-      },
-    });
+    let created = 0;
+    for (const studentId of studentIds) {
+      const selection = pickRandomTestFromPool(pool);
+      await prisma.xrayPracticeAttempt.create({
+        data: {
+          studentId,
+          subject: subject.trim(),
+          subtopicId: subtopicId.trim(),
+          assignedById: session.sub,
+          questions: { create: selection.map((s) => ({ questionId: s.id, order: s.order })) },
+        },
+      });
+      created++;
+    }
 
-    return NextResponse.json({ attemptId: attempt.id }, { status: 201 });
+    return NextResponse.json({ created }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("xray_practice_assignment_create_failed", { error: error instanceof Error ? error.message : String(error) });
