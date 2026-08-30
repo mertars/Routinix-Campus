@@ -69,6 +69,11 @@ export default function ComprehensionExamPage() {
     };
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
+      // Eski Chrome/Firefox'ta native "ayrılmak istediğine emin misin?"
+      // uyarısı SADECE returnValue set edilirse tetikleniyor — preventDefault
+      // tek başına modern tarayıcılarda yeterli ama geriye dönük uyumluluk
+      // için ikisi birden gerekli.
+      event.returnValue = "";
     };
 
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -94,6 +99,7 @@ export default function ComprehensionExamPage() {
       const res = await fetch(`/api/xray/comprehension-assignment/${params.assignmentId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Sınav başlatılamadı.");
+      if (!data.questions || data.questions.length === 0) throw new Error("Bu sınav için henüz soru içeriği yok.");
       setQuestions(data.questions);
       setCurrentIndex(0);
       setSelectedOptionId(null);

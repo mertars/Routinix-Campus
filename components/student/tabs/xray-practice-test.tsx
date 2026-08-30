@@ -168,10 +168,10 @@ export function XrayPracticeTest() {
               <div key={topic.subtopicId} className="flex items-center gap-2">
                 <button
                   onClick={() => startTopic(topic)}
-                  className="flex min-h-[48px] flex-1 items-center justify-between rounded-2xl bg-cream-card px-4 text-left text-sm font-medium text-espresso transition hover:bg-sky-500/10 dark:bg-white/5 dark:text-cream"
+                  className="flex min-h-[48px] min-w-0 flex-1 items-center justify-between gap-2 rounded-2xl bg-cream-card px-4 text-left text-sm font-medium text-espresso transition hover:bg-sky-500/10 dark:bg-white/5 dark:text-cream"
                 >
-                  {topic.name}
-                  <span className="text-xs font-normal text-espresso-muted dark:text-cream/40">{topic.questionCount} soru</span>
+                  <span className="min-w-0 truncate">{topic.name}</span>
+                  <span className="shrink-0 text-xs font-normal text-espresso-muted dark:text-cream/40">{topic.questionCount} soru</span>
                 </button>
                 <button
                   onClick={() => downloadWorksheet(topic)}
@@ -242,6 +242,14 @@ export function XrayPracticeTest() {
 
         {phase === "revealed" && (
           <motion.div key="revealed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+            {(() => {
+              const unmarkedCount = answerKey.filter((item) => needsSelfReport(item) && selfReports[item.id] === undefined).length;
+              return unmarkedCount > 0 ? (
+                <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                  {unmarkedCount} soruyu henüz Yaptım/Yapamadım olarak işaretlemedin — işaretlemezsen sonuçlarına dahil edilmez.
+                </p>
+              ) : null;
+            })()}
             {answerKey.map((item, index) => {
               const reported = selfReports[item.id];
               const settled = item.alreadyAnswered ? item.wasCorrect : reported;

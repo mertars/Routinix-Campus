@@ -45,9 +45,9 @@ export function XrayComprehensionBanner() {
           <button
             key={a.id}
             onClick={() => router.push(`/student/comprehension/${a.id}`)}
-            className="flex min-h-[44px] w-full items-center justify-between rounded-2xl bg-white px-4 text-left text-sm font-medium text-espresso transition hover:bg-amber-100 dark:bg-midnight-card dark:text-cream dark:hover:bg-amber-500/10"
+            className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-2xl bg-white px-4 text-left text-sm font-medium text-espresso transition hover:bg-amber-100 dark:bg-midnight-card dark:text-cream dark:hover:bg-amber-500/10"
           >
-            {a.subtopicName}
+            <span className="min-w-0 truncate">{a.subtopicName}</span>
             <ArrowRight className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
           </button>
         ))}
