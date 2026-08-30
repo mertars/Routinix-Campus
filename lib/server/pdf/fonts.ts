@@ -6,6 +6,19 @@ import { Font } from "@react-pdf/renderer";
 // fontları (Helvetica vb.) Türkçe karakterlerin çoğunu (ğ, ş, ç, ö, ü ve
 // büyük halleri) İÇERMEZ; WinAnsiEncoding (cp1252) bu harfleri tanımaz.
 //
+// ⚠️ Bu dosyalar ARTIK saf @fontsource/noto-sans DEĞİL — Akademik Röntgen'in
+// köklü/matematik ifadeleri (√, ±, ×, ÷, ≤, ≥) PDF'te tamamen SESSİZCE
+// KAYBOLUYORDU (react-pdf eksik glif için hata VERMİYOR, karakteri atlıyor)
+// çünkü latin-ext altkümesinde Matematiksel İşleçler Unicode bloğu (U+2200-
+// 22FF) yok. react-pdf `fontFamily` için TEK bir string kabul ediyor (dizi/
+// fallback zinciri DESTEKLEMİYOR, bkz. @react-pdf/font FontFamily.resolve),
+// bu yüzden iki ayrı font kaydedip ayrı ayrı kullanmak yerine `fonttools
+// merge` ile @fontsource/noto-sans-math'ın (yalnızca gerekli glif seti,
+// MATH tablosu çıkarılmış) glifleri BU dosyaların İÇİNE gömüldü — tek
+// dosya, hem Türkçe hem matematik sembolü kapsıyor. Yeniden üretmek
+// gerekirse: iki font dosyasını fontTools.ttLib ile aç, MATH tablosunu sil,
+// `python3 -m fontTools.merge` ile birleştir, `flavor="woff"` ile kaydet.
+//
 // ⚠️ Font.register'a DOSYA YOLU (public/fonts/...) vermek yerine BİLEREK
 // base64 data URI'a çevrilip veriliyor: @react-pdf/font'un dosya-yolu dalı
 // (isDataUrl/isUrl değilse fontkit.open(path) çağırıyor) Vercel'in serverless
