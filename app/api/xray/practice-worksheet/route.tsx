@@ -1,44 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/server/prisma";
-import { CURRICULUM_TREE } from "@/lib/mock-data";
-import { PdfPracticeWorksheet } from "@/components/pdf/pdf-practice-worksheet";
 import { requireSession } from "@/lib/server/auth/session-guard";
+import { PdfPracticeWorksheet } from "@/components/pdf/pdf-practice-worksheet";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/xray/practice-worksheet?subject=Matematik&subtopicId=mt9-2 —
-// "isterse pdf çıkarıp hocasıyla anlayarak çözecek" — sadece SORULAR
-// (çözüm/cevap YOK), basılıp üzerine çalışılacak bir kağıt.
+// GET /api/xray/practice-worksheet?testId=X — "isterse pdf çıkarıp
+// hocasıyla anlayarak çözecek" — sadece SORULAR (çözüm/cevap YOK), basılıp
+// üzerine çalışılacak bir kağıt. Kurum logosu/adı içerir (bkz. Faz F —
+// öğrencinin ekrandaki güzel deneyimiyle tutarlı olsun diye artık markalı).
 async function handleGet(request: NextRequest) {
   try {
-    await requireSession();
+    const session = await requireSession();
 
-    const subject = request.nextUrl.searchParams.get("subject");
-    const subtopicId = request.nextUrl.searchParams.get("subtopicId");
-    if (!subject?.trim() || !subtopicId?.trim()) {
-      return NextResponse.json({ error: "subject ve subtopicId parametreleri zorunludur." }, { status: 400 });
-    }
+    const testId = request.nextUrl.searchParams.get("testId");
+    if (!testId?.trim()) return NextResponse.json({ error: "testId parametresi zorunludur." }, { status: 400 });
 
-    const questions = await prisma.xrayPracticeQuestion.findMany({
-      where: { subject, subtopicId },
-      orderBy: { difficulty: "asc" },
-      select: { format: true, prompt: true, options: true },
-    });
+    const [institution, questions] = await Promise.all([
+      prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true, logoUrl: true } }),
+      prisma.xrayPracticeQuestion.findMany({
+        where: { testId: testId.trim() },
+        orderBy: { order: "asc" },
+        select: { order: true, prompt: true, testName: true, subject: true },
+      }),
+    ]);
+    if (questions.length === 0) return NextResponse.json({ error: "Bu test için soru bulunamadı." }, { status: 404 });
 
-    let topicName = subtopicId;
-    for (const topic of CURRICULUM_TREE[subject] ?? []) {
-      const match = topic.subtopics.find((s) => s.id === subtopicId);
-      if (match) topicName = match.name;
-    }
-
-    const pdfBuffer = await renderToBuffer(<PdfPracticeWorksheet topicName={topicName} subject={subject} questions={questions} />);
+    const pdfBuffer = await renderToBuffer(
+      <PdfPracticeWorksheet
+        institutionName={institution?.name ?? ""}
+        logoUrl={institution?.logoUrl}
+        testName={questions[0].testName}
+        subject={questions[0].subject}
+        questions={questions.map((q) => ({ order: q.order, prompt: q.prompt }))}
+      />
+    );
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
-      headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="calisma-yapragi-${subtopicId}.pdf"` },
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="calisma-yapragi-${testId}.pdf"` },
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

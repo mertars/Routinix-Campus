@@ -7,16 +7,21 @@ import { Font } from "@react-pdf/renderer";
 // büyük halleri) İÇERMEZ; WinAnsiEncoding (cp1252) bu harfleri tanımaz.
 //
 // ⚠️ Bu dosyalar ARTIK saf @fontsource/noto-sans DEĞİL — Akademik Röntgen'in
-// köklü/matematik ifadeleri (√, ±, ×, ÷, ≤, ≥) PDF'te tamamen SESSİZCE
-// KAYBOLUYORDU (react-pdf eksik glif için hata VERMİYOR, karakteri atlıyor)
-// çünkü latin-ext altkümesinde Matematiksel İşleçler Unicode bloğu (U+2200-
-// 22FF) yok. react-pdf `fontFamily` için TEK bir string kabul ediyor (dizi/
-// fallback zinciri DESTEKLEMİYOR, bkz. @react-pdf/font FontFamily.resolve),
-// bu yüzden iki ayrı font kaydedip ayrı ayrı kullanmak yerine `fonttools
-// merge` ile @fontsource/noto-sans-math'ın (yalnızca gerekli glif seti,
-// MATH tablosu çıkarılmış) glifleri BU dosyaların İÇİNE gömüldü — tek
-// dosya, hem Türkçe hem matematik sembolü kapsıyor. Yeniden üretmek
-// gerekirse: iki font dosyasını fontTools.ttLib ile aç, MATH tablosunu sil,
+// köklü/matematik ifadeleri PDF'te tamamen SESSİZCE KAYBOLUYORDU (react-pdf
+// eksik glif için hata VERMİYOR, karakteri atlıyor) çünkü latin-ext
+// altkümesinde Matematiksel İşleçler Unicode bloğu (U+2200-22FF) yok.
+// react-pdf `fontFamily` için TEK bir string kabul ediyor (dizi/fallback
+// zinciri DESTEKLEMİYOR, bkz. @react-pdf/font FontFamily.resolve), bu
+// yüzden iki ayrı font kaydedip ayrı ayrı kullanmak yerine `fonttools merge`
+// ile @fontsource/noto-sans-math'ın gerekli glif seti (MATH tablosu
+// çıkarılmış) BU dosyaların İÇİNE gömüldü — tek dosya, hem Türkçe hem
+// matematik sembolü kapsıyor. Kapsanan semboller: √ ± × ÷ ≤ ≥ ≠ ≈ ∫ ∑ ∏ ∞
+// π ° ′ ″ · Δ ∂ ∝ ∈ ∩ ∪ → (U+221A/00B1/00D7/00F7/2264/2265/2260/2248/222B/
+// 2211/220F/221E/03C0/00B0/2032/2033/00B7/0394/2202/221D/2208/2229/222A/
+// 2192). ∫ eksikliği bir kez ATLANDI (Akademik Röntgen'in "Test 1" içeriği
+// bunu kullanınca fark edildi) — yeni bir matematik sembolü daha eksik
+// çıkarsa AYNI yöntemle bu listeye eklenmeli. Yeniden üretmek gerekirse:
+// iki font dosyasını fontTools.ttLib ile aç, MATH tablosunu sil,
 // `python3 -m fontTools.merge` ile birleştir, `flavor="woff"` ile kaydet.
 //
 // ⚠️ Font.register'a DOSYA YOLU (public/fonts/...) vermek yerine BİLEREK

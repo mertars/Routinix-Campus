@@ -1424,28 +1424,33 @@ model TopicMasteryAssessment {
 // soru hem şık bazlı) — kullanıcının "her sorunun bilinçli arkada yorumu
 // olmalı" isteğinin karşılığı; Faz D'deki analiz motoru bunu okuyacak.
 
-enum XrayQuestionFormat {
-  OPEN_ENDED
-  MULTIPLE_CHOICE
-}
-
-// Test 1 — Konu Bilgisi soru bankası.
+// Test 1 — Konu Bilgisi soru bankası. Faz F revizyonu: gerçek içerik
+// üretim formatı (kullanıcının kendi hazırladığı JSON) MCQ İÇERMİYOR —
+// tamamen açık uçlu, "test_adi" ile adlandırılmış bir ÇALIŞMA YAPRAĞI
+// (testId/testName) altında gruplu, her sorunun kendi kazanımId'si var
+// (subtopicId'den DAHA İNCE bir etiket — bir subtopic'in altında onlarca
+// farklı kazanım olabilir, bkz. örnek: "9. Sınıf - İntegral" konusu tek
+// subtopicId ama 12+ farklı kazanımId). Bu yüzden format/options/difficulty
+// KALDIRILDI (MCQ hiç yok, zorluk sıralaması yerine testin kendi soruNo
+// sırası kullanılıyor) — testId/testName/kazanimId/order EKLENDİ.
 model XrayPracticeQuestion {
-  id            String             @id @default(cuid())
+  id            String   @id @default(cuid())
   subject       String
   subtopicId    String
-  difficulty    Int // 1 (temel kural/tanım) - 5 (çok adımlı)
-  format        XrayQuestionFormat
-  prompt        String
-  options       String[] // format=MULTIPLE_CHOICE ise dolu, OPEN_ENDED ise boş dizi
-  correctAnswer String // MCQ: doğru şıkkın metni; OPEN_ENDED: referans cevap
-  solution      String // adım adım çözüm anlatımı — cevap anahtarında gösterilir
-  checks        String // bu soru konunun HANGİ kısmını yokluyor (örn. "kök içi çarpanı ayırma kuralı")
-  createdAt     DateTime           @default(now())
+  testId        String // aynı çalışma yaprağındaki soruları gruplar (CURRICULUM_TREE gibi DB'de foreign-key'siz, gevşek bir referans)
+  testName      String // "Test 1: İki Aşamalı Kontrollü Çalışma Yaprağı" — denormalize, her satırda tekrar eder
+  order         Int // soruNo — gösterim sırası
+  kazanimId     String // örn. "INTEGRAL_KUVVET_KURALI" — subtopicId'den daha ince bir etiket
+  prompt        String // questionText
+  correctAnswer String // finalAnswer
+  solution      String // detailedSolution — cevap anahtarında gösterilir
+  checks        String // diagnosticComment — öğrenci bu soruyu işaretlerse hangi eksiklik anlaşılır
+  createdAt     DateTime @default(now())
 
   answers XrayPracticeAnswer[]
 
-  @@index([subject, subtopicId, difficulty])
+  @@index([subject, subtopicId])
+  @@index([testId])
 }
 
 // Test 1'in bir "oturumu" — süre/kilit yok, sadece hangi sorulara
@@ -1457,6 +1462,7 @@ model XrayPracticeAttempt {
   student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject     String
   subtopicId  String
+  testId      String
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
@@ -1465,18 +1471,17 @@ model XrayPracticeAttempt {
   @@index([studentId])
 }
 
-// wasCorrect: MCQ sorularda sunucu tarafında otomatik hesaplanır;
-// OPEN_ENDED sorularda ve "cevap anahtarına baktım, yanlış yapmışım"
-// işaretlemelerinde öğrencinin KENDİ beyanıdır (selfReported=true).
+// wasCorrect: tamamen açık uçlu bir testte otomatik derecelendirme YOK —
+// bu HER ZAMAN öğrencinin "Yapamadıklarım" listesindeki kendi beyanıdır
+// (işaretlenmemiş = doğru yapmış sayılır, bkz. .../complete route'u).
 model XrayPracticeAnswer {
-  id           String               @id @default(cuid())
-  attemptId    String
-  attempt      XrayPracticeAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  questionId   String
-  question     XrayPracticeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  wasCorrect   Boolean
-  selfReported Boolean
-  answeredAt   DateTime             @default(now())
+  id         String               @id @default(cuid())
+  attemptId  String
+  attempt    XrayPracticeAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId String
+  question   XrayPracticeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  wasCorrect Boolean
+  answeredAt DateTime             @default(now())
 
   @@unique([attemptId, questionId])
   @@index([attemptId])

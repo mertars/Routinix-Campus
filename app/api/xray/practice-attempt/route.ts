@@ -6,33 +6,36 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// POST /api/xray/practice-attempt — { studentId, subject, subtopicId } —
-// Test 1 (Konu Bilgisi) oturumu başlatır. Süre/kilit YOK — öğrenci
-// istediği zaman bırakıp devam edebilir, bu yüzden sorular TEK seferde
-// tam liste olarak döner (bkz. GET altındaki questions), Test 2'nin
-// soru-soru akışının aksine. correctAnswer/solution/checks BİLEREK
-// gönderilmez — MCQ sorularda anlık derecelendirme anlamını yitirmesin
-// diye (bkz. .../answer route'u).
+// POST /api/xray/practice-attempt — { studentId, testId } — Test 1 (Konu
+// Bilgisi) oturumu başlatır. Süre/kilit YOK, tamamen açık uçlu (bkz. şema
+// yorumu, Faz F) — sorular TEK seferde tam liste olarak döner, soruNo
+// sırasıyla (order). correctAnswer/solution/checks BİLEREK gönderilmez —
+// "Cevap Anahtarına Ulaş"a kadar saklı kalır.
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "student");
 
     const body = await request.json();
-    const { studentId, subject, subtopicId } = body as { studentId?: string; subject?: string; subtopicId?: string };
-    if (!studentId || !subject?.trim() || !subtopicId?.trim()) {
-      return NextResponse.json({ error: "studentId, subject ve subtopicId zorunludur." }, { status: 400 });
+    const { studentId, testId } = body as { studentId?: string; testId?: string };
+    if (!studentId || !testId?.trim()) {
+      return NextResponse.json({ error: "studentId ve testId zorunludur." }, { status: 400 });
     }
     assertOwnsSelf(session, studentId);
 
-    const [attempt, questions] = await Promise.all([
-      prisma.xrayPracticeAttempt.create({ data: { studentId, subject: subject.trim(), subtopicId: subtopicId.trim() } }),
-      prisma.xrayPracticeQuestion.findMany({
-        where: { subject: subject.trim(), subtopicId: subtopicId.trim() },
-        orderBy: { difficulty: "asc" },
-        select: { id: true, format: true, difficulty: true, prompt: true, options: true },
-      }),
-    ]);
+    const questions = await prisma.xrayPracticeQuestion.findMany({
+      where: { testId: testId.trim() },
+      orderBy: { order: "asc" },
+      select: { id: true, order: true, prompt: true },
+    });
+    if (questions.length === 0) return NextResponse.json({ error: "Bu test için soru bulunamadı." }, { status: 404 });
+
+    const { subject, subtopicId } = await prisma.xrayPracticeQuestion.findFirstOrThrow({
+      where: { testId: testId.trim() },
+      select: { subject: true, subtopicId: true },
+    });
+
+    const attempt = await prisma.xrayPracticeAttempt.create({ data: { studentId, subject, subtopicId, testId: testId.trim() } });
 
     return NextResponse.json({ attemptId: attempt.id, questions }, { status: 201 });
   } catch (error) {

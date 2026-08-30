@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
@@ -6,12 +6,13 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// POST /api/xray/practice-attempt/[id]/complete — oturumu kapatır, kısa
-// bir özet döner VE (Faz D) subtopic bazlı bir masteryScore hesaplayıp
-// TopicMasteryAssessment'a upsert eder (source=PRACTICE_SELF_REPORT) —
-// böylece Test 1'in sonucu da mevcut sonuç ekranında/PDF raporunda
-// otomatik görünür, o ekranlarda AYRI bir kod yolu gerekmez.
-async function handlePost(_request: Request, { params }: { params: { id: string } }) {
+// POST /api/xray/practice-attempt/[id]/complete — { notDoneQuestionIds } —
+// "Yapamadıklarım" listesini gönderir: işaretlenmemiş her soru DOĞRU
+// yapılmış sayılır (bkz. Faz F — tamamen açık uçlu bir testte tek pratik
+// öz-değerlendirme modeli budur). Bir masteryScore hesaplanıp
+// TopicMasteryAssessment'a upsert edilir (source=PRACTICE_SELF_REPORT) —
+// böylece sonuç mevcut sonuç ekranında/PDF raporunda otomatik görünür.
+async function handlePost(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
     requireRole(session, "student");
@@ -19,19 +20,28 @@ async function handlePost(_request: Request, { params }: { params: { id: string 
     const attempt = await prisma.xrayPracticeAttempt.findUnique({ where: { id: params.id } });
     if (!attempt) return NextResponse.json({ error: "Test oturumu bulunamadı." }, { status: 404 });
     assertOwnsSelf(session, attempt.studentId);
+    if (attempt.completedAt) return NextResponse.json({ error: "Bu test zaten tamamlandı." }, { status: 409 });
 
-    const [answers, questions] = await Promise.all([
-      prisma.xrayPracticeAnswer.findMany({ where: { attemptId: attempt.id }, select: { questionId: true, wasCorrect: true } }),
-      prisma.xrayPracticeQuestion.findMany({ where: { subject: attempt.subject, subtopicId: attempt.subtopicId }, select: { id: true, checks: true } }),
-    ]);
-    const checksById = new Map(questions.map((q) => [q.id, q.checks]));
-    const missedChecks = answers.filter((a) => !a.wasCorrect).map((a) => checksById.get(a.questionId)).filter((c): c is string => Boolean(c));
-    const correctCount = answers.filter((a) => a.wasCorrect).length;
+    const body = await request.json().catch(() => ({}));
+    const { notDoneQuestionIds } = body as { notDoneQuestionIds?: string[] };
+    const notDone = new Set(Array.isArray(notDoneQuestionIds) ? notDoneQuestionIds : []);
 
+    const questions = await prisma.xrayPracticeQuestion.findMany({
+      where: { testId: attempt.testId },
+      select: { id: true, checks: true, kazanimId: true },
+    });
+
+    await prisma.xrayPracticeAnswer.createMany({
+      data: questions.map((q) => ({ attemptId: attempt.id, questionId: q.id, wasCorrect: !notDone.has(q.id) })),
+      skipDuplicates: true,
+    });
     await prisma.xrayPracticeAttempt.update({ where: { id: attempt.id }, data: { completedAt: new Date() } });
 
-    if (answers.length > 0) {
-      const masteryScore = Math.round((correctCount / answers.length) * 100);
+    const missedChecks = questions.filter((q) => notDone.has(q.id)).map((q) => q.checks);
+    const correct = questions.length - notDone.size;
+
+    if (questions.length > 0) {
+      const masteryScore = Math.round((correct / questions.length) * 100);
       await prisma.topicMasteryAssessment.upsert({
         where: { studentId_subtopicId: { studentId: attempt.studentId, subtopicId: attempt.subtopicId } },
         create: { studentId: attempt.studentId, subject: attempt.subject, subtopicId: attempt.subtopicId, masteryScore, source: "PRACTICE_SELF_REPORT" },
@@ -39,12 +49,7 @@ async function handlePost(_request: Request, { params }: { params: { id: string 
       });
     }
 
-    return NextResponse.json({
-      total: questions.length,
-      answered: answers.length,
-      correct: correctCount,
-      missedChecks,
-    });
+    return NextResponse.json({ total: questions.length, correct, missedChecks });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("xray_practice_complete_failed", { attemptId: params.id, error: error instanceof Error ? error.message : String(error) });
