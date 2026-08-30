@@ -123,12 +123,13 @@ export const INITIAL_STUDENT_REPORTS: StudentNetReport[] = [
   { id: "6", name: "Ali Yurt", branch: "LGS Derece", targetNet: 85, actualNet: 76, studyHours: 22, attendanceRate: 84, segment: "LGS", grade: 8 },
 ];
 
-export type RiskReason = "net_drop" | "attendance_gap" | "homework_gap";
+export type RiskReason = "net_drop" | "attendance_gap" | "homework_gap" | "mastery_gap";
 
 export const RISK_REASON_LABEL: Record<RiskReason, string> = {
   net_drop: "Net Düşüşü",
   attendance_gap: "Devamsızlık",
   homework_gap: "Ödev Eksikliği",
+  mastery_gap: "Akademik Röntgen Eksikliği",
 };
 
 // ----------------------------------------------------------------------------

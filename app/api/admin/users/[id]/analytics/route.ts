@@ -28,7 +28,7 @@ async function studentAnalytics(studentId: string, institutionId: string) {
   });
   if (!student || student.institutionId !== institutionId) return null;
 
-  const [netResults, attendanceRecords, homeworkSubmissions, guidanceNotes] = await Promise.all([
+  const [netResults, attendanceRecords, homeworkSubmissions, guidanceNotes, masteryAssessments] = await Promise.all([
     prisma.examNetResult.findMany({
       where: { studentId },
       select: { subject: true, net: true, exam: { select: { name: true } } },
@@ -42,6 +42,7 @@ async function studentAnalytics(studentId: string, institutionId: string) {
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
+    prisma.topicMasteryAssessment.findMany({ where: { studentId }, select: { masteryScore: true } }),
   ]);
 
   const netTrend = netResults.map((r) => ({ examName: r.exam.name, subject: r.subject, net: r.net }));
@@ -53,6 +54,7 @@ async function studentAnalytics(studentId: string, institutionId: string) {
     attendanceRate,
     homeworkSuccessRate,
     nets: netResults.map((r) => r.net),
+    masteryScores: masteryAssessments.map((m) => m.masteryScore),
   });
 
   return {

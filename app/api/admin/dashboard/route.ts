@@ -71,7 +71,7 @@ async function computeDashboard(institutionId: string, segment: string) {
   // uyguluyorlar, bu yüzden TÜMÜ aynı anda, TEK round-trip turunda çalışır.
   // Son sınavın sonuç sayısı da ayrı bir sorgu yerine `_count` ilişki
   // seçimiyle AYNI sorguda geliyor — ikinci aşamayı da ortadan kaldırır.
-  const [branches, teachers, latestExamRow, students, attendanceCounts, homeworkCounts] = await Promise.all([
+  const [branches, teachers, latestExamRow, students, attendanceCounts, homeworkCounts, masteryAverages] = await Promise.all([
     prisma.branch.findMany({
       where: branchWhere,
       include: { advisor: { select: { firstName: true, lastName: true } } },
@@ -106,12 +106,18 @@ async function computeDashboard(institutionId: string, segment: string) {
     // öğrenci başına durum sayıları çekiliyor.
     prisma.attendanceRecord.groupBy({ by: ["studentId", "status"], where: { student: { branch: branchWhere } }, _count: true }),
     prisma.homeworkSubmission.groupBy({ by: ["studentId", "status"], where: { student: { branch: branchWhere } }, _count: true }),
+    // Faz O — Akademik Röntgen'in "3. sistem" olarak risk skoruna eklenmesi
+    // (bkz. compute-risk.ts). _avg ile agregat DOĞRUDAN veritabanında
+    // hesaplanıyor — ham masteryScore satırlarını çekip JS'te ortalamaya
+    // gerek yok (attendance/homework'teki AYNI groupBy optimizasyonu).
+    prisma.topicMasteryAssessment.groupBy({ by: ["studentId"], where: { student: { branch: branchWhere } }, _avg: { masteryScore: true } }),
   ]);
   const branchIds = branches.map((b) => b.id);
   const latestExamResultCount = latestExamRow?._count.results ?? 0;
 
   const attendanceByStudent = buildStatusCountMap(attendanceCounts, ["PRESENT", "LATE"]);
   const homeworkByStudent = buildStatusCountMap(homeworkCounts, ["DONE"]);
+  const masteryAvgByStudent = new Map(masteryAverages.map((m) => [m.studentId, m._avg.masteryScore ?? null]));
 
   const staff = teachers
     .filter((t) => t.teachingBranches.some((b) => branchIds.includes(b.id)))
@@ -142,7 +148,13 @@ async function computeDashboard(institutionId: string, segment: string) {
     const homeworkTotal = hw?.total ?? 0;
     const homeworkDone = hw?.positive ?? 0;
     const homeworkSuccessRate = homeworkTotal === 0 ? null : Math.round((homeworkDone / homeworkTotal) * 100);
-    const { riskScore, reason } = computeRisk({ attendanceRate, homeworkSuccessRate, nets: sortedResults.map((r) => r.net) });
+    const avgMastery = masteryAvgByStudent.get(s.id);
+    const { riskScore, reason } = computeRisk({
+      attendanceRate,
+      homeworkSuccessRate,
+      nets: sortedResults.map((r) => r.net),
+      masteryScores: avgMastery !== null && avgMastery !== undefined ? [avgMastery] : [],
+    });
     return {
       id: s.id,
       name: `${s.firstName} ${s.lastName}`,

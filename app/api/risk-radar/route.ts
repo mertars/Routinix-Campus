@@ -69,7 +69,7 @@ async function computeRiskRadar(institutionId: string, teacherId: string | null)
   // çalışabiliyor (bkz. app/api/admin/dashboard/route.ts'teki AYNI
   // gerekçe/desen — sıralı aşama sayısı, satır hacminden bağımsız gerçek
   // bir gecikme kaynağıydı).
-  const [students, attendanceCounts, homeworkCounts] = await Promise.all([
+  const [students, attendanceCounts, homeworkCounts, masteryAverages] = await Promise.all([
     prisma.student.findMany({
       where: studentWhere,
       select: {
@@ -82,10 +82,13 @@ async function computeRiskRadar(institutionId: string, teacherId: string | null)
     }),
     prisma.attendanceRecord.groupBy({ by: ["studentId", "status"], where: { student: studentWhere }, _count: true }),
     prisma.homeworkSubmission.groupBy({ by: ["studentId", "status"], where: { student: studentWhere }, _count: true }),
+    // Faz O — Akademik Röntgen "3. sistem" sinyali (bkz. compute-risk.ts).
+    prisma.topicMasteryAssessment.groupBy({ by: ["studentId"], where: { student: studentWhere }, _avg: { masteryScore: true } }),
   ]);
 
   const attendanceByStudent = buildStatusCountMap(attendanceCounts, ["PRESENT", "LATE"]);
   const homeworkByStudent = buildStatusCountMap(homeworkCounts, ["DONE"]);
+  const masteryAvgByStudent = new Map(masteryAverages.map((m) => [m.studentId, m._avg.masteryScore ?? null]));
 
   const entries = students.map((student) => {
     const att = attendanceByStudent.get(student.id);
@@ -94,10 +97,12 @@ async function computeRiskRadar(institutionId: string, teacherId: string | null)
     const homeworkTotal = hw?.total ?? 0;
     const homeworkDone = hw?.positive ?? 0;
     const homeworkSuccessRate = homeworkTotal === 0 ? null : Math.round((homeworkDone / homeworkTotal) * 100);
+    const avgMastery = masteryAvgByStudent.get(student.id);
     const { riskScore, reason } = computeRisk({
       attendanceRate,
       homeworkSuccessRate,
       nets: student.netResults.map((r) => r.net),
+      masteryScores: avgMastery !== null && avgMastery !== undefined ? [avgMastery] : [],
     });
     return {
       id: student.id,
