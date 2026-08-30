@@ -387,6 +387,7 @@ model Admin {
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
   xrayComprehensionAssignments XrayComprehensionAssignment[]
+  xrayPracticeAttempts         XrayPracticeAttempt[]
 
   @@index([institutionId])
 }
@@ -1455,31 +1456,38 @@ model XrayPracticeQuestion {
   @@index([testId])
 }
 
-// Test 1'in bir "oturumu" — süre/kilit yok, sadece hangi sorulara
-// baktığını gruplamak için (aynı öğrenci aynı konuyu birden fazla kez
-// çalışabilir, her seferinde yeni bir attempt).
+// Test 1'in bir "oturumu" — süre/kilit yok, ama Faz H revizyonuyle artık
+// öğrenci KENDİ BAŞINA başlatamıyor, TIPKI Test 2 gibi yönetici ataması
+// gerekiyor (kullanıcı kararı: "öğrenci kafasına göre test almayacak,
+// sadece yönetim üzerinden olacak"). assignedById/assignedAt atama anını,
+// status (aynı XrayAssignmentStatus enum'u Test 2 ile PAYLAŞILIR) akışı
+// takip eder: ASSIGNED (atandı, öğrenci henüz açmadı) -> IN_PROGRESS
+// (öğrenci ilk açtı, startedAt o an yazılır) -> COMPLETED.
 //
-// Faz G revizyonu: Kullanıcı aynı konu için ONLARCA ayrı test yükleyecek
-// (örn. bir konudan 10 test × 30 soru = 300 sorulu bir HAVUZ) — artık TEK
-// bir testId'ye bağlı sabit bir soru seti YOK. Bunun yerine her attempt
-// başlarken subject+subtopicId havuzundaki sorular kazanimId'ye göre
-// gruplanır, HER kazanımdan RASTGELE bir soru çekilir (bkz. .../route.ts
-// > pickRandomQuestionsByKazanim) ve bu SEÇİM XrayPracticeAttemptQuestion'a
-// SABİTLENİR — aynı öğrenci aynı konuyu tekrar çalışırsa YENİ bir rastgele
-// seçim yapılır (yeni bir attempt), ama BU attempt'in sorusu asla değişmez.
+// Faz G'nin havuz mantığı DEĞİŞMEDİ: kullanıcı aynı konu için onlarca
+// ayrı test yükleyecek (10 test × 30 soru = 300 sorulu bir HAVUZ) — TEK
+// bir testId'ye bağlı sabit bir soru seti YOK. Atama anında subject+
+// subtopicId havuzundaki sorular kazanimId'ye göre gruplanır, HER
+// kazanımdan RASTGELE bir soru çekilir (bkz. lib/server/xray/practice-pool.ts)
+// ve bu seçim XrayPracticeAttemptQuestion'a SABİTLENİR.
 model XrayPracticeAttempt {
-  id          String    @id @default(cuid())
-  studentId   String
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject     String
-  subtopicId  String
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
+  id           String               @id @default(cuid())
+  studentId    String
+  student      Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject      String
+  subtopicId   String
+  assignedById String
+  assignedBy   Admin                @relation(fields: [assignedById], references: [id], onDelete: Cascade)
+  status       XrayAssignmentStatus @default(ASSIGNED)
+  assignedAt   DateTime             @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
 
   questions XrayPracticeAttemptQuestion[]
   answers   XrayPracticeAnswer[]
 
   @@index([studentId])
+  @@index([assignedById])
 }
 
 // Bir attempt için havuzdan RASTGELE seçilip SABİTLENEN soru listesi —

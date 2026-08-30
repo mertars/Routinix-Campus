@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, ArrowLeft, KeyRound, Check, Loader2, Download, RotateCcw } from "lucide-react";
+import { BookOpen, ArrowLeft, KeyRound, Check, Loader2, Download } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
@@ -16,44 +16,40 @@ type Phase = "loading" | "solving" | "revealed" | "completed";
 // Akademik Röntgen — Test 1 "Konu Bilgisi", KENDİ ayrı tam ekranında (Faz F
 // — daha önce panel içindeydi, artık Test 2'nin kilitli sınavı gibi kendi
 // sayfası var, ama BİLEREK kilitli DEĞİL — süre/sekme kısıtlaması yok,
-// öğrenci istediği an geri dönebilir). Tamamen açık uçlu: şık YOK, tüm
-// sorular tek seferde ekrana gelir, "Cevap Anahtarını Gör" ile çözümler
-// açılır, öğrenci sonda TEK bir "Yapamadıklarım" listesinden işaretler.
+// öğrenci istediği an geri dönebilir). Faz H: artık öğrenci kendi testini
+// KENDİSİ BAŞLATMIYOR — yönetici önceden atıyor (bkz.
+// /api/xray/practice-assignments POST), sorular atama anında havuzdan
+// seçilip sabitleniyor; bu sayfa sadece o hazır ATAMAYI açar (GET).
+// Tamamen açık uçlu: şık YOK, tüm sorular tek seferde ekrana gelir,
+// "Cevap Anahtarını Gör" ile çözümler açılır, öğrenci sonda TEK bir
+// "Yapamadıklarım" listesinden işaretler.
 export default function PracticeTestPage() {
-  const params = useParams<{ subtopicId: string }>();
-  const searchParams = useSearchParams();
-  const subject = searchParams.get("subject") ?? "Matematik";
+  const params = useParams<{ attemptId: string }>();
   const router = useRouter();
-  const { studentId } = useStudentScope();
   const { showError } = useToast();
   const [phase, setPhase] = useState<Phase>("loading");
-  const [attemptId, setAttemptId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answerKey, setAnswerKey] = useState<AnswerKeyItem[]>([]);
   const [notDone, setNotDone] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState<{ total: number; correct: number; missedChecks: string[] } | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const attemptId = params.attemptId;
 
   useEffect(() => {
-    if (!studentId) return;
-    fetch("/api/xray/practice-attempt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId, subject, subtopicId: params.subtopicId }),
-    })
+    if (!attemptId) return;
+    fetch(`/api/xray/practice-attempt/${encodeURIComponent(attemptId)}`)
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
-        if (!ok) throw new Error(data?.error ?? "Test başlatılamadı.");
-        setAttemptId(data.attemptId);
+        if (!ok) throw new Error(data?.error ?? "Test açılamadı.");
         setQuestions(data.questions);
         setPhase("solving");
       })
       .catch((error) => {
-        showError(error instanceof Error ? error.message : "Test başlatılamadı.");
+        showError(error instanceof Error ? error.message : "Test açılamadı.");
         router.push("/student");
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId, params.subtopicId]);
+  }, [attemptId]);
 
   async function revealAnswerKey() {
     if (!attemptId) return;
@@ -98,7 +94,7 @@ export default function PracticeTestPage() {
     if (!attemptId) return;
     setDownloading(true);
     try {
-      await fetchAndDownloadPdf(`/api/xray/practice-worksheet?attemptId=${encodeURIComponent(attemptId)}`, undefined, `calisma-yapragi-${params.subtopicId}.pdf`);
+      await fetchAndDownloadPdf(`/api/xray/practice-worksheet?attemptId=${encodeURIComponent(attemptId)}`, undefined, `calisma-yapragi-${attemptId}.pdf`);
     } catch (error) {
       showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
     } finally {
@@ -240,12 +236,6 @@ export default function PracticeTestPage() {
                   className="flex min-h-[44px] items-center gap-2 rounded-2xl bg-sky-600 px-5 text-sm font-semibold text-white transition hover:bg-sky-500"
                 >
                   <ArrowLeft className="h-4 w-4" /> Panele Dön
-                </button>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="flex min-h-[44px] items-center gap-2 rounded-2xl border border-hairline px-5 text-sm font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
-                >
-                  <RotateCcw className="h-4 w-4" /> Tekrar Çöz
                 </button>
               </div>
             </motion.div>

@@ -7,7 +7,7 @@ import { withApiLogging, logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 // GET /api/xray/practice-attempt/[id]/answer-key — "Cevap Anahtarını Gör"
-// akışı: bu ATTEMPT için (havuzdan rastgele SEÇİLİP sabitlenmiş, bkz.
+// akışı: bu ATTEMPT için (atama anında havuzdan seçilip sabitlenmiş, bkz.
 // XrayPracticeAttemptQuestion) soruların çözümlerini açar.
 async function handleGet(_request: Request, { params }: { params: { id: string } }) {
   try {

@@ -19,7 +19,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     const attempt = await prisma.xrayPracticeAttempt.findUnique({ where: { id: params.id } });
     if (!attempt) return NextResponse.json({ error: "Test oturumu bulunamadı." }, { status: 404 });
     assertOwnsSelf(session, attempt.studentId);
-    if (attempt.completedAt) return NextResponse.json({ error: "Bu test zaten tamamlandı." }, { status: 409 });
+    if (attempt.status !== "IN_PROGRESS") return NextResponse.json({ error: "Bu test aktif değil." }, { status: 409 });
 
     const body = await request.json().catch(() => ({}));
     const { notDoneQuestionIds } = body as { notDoneQuestionIds?: string[] };
@@ -34,7 +34,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       data: attemptQuestions.map((aq) => ({ attemptId: attempt.id, questionId: aq.questionId, wasCorrect: !notDone.has(aq.questionId) })),
       skipDuplicates: true,
     });
-    await prisma.xrayPracticeAttempt.update({ where: { id: attempt.id }, data: { completedAt: new Date() } });
+    await prisma.xrayPracticeAttempt.update({ where: { id: attempt.id }, data: { status: "COMPLETED", completedAt: new Date() } });
 
     const missedChecks = attemptQuestions.filter((aq) => notDone.has(aq.questionId)).map((aq) => aq.question.checks);
     const correct = attemptQuestions.length - notDone.size;
