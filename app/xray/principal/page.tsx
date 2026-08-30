@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { XrayTopBar } from "@/components/xray/xray-top-bar";
 import { XrayResultsPanel, type XrayRosterStudent } from "@/components/xray/xray-results-panel";
+import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
 import { useToast } from "@/lib/toast-context";
 
 // Kurum geneli röntgen merkezi — roster TÜM kurumdan gelir (bkz.
@@ -40,6 +41,9 @@ export default function XrayPrincipalPage() {
   return (
     <div className="min-h-screen bg-cream dark:bg-midnight">
       <XrayTopBar roleLabel="Yönetici" />
+      <div className="px-4 pt-4 lg:px-6">
+        <XrayMonthlyScreeningPanel />
+      </div>
       <XrayResultsPanel roster={roster} canAssign />
     </div>
   );

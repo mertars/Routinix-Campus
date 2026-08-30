@@ -550,6 +550,14 @@ export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
   ],
 };
 
+// Akademik Röntgen'in kullanabileceği dersler — SADECE en az bir lise
+// (grade >= XRAY_MIN_GRADE) konusu olan dersler (bkz. XRAY_MIN_GRADE
+// yorumu). "LGS Branş" gibi tamamen ortaokula özel dersler burada
+// GÖRÜNMEZ.
+export const XRAY_SUBJECTS = Object.entries(CURRICULUM_TREE)
+  .filter(([, topics]) => topics.some((t) => t.grade >= XRAY_MIN_GRADE))
+  .map(([subject]) => subject);
+
 export type DutySlot = { teacherName: string; day: ScheduleDay; slot: ScheduleSlot; label: string };
 
 export const TEACHER_DUTY_SLOTS: DutySlot[] = [{ teacherName: "İrfan Hoca", day: "Pazartesi", slot: "19:00-20:00", label: "Nöbet" }];

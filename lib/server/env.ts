@@ -31,6 +31,13 @@ const baseSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL zorunludur (bkz. .env.local.example)."),
   AUTH_SECRET: z.string().optional(),
   SMS_PROVIDER: z.preprocess(normalizeSmsProvider, z.enum(["mock", "netgsm", "mutlusms", "generic"])),
+  // Vercel Cron, bu değişken tanımlıysa isteğe OTOMATİK "Authorization:
+  // Bearer <CRON_SECRET>" başlığı ekler (bkz. app/api/cron/xray-monthly-
+  // screening) — üretimde TANIMSIZ bırakılırsa o uç KİMLİK DOĞRULAMASIZ
+  // herkese açık kalır (dışarıdan tetiklenip istenmeyen anda toplu test
+  // ataması yapılabilir), bu yüzden AUTH_SECRET'la AYNI fail-fast kuralına
+  // tabi.
+  CRON_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof baseSchema> & { AUTH_SECRET: string };
@@ -66,6 +73,13 @@ export function getEnv(): Env {
       throw new Error(
         "AUTH_SECRET üretimde zorunludur ve en az 32 karakter olmalıdır. " +
           "Rastgele güçlü bir değer üretin (örn. `openssl rand -base64 48`) ve barındırma ortamınızda tanımlayın."
+      );
+    }
+    if (!parsed.data.CRON_SECRET || parsed.data.CRON_SECRET.length < 16) {
+      throw new Error(
+        "CRON_SECRET üretimde zorunludur ve en az 16 karakter olmalıdır (Vercel Cron'un /api/cron/* uçlarını " +
+          "kimliksiz çağrılara karşı koruması için). Rastgele bir değer üretin ve hem Vercel env değişkenlerine " +
+          "hem Vercel'in Cron Jobs ayarına ekleyin."
       );
     }
   } else if (!authSecret) {

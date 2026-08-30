@@ -125,6 +125,7 @@ model Institution {
   etutSetting             EtutSetting?
   settings                InstitutionSettings?
   institutionSmsTemplates InstitutionSmsTemplate[]
+  xrayMonthlyScreeningConfigs XrayMonthlyScreeningConfig[]
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
 }
@@ -389,6 +390,7 @@ model Admin {
   updatedAt                    DateTime                      @updatedAt
   xrayComprehensionAssignments XrayComprehensionAssignment[]
   xrayPracticeAttempts         XrayPracticeAttempt[]
+  xrayMonthlyScreeningConfigs  XrayMonthlyScreeningConfig[]
 
   @@index([institutionId])
 }
@@ -1422,6 +1424,36 @@ model TopicMasteryHistory {
   assessedAt   DateTime   @default(now())
 
   @@index([studentId, subtopicId, assessedAt])
+}
+
+// Faz N — "Unutma riski" aylık tarama testi (ALEKS "Knowledge Check"
+// mantığı): kurum+sınıf seviyesi başına TEK satır, yönetici bunu açıp
+// kapatabilir ve konusunu değiştirebilir. ENABLED iken bir cron job
+// (bkz. app/api/cron/xray-monthly-screening) her gün nextRunAt <= now
+// olan satırları bulup O SINIF SEVİYESİNDEKİ TÜM öğrencilere Test 1
+// havuzundan (XrayPracticeQuestion) rastgele seçilmiş, en fazla
+// MONTHLY_SCREENING_QUESTION_COUNT sorulu bir tarama testi atar — sonra
+// nextRunAt'i intervalDays kadar ileri alır. configuredById, OTOMATİK
+// atamaların XrayPracticeAttempt.assignedById alanına yazılacak admin'i
+// taşır (o alan required — "sistem" diye ayrı bir kavram YOK, otomatik
+// atama, ayarı açan yöneticinin adına yapılmış sayılır).
+model XrayMonthlyScreeningConfig {
+  id             String   @id @default(cuid())
+  institutionId  String
+  institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  grade          Int
+  enabled        Boolean  @default(false)
+  subject        String
+  subtopicId     String
+  intervalDays   Int      @default(30)
+  nextRunAt      DateTime
+  configuredById String
+  configuredBy   Admin    @relation(fields: [configuredById], references: [id], onDelete: Cascade)
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@unique([institutionId, grade])
+  @@index([enabled, nextRunAt])
 }
 
 // ----------------------------------------------------------------------------

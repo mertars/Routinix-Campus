@@ -51,3 +51,18 @@ export function pickRandomTestFromPool(pool: PoolQuestion[]): SelectedQuestion[]
 
   return selected.sort((a, b) => a.order - b.order);
 }
+
+// Faz N — aylık tarama testi TAM havuz testi değil, SABİT bir üst sınırla
+// (bkz. MONTHLY_SCREENING_QUESTION_COUNT) sınırlı, hızlı bir "unutma
+// riski" kontrolü. pickRandomTestFromPool'un kazanım-çeşitliliği koruyan
+// tam seçimi ÜZERİNE, gerekirse RASTGELE bir alt küme alınır (Fisher-Yates
+// kısmi karıştırma) — havuz zaten üst sınırdan küçükse dokunulmadan döner.
+export function capSelection(selection: SelectedQuestion[], max: number): SelectedQuestion[] {
+  if (selection.length <= max) return selection;
+  const shuffled = [...selection];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, max).sort((a, b) => a.order - b.order);
+}

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/xray-monthly-screening",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
