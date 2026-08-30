@@ -7,6 +7,7 @@ import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
+import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section";
 import { cn } from "@/lib/utils";
 
 export type XrayRosterStudent = { id: string; firstName: string; lastName: string; branchName: string };
@@ -35,7 +36,15 @@ function scoreTextColor(score: number | null): string {
 // Hem /xray/principal (kurum geneli roster) hem /xray/teacher (öğretmenin
 // KENDİ öğrencileri, bkz. çağıran taraftaki branchIds filtresi) TARAFINDAN
 // paylaşılır — tek fark hangi roster'ın verildiği, gösterim mantığı AYNI.
-export function XrayResultsPanel({ roster, defaultSubject }: { roster: XrayRosterStudent[]; defaultSubject?: string }) {
+export function XrayResultsPanel({
+  roster,
+  defaultSubject,
+  canAssign = false,
+}: {
+  roster: XrayRosterStudent[];
+  defaultSubject?: string;
+  canAssign?: boolean;
+}) {
   const { showError } = useToast();
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -128,6 +137,7 @@ export function XrayResultsPanel({ roster, defaultSubject }: { roster: XrayRoste
       </div>
 
       {selectedStudent && (
+        <>
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -208,6 +218,8 @@ export function XrayResultsPanel({ roster, defaultSubject }: { roster: XrayRoste
             </div>
           )}
         </motion.div>
+        {canAssign && <XrayAssignmentSection studentId={selectedId} subject={subject} />}
+        </>
       )}
     </div>
   );

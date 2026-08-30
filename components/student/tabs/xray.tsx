@@ -7,6 +7,7 @@ import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
 import { XrayDiagnosticTest } from "@/components/student/tabs/xray-diagnostic-test";
 import { XrayPracticeTest } from "@/components/student/tabs/xray-practice-test";
+import { XrayComprehensionBanner } from "@/components/student/tabs/xray-comprehension-banner";
 import { cn } from "@/lib/utils";
 
 type ExamBreakdown = { examId: string; examName: string; examDate: string; totalNet: number; subjects: { subject: string; net: number }[] };
@@ -56,6 +57,7 @@ export function XrayTab() {
 
   return (
     <div className="space-y-4">
+      <XrayComprehensionBanner />
       <XrayPracticeTest />
       <XrayDiagnosticTest />
 

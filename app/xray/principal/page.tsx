@@ -32,7 +32,7 @@ export default function XrayPrincipalPage() {
   return (
     <div className="min-h-screen bg-cream dark:bg-midnight">
       <XrayTopBar roleLabel="Yönetici" />
-      <XrayResultsPanel roster={roster} />
+      <XrayResultsPanel roster={roster} canAssign />
     </div>
   );
 }
