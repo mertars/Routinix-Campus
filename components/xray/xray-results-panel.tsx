@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users } from "lucide-react";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
-import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
+import { fetchAndDownloadPdf, fetchAndSharePdf } from "@/lib/client/download-pdf";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section";
 import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
@@ -64,7 +64,7 @@ export function XrayResultsPanel({
   defaultSubject?: string;
   canAssign?: boolean;
 }) {
-  const { showError } = useToast();
+  const { showError, showToast } = useToast();
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [subject, setSubject] = useState(defaultSubject && SUBJECTS.includes(defaultSubject) ? defaultSubject : SUBJECTS[0]);
@@ -72,6 +72,7 @@ export function XrayResultsPanel({
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingBranch, setDownloadingBranch] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [history, setHistory] = useState<MasteryHistoryResponse | null>(null);
   const [trendOpen, setTrendOpen] = useState(false);
   const [netTrend, setNetTrend] = useState<{ examLabel: string; net: number }[] | null>(null);
@@ -129,6 +130,24 @@ export function XrayResultsPanel({
       showError(error instanceof Error ? error.message : "Rapor oluşturulamadı.");
     } finally {
       setDownloading(false);
+    }
+  }
+
+  async function shareReport() {
+    if (!selectedStudent) return;
+    setSharing(true);
+    try {
+      const result = await fetchAndSharePdf(
+        `/api/xray/report/${encodeURIComponent(selectedId)}?subject=${encodeURIComponent(subject)}`,
+        undefined,
+        `${selectedStudent.firstName}-${selectedStudent.lastName}-rontgen-raporu.pdf`.replace(/\s+/g, "-"),
+        `${selectedStudent.firstName} ${selectedStudent.lastName} — Akademik Röntgen Raporu`
+      );
+      if (result === "downloaded") showToast("info", "Cihazın paylaşım penceresini desteklemiyor — rapor indirildi.");
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Rapor oluşturulamadı.");
+    } finally {
+      setSharing(false);
     }
   }
 
@@ -257,6 +276,15 @@ export function XrayResultsPanel({
                     <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
                     {averageScore !== null && (
                       <>
+                      <button
+                        onClick={shareReport}
+                        disabled={sharing}
+                        aria-label="Röntgen raporunu paylaş"
+                        title="Paylaş (WhatsApp, AirDrop vb.)"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
+                      >
+                        {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+                      </button>
                       <button
                         onClick={downloadReport}
                         disabled={downloading}
