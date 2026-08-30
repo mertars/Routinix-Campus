@@ -79,6 +79,19 @@ export function computePeriodComparison(history: HistoryRow[], now: Date = new D
   return result;
 }
 
+// Faz M — öğrencinin kendi geçmişiyle karşılaştırması ("geçen aya göre
+// %12 arttın") için TEK bir sayı: genel ortalamanın (bkz.
+// computeOverallTrend) GÜNCEL değeri ile ~30 gün ÖNCESİNDEKİ değeri.
+export function computeOverallDelta(history: HistoryRow[], now: Date = new Date()): { current: number; previous: number | null; delta: number | null } {
+  const trend = computeOverallTrend(history);
+  if (trend.length === 0) return { current: 0, previous: null, delta: null };
+  const current = trend[trend.length - 1].average;
+  const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const beforeCutoff = trend.filter((p) => new Date(p.assessedAt).getTime() <= cutoff.getTime());
+  const previous = beforeCutoff.length > 0 ? beforeCutoff[beforeCutoff.length - 1].average : null;
+  return { current, previous, delta: previous !== null ? current - previous : null };
+}
+
 // Isı haritası: sütunlar = ay (kronolojik, veride görülen en eski aydan
 // bugüne kadar BOŞLUKSUZ), satırlar = konu. Bir konunun test edilmediği
 // aylarda EN SON bilinen skor "ileri doldurulur" (forward-fill) — ustalık

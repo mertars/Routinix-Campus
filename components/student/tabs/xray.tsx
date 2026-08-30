@@ -8,6 +8,7 @@ import { useToast } from "@/lib/toast-context";
 import { XrayDiagnosticTest } from "@/components/student/tabs/xray-diagnostic-test";
 import { XrayPracticeBanner } from "@/components/student/tabs/xray-practice-banner";
 import { XrayComprehensionBanner } from "@/components/student/tabs/xray-comprehension-banner";
+import { XraySelfProgressCard } from "@/components/student/tabs/xray-self-progress-card";
 import { cn } from "@/lib/utils";
 
 type ExamBreakdown = { examId: string; examName: string; examDate: string; totalNet: number; subjects: { subject: string; net: number }[] };
@@ -59,6 +60,7 @@ export function XrayTab() {
     <div className="space-y-4">
       <XrayComprehensionBanner />
       <XrayPracticeBanner />
+      <XraySelfProgressCard />
       <XrayDiagnosticTest />
 
       <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
