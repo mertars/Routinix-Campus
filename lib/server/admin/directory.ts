@@ -19,7 +19,7 @@ export async function listStudentDirectory(institutionId: string, opts: { query?
       lastName: true,
       studentNumber: true,
       isActive: true,
-      branch: { select: { id: true, name: true } },
+      branch: { select: { id: true, name: true, grade: true } },
       // Toplu SMS alıcı seçicisi (bkz. components/principal/tabs/bulk-sms.tsx)
       // hangi öğrencinin velisinde SMS onayı (smsConsent) olduğunu seçim
       // ANINDA gösterebilsin diye — /api/admin/sms/send zaten onaysız
@@ -37,6 +37,7 @@ export async function listStudentDirectory(institutionId: string, opts: { query?
     isActive: s.isActive,
     branchId: s.branch.id,
     branchName: s.branch.name,
+    grade: s.branch.grade,
     parents: s.parents.map((link) => ({
       id: link.parent.id,
       name: `${link.parent.firstName} ${link.parent.lastName}`,

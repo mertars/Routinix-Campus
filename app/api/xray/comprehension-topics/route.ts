@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { CURRICULUM_TREE, XRAY_MIN_GRADE } from "@/lib/mock-data";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -21,12 +21,15 @@ async function handleGet(request: NextRequest) {
 
     const grouped = await prisma.xrayComprehensionQuestion.groupBy({ by: ["subtopicId"], where: { subject }, _count: { _all: true } });
 
+    // Faz K: SADECE lise (9-12. sınıf) konuları — bkz. XRAY_MIN_GRADE yorumu.
     const subtopicNameById = new Map<string, string>();
     for (const topic of CURRICULUM_TREE[subject] ?? []) {
+      if (topic.grade < XRAY_MIN_GRADE) continue;
       for (const sub of topic.subtopics) subtopicNameById.set(sub.id, sub.name);
     }
 
     const subtopics = grouped
+      .filter((g) => subtopicNameById.has(g.subtopicId))
       .map((g) => ({ subtopicId: g.subtopicId, name: subtopicNameById.get(g.subtopicId) ?? g.subtopicId, questionCount: g._count._all }))
       .sort((a, b) => a.name.localeCompare(b.name, "tr"));
 

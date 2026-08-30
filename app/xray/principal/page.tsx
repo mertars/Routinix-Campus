@@ -7,6 +7,12 @@ import { useToast } from "@/lib/toast-context";
 
 // Kurum geneli röntgen merkezi — roster TÜM kurumdan gelir (bkz.
 // /api/admin/users/directory, academic-xray.tsx'teki AYNI desen).
+//
+// Faz K — Akademik Röntgen ŞUANLIK SADECE lise (9-12. sınıf) için: roster
+// grade < 9 olan (ortaokul/LGS) öğrencileri BİLEREK dışarıda bırakıyor.
+// Ortaokul desteği ileride eklenecek — bu filtre o zaman kaldırılacak/
+// genişletilecek, panelin geri kalanı (3 sütunlu düzen, atama, trend
+// grafikleri) zaten sınıf seviyesinden bağımsız, değişiklik gerekmeyecek.
 export default function XrayPrincipalPage() {
   const { showError } = useToast();
   const [roster, setRoster] = useState<XrayRosterStudent[]>([]);
@@ -15,14 +21,14 @@ export default function XrayPrincipalPage() {
     fetch("/api/admin/users/directory?role=STUDENT")
       .then((res) => res.json())
       .then((data) => {
-        const students: XrayRosterStudent[] = (data.students ?? []).map(
-          (s: { id: string; firstName: string; lastName: string; branchName: string }) => ({
+        const students: XrayRosterStudent[] = (data.students ?? [])
+          .filter((s: { grade: number | null }) => (s.grade ?? 0) >= 9)
+          .map((s: { id: string; firstName: string; lastName: string; branchName: string }) => ({
             id: s.id,
             firstName: s.firstName,
             lastName: s.lastName,
             branchName: s.branchName,
-          })
-        );
+          }));
         setRoster(students);
       })
       .catch(() => showError("Öğrenci listesi yüklenemedi."));

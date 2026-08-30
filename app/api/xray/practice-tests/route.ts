@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { CURRICULUM_TREE, XRAY_MIN_GRADE } from "@/lib/mock-data";
 import { requireSession } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -33,12 +33,15 @@ async function handleGet(request: NextRequest) {
       byTopic.set(q.subtopicId, entry);
     }
 
+    // Faz K: SADECE lise (9-12. sınıf) konuları — bkz. XRAY_MIN_GRADE yorumu.
     const subtopicNameById = new Map<string, string>();
     for (const topic of CURRICULUM_TREE[subject] ?? []) {
+      if (topic.grade < XRAY_MIN_GRADE) continue;
       for (const sub of topic.subtopics) subtopicNameById.set(sub.id, sub.name);
     }
 
     const topics = [...byTopic.entries()]
+      .filter(([subtopicId]) => subtopicNameById.has(subtopicId))
       .map(([subtopicId, stats]) => ({
         subtopicId,
         subtopicName: subtopicNameById.get(subtopicId) ?? subtopicId,

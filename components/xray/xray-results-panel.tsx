@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Search, Scan, AlertCircle, CircleSlash, Download, Loader2, Gauge, ListChecks, Flame, CalendarClock } from "lucide-react";
-import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { CURRICULUM_TREE, XRAY_MIN_GRADE } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
@@ -18,7 +18,9 @@ type SubtopicResult = { subtopicId: string; name: string; masteryScore: number |
 type TopicResult = { topicName: string; grade: number; subtopics: SubtopicResult[] };
 type ResultsResponse = { subject: string; topics: TopicResult[] };
 
-const SUBJECTS = Object.keys(CURRICULUM_TREE);
+const SUBJECTS = Object.entries(CURRICULUM_TREE)
+  .filter(([, topics]) => topics.some((t) => t.grade >= XRAY_MIN_GRADE))
+  .map(([subject]) => subject);
 
 function scoreColor(score: number | null): string {
   if (score === null) return "bg-cream-muted dark:bg-white/10";

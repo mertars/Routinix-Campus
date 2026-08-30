@@ -428,6 +428,13 @@ export const HIGH_SCHOOL_PROGRAMS: HighSchoolProgram[] = [
 export type CurriculumSubtopic = { id: string; name: string; covered: boolean; dateCovered?: string };
 export type CurriculumTopic = { id: string; name: string; grade: GradeLevel; subtopics: CurriculumSubtopic[] };
 
+// Faz K — Akademik Röntgen ŞUANLIK SADECE lise (9-12. sınıf) için;
+// ortaokul (5-8/LGS) desteği ileride eklenecek. CURRICULUM_TREE zaten her
+// konuya bir `grade` taşıdığı için röntgen tarafındaki HER filtre
+// (roster, ders/konu seçicileri, atama ekranları) bu tek sabiti kullanır —
+// ortaokul desteği eklenince SADECE bu değer değişir/kaldırılır.
+export const XRAY_MIN_GRADE = 9;
+
 export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
   Matematik: [
     {

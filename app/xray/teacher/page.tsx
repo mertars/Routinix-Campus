@@ -9,14 +9,19 @@ import { useToast } from "@/lib/toast-context";
 // Öğretmenin röntgen görünümü — roster SADECE kendi şubeleri (bkz.
 // /api/students?branchIds=, optical-scanner.tsx/gap-closing.tsx'teki AYNI
 // desen), academic-xray.tsx'teki kurum geneli roster'dan BİLEREK farklı.
+//
+// Faz K — Akademik Röntgen ŞUANLIK SADECE lise (9-12. sınıf) için (bkz.
+// /xray/principal'daki AYNI gerekçe) — öğretmenin ortaokul şubeleri varsa
+// bile roster'a girmiyor.
 export default function XrayTeacherPage() {
   const { subject, assignedBranches } = useTeacherScope();
   const { showError } = useToast();
   const [roster, setRoster] = useState<XrayRosterStudent[]>([]);
+  const highSchoolBranches = assignedBranches.filter((b) => (b.grade ?? 0) >= 9);
 
   useEffect(() => {
-    if (assignedBranches.length === 0) return;
-    fetch(`/api/students?branchIds=${assignedBranches.map((b) => b.id).join(",")}`)
+    if (highSchoolBranches.length === 0) return;
+    fetch(`/api/students?branchIds=${highSchoolBranches.map((b) => b.id).join(",")}`)
       .then((res) => res.json())
       .then((data) => {
         const students: XrayRosterStudent[] = (data.students ?? []).map(

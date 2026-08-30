@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { CURRICULUM_TREE, XRAY_MIN_GRADE } from "@/lib/mock-data";
 import { requireSession, requireInstitution, assertOwnsSelf, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -36,7 +36,7 @@ async function handleGet(request: NextRequest, { params }: { params: { studentId
       for (const sub of topic.subtopics) subtopicNameById.set(sub.id, sub.name);
     }
 
-    const topics = (CURRICULUM_TREE[subject] ?? []).map((topic) => ({
+    const topics = (CURRICULUM_TREE[subject] ?? []).filter((topic) => topic.grade >= XRAY_MIN_GRADE).map((topic) => ({
       topicName: topic.name,
       grade: topic.grade,
       subtopics: topic.subtopics.map((sub) => {
