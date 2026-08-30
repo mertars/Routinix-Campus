@@ -34,7 +34,7 @@ const MODULES: ModuleDef[] = [
     label: "Akademik Röntgen",
     description: "Öğrenci bazlı derin performans ve konu analizi.",
     icon: Scan,
-    active: false,
+    active: true,
   },
   {
     id: "measurement",
@@ -119,8 +119,9 @@ export default function HubPage() {
       showToast("info", `${mod.label} yakında aktif olacak.`);
       return;
     }
-    if (session.roleId === "teacher") router.push("/teacher");
-    else router.push("/principal");
+    const isTeacher = session.roleId === "teacher";
+    if (mod.id === "xray") router.push(isTeacher ? "/xray/teacher" : "/xray/principal");
+    else router.push(isTeacher ? "/teacher" : "/principal");
   }
 
   return (

@@ -227,6 +227,7 @@ model Student {
   isActive                  Boolean                    @default(true)
   parents                   ParentStudent[]
   netResults                ExamNetResult[]
+  topicMasteryAssessments   TopicMasteryAssessment[]
   attendanceRecords         AttendanceRecord[]
   reportCards               ReportCard[]
   reportCardShareLinks      ReportCardShareLink[]
@@ -293,47 +294,48 @@ model ParentStudent {
 }
 
 model Teacher {
-  id                    String                     @id @default(cuid())
-  institutionId         String
-  institution           Institution                @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  nationalId            String                     @unique // v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
-  firstName             String
-  lastName              String
-  subject               String // Branş
-  university            String?
-  mobilePhone           String
-  institutionalEmail    String?
-  personalEmail         String?
-  dutyDays              String[] // Nöbet Günleri
-  institutionalCode     String? // "TCH-102" — kısa, insan-okur öğretmen kodu (giriş kullanıcı adı DEĞİL — o T.C. No'dur), kurum içinde benzersiz
-  passwordHash          String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
-  mustChangePassword    Boolean                    @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  id                      String                     @id @default(cuid())
+  institutionId           String
+  institution             Institution                @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  nationalId              String                     @unique // v1 kararı: aynı kişi aynı anda iki kuruma kayıtlı olamaz (global benzersiz)
+  firstName               String
+  lastName                String
+  subject                 String // Branş
+  university              String?
+  mobilePhone             String
+  institutionalEmail      String?
+  personalEmail           String?
+  dutyDays                String[] // Nöbet Günleri
+  institutionalCode       String? // "TCH-102" — kısa, insan-okur öğretmen kodu (giriş kullanıcı adı DEĞİL — o T.C. No'dur), kurum içinde benzersiz
+  passwordHash            String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
+  mustChangePassword      Boolean                    @default(true) // ilk giriş / şifre değiştirme zorunluluğu
   // bkz. Student.isActive'teki AYNI gerekçe (hard delete yerine pasifleştirme).
-  isActive              Boolean                    @default(true)
+  isActive                Boolean                    @default(true)
   // Etüt Randevu Modülü: öğretmenin etütler arasına bırakmak istediği mola
   // süresi (dk) — bkz. lib/server/etut/compute-available-slots.ts. Aralık
   // bazında değil öğretmen bazında TEK bir değer (kullanıcı isteği).
-  etutBreakMinutes      Int                        @default(10)
-  advisorBranches       Branch[]                   @relation("BranchAdvisor")
-  teachingBranches      Branch[]                   @relation("BranchTeaching")
-  advisedStudents       Student[]                  @relation("StudentAdvisor")
-  questions             Question[]
-  homeworks             Homework[]
-  quizzes               Quiz[]
-  quizBankQuestions     QuizBankQuestion[]
-  attendanceSubmissions AttendanceSubmission[]
-  unavailability        TeacherUnavailability[]
-  appointmentRequests   AppointmentRequest[]
-  etutAvailability      TeacherEtutAvailability[]
-  classbookNotes        ClassbookNote[]
-  yearlyPlanRows        YearlyPlanRow[]
-  materials             TeacherMaterial[]
-  lessonSlots           LessonSlot[]
-  dutySlots             TeacherDutySlot[]
-  reportCardComments    ReportCardTeacherComment[]
-  guidanceReferrals     GuidanceReferral[]
-  createdAt             DateTime                   @default(now())
-  updatedAt             DateTime                   @updatedAt
+  etutBreakMinutes        Int                        @default(10)
+  advisorBranches         Branch[]                   @relation("BranchAdvisor")
+  teachingBranches        Branch[]                   @relation("BranchTeaching")
+  advisedStudents         Student[]                  @relation("StudentAdvisor")
+  questions               Question[]
+  homeworks               Homework[]
+  quizzes                 Quiz[]
+  quizBankQuestions       QuizBankQuestion[]
+  attendanceSubmissions   AttendanceSubmission[]
+  unavailability          TeacherUnavailability[]
+  appointmentRequests     AppointmentRequest[]
+  etutAvailability        TeacherEtutAvailability[]
+  classbookNotes          ClassbookNote[]
+  yearlyPlanRows          YearlyPlanRow[]
+  materials               TeacherMaterial[]
+  lessonSlots             LessonSlot[]
+  dutySlots               TeacherDutySlot[]
+  reportCardComments      ReportCardTeacherComment[]
+  topicMasteryAssessments TopicMasteryAssessment[]
+  guidanceReferrals       GuidanceReferral[]
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
 
   @@unique([institutionId, institutionalCode])
   @@index([institutionId])
@@ -1282,4 +1284,36 @@ model StudyTopicGoal {
   createdAt         DateTime  @default(now())
 
   @@index([studyGoalId])
+}
+
+// ----------------------------------------------------------------------------
+// Akademik Röntgen (Hub'daki 2. modül, Kampüs V2 Part 6) — Faz 1
+// ----------------------------------------------------------------------------
+
+// Bir öğrencinin BİR dersteki BİR alt konudaki gerçek ustalık seviyesi.
+// "Matematik Röntgeni" ürününden esinlenilen teşhis modelinin temeli — ama
+// o üründeki AI/adaptif test motorunun aksine, sistemde henüz konu bazlı
+// otomatik bir soru bankası/ölçme motoru YOK (bkz. Hub'daki "Ölçme
+// Değerlendirme" modülü, henüz yapılmadı). Bu yüzden masteryScore bir
+// insan — öğrencinin danışman/branş öğretmeni — tarafından elle giriliyor;
+// ileride otomatik bir tanı testi eklenirse AYNI alan o motorun ürettiği
+// puanla da doldurulabilir, şema değişikliği gerekmez. subtopicId,
+// CURRICULUM_TREE (lib/mock-data.ts) içindeki subtopic.id ile eşleşir —
+// CurriculumProgress'teki AYNI referans deseni, farkı BRANŞ değil ÖĞRENCİ
+// bazlı olması (bir sınıfın değil, tek bir öğrencinin durumu).
+model TopicMasteryAssessment {
+  id           String   @id @default(cuid())
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject      String
+  subtopicId   String // CURRICULUM_TREE içindeki subtopic.id
+  masteryScore Int // 0-100 — öğretmenin teşhis ettiği ustalık seviyesi
+  note         String?
+  assessedById String
+  assessedBy   Teacher  @relation(fields: [assessedById], references: [id], onDelete: Cascade)
+  assessedAt   DateTime @default(now())
+
+  @@unique([studentId, subtopicId])
+  @@index([studentId])
+  @@index([assessedById])
 }

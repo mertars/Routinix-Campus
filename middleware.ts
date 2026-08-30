@@ -15,6 +15,11 @@ const ROUTE_ROLE: Record<string, string> = {
   "/teacher": "teacher",
   "/student": "student",
   "/parent": "parent",
+  // Akademik Röntgen (Hub'daki 2. modül) — ERP'den (/principal, /teacher)
+  // AYRI, kendi rotaları. Aynı iki role açık ama ERP'nin tab setini
+  // GÖRMEMELİ, bu yüzden /principal'ın altına değil kendi prefix'ine konur.
+  "/xray/principal": "principal",
+  "/xray/teacher": "teacher",
 };
 
 // CSP nonce'ı burada, HER sayfa isteğinde yeniden üretilir (statik bir değer
