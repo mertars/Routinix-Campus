@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Loader2, Gauge, ListChecks, Flame, CalendarClock } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart } from "lucide-react";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
@@ -72,6 +72,7 @@ export function XrayResultsPanel({
   const [downloading, setDownloading] = useState(false);
   const [history, setHistory] = useState<MasteryHistoryResponse | null>(null);
   const [trendOpen, setTrendOpen] = useState(false);
+  const [netTrend, setNetTrend] = useState<{ examLabel: string; net: number }[] | null>(null);
 
   useEffect(() => {
     setSelectedId((current) => current || roster[0]?.id || "");
@@ -104,6 +105,15 @@ export function XrayResultsPanel({
       .catch(() => {});
   }, [selectedId, subject]);
 
+  useEffect(() => {
+    if (!selectedId) return;
+    setNetTrend(null);
+    fetch(`/api/students/${encodeURIComponent(selectedId)}/net-summary`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data) => setNetTrend(data.trendBySubject?.[subject] ?? []))
+      .catch(() => {});
+  }, [selectedId, subject]);
+
   async function downloadReport() {
     if (!selectedStudent) return;
     setDownloading(true);
@@ -130,6 +140,15 @@ export function XrayResultsPanel({
     if (!latest || s.assessedAt > latest) return s.assessedAt;
     return latest;
   }, null);
+
+  // Faz O — deneme net'i ile röntgen skoru çapraz analizi: "gerçek bir
+  // korelasyon katsayısı" hesaplamak için genelde yeterli veri noktası
+  // olmuyor (bir öğrencinin birkaç denemesi olur) — bunun yerine BASİT,
+  // savunulabilir bir eşleştirme: bu derste net SON DENEMEDE düştü VE bu
+  // derste kırmızı bölgede (skor<30) konu VARSA, ikisini birlikte göster.
+  const netDropping = netTrend !== null && netTrend.length >= 2 && netTrend[netTrend.length - 1].net < netTrend[netTrend.length - 2].net;
+  const redZoneSubtopics = tested.filter((s) => (s.masteryScore ?? 100) < 30).map((s) => s.name);
+  const showCrossInsight = netDropping && redZoneSubtopics.length > 0;
 
   if (roster.length === 0) {
     return <p className="text-xs text-espresso-muted dark:text-cream/40">Gösterilecek öğrenci bulunamadı.</p>;
@@ -289,6 +308,16 @@ export function XrayResultsPanel({
                     <div className="flex items-start gap-2 rounded-2xl bg-rose-50 p-3.5 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
                       <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span>Kırmızı konularda temelden eksik tespit edildi — önceliklendirilmiş bir tekrar programı önerilir.</span>
+                    </div>
+                  )}
+
+                  {showCrossInsight && (
+                    <div className="flex items-start gap-2 rounded-2xl bg-amber-50 p-3.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                      <LineChart className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {subject} netinde son denemede düşüş var — bu düşüş, kırmızı bölgedeki <strong>{redZoneSubtopics.join(", ")}</strong> konu(lar)ındaki
+                        eksiklerle örtüşüyor olabilir.
+                      </span>
                     </div>
                   )}
                 </>
