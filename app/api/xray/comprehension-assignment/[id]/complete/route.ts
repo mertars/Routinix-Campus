@@ -8,10 +8,12 @@ export const dynamic = "force-dynamic";
 
 // POST /api/xray/comprehension-assignment/[id]/complete — sınavı bitirir.
 // Öğrenciye SADECE kaç doğru yaptığı döner — şık bazlı tanı (diagnosis)
-// öğrenciye değil, atayan yöneticiye/öğretmene gider (bkz. Faz D'deki
-// analiz ekranı, henüz yapılmadı). Bu, gerçek ürünün "sonuç 3 iş günü
+// öğrenciye değil, atayan yöneticiye/öğretmene gider (bkz. XrayResultsPanel
+// > XrayComprehensionResults, Faz D). Bu, gerçek ürünün "sonuç 3 iş günü
 // içinde değerlendirilir" mantığına denk düşer — anlık kendi kendine
-// yorumlama yerine.
+// yorumlama yerine. (Faz D) Ayrıca bir masteryScore hesaplanıp
+// TopicMasteryAssessment'a upsert edilir (source=LOCKED_EXAM — en
+// güvenilir kaynak, gözetimli sınav sonucu).
 async function handlePost(_request: Request, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
@@ -29,6 +31,15 @@ async function handlePost(_request: Request, { params }: { params: { id: string 
     const correct = answers.filter((a) => a.selectedOption.isCorrect).length;
 
     await prisma.xrayComprehensionAssignment.update({ where: { id: assignment.id }, data: { status: "COMPLETED", completedAt: new Date() } });
+
+    if (answers.length > 0) {
+      const masteryScore = Math.round((correct / answers.length) * 100);
+      await prisma.topicMasteryAssessment.upsert({
+        where: { studentId_subtopicId: { studentId: assignment.studentId, subtopicId: assignment.subtopicId } },
+        create: { studentId: assignment.studentId, subject: assignment.subject, subtopicId: assignment.subtopicId, masteryScore, source: "LOCKED_EXAM" },
+        update: { masteryScore, source: "LOCKED_EXAM", sourceSessionId: null, assessedAt: new Date() },
+      });
+    }
 
     return NextResponse.json({ total: totalQuestions, answered: answers.length, correct });
   } catch (error) {

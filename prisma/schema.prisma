@@ -1305,8 +1305,15 @@ model StudyTopicGoal {
 // üretilecek, ama bu ŞEMA o zaman DEĞİŞMEYECEK, sadece INSERT eden taraf
 // (elle/script yerine bir AI üretim job'ı) değişecek.
 
+// Faz D: TopicMasteryAssessment artık ÜÇ farklı test akışından beslenebiliyor
+// — kaynağı ayırt etmek önemli çünkü GÜVENİLİRLİKLERİ farklı: LOCKED_EXAM
+// (Test 2, kilitli+gözetimli) > AI_TEST (Faz 2'nin adaptif testi) >
+// PRACTICE_SELF_REPORT (Test 1, öğrencinin KENDİ beyanı — en az güvenilir,
+// ama yine de mock veriden çok daha değerli bir sinyal).
 enum XraySource {
   AI_TEST // XrayTestSession sonucundan otomatik hesaplandı
+  PRACTICE_SELF_REPORT // Test 1 — öğrencinin cevap anahtarı sonrası kendi işaretlemesi
+  LOCKED_EXAM // Test 2 — kilitli, yönetici atamalı sınav sonucu
   TEACHER_OVERRIDE // öğretmen otomatik puanı elle düzeltti
 }
 

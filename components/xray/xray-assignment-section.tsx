@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { ClipboardList, Send, Loader2, Lock, Check, Flag, Clock } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ClipboardList, Send, Loader2, Lock, Check, Flag, Clock, ChevronDown, X } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,16 @@ type Assignment = {
   assignedAt: string;
   completedAt: string | null;
   flagReason: string | null;
+};
+type ResultItem = {
+  questionId: string;
+  prompt: string;
+  solution: string;
+  answered: boolean;
+  isCorrect: boolean | null;
+  selectedLabel: string | null;
+  selectedText: string | null;
+  diagnosis: string | null;
 };
 
 const STATUS_META: Record<Assignment["status"], { label: string; icon: typeof Clock; className: string }> = {
@@ -33,6 +43,9 @@ export function XrayAssignmentSection({ studentId, subject }: { studentId: strin
   const [selectedTopic, setSelectedTopic] = useState("");
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [assigning, setAssigning] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [results, setResults] = useState<ResultItem[]>([]);
+  const [loadingResults, setLoadingResults] = useState(false);
 
   useEffect(() => {
     fetch(`/api/xray/comprehension-topics?subject=${encodeURIComponent(subject)}`)
@@ -71,6 +84,26 @@ export function XrayAssignmentSection({ studentId, subject }: { studentId: strin
       showError(error instanceof Error ? error.message : "Atanamadı.");
     } finally {
       setAssigning(false);
+    }
+  }
+
+  async function toggleExpand(assignment: Assignment) {
+    if (assignment.status === "ASSIGNED" || assignment.status === "IN_PROGRESS") return;
+    if (expandedId === assignment.id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(assignment.id);
+    setLoadingResults(true);
+    try {
+      const res = await fetch(`/api/xray/comprehension-assignment/${assignment.id}/results`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Sonuç yüklenemedi.");
+      setResults(data.questions ?? []);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Sonuç yüklenemedi.");
+    } finally {
+      setLoadingResults(false);
     }
   }
 
@@ -115,12 +148,58 @@ export function XrayAssignmentSection({ studentId, subject }: { studentId: strin
           {assignments.map((a) => {
             const meta = STATUS_META[a.status];
             const Icon = meta.icon;
+            const canExpand = a.status === "COMPLETED" || a.status === "FLAGGED";
+            const isExpanded = expandedId === a.id;
             return (
-              <div key={a.id} className="flex items-center justify-between gap-2 rounded-xl bg-cream-card px-3 py-2 dark:bg-white/5">
-                <span className="min-w-0 truncate text-xs font-medium text-espresso dark:text-cream">{a.subtopicName}</span>
-                <span className={cn("flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.className)}>
-                  <Icon className="h-3 w-3" /> {meta.label}
-                </span>
+              <div key={a.id} className="overflow-hidden rounded-xl bg-cream-card dark:bg-white/5">
+                <button
+                  onClick={() => toggleExpand(a)}
+                  disabled={!canExpand}
+                  className={cn("flex w-full items-center justify-between gap-2 px-3 py-2 text-left", canExpand && "cursor-pointer")}
+                >
+                  <span className="min-w-0 truncate text-xs font-medium text-espresso dark:text-cream">{a.subtopicName}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.className)}>
+                      <Icon className="h-3 w-3" /> {meta.label}
+                    </span>
+                    {canExpand && (
+                      <ChevronDown className={cn("h-3.5 w-3.5 text-espresso-muted transition-transform dark:text-cream/40", isExpanded && "rotate-180")} />
+                    )}
+                  </span>
+                </button>
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                      <div className="space-y-2 px-3 pb-3">
+                        {a.status === "FLAGGED" && a.flagReason && (
+                          <div className="flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                            <X className="h-3 w-3 shrink-0" /> {a.flagReason}
+                          </div>
+                        )}
+                        {loadingResults ? (
+                          <p className="text-[11px] text-espresso-muted dark:text-cream/40">Yükleniyor...</p>
+                        ) : (
+                          results.map((r, index) => (
+                            <div key={r.questionId} className="rounded-lg bg-white p-2.5 dark:bg-midnight-card">
+                              <p className="mb-1 text-[10px] font-semibold text-espresso-muted dark:text-cream/40">Soru {index + 1}</p>
+                              <p className="mb-1.5 text-xs font-medium text-espresso dark:text-cream">{r.prompt}</p>
+                              {r.answered ? (
+                                <>
+                                  <p className={cn("mb-1 text-[11px] font-semibold", r.isCorrect ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                                    Seçilen: {r.selectedLabel}) {r.selectedText}
+                                  </p>
+                                  <p className="text-[11px] text-espresso-muted dark:text-cream/50">{r.diagnosis}</p>
+                                </>
+                              ) : (
+                                <p className="text-[11px] italic text-espresso-muted dark:text-cream/40">Bu soru cevaplanmadı.</p>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             );
           })}

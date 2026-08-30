@@ -7,9 +7,10 @@ import { withApiLogging, logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 // POST /api/xray/practice-attempt/[id]/complete — oturumu kapatır, kısa
-// bir özet döner. Tam analiz (TopicMasteryAssessment'a bağlama) Faz D'nin
-// işi — burada sadece "kaç doğru, hangi becerilerde (checks) eksik"
-// düzeyinde ham bir geri bildirim var.
+// bir özet döner VE (Faz D) subtopic bazlı bir masteryScore hesaplayıp
+// TopicMasteryAssessment'a upsert eder (source=PRACTICE_SELF_REPORT) —
+// böylece Test 1'in sonucu da mevcut sonuç ekranında/PDF raporunda
+// otomatik görünür, o ekranlarda AYRI bir kod yolu gerekmez.
 async function handlePost(_request: Request, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
@@ -25,13 +26,23 @@ async function handlePost(_request: Request, { params }: { params: { id: string 
     ]);
     const checksById = new Map(questions.map((q) => [q.id, q.checks]));
     const missedChecks = answers.filter((a) => !a.wasCorrect).map((a) => checksById.get(a.questionId)).filter((c): c is string => Boolean(c));
+    const correctCount = answers.filter((a) => a.wasCorrect).length;
 
     await prisma.xrayPracticeAttempt.update({ where: { id: attempt.id }, data: { completedAt: new Date() } });
+
+    if (answers.length > 0) {
+      const masteryScore = Math.round((correctCount / answers.length) * 100);
+      await prisma.topicMasteryAssessment.upsert({
+        where: { studentId_subtopicId: { studentId: attempt.studentId, subtopicId: attempt.subtopicId } },
+        create: { studentId: attempt.studentId, subject: attempt.subject, subtopicId: attempt.subtopicId, masteryScore, source: "PRACTICE_SELF_REPORT" },
+        update: { masteryScore, source: "PRACTICE_SELF_REPORT", sourceSessionId: null, assessedAt: new Date() },
+      });
+    }
 
     return NextResponse.json({
       total: questions.length,
       answered: answers.length,
-      correct: answers.filter((a) => a.wasCorrect).length,
+      correct: correctCount,
       missedChecks,
     });
   } catch (error) {
