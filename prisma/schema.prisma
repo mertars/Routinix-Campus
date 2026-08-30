@@ -230,6 +230,7 @@ model Student {
   netResults                   ExamNetResult[]
   topicMasteryAssessments      TopicMasteryAssessment[]
   topicMasteryHistory          TopicMasteryHistory[]
+  xrayMasteryGoals             XrayMasteryGoal[]
   xrayTestSessions             XrayTestSession[]
   xrayPracticeAttempts         XrayPracticeAttempt[]
   xrayComprehensionAssignments XrayComprehensionAssignment[]
@@ -1424,6 +1425,28 @@ model TopicMasteryHistory {
   assessedAt   DateTime   @default(now())
 
   @@index([studentId, subtopicId, assessedAt])
+}
+
+// Faz P — Pomodoro modülündeki "kalıcı hedef kartları" deseninin Akademik
+// Röntgen'e uyarlanmış hali: "Bu ay integral konusunu %80'e çıkar" gibi
+// bir MASTERY SKORU hedefi (StudyGoal'daki soru/dakika sayısı YERİNE).
+// achievedAt NULL iken "aktif" sayılır; başarıldı mı kontrolü BİR CRON
+// GEREKTİRMİYOR — GET /api/xray/mastery-goals her çağrıldığında güncel
+// skor >= targetScore olan aktif hedefleri LAZY olarak işaretler (bkz. o
+// route'taki yorum). createdByRole SADECE gösterim/etiketleme içindir
+// ("Öğretmenin koyduğu hedef" gibi) — yetki kontrolü ayrı, route'ta yapılır.
+model XrayMasteryGoal {
+  id             String    @id @default(cuid())
+  studentId      String
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject        String
+  subtopicId     String
+  targetScore    Int
+  createdByRole  String // "STUDENT" | "TEACHER" | "ADMIN" — sadece etiket
+  createdAt      DateTime  @default(now())
+  achievedAt     DateTime?
+
+  @@index([studentId, achievedAt])
 }
 
 // Faz N — "Unutma riski" aylık tarama testi (ALEKS "Knowledge Check"

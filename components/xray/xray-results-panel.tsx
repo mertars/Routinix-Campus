@@ -10,6 +10,7 @@ import { AvatarInitials } from "@/components/principal/avatar-initials";
 import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section";
 import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
 import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
+import { XraySetGoalButton } from "@/components/xray/xray-set-goal-button";
 import { cn } from "@/lib/utils";
 
 export type XrayRosterStudent = { id: string; firstName: string; lastName: string; branchName: string; branchId: string; grade: number };
@@ -226,8 +227,10 @@ export function XrayResultsPanel({
                       {selectedStudent.branchName} · {subject}
                     </p>
                   </div>
-                  {averageScore !== null && (
-                    <div className="ml-auto flex items-center gap-2">
+                  <div className="ml-auto flex items-center gap-2">
+                    <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+                    {averageScore !== null && (
+                      <>
                       <button
                         onClick={downloadReport}
                         disabled={downloading}
@@ -239,8 +242,9 @@ export function XrayResultsPanel({
                       <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
                         %{averageScore}
                       </div>
-                    </div>
-                  )}
+                      </>
+                    )}
+                  </div>
                 </div>
               </motion.div>
 
