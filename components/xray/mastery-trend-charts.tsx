@@ -34,7 +34,7 @@ function monthLabel(key: string): string {
 // trendinin küçük bir sparkline'ı. Tıklanınca detaylı grafiklere açılır
 // (bkz. MasteryTrendDrilldown) — kullanıcının "öne çıkan bir tanesini
 // sayfaya koy, tıklayınca detaylı grafiklere giriş yapılsın" isteği.
-export function MasterySparkline({ points, onClick }: { points: OverallTrendPoint[]; onClick: () => void }) {
+export function MasterySparkline({ points, onClick }: { points: OverallTrendPoint[]; onClick?: () => void }) {
   const width = 160;
   const height = 44;
   const values = points.map((p) => p.average);
@@ -46,9 +46,13 @@ export function MasterySparkline({ points, onClick }: { points: OverallTrendPoin
   const first = points[0].average;
   const last = points[points.length - 1].average;
   const delta = last - first;
+  // Veli görünümü gibi salt-görüntüleme bağlamlarında onClick verilmez —
+  // o zaman tıklanamaz bir <button> yerine anlamsal olarak doğru <div>
+  // render edilir (bkz. parent/xray-summary-card.tsx'teki yeniden kullanım).
+  const Wrapper = onClick ? "button" : "div";
 
   return (
-    <button
+    <Wrapper
       onClick={onClick}
       className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-white/70 p-3.5 text-left shadow-sm backdrop-blur-sm transition hover:border-sky-400/40 dark:border-white/10 dark:bg-midnight-card/50"
     >
@@ -81,9 +85,9 @@ export function MasterySparkline({ points, onClick }: { points: OverallTrendPoin
             </span>
           )}
         </div>
-        <p className="text-[10px] text-espresso-muted dark:text-cream/40">Detaylı grafikler için dokun</p>
+        {onClick && <p className="text-[10px] text-espresso-muted dark:text-cream/40">Detaylı grafikler için dokun</p>}
       </div>
-    </button>
+    </Wrapper>
   );
 }
 

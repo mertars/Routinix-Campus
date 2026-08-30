@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Users, GraduationCap, Target, CalendarCheck2, LogOut } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
+import { XRAY_MIN_GRADE } from "@/lib/mock-data";
+import { XrayParentSummaryCard } from "@/components/parent/xray-summary-card";
 import { cn } from "@/lib/utils";
 
 type StudentDetail = {
@@ -113,7 +115,10 @@ export default function ParentPage() {
             ) : students.length === 0 ? (
               <EmptyState msg="Sisteme bağlı bir öğrenci bulunamadı." />
             ) : detail ? (
-              <PerformanceCard detail={detail} />
+              <div key={detail.id}>
+                <PerformanceCard detail={detail} />
+                {detail.grade >= XRAY_MIN_GRADE && <XrayParentSummaryCard studentId={detail.id} />}
+              </div>
             ) : (
               <EmptyState msg="Öğrenci verisi yükleniyor…" />
             )}
