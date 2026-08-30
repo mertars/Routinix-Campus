@@ -31,8 +31,19 @@ const nextConfig = {
     // izleyicisi (file tracing) public/ altındaki dosyaları BAZI durumlarda
     // otomatik dahil etmeyebiliyor (yerelde çalışıp üretimde "PDF açılmıyor"
     // hatasına yol açan asıl neden buydu); burada AÇIKÇA zorunlu kılınıyor.
+    //
+    // pdfkit/js/standard-fonts/**: @react-pdf/font'un DOĞRUDAN bağımlısı olan
+    // pdfkit, PDFDocument başlatılırken varsayılan font olarak "Helvetica"yı
+    // Node'un "imports" (#standard-fonts/*) alt-yol çözümlemesiyle yüklüyor —
+    // bu çözümleme biçimi @vercel/nft'nin statik izlemesinde GÖRÜNMÜYOR, bu
+    // yüzden "Cannot find module .../standard-fonts/Helvetica.cjs" hatasıyla
+    // üretimde patlıyordu (Noto Sans KAYITLI olsa bile — pdfkit kendi iç
+    // varsayılanını her PDF için önce yüklüyor). Küçük bir klasör (~180KB),
+    // tamamı dahil ediliyor.
+    // ⚠️ @react-pdf/renderer kullanan YENİ bir uç eklenirse buraya da eklenmeli.
     outputFileTracingIncludes: {
-      "/api/report-cards/**": ["./public/fonts/**"],
+      "/api/report-cards/**": ["./public/fonts/**", "./node_modules/pdfkit/js/standard-fonts/**"],
+      "/api/guidance-program/**": ["./public/fonts/**", "./node_modules/pdfkit/js/standard-fonts/**"],
     },
   },
   async headers() {

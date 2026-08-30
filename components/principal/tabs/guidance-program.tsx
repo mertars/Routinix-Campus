@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Send, FileText, CheckCircle2, History, PenLine, AlertTriangle, Loader2, ExternalLink } from "lucide-react";
 import { DAYS_OF_WEEK, STUDENT_TOPIC_ANALYSIS, type DayOfWeek, type WeeklyProgramEntry } from "@/lib/mock-data";
-import { A4ProgramPreview } from "@/components/principal/guidance/a4-program-preview";
 import { StudentSearchSelect, type StudentOption } from "@/components/principal/student-search-select";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -129,8 +128,7 @@ export function GuidanceProgramTab() {
   const [studentHistory, setStudentHistory] = useState<Program[]>([]);
   const [sending, setSending] = useState(false);
   const [sentFeedback, setSentFeedback] = useState(false);
-  const [isA4Open, setIsA4Open] = useState(false);
-  const [previewProgram, setPreviewProgram] = useState<Program | null>(null);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/users/directory?role=STUDENT")
@@ -186,6 +184,36 @@ export function GuidanceProgramTab() {
       showError(error instanceof Error ? error.message : "Program gönderilemedi.");
     } finally {
       setSending(false);
+    }
+  }
+
+  // Kurumsal A4 PDF Çıktısı — hem henüz kaydedilmemiş taslağı (draftEntries)
+  // hem de geçmişten bir programı (downloadKey ile ayrıştırılır) AYNI uca
+  // (POST /api/guidance-program/pdf) gönderir; sunucu @react-pdf/renderer
+  // ile PDF üretir (bkz. components/pdf/pdf-guidance-program.tsx) — eski
+  // window.print() tabanlı önizleme BİLEREK kaldırıldı (Framer Motion
+  // transform'u yüzünden boş sayfa üretiyordu).
+  async function downloadProgramPdf(downloadKey: string, weekLabel: string, entries: { day: string; time: string; subject: string; topic: string; questionTarget: number }[]) {
+    if (!selectedStudentId || entries.length === 0) return;
+    setDownloadingPdfId(downloadKey);
+    try {
+      const res = await fetch("/api/guidance-program/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: selectedStudentId, weekLabel, entries }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "PDF oluşturulamadı.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
+    } finally {
+      setDownloadingPdfId(null);
     }
   }
 
@@ -265,11 +293,12 @@ export function GuidanceProgramTab() {
               {sentFeedback ? "Öğrenci Portalına Gönderildi" : "Öğrenci Portalına Gönder"}
             </button>
             <button
-              onClick={() => setIsA4Open(true)}
-              disabled={draftEntries.length === 0}
+              onClick={() => downloadProgramPdf("draft", "Bu Hafta", draftEntries.map(({ day, time, subject, topic, questionTarget }) => ({ day, time, subject, topic, questionTarget })))}
+              disabled={draftEntries.length === 0 || downloadingPdfId === "draft"}
               className="flex items-center gap-2 rounded-lg border border-hairline px-4 py-2 text-xs font-medium text-espresso transition hover:bg-cream-card disabled:opacity-50 dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
             >
-              <FileText className="h-3.5 w-3.5" /> Kurumsal A4 PDF Çıktısı Al
+              {downloadingPdfId === "draft" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+              Kurumsal A4 PDF Çıktısı Al
             </button>
             <button
               onClick={handleTransferToRoutinix}
@@ -293,8 +322,9 @@ export function GuidanceProgramTab() {
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  onClick={() => setPreviewProgram(program)}
-                  className="flex w-full items-center justify-between rounded-xl bg-cream-card px-3 py-2.5 text-left transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10"
+                  onClick={() => downloadProgramPdf(program.id, program.weekLabel, program.entries)}
+                  disabled={downloadingPdfId === program.id}
+                  className="flex w-full items-center justify-between rounded-xl bg-cream-card px-3 py-2.5 text-left transition hover:bg-brand-50 disabled:opacity-60 dark:bg-white/5 dark:hover:bg-brand-600/10"
                 >
                   <div>
                     <p className="text-sm font-medium text-espresso dark:text-cream">{program.weekLabel}</p>
@@ -302,7 +332,11 @@ export function GuidanceProgramTab() {
                       {program.entries.length} hedef · {new Date(program.createdAt).toLocaleDateString("tr-TR")}
                     </p>
                   </div>
-                  <FileText className="h-4 w-4 text-brand-600" />
+                  {downloadingPdfId === program.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
+                  ) : (
+                    <FileText className="h-4 w-4 text-brand-600" />
+                  )}
                 </motion.button>
               ))}
             </div>
@@ -351,21 +385,6 @@ export function GuidanceProgramTab() {
           </div>
         </motion.div>
       )}
-
-      <A4ProgramPreview
-        isOpen={isA4Open}
-        onClose={() => setIsA4Open(false)}
-        studentName={`${student.firstName} ${student.lastName}`}
-        weekLabel="Bu Hafta"
-        entries={draftEntries}
-      />
-      <A4ProgramPreview
-        isOpen={!!previewProgram}
-        onClose={() => setPreviewProgram(null)}
-        studentName={`${student.firstName} ${student.lastName}`}
-        weekLabel={previewProgram?.weekLabel ?? ""}
-        entries={previewProgram?.entries.map((e) => ({ ...e, day: e.day as DayOfWeek })) ?? []}
-      />
     </div>
   );
 }
