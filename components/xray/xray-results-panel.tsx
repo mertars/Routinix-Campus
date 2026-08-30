@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Loader2 } from "lucide-react";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
+import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,7 @@ export function XrayResultsPanel({ roster, defaultSubject }: { roster: XrayRoste
   const [subject, setSubject] = useState(defaultSubject && SUBJECTS.includes(defaultSubject) ? defaultSubject : SUBJECTS[0]);
   const [results, setResults] = useState<ResultsResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     setSelectedId((current) => current || roster[0]?.id || "");
@@ -63,6 +65,22 @@ export function XrayResultsPanel({ roster, defaultSubject }: { roster: XrayRoste
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, subject]);
+
+  async function downloadReport() {
+    if (!selectedStudent) return;
+    setDownloading(true);
+    try {
+      await fetchAndDownloadPdf(
+        `/api/xray/report/${encodeURIComponent(selectedId)}?subject=${encodeURIComponent(subject)}`,
+        undefined,
+        `${selectedStudent.firstName}-${selectedStudent.lastName}-rontgen-raporu.pdf`.replace(/\s+/g, "-")
+      );
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Rapor oluşturulamadı.");
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   const selectedStudent = roster.find((s) => s.id === selectedId);
   const allSubtopics = results?.topics.flatMap((t) => t.subtopics) ?? [];
@@ -126,8 +144,18 @@ export function XrayResultsPanel({ roster, defaultSubject }: { roster: XrayRoste
               </p>
             </div>
             {averageScore !== null && (
-              <div className={cn("ml-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
-                %{averageScore}
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={downloadReport}
+                  disabled={downloading}
+                  aria-label="Röntgen raporunu indir"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
+                >
+                  {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                </button>
+                <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
+                  %{averageScore}
+                </div>
               </div>
             )}
           </div>

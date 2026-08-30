@@ -168,7 +168,11 @@ export function PdfReportCard({
   const ringRadius = ringCenter - 7;
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringProgress = Math.max(0, Math.min(1, attendanceRate / 100));
-  const ringArc = ringCircumference * ringProgress;
+  // Math.max(0.01, ...) — react-pdf'in SVG dash render'ı tam 0 uzunluklu bir
+  // segmenti reddediyor ("lengths must be numeric and greater than zero");
+  // devam oranı %0 olan (örn. henüz hiç yoklaması işlenmemiş) bir öğrencide
+  // bu satır patlıyordu (bkz. pdf-xray-report.tsx'teki AYNI düzeltme).
+  const ringArc = Math.max(0.01, ringCircumference * ringProgress);
 
   const averageDelta =
     subjectSummaries.length > 0
