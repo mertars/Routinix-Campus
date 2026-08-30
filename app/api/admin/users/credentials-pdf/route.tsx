@@ -28,11 +28,12 @@ async function handlePost(request: NextRequest) {
       return NextResponse.json({ error: "credentials en az bir kayıt içermeli." }, { status: 400 });
     }
 
-    const institution = await prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true } });
+    const institution = await prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true, logoUrl: true } });
 
     const pdfBuffer = await renderToBuffer(
       <PdfCredentialsList
         institutionName={institution?.name ?? ""}
+        logoUrl={institution?.logoUrl}
         role={role}
         credentials={credentials}
         generatedAtLabel={new Date().toLocaleDateString("tr-TR")}
