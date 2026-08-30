@@ -51,9 +51,9 @@ const styles = StyleSheet.create({
   logoFallbackText: { color: "#FFFFFF", fontSize: 12, fontWeight: "bold" },
   institutionName: { fontSize: 9.5, fontWeight: "bold", color: COLORS.textMuted, marginLeft: 8, letterSpacing: 0.3 },
 
-  heroTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
+  heroTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 6 },
 
-  heroBar: { backgroundColor: COLORS.heroBg, borderRadius: 16, padding: 13, flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  heroBar: { backgroundColor: COLORS.heroBg, borderRadius: 16, padding: 11, flexDirection: "row", alignItems: "center", marginBottom: 12 },
   heroAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", marginRight: 12 },
   heroAvatarText: { fontSize: 15, fontWeight: "bold", color: COLORS.accentDark },
   heroStudentName: { fontSize: 12.5, fontWeight: "bold" },
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
   heroStatNumber: { fontSize: 13, fontWeight: "bold", color: COLORS.accentDark },
   heroStatLabel: { fontSize: 6.5, color: COLORS.textMuted, letterSpacing: 0.5, marginTop: 1 },
 
-  dayRow: { flexDirection: "row", marginBottom: 4 },
+  dayRow: { flexDirection: "row", marginBottom: 2 },
   timelineCol: { width: 34, alignItems: "center" },
   dayDot: { width: 26, height: 26, borderRadius: 13, backgroundColor: COLORS.accent, alignItems: "center", justifyContent: "center" },
   dayDotEmpty: { backgroundColor: COLORS.hairline },
@@ -71,10 +71,10 @@ const styles = StyleSheet.create({
   dayDotTextEmpty: { color: COLORS.textMuted },
   timelineStem: { width: 2, flex: 1, backgroundColor: COLORS.hairline, marginTop: 2, marginBottom: 2 },
 
-  dayContent: { flex: 1, paddingLeft: 12, paddingBottom: 9 },
-  dayName: { fontSize: 10, fontWeight: "bold", marginBottom: 4, marginTop: 1 },
+  dayContent: { flex: 1, paddingLeft: 12, paddingBottom: 5 },
+  dayName: { fontSize: 10, fontWeight: "bold", marginBottom: 3, marginTop: 1 },
 
-  entryRow: { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.emptyBg, borderRadius: 9, padding: 6.5, marginBottom: 4.5 },
+  entryRow: { flexDirection: "row", alignItems: "center", backgroundColor: COLORS.emptyBg, borderRadius: 9, padding: 5.5, marginBottom: 3 },
   checkbox: { width: 11, height: 11, borderRadius: 3, borderWidth: 1.4, borderColor: COLORS.accent, marginRight: 9 },
   entryTime: { width: 62, fontSize: 8, color: COLORS.textMuted },
   subjectPill: { borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8, marginRight: 8 },
@@ -83,14 +83,14 @@ const styles = StyleSheet.create({
   targetPill: { backgroundColor: COLORS.targetPillBg, borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8, marginLeft: 8 },
   targetPillText: { fontSize: 7.5, fontWeight: "bold", color: COLORS.textMuted },
 
-  emptyDayText: { fontSize: 8.5, color: COLORS.textMuted, marginTop: 4, marginBottom: 6, fontStyle: "normal" },
+  emptyDayText: { fontSize: 8.5, color: COLORS.textMuted, marginTop: 2, marginBottom: 3, fontStyle: "normal" },
 
-  noteBox: { backgroundColor: COLORS.noteBg, borderWidth: 1, borderColor: COLORS.noteBorder, borderRadius: 12, padding: 11, marginTop: 2, marginBottom: 12 },
-  noteLabel: { fontSize: 8, fontWeight: "bold", color: COLORS.accentDark, letterSpacing: 0.8, marginBottom: 5 },
-  noteText: { fontSize: 8.8, color: "#5C4632", lineHeight: 1.4 },
+  noteBox: { backgroundColor: COLORS.noteBg, borderWidth: 1, borderColor: COLORS.noteBorder, borderRadius: 12, padding: 9, marginTop: 4, marginBottom: 8 },
+  noteLabel: { fontSize: 8, fontWeight: "bold", color: COLORS.accentDark, letterSpacing: 0.8, marginBottom: 4 },
+  noteText: { fontSize: 8.8, color: "#5C4632", lineHeight: 1.35 },
 
-  signatureLine: { width: 160, borderTopWidth: 1, borderTopColor: COLORS.hairline, marginTop: 12, paddingTop: 5, fontSize: 8.5, color: COLORS.textMuted },
-  watermarkRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 10 },
+  signatureLine: { width: 160, borderTopWidth: 1, borderTopColor: COLORS.hairline, marginTop: 8, paddingTop: 4, fontSize: 8.5, color: COLORS.textMuted },
+  watermarkRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 6 },
   watermark: { fontSize: 7, color: COLORS.textMuted, opacity: 0.6 },
 });
 
