@@ -9,7 +9,7 @@ import { useToast } from "@/lib/toast-context";
 // /api/admin/users/directory, academic-xray.tsx'teki AYNI desen).
 export default function XrayPrincipalPage() {
   const { showError } = useToast();
-  const [roster, setRoster] = useState<XrayRosterStudent[] | null>(null);
+  const [roster, setRoster] = useState<XrayRosterStudent[]>([]);
 
   useEffect(() => {
     fetch("/api/admin/users/directory?role=STUDENT")
@@ -32,11 +32,7 @@ export default function XrayPrincipalPage() {
   return (
     <div className="min-h-screen bg-cream dark:bg-midnight">
       <XrayTopBar roleLabel="Yönetici" />
-      {roster === null ? (
-        <p className="px-4 py-10 text-center text-xs text-espresso-muted dark:text-cream/40">Yükleniyor...</p>
-      ) : (
-        <XrayResultsPanel roster={roster} />
-      )}
+      <XrayResultsPanel roster={roster} />
     </div>
   );
 }

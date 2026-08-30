@@ -134,12 +134,12 @@ export function XrayResultsPanel({ roster, defaultSubject }: { roster: XrayRoste
           className="rounded-3xl border border-sky-500/20 bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-sky-400/15 dark:bg-midnight-card/50"
         >
           <div className="mb-4 flex items-center gap-3">
-            <AvatarInitials name={`${selectedStudent.firstName} ${selectedStudent.lastName}`} className="h-11 w-11 text-base" />
-            <div>
-              <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-                <Scan className="h-4 w-4 text-sky-600 dark:text-sky-400" /> {selectedStudent.firstName} {selectedStudent.lastName}
+            <AvatarInitials name={`${selectedStudent.firstName} ${selectedStudent.lastName}`} className="h-11 w-11 shrink-0 text-base" />
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-1.5 truncate text-sm font-semibold text-espresso dark:text-cream">
+                <Scan className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" /> <span className="truncate">{selectedStudent.firstName} {selectedStudent.lastName}</span>
               </h2>
-              <p className="text-xs text-espresso-muted dark:text-cream/40">
+              <p className="truncate text-xs text-espresso-muted dark:text-cream/40">
                 {selectedStudent.branchName} · {subject}
               </p>
             </div>

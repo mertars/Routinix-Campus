@@ -12,7 +12,7 @@ import { useToast } from "@/lib/toast-context";
 export default function XrayTeacherPage() {
   const { subject, assignedBranches } = useTeacherScope();
   const { showError } = useToast();
-  const [roster, setRoster] = useState<XrayRosterStudent[] | null>(null);
+  const [roster, setRoster] = useState<XrayRosterStudent[]>([]);
 
   useEffect(() => {
     if (assignedBranches.length === 0) return;
@@ -36,11 +36,7 @@ export default function XrayTeacherPage() {
   return (
     <div className="min-h-screen bg-cream dark:bg-midnight">
       <XrayTopBar roleLabel="Öğretmen" />
-      {roster === null ? (
-        <p className="px-4 py-10 text-center text-xs text-espresso-muted dark:text-cream/40">Yükleniyor...</p>
-      ) : (
-        <XrayResultsPanel roster={roster} defaultSubject={subject} />
-      )}
+      <XrayResultsPanel roster={roster} defaultSubject={subject} />
     </div>
   );
 }
