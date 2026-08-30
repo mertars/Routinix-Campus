@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { INSTITUTION_NAME as DEMO_INSTITUTION_NAME } from "@/lib/mock-data";
 
-type SessionProfile = { name: string; title: string | null; institutionName: string | null };
+type SessionProfile = { name: string; title: string | null; institutionName: string | null; institutionLogoUrl: string | null };
 
 // /api/auth/session zaten öğrenci/öğretmen panellerinin kendi id'lerini
 // öğrenmek için mount başına bir kez çağrılıyor (bkz. lib/student-scope.ts,
@@ -20,7 +20,12 @@ function fetchProfile(): Promise<SessionProfile | null> {
     inflight = fetch("/api/auth/session")
       .then((res) => res.json())
       .then((data) => {
-        cachedProfile = { name: data.name ?? "", title: data.title ?? null, institutionName: data.institutionName ?? null };
+        cachedProfile = {
+          name: data.name ?? "",
+          title: data.title ?? null,
+          institutionName: data.institutionName ?? null,
+          institutionLogoUrl: data.institutionLogoUrl ?? null,
+        };
         return cachedProfile;
       })
       .catch(() => null);
@@ -44,6 +49,22 @@ export function useInstitutionName(): string {
   }, []);
 
   return name;
+}
+
+// Üst barlardaki kurum rozetinde (bkz. principal/student/teacher top-bar.tsx)
+// varsayılan Sparkles ikonunun yerine geçer — kurum bir logo yüklediyse
+// (Institution.logoUrl, "Logoyu Güncelle" ekranı) rozet artık jenerik bir
+// yıldız yerine kurumun KENDİ logosunu gösterir.
+export function useInstitutionLogoUrl(): string | null {
+  const [logoUrl, setLogoUrl] = useState(cachedProfile?.institutionLogoUrl ?? null);
+
+  useEffect(() => {
+    fetchProfile().then((profile) => {
+      if (profile?.institutionLogoUrl) setLogoUrl(profile.institutionLogoUrl);
+    });
+  }, []);
+
+  return logoUrl;
 }
 
 // Öğrenci/Öğretmen Hero'larındaki isim (bkz. app/student/page.tsx,

@@ -18,7 +18,7 @@ async function handleGet() {
   try {
     const session = await requireSession();
     const [institution, admin] = await Promise.all([
-      prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true } }),
+      prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true, logoUrl: true } }),
       // title sadece Admin modelinde var (bkz. app/principal/page.tsx > Hero) —
       // diğer roller için görmezden gelinir, client tarafı zaten sadece
       // ADMIN oturumunda bu alanı okur.
@@ -30,6 +30,7 @@ async function handleGet() {
       name: session.name,
       title: admin?.title ?? null,
       institutionName: institution?.name ?? null,
+      institutionLogoUrl: institution?.logoUrl ?? null,
     });
   } catch (error) {
     return authErrorResponse(error);
