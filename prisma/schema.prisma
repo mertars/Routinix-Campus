@@ -228,6 +228,7 @@ model Student {
   parents                      ParentStudent[]
   netResults                   ExamNetResult[]
   topicMasteryAssessments      TopicMasteryAssessment[]
+  topicMasteryHistory          TopicMasteryHistory[]
   xrayTestSessions             XrayTestSession[]
   xrayPracticeAttempts         XrayPracticeAttempt[]
   xrayComprehensionAssignments XrayComprehensionAssignment[]
@@ -1397,6 +1398,30 @@ model TopicMasteryAssessment {
   @@unique([studentId, subtopicId])
   @@index([studentId])
   @@index([assessedById])
+}
+
+// Faz J — TopicMasteryAssessment'ın @@unique([studentId, subtopicId])
+// kısıtı YÜZÜNDEN her yeni değerlendirme ESKİSİNİN ÜZERİNE upsert edilir;
+// geçmiş sonuçlar SİLİNİR, zaman içindeki gelişim/trend hiçbir zaman
+// GÖRÜLEMEZ hale gelirdi. Bu tablo AYRI ve KALICI (append-only, hiçbir
+// zaman update/upsert edilmez, sadece create) — TopicMasteryAssessment'a
+// yazan HER YER (comprehension-assignment/complete, practice-attempt/
+// complete, test-session/next-question) buraya da BİREBİR AYNI veriyle
+// bir satır ekler. TopicMasteryAssessment'ın kendisi ve onu okuyan
+// mevcut uçlar (results/[studentId], report/[studentId]) BİLEREK
+// DOKUNULMADI — "güncel skor" ihtiyacı için hâlâ en hızlı/basit kaynak o;
+// bu tablo SADECE trend grafikleri (bkz. mastery-history endpoint'i) için.
+model TopicMasteryHistory {
+  id           String     @id @default(cuid())
+  studentId    String
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject      String
+  subtopicId   String
+  masteryScore Int
+  source       XraySource
+  assessedAt   DateTime   @default(now())
+
+  @@index([studentId, subtopicId, assessedAt])
 }
 
 // ----------------------------------------------------------------------------

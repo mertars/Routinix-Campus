@@ -9,6 +9,7 @@ import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section";
 import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
+import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
 import { cn } from "@/lib/utils";
 
 export type XrayRosterStudent = { id: string; firstName: string; lastName: string; branchName: string };
@@ -69,6 +70,8 @@ export function XrayResultsPanel({
   const [results, setResults] = useState<ResultsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [history, setHistory] = useState<MasteryHistoryResponse | null>(null);
+  const [trendOpen, setTrendOpen] = useState(false);
 
   useEffect(() => {
     setSelectedId((current) => current || roster[0]?.id || "");
@@ -90,6 +93,15 @@ export function XrayResultsPanel({
       .catch(() => showError("Röntgen sonucu yüklenemedi."))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, subject]);
+
+  useEffect(() => {
+    if (!selectedId || !subject) return;
+    setHistory(null);
+    fetch(`/api/xray/mastery-history/${encodeURIComponent(selectedId)}?subject=${encodeURIComponent(subject)}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data) => setHistory(data))
+      .catch(() => {});
   }, [selectedId, subject]);
 
   async function downloadReport() {
@@ -234,6 +246,10 @@ export function XrayResultsPanel({
                     />
                   </div>
 
+                  {history && history.overallTrend.length >= 2 && (
+                    <MasterySparkline points={history.overallTrend} onClick={() => setTrendOpen(true)} />
+                  )}
+
                   <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                     {results.topics
                       .filter((topic) => topic.subtopics.length > 0)
@@ -289,6 +305,8 @@ export function XrayResultsPanel({
           </div>
         )}
       </div>
+
+      <MasteryTrendDrilldown isOpen={trendOpen} onClose={() => setTrendOpen(false)} data={history} />
     </div>
   );
 }

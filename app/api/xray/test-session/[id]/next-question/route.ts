@@ -77,6 +77,9 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
         },
         update: { masteryScore, source: "AI_TEST", sourceSessionId: testSession.id, assessedAt: new Date() },
       });
+      await prisma.topicMasteryHistory.create({
+        data: { studentId: testSession.studentId, subject: testSession.subject, subtopicId, masteryScore, source: "AI_TEST" },
+      });
     }
     await prisma.xrayTestSession.update({ where: { id: testSession.id }, data: { status: "COMPLETED", completedAt: new Date() } });
 

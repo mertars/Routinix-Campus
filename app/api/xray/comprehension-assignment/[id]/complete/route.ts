@@ -39,6 +39,9 @@ async function handlePost(_request: Request, { params }: { params: { id: string 
         create: { studentId: assignment.studentId, subject: assignment.subject, subtopicId: assignment.subtopicId, masteryScore, source: "LOCKED_EXAM" },
         update: { masteryScore, source: "LOCKED_EXAM", sourceSessionId: null, assessedAt: new Date() },
       });
+      await prisma.topicMasteryHistory.create({
+        data: { studentId: assignment.studentId, subject: assignment.subject, subtopicId: assignment.subtopicId, masteryScore, source: "LOCKED_EXAM" },
+      });
     }
 
     return NextResponse.json({ total: totalQuestions, answered: answers.length, correct });

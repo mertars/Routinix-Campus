@@ -46,6 +46,9 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
         create: { studentId: attempt.studentId, subject: attempt.subject, subtopicId: attempt.subtopicId, masteryScore, source: "PRACTICE_SELF_REPORT" },
         update: { masteryScore, source: "PRACTICE_SELF_REPORT", sourceSessionId: null, assessedAt: new Date() },
       });
+      await prisma.topicMasteryHistory.create({
+        data: { studentId: attempt.studentId, subject: attempt.subject, subtopicId: attempt.subtopicId, masteryScore, source: "PRACTICE_SELF_REPORT" },
+      });
     }
 
     return NextResponse.json({ total: attemptQuestions.length, correct, missedChecks });
