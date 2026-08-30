@@ -228,6 +228,7 @@ model Student {
   parents                   ParentStudent[]
   netResults                ExamNetResult[]
   topicMasteryAssessments   TopicMasteryAssessment[]
+  xrayTestSessions          XrayTestSession[]
   attendanceRecords         AttendanceRecord[]
   reportCards               ReportCard[]
   reportCardShareLinks      ReportCardShareLink[]
@@ -1287,31 +1288,100 @@ model StudyTopicGoal {
 }
 
 // ----------------------------------------------------------------------------
-// Akademik Röntgen (Hub'daki 2. modül, Kampüs V2 Part 6) — Faz 1
+// Akademik Röntgen (Hub'daki 2. modül, Kampüs V2 Part 6) — Faz 1-2
 // ----------------------------------------------------------------------------
+//
+// Faz 2 revizyonu: masteryScore artık bir öğretmenin ELLE girdiği bir puan
+// DEĞİL — öğrencinin gerçekten çözdüğü, konu bazlı ADAPTİF bir tanı
+// testinden (bkz. XrayTestSession/XrayTestAnswer) otomatik hesaplanıyor.
+// "Matematik Röntgeni" ürününün gerçek mekaniği budur: kolay soruyu çözen
+// öğrenciye o konuda zorlaşan sorular gelir, çözemeyene o konuda daha fazla
+// soru gösterilmez (bkz. lib/server/xray/adaptive-engine.ts). Soru
+// HAVUZUNUN (XrayQuestion) içeriği şu an ELLE yazılmış az sayıda placeholder
+// sorudan ibarettir — gerçek içerik büyük ihtimalle yapay zeka ile
+// üretilecek, ama bu ŞEMA o zaman DEĞİŞMEYECEK, sadece INSERT eden taraf
+// (elle/script yerine bir AI üretim job'ı) değişecek.
 
-// Bir öğrencinin BİR dersteki BİR alt konudaki gerçek ustalık seviyesi.
-// "Matematik Röntgeni" ürününden esinlenilen teşhis modelinin temeli — ama
-// o üründeki AI/adaptif test motorunun aksine, sistemde henüz konu bazlı
-// otomatik bir soru bankası/ölçme motoru YOK (bkz. Hub'daki "Ölçme
-// Değerlendirme" modülü, henüz yapılmadı). Bu yüzden masteryScore bir
-// insan — öğrencinin danışman/branş öğretmeni — tarafından elle giriliyor;
-// ileride otomatik bir tanı testi eklenirse AYNI alan o motorun ürettiği
-// puanla da doldurulabilir, şema değişikliği gerekmez. subtopicId,
-// CURRICULUM_TREE (lib/mock-data.ts) içindeki subtopic.id ile eşleşir —
-// CurriculumProgress'teki AYNI referans deseni, farkı BRANŞ değil ÖĞRENCİ
-// bazlı olması (bir sınıfın değil, tek bir öğrencinin durumu).
+enum XraySource {
+  AI_TEST // XrayTestSession sonucundan otomatik hesaplandı
+  TEACHER_OVERRIDE // öğretmen otomatik puanı elle düzeltti
+}
+
+enum XrayTestStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+// Soru havuzu. subtopicId, CURRICULUM_TREE (lib/mock-data.ts) içindeki
+// subtopic.id ile eşleşir — CurriculumProgress'teki AYNI referans deseni.
+model XrayQuestion {
+  id            String   @id @default(cuid())
+  subject       String
+  subtopicId    String
+  difficulty    Int // 1 (kolay) - 5 (zor) — adaptif motorun sıralama ekseni
+  prompt        String
+  options       String[]
+  correctAnswer String
+  createdAt     DateTime @default(now())
+
+  answers XrayTestAnswer[]
+
+  @@index([subject, subtopicId, difficulty])
+}
+
+// Bir öğrencinin BİR ders için başlattığı tanı testi oturumu.
+model XrayTestSession {
+  id          String         @id @default(cuid())
+  studentId   String
+  student     Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject     String
+  status      XrayTestStatus @default(IN_PROGRESS)
+  startedAt   DateTime       @default(now())
+  completedAt DateTime?
+
+  answers XrayTestAnswer[]
+
+  @@index([studentId])
+}
+
+// Tek bir sorunun cevabı. subtopicId BİLEREK denormalize edilir (soru
+// silinse/değişse bile hangi konuya ait olduğu bilgisi kalıcı kalır, aynı
+// zamanda konu bazlı skor hesaplanırken her seferinde XrayQuestion'a JOIN
+// atmaya gerek kalmaz).
+model XrayTestAnswer {
+  id             String          @id @default(cuid())
+  sessionId      String
+  session        XrayTestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       XrayQuestion    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  subtopicId     String
+  selectedAnswer String
+  isCorrect      Boolean
+  answeredAt     DateTime        @default(now())
+
+  @@index([sessionId])
+  @@index([subtopicId])
+}
+
+// Bir öğrencinin BİR dersteki BİR alt konudaki GÜNCEL ustalık seviyesi —
+// XrayTestSession tamamlandığında otomatik upsert edilen, hızlı okuma için
+// önbelleklenmiş bir özet satırı (ham XrayTestAnswer'ları her dashboard
+// yüklemesinde yeniden toplamamak için — bkz. Faz 3'teki kurum geneli
+// liste ekranı). assessedById/note SADECE source=TEACHER_OVERRIDE iken
+// dolu olur — bir öğretmen otomatik test sonucunu elle düzeltmek isterse.
 model TopicMasteryAssessment {
-  id           String   @id @default(cuid())
-  studentId    String
-  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject      String
-  subtopicId   String // CURRICULUM_TREE içindeki subtopic.id
-  masteryScore Int // 0-100 — öğretmenin teşhis ettiği ustalık seviyesi
-  note         String?
-  assessedById String
-  assessedBy   Teacher  @relation(fields: [assessedById], references: [id], onDelete: Cascade)
-  assessedAt   DateTime @default(now())
+  id              String     @id @default(cuid())
+  studentId       String
+  student         Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject         String
+  subtopicId      String // CURRICULUM_TREE içindeki subtopic.id
+  masteryScore    Int // 0-100
+  source          XraySource @default(AI_TEST)
+  sourceSessionId String? // source=AI_TEST iken hangi XrayTestSession'dan geldiği
+  note            String?
+  assessedById    String?
+  assessedBy      Teacher?   @relation(fields: [assessedById], references: [id], onDelete: SetNull)
+  assessedAt      DateTime   @default(now())
 
   @@unique([studentId, subtopicId])
   @@index([studentId])
