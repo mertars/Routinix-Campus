@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, ArrowLeft, KeyRound, Check, Loader2, Download, RotateCcw } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
@@ -20,7 +20,9 @@ type Phase = "loading" | "solving" | "revealed" | "completed";
 // sorular tek seferde ekrana gelir, "Cevap Anahtarını Gör" ile çözümler
 // açılır, öğrenci sonda TEK bir "Yapamadıklarım" listesinden işaretler.
 export default function PracticeTestPage() {
-  const params = useParams<{ testId: string }>();
+  const params = useParams<{ subtopicId: string }>();
+  const searchParams = useSearchParams();
+  const subject = searchParams.get("subject") ?? "Matematik";
   const router = useRouter();
   const { studentId } = useStudentScope();
   const { showError } = useToast();
@@ -31,14 +33,13 @@ export default function PracticeTestPage() {
   const [notDone, setNotDone] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState<{ total: number; correct: number; missedChecks: string[] } | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const [testName, setTestName] = useState("");
 
   useEffect(() => {
     if (!studentId) return;
     fetch("/api/xray/practice-attempt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId, testId: params.testId }),
+      body: JSON.stringify({ studentId, subject, subtopicId: params.subtopicId }),
     })
       .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
       .then(({ ok, data }) => {
@@ -52,7 +53,7 @@ export default function PracticeTestPage() {
         router.push("/student");
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId, params.testId]);
+  }, [studentId, params.subtopicId]);
 
   async function revealAnswerKey() {
     if (!attemptId) return;
@@ -94,9 +95,10 @@ export default function PracticeTestPage() {
   }
 
   async function downloadWorksheet() {
+    if (!attemptId) return;
     setDownloading(true);
     try {
-      await fetchAndDownloadPdf(`/api/xray/practice-worksheet?testId=${encodeURIComponent(params.testId)}`, undefined, `calisma-yapragi-${params.testId}.pdf`);
+      await fetchAndDownloadPdf(`/api/xray/practice-worksheet?attemptId=${encodeURIComponent(attemptId)}`, undefined, `calisma-yapragi-${params.subtopicId}.pdf`);
     } catch (error) {
       showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
     } finally {
@@ -119,7 +121,7 @@ export default function PracticeTestPage() {
         </div>
         <button
           onClick={downloadWorksheet}
-          disabled={downloading}
+          disabled={downloading || !attemptId}
           aria-label="Çalışma yaprağını indir"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
         >

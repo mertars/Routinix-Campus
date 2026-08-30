@@ -1,47 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession } from "@/lib/server/auth/session-guard";
+import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { requireSession, requireRole, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { PdfPracticeWorksheet } from "@/components/pdf/pdf-practice-worksheet";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/xray/practice-worksheet?testId=X — "isterse pdf çıkarıp
+// GET /api/xray/practice-worksheet?attemptId=X — "isterse pdf çıkarıp
 // hocasıyla anlayarak çözecek" — sadece SORULAR (çözüm/cevap YOK), basılıp
-// üzerine çalışılacak bir kağıt. Kurum logosu/adı içerir (bkz. Faz F —
-// öğrencinin ekrandaki güzel deneyimiyle tutarlı olsun diye artık markalı).
+// üzerine çalışılacak bir kağıt. Faz G: havuzdan rastgele derlenen bir
+// test artık KENDİ başına bir kimliğe (testId) sahip değil — bu yüzden
+// PDF, öğrencinin O AN çözdüğü SPESİFİK attempt'in soru seçimini yansıtır
+// (ekranda gördüğüyle BİREBİR aynı sorular).
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
+    requireRole(session, "student");
 
-    const testId = request.nextUrl.searchParams.get("testId");
-    if (!testId?.trim()) return NextResponse.json({ error: "testId parametresi zorunludur." }, { status: 400 });
+    const attemptId = request.nextUrl.searchParams.get("attemptId");
+    if (!attemptId?.trim()) return NextResponse.json({ error: "attemptId parametresi zorunludur." }, { status: 400 });
 
-    const [institution, questions] = await Promise.all([
+    const attempt = await prisma.xrayPracticeAttempt.findUnique({ where: { id: attemptId.trim() } });
+    if (!attempt) return NextResponse.json({ error: "Test oturumu bulunamadı." }, { status: 404 });
+    assertOwnsSelf(session, attempt.studentId);
+
+    const [institution, attemptQuestions] = await Promise.all([
       prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true, logoUrl: true } }),
-      prisma.xrayPracticeQuestion.findMany({
-        where: { testId: testId.trim() },
+      prisma.xrayPracticeAttemptQuestion.findMany({
+        where: { attemptId: attempt.id },
         orderBy: { order: "asc" },
-        select: { order: true, prompt: true, testName: true, subject: true },
+        include: { question: { select: { prompt: true } } },
       }),
     ]);
-    if (questions.length === 0) return NextResponse.json({ error: "Bu test için soru bulunamadı." }, { status: 404 });
+
+    const topicName = (CURRICULUM_TREE[attempt.subject] ?? [])
+      .flatMap((t) => t.subtopics)
+      .find((s) => s.id === attempt.subtopicId)?.name ?? attempt.subtopicId;
 
     const pdfBuffer = await renderToBuffer(
       <PdfPracticeWorksheet
         institutionName={institution?.name ?? ""}
         logoUrl={institution?.logoUrl}
-        testName={questions[0].testName}
-        subject={questions[0].subject}
-        questions={questions.map((q) => ({ order: q.order, prompt: q.prompt }))}
+        testName={`Konu Bilgisi Testi — ${topicName}`}
+        subject={attempt.subject}
+        questions={attemptQuestions.map((aq, index) => ({ order: index + 1, prompt: aq.question.prompt }))}
       />
     );
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
-      headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="calisma-yapragi-${testId}.pdf"` },
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="calisma-yapragi-${attemptId}.pdf"` },
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

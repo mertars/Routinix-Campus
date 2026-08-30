@@ -6,11 +6,9 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/xray/practice-attempt/[id]/answer-key — "Cevap Anahtarına Ulaş"
-// akışı: tüm soruların çözümlerini açar. Tamamen açık uçlu bir testte
-// (bkz. Faz F) önceden bilinen bir MCQ cevabı YOK — tüm sorular aynı
-// şekilde döner, öğrenci hangisini yapamadığını .../complete'e gönderirken
-// kendi işaretler.
+// GET /api/xray/practice-attempt/[id]/answer-key — "Cevap Anahtarını Gör"
+// akışı: bu ATTEMPT için (havuzdan rastgele SEÇİLİP sabitlenmiş, bkz.
+// XrayPracticeAttemptQuestion) soruların çözümlerini açar.
 async function handleGet(_request: Request, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
@@ -20,11 +18,19 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
     if (!attempt) return NextResponse.json({ error: "Test oturumu bulunamadı." }, { status: 404 });
     assertOwnsSelf(session, attempt.studentId);
 
-    const questions = await prisma.xrayPracticeQuestion.findMany({
-      where: { testId: attempt.testId },
+    const attemptQuestions = await prisma.xrayPracticeAttemptQuestion.findMany({
+      where: { attemptId: attempt.id },
       orderBy: { order: "asc" },
-      select: { id: true, order: true, prompt: true, correctAnswer: true, solution: true },
+      include: { question: { select: { id: true, prompt: true, correctAnswer: true, solution: true } } },
     });
+
+    const questions = attemptQuestions.map((aq) => ({
+      id: aq.question.id,
+      order: aq.order,
+      prompt: aq.question.prompt,
+      correctAnswer: aq.question.correctAnswer,
+      solution: aq.question.solution,
+    }));
 
     return NextResponse.json({ questions });
   } catch (error) {

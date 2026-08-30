@@ -1437,38 +1437,64 @@ model XrayPracticeQuestion {
   id            String   @id @default(cuid())
   subject       String
   subtopicId    String
-  testId        String // aynı çalışma yaprağındaki soruları gruplar (CURRICULUM_TREE gibi DB'de foreign-key'siz, gevşek bir referans)
+  testId        String // HANGİ yüklemeden geldiği (içerik yönetimi/izlenebilirlik içindir — bkz. Faz G, öğrenci artık belirli bir testId SEÇMİYOR, havuzdan kazanimId bazlı rastgele çekiliyor)
   testName      String // "Test 1: İki Aşamalı Kontrollü Çalışma Yaprağı" — denormalize, her satırda tekrar eder
-  order         Int // soruNo — gösterim sırası
-  kazanimId     String // örn. "INTEGRAL_KUVVET_KURALI" — subtopicId'den daha ince bir etiket
+  order         Int // soruNo — aynı kazanimId'nin havuzdaki tipik gösterim sırasını belirlemekte kullanılır
+  kazanimId     String // örn. "INTEGRAL_KUVVET_KURALI" — Faz G'nin rastgele seçim biriminin ANA anahtarı
   prompt        String // questionText
   correctAnswer String // finalAnswer
   solution      String // detailedSolution — cevap anahtarında gösterilir
   checks        String // diagnosticComment — öğrenci bu soruyu işaretlerse hangi eksiklik anlaşılır
   createdAt     DateTime @default(now())
 
-  answers XrayPracticeAnswer[]
+  answers          XrayPracticeAnswer[]
+  attemptQuestions XrayPracticeAttemptQuestion[]
 
   @@index([subject, subtopicId])
+  @@index([subject, subtopicId, kazanimId])
   @@index([testId])
 }
 
 // Test 1'in bir "oturumu" — süre/kilit yok, sadece hangi sorulara
 // baktığını gruplamak için (aynı öğrenci aynı konuyu birden fazla kez
 // çalışabilir, her seferinde yeni bir attempt).
+//
+// Faz G revizyonu: Kullanıcı aynı konu için ONLARCA ayrı test yükleyecek
+// (örn. bir konudan 10 test × 30 soru = 300 sorulu bir HAVUZ) — artık TEK
+// bir testId'ye bağlı sabit bir soru seti YOK. Bunun yerine her attempt
+// başlarken subject+subtopicId havuzundaki sorular kazanimId'ye göre
+// gruplanır, HER kazanımdan RASTGELE bir soru çekilir (bkz. .../route.ts
+// > pickRandomQuestionsByKazanim) ve bu SEÇİM XrayPracticeAttemptQuestion'a
+// SABİTLENİR — aynı öğrenci aynı konuyu tekrar çalışırsa YENİ bir rastgele
+// seçim yapılır (yeni bir attempt), ama BU attempt'in sorusu asla değişmez.
 model XrayPracticeAttempt {
   id          String    @id @default(cuid())
   studentId   String
   student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject     String
   subtopicId  String
-  testId      String
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
-  answers XrayPracticeAnswer[]
+  questions XrayPracticeAttemptQuestion[]
+  answers   XrayPracticeAnswer[]
 
   @@index([studentId])
+}
+
+// Bir attempt için havuzdan RASTGELE seçilip SABİTLENEN soru listesi —
+// order, kazanımın havuzdaki tipik sırasına göre (bkz. seçim mantığı,
+// min(order) per kazanimId) belirlenir, gösterim sırasını korur.
+model XrayPracticeAttemptQuestion {
+  id         String               @id @default(cuid())
+  attemptId  String
+  attempt    XrayPracticeAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId String
+  question   XrayPracticeQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  order      Int
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
 }
 
 // wasCorrect: tamamen açık uçlu bir testte otomatik derecelendirme YOK —
