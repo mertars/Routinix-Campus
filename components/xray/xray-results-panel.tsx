@@ -11,6 +11,7 @@ import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section
 import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
 import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
 import { XraySetGoalButton } from "@/components/xray/xray-set-goal-button";
+import { XrayAverageDetailButton } from "@/components/xray/xray-average-detail-button";
 import { cn } from "@/lib/utils";
 
 export type XrayRosterStudent = { id: string; firstName: string; lastName: string; branchName: string; branchId: string; grade: number };
@@ -169,7 +170,7 @@ export function XrayResultsPanel({
 
   const selectedStudent = roster.find((s) => s.id === selectedId);
   const allSubtopics = results?.topics.flatMap((t) => t.subtopics) ?? [];
-  const tested = allSubtopics.filter((s) => s.masteryScore !== null);
+  const tested = allSubtopics.filter((s): s is SubtopicResult & { masteryScore: number } => s.masteryScore !== null);
   const averageScore = tested.length === 0 ? null : Math.round(tested.reduce((sum, s) => sum + (s.masteryScore ?? 0), 0) / tested.length);
   const redZoneCount = tested.filter((s) => (s.masteryScore ?? 100) < 30).length;
   const lastAssessedAt = tested.reduce<string | null>((latest, s) => {
@@ -293,9 +294,7 @@ export function XrayResultsPanel({
                       >
                         {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                       </button>
-                      <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
-                        %{averageScore}
-                      </div>
+                      <XrayAverageDetailButton averageScore={averageScore} tested={tested} onOpenTrend={() => setTrendOpen(true)} />
                       </>
                     )}
                   </div>
