@@ -146,20 +146,3 @@ html.dark body {
     -webkit-overflow-scrolling: touch;
   }
 }
-
-/* A4 Kurumsal PDF önizlemesi yazdırılırken sayfada SADECE bu alan görünsün. */
-@media print {
-  body * {
-    visibility: hidden;
-  }
-  .printable-a4,
-  .printable-a4 * {
-    visibility: visible;
-  }
-  .printable-a4 {
-    position: fixed;
-    inset: 0;
-    margin: 0;
-    box-shadow: none !important;
-  }
-}

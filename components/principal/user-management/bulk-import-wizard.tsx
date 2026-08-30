@@ -27,7 +27,9 @@ import { parseXlsxFile, parseCsvFile } from "@/lib/bulk-import/parse-spreadsheet
 import { parsePdfFile } from "@/lib/bulk-import/parse-pdf";
 import { validateRows } from "@/lib/bulk-import/validate";
 import type { ImportRole, RawRow, ValidatedRow } from "@/lib/bulk-import/types";
-import { BulkCredentialsPrint, type PrintableCredential } from "./bulk-credentials-print";
+import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
+
+export type PrintableCredential = { fullName: string; username: string; password: string; phone?: string; institutionalCode?: string };
 
 type RowResult = {
   rowIndex: number;
@@ -110,7 +112,7 @@ export function BulkImportWizard({
 
   const [isImporting, setIsImporting] = useState(false);
   const [results, setResults] = useState<RowResult[] | null>(null);
-  const [isPrintOpen, setIsPrintOpen] = useState(false);
+  const [downloadingCredentialsPdf, setDownloadingCredentialsPdf] = useState(false);
 
   function reset() {
     setStep(1);
@@ -214,6 +216,26 @@ export function BulkImportWizard({
   const printableCredentials: PrintableCredential[] = (results ?? [])
     .filter((r) => r.status === "success" && r.username && r.password)
     .map((r) => ({ fullName: r.fullName, username: r.username!, password: r.password!, phone: r.phone, institutionalCode: r.institutionalCode }));
+
+  async function downloadCredentialsPdf() {
+    if (printableCredentials.length === 0) return;
+    setDownloadingCredentialsPdf(true);
+    try {
+      await fetchAndDownloadPdf(
+        "/api/admin/users/credentials-pdf",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: role === "TEACHER" ? "TEACHER" : "STUDENT", credentials: printableCredentials }),
+        },
+        `giris-bilgileri-${role === "STUDENT" ? "ogrenci" : "ogretmen"}.pdf`
+      );
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
+    } finally {
+      setDownloadingCredentialsPdf(false);
+    }
+  }
 
   return (
     <>
@@ -418,10 +440,11 @@ export function BulkImportWizard({
                         <FileSpreadsheet className="h-3.5 w-3.5" /> Excel İndir
                       </button>
                       <button
-                        onClick={() => setIsPrintOpen(true)}
-                        className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-hairline text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                        onClick={downloadCredentialsPdf}
+                        disabled={downloadingCredentialsPdf}
+                        className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-hairline text-xs font-medium text-espresso transition hover:bg-cream-card disabled:opacity-50 dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
                       >
-                        <Printer className="h-3.5 w-3.5" /> Yazdır / PDF
+                        {downloadingCredentialsPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />} PDF İndir
                       </button>
                     </div>
                   )}
@@ -438,11 +461,6 @@ export function BulkImportWizard({
           )}
         </AnimatePresence>
       </Modal>
-
-      {/* BRANCH satırlarının kullanıcı adı/şifresi olmadığından printableCredentials
-          o modda zaten her zaman boş — role burada sadece etiket metni için, "BRANCH"
-          asla bu modalı anlamlı içerikle açmaz. */}
-      <BulkCredentialsPrint isOpen={isPrintOpen} onClose={() => setIsPrintOpen(false)} role={role === "TEACHER" ? "TEACHER" : "STUDENT"} credentials={printableCredentials} />
     </>
   );
 }

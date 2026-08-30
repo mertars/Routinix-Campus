@@ -14,10 +14,12 @@ import {
   Trash2,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { ExamPrintModal, type PrintSeat } from "@/components/principal/exam/exam-print-modal";
 import { KrokiEditorModal } from "@/components/principal/exam/kroki-editor";
+import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+
+export type PrintSeat = { seatNumber: number; studentName: string; branchName: string };
 
 const BRANCH_COLORS = [
   "bg-brand-100 text-brand-800 dark:bg-brand-600/20 dark:text-brand-300",
@@ -266,8 +268,8 @@ function NewPlanView() {
   const [unseated, setUnseated] = useState<{ id: string; name: string; branchName: string }[]>([]);
   const [alreadySeatedElsewhereCount, setAlreadySeatedElsewhereCount] = useState(0);
 
-  const [entrySeat, setEntrySeat] = useState<PrintSeat | null>(null);
-  const [isDoorListOpen, setIsDoorListOpen] = useState(false);
+  const [downloadingEntrySeat, setDownloadingEntrySeat] = useState<number | null>(null);
+  const [downloadingDoorList, setDownloadingDoorList] = useState(false);
 
   useEffect(() => {
     setLoadingOptions(true);
@@ -347,6 +349,45 @@ function NewPlanView() {
   const selectedClassroom = classrooms.find((c) => c.id === selectedClassroomId);
   const examDateLabel = selectedExam ? new Date(selectedExam.examDate).toLocaleDateString("tr-TR") : "";
   const hallLabel = selectedClassroom?.name ?? "";
+
+  async function downloadEntryPdf(seat: PrintSeat) {
+    setDownloadingEntrySeat(seat.seatNumber);
+    try {
+      await fetchAndDownloadPdf(
+        "/api/exam-seating/pdf",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "entry", hall: hallLabel, examName: selectedExam?.name ?? "", examDate: examDateLabel, seat }),
+        },
+        `${seat.studentName}-sinav-giris-belgesi.pdf`.replace(/\s+/g, "-")
+      );
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
+    } finally {
+      setDownloadingEntrySeat(null);
+    }
+  }
+
+  async function downloadDoorListPdf() {
+    if (!seats || seats.length === 0) return;
+    setDownloadingDoorList(true);
+    try {
+      await fetchAndDownloadPdf(
+        "/api/exam-seating/pdf",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "doorList", hall: hallLabel, examName: selectedExam?.name ?? "", examDate: examDateLabel, seats }),
+        },
+        `${hallLabel}-salon-kapi-listesi.pdf`.replace(/\s+/g, "-")
+      );
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
+    } finally {
+      setDownloadingDoorList(false);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -476,10 +517,11 @@ function NewPlanView() {
                 Oturma Planı — {hallLabel} ({seats.length} koltuk)
               </h2>
               <button
-                onClick={() => setIsDoorListOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                onClick={downloadDoorListPdf}
+                disabled={downloadingDoorList}
+                className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card disabled:opacity-50 dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
               >
-                <DoorOpen className="h-3.5 w-3.5" /> Salon Kapı Listesi Yazdır
+                {downloadingDoorList ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <DoorOpen className="h-3.5 w-3.5" />} Salon Kapı Listesi İndir
               </button>
             </div>
 
@@ -517,12 +559,13 @@ function NewPlanView() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: index * 0.02 }}
                     whileHover={{ scale: 1.05, y: -2 }}
-                    onClick={() => setEntrySeat(seat)}
-                    className={cn("rounded-xl p-2.5 text-left transition", BRANCH_COLORS[(colorIndex < 0 ? 0 : colorIndex) % BRANCH_COLORS.length])}
+                    onClick={() => downloadEntryPdf(seat)}
+                    disabled={downloadingEntrySeat === seat.seatNumber}
+                    className={cn("rounded-xl p-2.5 text-left transition disabled:opacity-60", BRANCH_COLORS[(colorIndex < 0 ? 0 : colorIndex) % BRANCH_COLORS.length])}
                   >
                     <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide opacity-70">
                       <span>Koltuk {seat.seatNumber}</span>
-                      <IdCard className="h-3 w-3" />
+                      {downloadingEntrySeat === seat.seatNumber ? <Loader2 className="h-3 w-3 animate-spin" /> : <IdCard className="h-3 w-3" />}
                     </div>
                     <p className="mt-1 truncate text-xs font-semibold">{seat.studentName}</p>
                     <p className="truncate text-[10px] opacity-70">{seat.branchName}</p>
@@ -533,25 +576,6 @@ function NewPlanView() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <ExamPrintModal
-        isOpen={!!entrySeat}
-        onClose={() => setEntrySeat(null)}
-        mode="entry"
-        hall={hallLabel}
-        examName={selectedExam?.name ?? ""}
-        examDate={examDateLabel}
-        seat={entrySeat ?? undefined}
-      />
-      <ExamPrintModal
-        isOpen={isDoorListOpen}
-        onClose={() => setIsDoorListOpen(false)}
-        mode="doorList"
-        hall={hallLabel}
-        examName={selectedExam?.name ?? ""}
-        examDate={examDateLabel}
-        seats={seats ?? []}
-      />
     </div>
   );
 }

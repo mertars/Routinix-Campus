@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, X, Send, FileText, CheckCircle2, History, PenLine, AlertTriangle, Loader2, ExternalLink } from "lucide-react";
 import { DAYS_OF_WEEK, STUDENT_TOPIC_ANALYSIS, type DayOfWeek, type WeeklyProgramEntry } from "@/lib/mock-data";
 import { StudentSearchSelect, type StudentOption } from "@/components/principal/student-search-select";
+import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 type ProgramEntry = { id: string; day: string; time: string; subject: string; topic: string; questionTarget: number };
@@ -194,22 +195,14 @@ export function GuidanceProgramTab() {
   // window.print() tabanlı önizleme BİLEREK kaldırıldı (Framer Motion
   // transform'u yüzünden boş sayfa üretiyordu).
   async function downloadProgramPdf(downloadKey: string, weekLabel: string, entries: { day: string; time: string; subject: string; topic: string; questionTarget: number }[]) {
-    if (!selectedStudentId || entries.length === 0) return;
+    if (!selectedStudentId || entries.length === 0 || !student) return;
     setDownloadingPdfId(downloadKey);
     try {
-      const res = await fetch("/api/guidance-program/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId: selectedStudentId, weekLabel, entries }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? "PDF oluşturulamadı.");
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      await fetchAndDownloadPdf(
+        "/api/guidance-program/pdf",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: selectedStudentId, weekLabel, entries }) },
+        `${student.firstName}-${student.lastName}-calisma-programi.pdf`.replace(/\s+/g, "-")
+      );
     } catch (error) {
       showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
     } finally {

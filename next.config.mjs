@@ -40,10 +40,15 @@ const nextConfig = {
     // üretimde patlıyordu (Noto Sans KAYITLI olsa bile — pdfkit kendi iç
     // varsayılanını her PDF için önce yüklüyor). Küçük bir klasör (~180KB),
     // tamamı dahil ediliyor.
-    // ⚠️ @react-pdf/renderer kullanan YENİ bir uç eklenirse buraya da eklenmeli.
+    // ⚠️ @react-pdf/renderer kullanan YENİ bir uç eklenirse buraya da eklenmeli
+    // (bkz. components/pdf/ altındaki her component'in kullanıldığı route.tsx).
     outputFileTracingIncludes: {
       "/api/report-cards/**": ["./public/fonts/**", "./node_modules/pdfkit/js/standard-fonts/**"],
       "/api/guidance-program/**": ["./public/fonts/**", "./node_modules/pdfkit/js/standard-fonts/**"],
+      "/api/yearly-plan/**": ["./public/fonts/**", "./node_modules/pdfkit/js/standard-fonts/**"],
+      "/api/teacher-schedule/**": ["./public/fonts/**", "./node_modules/pdfkit/js/standard-fonts/**"],
+      "/api/exam-seating/**": ["./public/fonts/**", "./node_modules/pdfkit/js/standard-fonts/**"],
+      "/api/admin/users/**": ["./public/fonts/**", "./node_modules/pdfkit/js/standard-fonts/**"],
     },
   },
   async headers() {

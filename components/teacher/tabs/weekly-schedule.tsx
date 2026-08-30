@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarDays, FileText, Database, ImageIcon } from "lucide-react";
+import { CalendarDays, FileText, Database, ImageIcon, Loader2 } from "lucide-react";
 import { useTeacherScope } from "@/lib/teacher-scope";
-import { TeacherSchedulePrintModal } from "@/components/teacher/teacher-schedule-print-modal";
+import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
+import { useToast } from "@/lib/toast-context";
 import { WeeklyGrid, type WeeklyGridCell } from "@/components/teacher/weekly-grid";
 
 type BankQuestion = { id: string; imageLabel: string; answer: string; addedAt: string };
@@ -20,7 +21,8 @@ const CELL_STYLES = {
 
 export function WeeklyScheduleTab() {
   const { teacherName, staffRecord, subject, mySchedule } = useTeacherScope();
-  const [isPrintOpen, setIsPrintOpen] = useState(false);
+  const { showError } = useToast();
+  const [downloadingSchedulePdf, setDownloadingSchedulePdf] = useState(false);
   const [myQuizBank, setMyQuizBank] = useState<BankQuestion[]>([]);
   const [myEtutSlots, setMyEtutSlots] = useState<ApprovedAppointment[]>([]);
   const [myDutySlots, setMyDutySlots] = useState<DutySlot[]>([]);
@@ -61,6 +63,29 @@ export function WeeklyScheduleTab() {
     [scheduleWithBranch, myEtutSlots, myDutySlots]
   );
 
+  async function downloadSchedulePdf() {
+    setDownloadingSchedulePdf(true);
+    try {
+      await fetchAndDownloadPdf(
+        "/api/teacher-schedule/pdf",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            teacherName,
+            subject,
+            schedule: scheduleWithBranch.map((row) => ({ day: row.day, slot: row.slot, branchName: row.branchName })),
+          }),
+        },
+        `${teacherName}-haftalik-program.pdf`.replace(/\s+/g, "-")
+      );
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
+    } finally {
+      setDownloadingSchedulePdf(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <motion.div
@@ -72,10 +97,11 @@ export function WeeklyScheduleTab() {
             <CalendarDays className="h-4 w-4 text-brand-600" /> Haftalık Ders Programım
           </h2>
           <button
-            onClick={() => setIsPrintOpen(true)}
-            className="flex min-h-[40px] items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+            onClick={downloadSchedulePdf}
+            disabled={downloadingSchedulePdf}
+            className="flex min-h-[40px] items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card disabled:opacity-50 dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
           >
-            <FileText className="h-3.5 w-3.5" /> A4 / PDF İndir
+            {downloadingSchedulePdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} A4 / PDF İndir
           </button>
         </div>
 
@@ -117,14 +143,6 @@ export function WeeklyScheduleTab() {
           {myQuizBank.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Soru bankası boş.</p>}
         </div>
       </motion.div>
-
-      <TeacherSchedulePrintModal
-        isOpen={isPrintOpen}
-        onClose={() => setIsPrintOpen(false)}
-        teacherName={teacherName}
-        subject={subject}
-        schedule={scheduleWithBranch}
-      />
     </div>
   );
 }

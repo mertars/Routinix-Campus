@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, CheckCircle2, Circle, NotebookPen, Plus, CalendarRange, FileText } from "lucide-react";
+import { BookOpen, CheckCircle2, Circle, NotebookPen, Plus, CalendarRange, FileText, Loader2 } from "lucide-react";
 import { CURRICULUM_TREE, type GradeLevel } from "@/lib/mock-data";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
-import { YearlyPlanPrintModal } from "@/components/teacher/yearly-plan-print-modal";
+import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { cn } from "@/lib/utils";
 
 type ClassbookNote = { id: string; branchId: string; note: string; createdAt: string };
@@ -73,7 +73,7 @@ export function ClassbookTab() {
   const [weekLabel, setWeekLabel] = useState("");
   const [subtopicName, setSubtopicName] = useState(allSubtopics[0]?.name ?? "");
   const [planNotes, setPlanNotes] = useState("");
-  const [isPrintOpen, setIsPrintOpen] = useState(false);
+  const [downloadingPlanPdf, setDownloadingPlanPdf] = useState(false);
 
   async function toggleSubtopic(id: string) {
     if (!branchId) return;
@@ -125,6 +125,30 @@ export function ClassbookTab() {
       setPlanNotes("");
     } catch {
       showError("Plan satırı eklenemedi.");
+    }
+  }
+
+  async function downloadYearlyPlanPdf() {
+    if (myPlan.length === 0) return;
+    setDownloadingPlanPdf(true);
+    try {
+      await fetchAndDownloadPdf(
+        "/api/yearly-plan/pdf",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            teacherName,
+            subject,
+            rows: myPlan.map((r) => ({ weekLabel: r.weekLabel, subtopicName: r.subtopicName, notes: r.notes ?? "" })),
+          }),
+        },
+        `${teacherName}-yillik-plan.pdf`.replace(/\s+/g, "-")
+      );
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "PDF oluşturulamadı.");
+    } finally {
+      setDownloadingPlanPdf(false);
     }
   }
 
@@ -274,10 +298,11 @@ export function ClassbookTab() {
               <CalendarRange className="h-4 w-4 text-brand-600" /> Özelleştirilmiş Yıllık Plan
             </h2>
             <button
-              onClick={() => setIsPrintOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+              onClick={downloadYearlyPlanPdf}
+              disabled={myPlan.length === 0 || downloadingPlanPdf}
+              className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card disabled:opacity-50 dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
             >
-              <FileText className="h-3.5 w-3.5" /> PDF Çıktı Al
+              {downloadingPlanPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} PDF Çıktı Al
             </button>
           </div>
 
@@ -324,14 +349,6 @@ export function ClassbookTab() {
           </div>
         </motion.div>
       )}
-
-      <YearlyPlanPrintModal
-        isOpen={isPrintOpen}
-        onClose={() => setIsPrintOpen(false)}
-        teacherName={teacherName}
-        subject={subject}
-        rows={myPlan.map((r) => ({ id: r.id, teacherName, weekLabel: r.weekLabel, subtopicName: r.subtopicName, notes: r.notes ?? "" }))}
-      />
     </div>
   );
 }
