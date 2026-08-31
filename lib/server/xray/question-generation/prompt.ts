@@ -28,7 +28,9 @@ const MEB_SCOPE_CLAUSE = `MÜFREDAT SINIRI (ÇOK ÖNEMLİ, ASLA İHLAL ETME): A�
 // gelecekte yeni bir hata sınıfı gözlenirse BURAYA eklenmeli (tek kaynak).
 const SELF_CHECK_CLAUSE = `KENDİ KENDİNİ KONTROL ET (ÇOK ÖNEMLİ — geçmiş üretimlerde en sık görülen hatalar):
 1. finalAnswer'ı ASLA detailedSolution'dan BAĞIMSIZ hesaplama. Önce detailedSolution'ı TAMAMLA, sonra finalAnswer'ı o çözümün SON SATIRINDAKİ sonuçtan BİREBİR KOPYALA — iki alan arasında EN UFAK bir sayısal farklılık dahi KABUL EDİLEMEZ.
-2. Kesir sadeleştirirken payı ve paydayı GERÇEKTEN ortak bir tam sayıya bölüp bölemediğini iki kez kontrol et. Payı ve paydası aralarında asal olan (ortak böleni olmayan) bir kesir ZATEN en sade halidir — sadeleştirilebilir SANIP yanlış bir sadeleştirme YAPMA.
+   - YANLIŞ örnek (gerçek üretimde yakalandı): detailedSolution "...a+b = 5 bulunur" diye bitiyor ama finalAnswer alanına "4" yazılmış. Bu KABUL EDİLEMEZ bir tutarsızlıktır.
+   - DOĞRU: detailedSolution "...a+b = 5 bulunur" diye bitiyorsa finalAnswer da BİREBİR "5" olmalı.
+2. Kesir sadeleştirirken payı ve paydayı GERÇEKTEN ortak bir tam sayıya bölüp bölemediğini iki kez kontrol et. Payı ve paydası aralarında asal olan (ortak böleni olmayan) bir kesir ZATEN en sade halidir — sadeleştirilebilir SANIP yanlış bir sadeleştirme YAPMA (gerçek üretimde yakalanan hata: "35/66 sadeleştirilerek 1/2" denmiş, ama 35 ile 66 aralarında asaldır, sadeleşmez).
 3. Üslü ifadelerde toplama/çarpma/bölme kurallarını (üs toplama/çıkarma) uygularken, özellikle birden fazla adım varsa SON adımı yazmadan önce baştan bir kez daha elle doğrula.`;
 
 // ── "genel" — 30 soru, temanın TÜMÜ, tüm alt konulara dağılır ──
@@ -179,9 +181,16 @@ TEKNİK FORMAT: Çıktı SADECE geçerli bir JSON dizisi olacak (verilen soru sa
 
 export type FlawedQuestionContext = { soruNo: number; kazanimId: string; subtopicName?: string; oldQuestionText: string; reason: string };
 
-export function buildFixUserPrompt(flawed: FlawedQuestionContext[]): string {
+// Faz Z10 — "farklı yaklaşım" tekniği: bir soru düzeltmeden SONRA hâlâ
+// sorunlu bulunduysa (2. deneme), aynı zihniyetle/sayı seçimiyle AYNI
+// hatayı tekrarlama riski var — isRetry=true iken açıkça FARKLI bir
+// sayı/senaryo/yaklaşım kullanmasını, önceki düzeltmedeki mantığı
+// tekrarlamamasını istiyoruz. Başarısız bir düzeltme döngüsüne
+// takılmayı önlemeye yönelik bir çeşitlilik enjeksiyonu.
+export function buildFixUserPrompt(flawed: FlawedQuestionContext[], isRetry = false): string {
   const block = flawed
     .map((f) => `soruNo ${f.soruNo} (kazanımId: ${f.kazanimId}${f.subtopicName ? `, alt konu: ${f.subtopicName}` : ""}):\nEski (hatalı) soru: ${f.oldQuestionText}\nSORUN: ${f.reason}`)
     .join("\n\n");
-  return `Aşağıdaki ${flawed.length} soruyu düzelt:\n\n${block}\n\nSadece JSON dizisini döndür.`;
+  const retryNote = isRetry ? `\n\n⚠️ ÖNEMLİ: Bu sorular DAHA ÖNCE BİR KEZ "düzeltildi" ama düzeltme de hatalıydı. Bu sefer TAMAMEN FARKLI sayılar/senaryo kullan ve hesabını adım adım, her adımdan sonra tekrar kontrol ederek yap — aynı hatayı TEKRARLAMA.` : "";
+  return `Aşağıdaki ${flawed.length} soruyu düzelt:\n\n${block}${retryNote}\n\nSadece JSON dizisini döndür.`;
 }

@@ -1,5 +1,6 @@
-// Faz Z3/Z4/Z5 — Akademik Röntgen soru havuzu otomasyon worker'ı. Vercel'de
-// DEĞİL, uzun süre çalışan bir arka plan süreci olarak çalıştırılır:
+// Faz Z3/Z4/Z5/Z9/Z10 — Akademik Röntgen soru havuzu otomasyon worker'ı.
+// Vercel'de DEĞİL, uzun süre çalışan bir arka plan süreci olarak
+// çalıştırılır:
 //   npx tsx --env-file=.env.local scripts/xray-generate-question-pool.ts
 // İsteğe bağlı test bayrakları: --topics=N ("genel" için ilk N konuyla
 // sınırla), --subtopics=N ("alt_konu" için ilk N alt konuyla sınırla),
@@ -14,6 +15,26 @@
 // çalıştırıldığında zaten "success" olan turları ATLAR, kaldığı yerden
 // devam eder. /platform panelindeki Duraklat düğmesi Control.paused'u
 // true yapar — worker HER turdan önce bu bayrağı taze okur.
+//
+// Faz Z10 — KALİTE MİMARİSİ (kullanıcı talebi: "sorunu azaltan kaliteyi
+// arttıran her tekniği kullan"), toplamda 8 teknik:
+//   1. Deterministik cevap-tutarlılık kontrolü (deterministic-checks.ts) —
+//      ÜCRETSİZ, AI çağrısı olmadan finalAnswer/detailedSolution sayısal
+//      tutarsızlığını yakalar.
+//   2. Deterministik LaTeX/format sağlık kontrolü — ücretsiz.
+//   3. Düşürülmüş üretim sıcaklığı (0.8→0.5, bkz. ai-client.ts).
+//   4. "Bağımsız çözüm önce" doğrulama tekniği (bkz. verify-content.ts) —
+//      çapalama önyargısını azaltır.
+//   5. Çapraz-model doğrulama — üretimden FARKLI bir model ailesi
+//      (VERIFY_MODEL) doğrulama yapar, aynı modelin kör noktalarını
+//      paylaşma riskini azaltır.
+//   6. Hedefli düzeltme (SADECE hatalı soruyu yeniden yazdırma, bkz.
+//      fixFlaggedQuestions) — tam tur yeniden üretimi yerine.
+//   7. Tekrarlanan düzeltme başarısızlığında "farklı yaklaşım" enjeksiyonu
+//      (bkz. buildFixUserPrompt isRetry).
+//   8. Kalıcı QA sorun günlüğü (XrayPoolQaIssueLog) — her tespit edilen
+//      sorun (deterministik veya AI, düzeltilmiş olsa bile) kalıcı olarak
+//      loglanır, zamanla kalıp analizine izin verir.
 import { prisma } from "../lib/server/prisma";
 import { flattenTopics, flattenCurriculum, type FlattenedTopic, type FlattenedSubtopic } from "../lib/server/xray/question-generation/curriculum-flatten";
 import { callChatCompletion } from "../lib/server/xray/question-generation/ai-client";
@@ -31,10 +52,15 @@ import {
 } from "../lib/server/xray/question-generation/prompt";
 import { validateGenelRoundResponse, validateAltKonuRoundResponse, validateFixResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
 import { verifyContent, type VerificationIssue } from "../lib/server/xray/question-generation/verify-content";
+import { checkAnswerConsistency, checkFormatHealth } from "../lib/server/xray/question-generation/deterministic-checks";
 import { slugifyTestName } from "../lib/server/xray/question-pool-upload";
 
 const SUBJECT = "Matematik";
 const MODEL = "deepseek-v4-flash-0731";
+// Faz Z10 teknik 5 — doğrulama BİLEREK üretimden FARKLI bir model
+// ailesiyle yapılır (qwen ailesi vs deepseek ailesi) — aynı modelin kendi
+// hatasını "doğru" görme riskini (kör nokta paylaşımı) azaltır.
+const VERIFY_MODEL = "qwen3.8-flash";
 const MAX_TOKENS = 16000;
 const VERIFY_MAX_TOKENS = 4000;
 const MAX_ATTEMPTS_PER_ROUND = 3;
@@ -45,26 +71,60 @@ const DEFAULT_TARGET_ROUNDS = 10;
 const IMPLEMENTED_VARIANTS = new Set(["genel", "alt_konu"]);
 
 type FixableQuestion = { soruNo: number; kazanimId: string; questionText: string; finalAnswer: string; detailedSolution: string; diagnosticComment: string };
+type LoggedIssue = { soruNo: number; source: "deterministic" | "ai-verify" | "ai-recheck"; reason: string };
+
+// Faz Z10 teknik 1+2+4+5 — deterministik (ücretsiz) kontroller + AI
+// (çapraz-model, bağımsız-çözüm) denetimi birleştirilir. Deterministik
+// bulgular %100 güvenilir olduğu için AI "temiz" dese bile ATLANMAZ.
+async function runContentChecks(
+  questions: { soruNo: number; questionText: string; finalAnswer: string; detailedSolution: string }[],
+  recheckPass: boolean,
+): Promise<{ ok: true; tokensUsed: number; logged: LoggedIssue[] } | { ok: false; issues: VerificationIssue[]; tokensUsed: number; logged: LoggedIssue[] }> {
+  const deterministic = [...checkAnswerConsistency(questions), ...checkFormatHealth(questions)];
+  const aiCheck = await verifyContent(VERIFY_MODEL, VERIFY_MAX_TOKENS, questions);
+  const tokensUsed = aiCheck.tokensUsed;
+  const aiSource = recheckPass ? ("ai-recheck" as const) : ("ai-verify" as const);
+
+  const logged: LoggedIssue[] = [...deterministic.map((i) => ({ soruNo: i.soruNo, source: "deterministic" as const, reason: i.reason }))];
+  if (aiCheck.ok === false) logged.push(...aiCheck.issues.map((i) => ({ soruNo: i.soruNo, source: aiSource, reason: i.reason })));
+
+  const bySoruNo = new Map<number, VerificationIssue>();
+  for (const i of deterministic) bySoruNo.set(i.soruNo, i);
+  if (aiCheck.ok === false) for (const i of aiCheck.issues) if (!bySoruNo.has(i.soruNo)) bySoruNo.set(i.soruNo, i);
+
+  if (bySoruNo.size > 0) return { ok: false, issues: [...bySoruNo.values()], tokensUsed, logged };
+  if (aiCheck.ok === "check-failed") return { ok: false, issues: [{ soruNo: -1, reason: `AI denetimi başarısız oldu: ${aiCheck.errorSummary}` }], tokensUsed, logged };
+  return { ok: true, tokensUsed, logged };
+}
+
+async function persistQaLog(subject: string, variant: string, unitId: string, roundNumber: number, issues: LoggedIssue[], resolved: boolean) {
+  if (issues.length === 0) return;
+  await prisma.xrayPoolQaIssueLog.createMany({
+    data: issues.map((i) => ({ subject, variant, unitId, roundNumber, soruNo: i.soruNo, source: i.source, reason: i.reason, resolved })),
+  });
+}
 
 // Faz Z9 — kullanıcı talebi: "hatalı sorudan dolayı baştan yapması sadece
-// hatalı olan soruyu düzeltsin". İçerik denetimi (verify-content.ts) bir
-// turun 30/10 sorusundan sadece 1-2'sini "sorunlu" bulsa bile önceden
-// TÜM tur (bkz. generateGenelRound/generateAltKonuRound'daki eski hali)
-// sıfırdan yeniden üretiliyordu — hem israf hem de zaten doğru olan
-// soruların bir daha üretilip denetlenmesi anlamsızdı. Bu fonksiyon SADECE
-// flawed soruların İÇERİĞİNİ (questionText/finalAnswer/detailedSolution/
-// diagnosticComment) yeniden yazdırır, soruNo/kazanımId/subtopicId
-// (blueprint yapısı) ASLA değişmez. Düzeltilen sorular tekrar (SADECE
-// kendileri) içerik denetiminden geçer — düzeltme kendisi de hatalıysa
-// MAX_FIX_ATTEMPTS'e kadar tekrar dener.
+// hatalı olan soruyu düzeltsin". İçerik denetimi bir turun 30/10 sorusundan
+// sadece 1-2'sini "sorunlu" bulsa bile önceden TÜM tur sıfırdan yeniden
+// üretiliyordu — hem israf hem de zaten doğru olan soruların bir daha
+// üretilip denetlenmesi anlamsızdı. Bu fonksiyon SADECE flawed soruların
+// İÇERİĞİNİ yeniden yazdırır, soruNo/kazanımId/subtopicId (blueprint
+// yapısı) ASLA değişmez. Düzeltilen sorular tekrar (SADECE kendileri)
+// içerik denetiminden geçer — düzeltme kendisi de hatalıysa
+// MAX_FIX_ATTEMPTS'e kadar, 2. denemeden itibaren "farklı yaklaşım"
+// talimatıyla (Faz Z10 teknik 7) tekrar dener.
 async function fixFlaggedQuestions<Q extends FixableQuestion>(
   questions: Q[],
   issues: VerificationIssue[],
   subtopicNameBySoruNo: Map<number, string> | null,
-): Promise<{ ok: true; questions: Q[]; tokensUsed: number } | { ok: false; tokensUsed: number }> {
+): Promise<{ ok: true; questions: Q[]; tokensUsed: number; logged: LoggedIssue[] } | { ok: false; tokensUsed: number; logged: LoggedIssue[] }> {
   let current = questions;
-  let remainingIssues = issues;
+  let remainingIssues = issues.filter((i) => i.soruNo >= 0 && current.some((q) => q.soruNo === i.soruNo));
   let tokensUsed = 0;
+  const logged: LoggedIssue[] = [];
+  if (remainingIssues.length === 0) return { ok: false, tokensUsed, logged };
+
   for (let fixAttempt = 1; fixAttempt <= MAX_FIX_ATTEMPTS; fixAttempt++) {
     const flawed: FlawedQuestionContext[] = remainingIssues.map((issue) => {
       const q = current.find((x) => x.soruNo === issue.soruNo)!;
@@ -72,7 +132,7 @@ async function fixFlaggedQuestions<Q extends FixableQuestion>(
     });
     console.log(`    🔧 Hedefli düzeltme ${fixAttempt}/${MAX_FIX_ATTEMPTS} — ${flawed.length} soru: ${flawed.map((f) => f.soruNo).join(",")}`);
 
-    const fixCompletion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_FIX, userPrompt: buildFixUserPrompt(flawed), maxTokens: MAX_TOKENS });
+    const fixCompletion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_FIX, userPrompt: buildFixUserPrompt(flawed, fixAttempt > 1), maxTokens: MAX_TOKENS, temperature: 0.5 });
     tokensUsed += fixCompletion.totalTokens;
     const fixValidation = validateFixResponse(
       fixCompletion.content,
@@ -90,13 +150,14 @@ async function fixFlaggedQuestions<Q extends FixableQuestion>(
     });
 
     const toRecheck = current.filter((q) => fixedBySoruNo.has(q.soruNo));
-    const recheck = await verifyContent(MODEL, VERIFY_MAX_TOKENS, toRecheck);
+    const recheck = await runContentChecks(toRecheck, true);
     tokensUsed += recheck.tokensUsed;
-    if (recheck.ok === true) return { ok: true, questions: current, tokensUsed };
-    remainingIssues = recheck.ok === false ? recheck.issues : remainingIssues;
+    logged.push(...recheck.logged);
+    if (recheck.ok === true) return { ok: true, questions: current, tokensUsed, logged };
+    remainingIssues = recheck.issues;
     console.log(`    ⚠️ Düzeltme sonrası hâlâ sorunlu: ${remainingIssues.map((i) => `soruNo ${i.soruNo}: ${i.reason}`).join(" | ")}`);
   }
-  return { ok: false, tokensUsed };
+  return { ok: false, tokensUsed, logged };
 }
 
 function parseArgs() {
@@ -195,6 +256,7 @@ async function writeRoundResult(params: {
 async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lockedBlueprint: GenelBlueprintSlot[] | null) {
   let totalTokens = 0;
   let lastError = "";
+  const allLogged: LoggedIssue[] = [];
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ROUND; attempt++) {
     const basePrompt = roundNumber === 1 ? buildGenelRound1UserPrompt(topic) : buildGenelRoundNUserPrompt(topic, lockedBlueprint!, roundNumber);
     const userPrompt = attempt === 1 ? basePrompt : basePrompt + buildRetryCorrectionSuffix(lastError);
@@ -207,21 +269,26 @@ async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lo
       continue;
     }
 
-    const check = await verifyContent(MODEL, VERIFY_MAX_TOKENS, validation.questions);
+    const check = await runContentChecks(validation.questions, false);
     totalTokens += check.tokensUsed;
-    if (check.ok === true) return { ok: true as const, questions: validation.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
-
-    if (check.ok === false) {
-      const subtopicNameBySoruNo = new Map(validation.questions.map((q) => [q.soruNo, topic.subtopics.find((s) => s.subtopicId === q.subtopicId)?.subtopicName ?? q.subtopicId]));
-      const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, subtopicNameBySoruNo);
-      totalTokens += fixResult.tokensUsed;
-      if (fixResult.ok) return { ok: true as const, questions: fixResult.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
-      lastError = `Hedefli düzeltme başarısız oldu (${check.issues.length} soru), tur yeniden üretiliyor.`;
-    } else {
-      lastError = `İçerik kontrolü başarısız oldu: ${check.errorSummary}`;
+    allLogged.push(...check.logged);
+    if (check.ok === true) {
+      await persistQaLog(SUBJECT, "genel", topic.topicId, roundNumber, allLogged, true);
+      return { ok: true as const, questions: validation.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
     }
+
+    const subtopicNameBySoruNo = new Map(validation.questions.map((q) => [q.soruNo, topic.subtopics.find((s) => s.subtopicId === q.subtopicId)?.subtopicName ?? q.subtopicId]));
+    const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, subtopicNameBySoruNo);
+    totalTokens += fixResult.tokensUsed;
+    allLogged.push(...fixResult.logged);
+    if (fixResult.ok) {
+      await persistQaLog(SUBJECT, "genel", topic.topicId, roundNumber, allLogged, true);
+      return { ok: true as const, questions: fixResult.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
+    }
+    lastError = `Hedefli düzeltme başarısız oldu (${check.issues.length} soru), tur yeniden üretiliyor.`;
     console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız (içerik kontrolü): ${lastError}`);
   }
+  await persistQaLog(SUBJECT, "genel", topic.topicId, roundNumber, allLogged, false);
   return { ok: false as const, errorSummary: lastError, tokensUsed: totalTokens, attempts: MAX_ATTEMPTS_PER_ROUND };
 }
 
@@ -268,6 +335,7 @@ async function runVariantGenel(topics: FlattenedTopic[], targetRounds: number): 
 async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: number, lockedBlueprint: string[] | null) {
   let totalTokens = 0;
   let lastError = "";
+  const allLogged: LoggedIssue[] = [];
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ROUND; attempt++) {
     const basePrompt = roundNumber === 1 ? buildAltKonuRound1UserPrompt(subtopic) : buildAltKonuRoundNUserPrompt(subtopic, lockedBlueprint!, roundNumber);
     const userPrompt = attempt === 1 ? basePrompt : basePrompt + buildRetryCorrectionSuffix(lastError);
@@ -280,26 +348,27 @@ async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: nu
       continue;
     }
 
-    const check = await verifyContent(MODEL, VERIFY_MAX_TOKENS, validation.questions);
+    const check = await runContentChecks(validation.questions, false);
     totalTokens += check.tokensUsed;
+    allLogged.push(...check.logged);
     if (check.ok === true) {
+      await persistQaLog(SUBJECT, "alt_konu", subtopic.subtopicId, roundNumber, allLogged, true);
       const questions = validation.questions.map((q) => ({ ...q, subtopicId: subtopic.subtopicId }));
       return { ok: true as const, questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
     }
 
-    if (check.ok === false) {
-      const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, null);
-      totalTokens += fixResult.tokensUsed;
-      if (fixResult.ok) {
-        const questions = fixResult.questions.map((q) => ({ ...q, subtopicId: subtopic.subtopicId }));
-        return { ok: true as const, questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
-      }
-      lastError = `Hedefli düzeltme başarısız oldu (${check.issues.length} soru), tur yeniden üretiliyor.`;
-    } else {
-      lastError = `İçerik kontrolü başarısız oldu: ${check.errorSummary}`;
+    const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, null);
+    totalTokens += fixResult.tokensUsed;
+    allLogged.push(...fixResult.logged);
+    if (fixResult.ok) {
+      await persistQaLog(SUBJECT, "alt_konu", subtopic.subtopicId, roundNumber, allLogged, true);
+      const questions = fixResult.questions.map((q) => ({ ...q, subtopicId: subtopic.subtopicId }));
+      return { ok: true as const, questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
     }
+    lastError = `Hedefli düzeltme başarısız oldu (${check.issues.length} soru), tur yeniden üretiliyor.`;
     console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız (içerik kontrolü): ${lastError}`);
   }
+  await persistQaLog(SUBJECT, "alt_konu", subtopic.subtopicId, roundNumber, allLogged, false);
   return { ok: false as const, errorSummary: lastError, tokensUsed: totalTokens, attempts: MAX_ATTEMPTS_PER_ROUND };
 }
 
@@ -354,7 +423,7 @@ async function main() {
   const skipped = (control.activeVariants as unknown as string[]).filter((v) => !IMPLEMENTED_VARIANTS.has(v));
   if (skipped.length > 0) console.log(`ℹ️  Şu variant'ların prompt'u henüz yok, atlanıyor: ${skipped.join(", ")}`);
 
-  console.log(`Worker başladı — model: ${MODEL}, hedef ${targetRounds} tur/birim, aktif variant'lar: ${activeVariants.join(", ") || "(yok)"}`);
+  console.log(`Worker başladı — üretim: ${MODEL}, doğrulama: ${VERIFY_MODEL}, hedef ${targetRounds} tur/birim, aktif variant'lar: ${activeVariants.join(", ") || "(yok)"}`);
 
   if (activeVariants.includes("genel")) {
     const outcome = await runVariantGenel(topics, targetRounds);

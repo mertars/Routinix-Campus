@@ -18,6 +18,7 @@ export type ChatCompletionResult = {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  reasoningTokens: number;
 };
 
 const TRANSIENT_MAX_ATTEMPTS = 4;
@@ -43,7 +44,7 @@ async function sleep(ms: number) {
 // "seri üretim" koşusunda ilk geçici hatada manuel müdahale gerekiyordu.
 // Artık üstel geri çekilmeyle (exponential backoff) otomatik yeniden
 // deniyor.
-export async function callChatCompletion(params: { model: string; systemPrompt: string; userPrompt: string; maxTokens: number }): Promise<ChatCompletionResult> {
+export async function callChatCompletion(params: { model: string; systemPrompt: string; userPrompt: string; maxTokens: number; enableThinking?: boolean; temperature?: number }): Promise<ChatCompletionResult> {
   const apiKey = process.env.XRAY_QUESTION_GEN_API_KEY;
   if (!apiKey) throw new Error("XRAY_QUESTION_GEN_API_KEY tanımlı değil (.env.local kontrol et).");
   const baseUrl = process.env.XRAY_QUESTION_GEN_BASE_URL || DEFAULT_BASE_URL;
@@ -62,19 +63,29 @@ export async function callChatCompletion(params: { model: string; systemPrompt: 
             { role: "user", content: params.userPrompt },
           ],
           max_tokens: params.maxTokens,
-          temperature: 0.8,
-          // ⚠️ KRİTİK: bu model varsayılan olarak "reasoning" (görünmeyen
-          // zincir-halinde-düşünme) modunda çalışıyor — canlı testte 30
-          // soruluk bir tur için max_tokens'ın TAMAMINI (16000/16000)
-          // görünmeyen reasoning_content'e harcayıp gerçek content'i HİÇ
-          // üretmeden finish_reason:"length" ile kesiliyordu (content boş
-          // kalıyordu). enable_thinking:false bunu tamamen kapatıyor —
-          // aynı istek finish_reason:"stop" ile TAM içerik döndürüyor,
-          // üstelik ~2.4x daha az token harcıyor (reasoning_tokens hiç
-          // sayılmıyor). Yapılandırılmış/şablona bağlı bir JSON üretim
-          // görevi için görünür "düşünme"ye ihtiyaç yok, sadece israf
-          // ediyordu.
-          enable_thinking: false,
+          // Faz Z10 — matematik hassasiyeti gerektiren bu görev için varsayılan
+          // sıcaklık düşürüldü (0.8 → 0.5). Turlar arası çeşitlilik (farklı
+          // sayılar/bağlam) zaten PROMPT'un kendisinden ("ÖNCEKİ turlardan
+          // FARKLI yap" talimatı) geliyor, yüksek sıcaklığın asıl etkisi
+          // rastgele/dikkatsiz aritmetik sıçramaları artırmaktı. Doğrulama/
+          // düzeltme çağrıları çağıran taraftan DAHA DA düşük bir sıcaklıkla
+          // (bkz. verify-content.ts) gönderilir — orada yaratıcılığa hiç
+          // gerek yok, sadece tutarlılık.
+          temperature: params.temperature ?? 0.5,
+          // ⚠️ KRİTİK: "flash" tier modeller varsayılan olarak "reasoning"
+          // (görünmeyen zincir-halinde-düşünme) modunda çalışıyor — canlı
+          // testte 30 soruluk bir tur için max_tokens'ın TAMAMINI görünmeyen
+          // reasoning_content'e harcayıp gerçek content'i HİÇ üretmeden
+          // finish_reason:"length" ile kesiliyordu. enable_thinking:false
+          // bunu kapatır, ~2.4x daha az token harcar. AMA bu "pro"/reasoning
+          // tier modeller için TERS bir tercih olabilir — asıl satın alınan
+          // değer o modelin adım adım kendini doğrulayarak hesap hatası
+          // yapma ihtimalini düşürmesi; onda thinking'i kapatmak pro
+          // fiyatını ödeyip pro'nun asıl faydasından vazgeçmek olur. Bu
+          // yüzden çağıran taraf (worker script) hangi model için thinking
+          // açık/kapalı olacağına karar verir — varsayılan false (flash
+          // davranışı korunur, geriye dönük uyumlu).
+          enable_thinking: params.enableThinking ?? false,
         }),
       });
     } catch (networkError) {
@@ -98,7 +109,7 @@ export async function callChatCompletion(params: { model: string; systemPrompt: 
 
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
-      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } };
     };
 
     const content = data.choices?.[0]?.message?.content;
@@ -109,6 +120,7 @@ export async function callChatCompletion(params: { model: string; systemPrompt: 
       promptTokens: data.usage?.prompt_tokens ?? 0,
       completionTokens: data.usage?.completion_tokens ?? 0,
       totalTokens: data.usage?.total_tokens ?? 0,
+      reasoningTokens: data.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
     };
   }
   throw lastError;

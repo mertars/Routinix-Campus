@@ -1588,6 +1588,32 @@ model XrayPoolGenerationRound {
   @@index([status])
 }
 
+// Faz Z10 — kullanıcı talebi: "sistem kendini besleyerek daha kusursuz
+// hale gelsin". XrayPoolGenerationRound sadece SON durumu (başarılı/
+// başarısız) ve ÖZET hata mesajını tutuyor — bir turun 3 denemesinde
+// tespit edilen TÜM ayrı sorunlar (düzeltilmiş olsalar bile) kayıp
+// gidiyordu, sadece o an konsola loglanıyordu. Bu tablo HER TESPİT EDİLEN
+// sorunu (deterministic kontrolden mi geldi, AI denetiminden mi geldi,
+// düzeltilip düzeltilmediği) kalıcı olarak tutar — böylece zamanla
+// (worker günlerce/haftalarca çalışacağı için) tekrar eden hata
+// kalıplarını GERÇEK VERİYLE analiz edip prompt'ları buna göre
+// güncellemek mümkün olur (elle konsol okumaya bağımlı kalmadan).
+model XrayPoolQaIssueLog {
+  id         String   @id @default(cuid())
+  subject    String
+  variant    String
+  unitId     String
+  roundNumber Int
+  soruNo     Int
+  source     String // "deterministic" | "ai-verify" | "ai-recheck"
+  reason     String
+  resolved   Boolean // bu spesifik tespitten SONRA o soru başarıyla düzeltildi mi
+  createdAt  DateTime @default(now())
+
+  @@index([subject, variant, unitId])
+  @@index([source])
+}
+
 // Worker'ın TEK satırlık global anahtarı — /platform panelinden
 // Duraklat/Devam Et ve HANGİ variant(lar)ın aktif (worker'ın sırayla
 // işleyeceği) olduğu buradan kontrol edilir. Worker her turdan ÖNCE bu
