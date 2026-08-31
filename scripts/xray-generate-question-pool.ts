@@ -183,7 +183,7 @@ function parseArgs() {
     const found = args.find((a) => a.startsWith(`--${flag}=`));
     return found ? Number(found.split("=")[1]) : undefined;
   };
-  return { topicsLimit: get("topics"), subtopicsLimit: get("subtopics"), roundsOverride: get("rounds") };
+  return { topicsLimit: get("topics"), subtopicsLimit: get("subtopics"), roundsOverride: get("rounds"), maxGrade: get("maxGrade") };
 }
 
 async function getControl() {
@@ -482,12 +482,15 @@ async function runVariantAltKonu(subtopics: FlattenedSubtopic[], targetRounds: n
 }
 
 async function main() {
-  const { topicsLimit, subtopicsLimit, roundsOverride } = parseArgs();
+  const { topicsLimit, subtopicsLimit, roundsOverride, maxGrade } = parseArgs();
   const targetRounds = roundsOverride ?? DEFAULT_TARGET_ROUNDS;
   let topics = flattenTopics(SUBJECT);
+  if (maxGrade) topics = topics.filter((t) => t.grade <= maxGrade);
   if (topicsLimit) topics = topics.slice(0, topicsLimit);
   let subtopics = flattenCurriculum(SUBJECT);
+  if (maxGrade) subtopics = subtopics.filter((s) => s.grade <= maxGrade);
   if (subtopicsLimit) subtopics = subtopics.slice(0, subtopicsLimit);
+  if (maxGrade) console.log(`ℹ️  --maxGrade=${maxGrade} — bu sınıf seviyesinin ÜSTÜNDEKİ konular bu çalıştırmada işlenmeyecek.`);
 
   const control = await getControl();
   const activeVariants = (control.activeVariants as unknown as string[]).filter((v) => IMPLEMENTED_VARIANTS.has(v));
