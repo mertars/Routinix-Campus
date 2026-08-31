@@ -165,11 +165,16 @@ export function checkNoMultipleChoice(questions: { soruNo: number; questionText:
 // ⚠️ BİLİNÇLİ SINIRLAMA (yanlış pozitif riskini kontrol altında tutmak
 // için): SADECE +/− (toplama/çıkarma) kontrol edilir, çarpma/bölme DEĞİL
 // (önceliği/zincirleme ifadeleri karıştırma riski daha yüksek). Bir
-// eşleşmenin HEMEN ÖNCESİNDE başka bir "sayı op" varsa (yani bu, 3 terimli
-// daha uzun bir ifadenin ORTASI/SONU olabilir, örn. "5 + 2 + 3 = 10"
-// ifadesinde "2 + 3 = 10" alt dizisini YANLIŞLIKLA tek başına
-// değerlendirmemek için) o eşleşme ATLANIR.
+// eşleşmenin HEMEN ÖNCESİNDE başka bir sayı/işlem operatörü varsa (yani
+// bu, DAHA UZUN bir ifadenin ORTASI/SONU olabilir) o eşleşme ATLANIR.
+// Gerçek üretimde YAKALANAN yanlış pozitif: "3*12 + 4 = 40" (doğru, 3×12=36,
+// 36+4=40) — önceki sürüm SADECE +/− öncesini kontrol ediyordu, "*12"
+// öncesi bir ÇARPMA olduğunu görmediği için "12 + 4 = 40"ı YALNIZ BAŞINA
+// (yanlışlıkla) değerlendirip reddediyordu. Artık +,-,*,×,·,/,÷ VE bitişik
+// bir rakam (örn. üslü ifadenin bir parçası) hepsi "bu bir alt-ifade"
+// sinyali sayılıyor.
 const ARITHMETIC_STEP_PATTERN = /(-?\d+(?:[.,]\d+)?)\s*([+-])\s*(-?\d+(?:[.,]\d+)?)\s*=\s*(-?\d+(?:[.,]\d+)?)(?!\d)/g;
+const PRECEDING_OPERATOR_PATTERN = /[\d+\-*×·/÷^]\s*$/;
 
 export function checkArithmeticSteps(questions: { soruNo: number; detailedSolution: string }[]): DeterministicIssue[] {
   const issues: DeterministicIssue[] = [];
@@ -177,8 +182,8 @@ export function checkArithmeticSteps(questions: { soruNo: number; detailedSoluti
     const text = q.detailedSolution;
     for (const m of text.matchAll(ARITHMETIC_STEP_PATTERN)) {
       const matchStart = m.index ?? 0;
-      const before = text.slice(Math.max(0, matchStart - 6), matchStart);
-      if (/\d\s*[+-]\s*$/.test(before)) continue; // muhtemelen 3 terimli bir ifadenin ortası — atla
+      const before = text.slice(Math.max(0, matchStart - 8), matchStart);
+      if (PRECEDING_OPERATOR_PATTERN.test(before)) continue; // muhtemelen daha uzun bir ifadenin alt-parçası — atla
 
       const a = Number(m[1].replace(",", "."));
       const op = m[2];
