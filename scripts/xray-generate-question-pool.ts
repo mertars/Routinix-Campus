@@ -66,6 +66,16 @@ const VERIFY_MAX_TOKENS = 4000;
 const MAX_ATTEMPTS_PER_ROUND = 3;
 const MAX_FIX_ATTEMPTS = 2;
 const DEFAULT_TARGET_ROUNDS = 10;
+// Faz Z17 — kullanıcı geri bildirimi: "sistem soru üretmediği zaman çok
+// zaman kaybı yaşıyor aynı zamanda acayip fazla token yiyor". Gözlenen
+// gerçek örnekler: doğal çeşitlilik sınırına dayanmış bir tur, 3 tam
+// deneme × her denemede 2 düzeltme denemesi üst üste binerek 67K-106K
+// token yakıp SIFIR kullanılabilir çıktı üretmişti. Bu üst sınır, bir tur
+// henüz başarılı olmadan bu kadar token harcamışsa kalan denemeleri
+// (2. veya 3. tam deneme) ATLAYIP hemen "başarısız" sayar — "doğal
+// sınırda dur" politikasıyla (bkz. runVariantGenel/AltKonu) birleşince bu,
+// tükenmiş bir birimde harcanan token'ı öngörülebilir bir tavana sabitler.
+const MAX_TOKENS_PER_ROUND_ATTEMPT_BUDGET = 45_000;
 
 // "yeterlilik" prompt'u tasarlanınca buraya eklenecek.
 const IMPLEMENTED_VARIANTS = new Set(["genel", "alt_konu"]);
@@ -285,6 +295,11 @@ async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lo
   const allLogged: LoggedIssue[] = [];
   const priorRoundsQuestions = await getPriorRoundsQuestions("genel", topic.topicId, roundNumber);
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ROUND; attempt++) {
+    if (totalTokens >= MAX_TOKENS_PER_ROUND_ATTEMPT_BUDGET) {
+      lastError = `Token bütçesi (${MAX_TOKENS_PER_ROUND_ATTEMPT_BUDGET}) aşıldı, kalan denemeler atlanıyor.`;
+      console.log(`    ⏱️  Tur token bütçesini aştı (${totalTokens}), ${attempt}. denemeden itibaren atlanıyor.`);
+      break;
+    }
     const basePrompt = roundNumber === 1 ? buildGenelRound1UserPrompt(topic) : buildGenelRoundNUserPrompt(topic, lockedBlueprint!, roundNumber, priorRoundsQuestions);
     const userPrompt = attempt === 1 ? basePrompt : basePrompt + buildRetryCorrectionSuffix(lastError);
     const completion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_GENEL, userPrompt, maxTokens: MAX_TOKENS });
@@ -380,6 +395,11 @@ async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: nu
   const allLogged: LoggedIssue[] = [];
   const priorRoundsQuestions = await getPriorRoundsQuestions("alt_konu", subtopic.subtopicId, roundNumber);
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ROUND; attempt++) {
+    if (totalTokens >= MAX_TOKENS_PER_ROUND_ATTEMPT_BUDGET) {
+      lastError = `Token bütçesi (${MAX_TOKENS_PER_ROUND_ATTEMPT_BUDGET}) aşıldı, kalan denemeler atlanıyor.`;
+      console.log(`    ⏱️  Tur token bütçesini aştı (${totalTokens}), ${attempt}. denemeden itibaren atlanıyor.`);
+      break;
+    }
     const basePrompt = roundNumber === 1 ? buildAltKonuRound1UserPrompt(subtopic) : buildAltKonuRoundNUserPrompt(subtopic, lockedBlueprint!, roundNumber, priorRoundsQuestions);
     const userPrompt = attempt === 1 ? basePrompt : basePrompt + buildRetryCorrectionSuffix(lastError);
     const completion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_ALT_KONU, userPrompt, maxTokens: MAX_TOKENS });
