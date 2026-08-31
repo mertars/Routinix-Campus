@@ -331,6 +331,17 @@ async function runVariantGenel(topics: FlattenedTopic[], targetRounds: number): 
         console.log(`↷ [genel] ${topic.topicName} tur ${roundNumber} zaten tamam, atlanıyor.`);
         continue;
       }
+      // Faz Z14 — kullanıcı kararı: "doğal sınırda dur". Bir tur (bu
+      // çalıştırmada veya ÖNCEKİ bir çalıştırmada) başarısız olduysa, bu
+      // konunun kazanımları için doğal çeşitlilik alanı tükenmiş demektir —
+      // aynı turu (veya sonraki turları) tekrar tekrar denemek sadece token
+      // israf eder (canlı üretimde 2 ardışık başarısız tur ~188K token
+      // yaktı, sıfır kullanılabilir çıktı). O ana kadarki başarılı turlarla
+      // yetinilip bu konu için üretim durdurulur.
+      if (existing?.status === "failed") {
+        console.log(`⏹️  [genel] ${topic.topicName}: tur ${roundNumber} daha önce başarısız olmuştu (doğal çeşitlilik sınırı) — bu konu için üretim durduruluyor, mevcut ${roundNumber - 1} tur ile yetiniliyor.`);
+        break;
+      }
 
       let lockedBlueprint: GenelBlueprintSlot[] | null = null;
       if (roundNumber > 1) {
@@ -352,6 +363,10 @@ async function runVariantGenel(topics: FlattenedTopic[], targetRounds: number): 
         testName: `${topic.topicName} — Genel Havuz Turu ${roundNumber}`,
         result,
       });
+      if (!result.ok) {
+        console.log(`⏹️  [genel] ${topic.topicName}: tur ${roundNumber} başarısız oldu (doğal çeşitlilik sınırına ulaşılmış olabilir) — bu konu için üretim durduruluyor, mevcut ${roundNumber - 1} tur ile yetiniliyor.`);
+        break;
+      }
     }
   }
   return "continue";
@@ -412,6 +427,11 @@ async function runVariantAltKonu(subtopics: FlattenedSubtopic[], targetRounds: n
         console.log(`↷ [alt_konu] ${subtopic.subtopicName} tur ${roundNumber} zaten tamam, atlanıyor.`);
         continue;
       }
+      // Faz Z14 — "doğal sınırda dur" (bkz. runVariantGenel'deki aynı mantık).
+      if (existing?.status === "failed") {
+        console.log(`⏹️  [alt_konu] ${subtopic.subtopicName}: tur ${roundNumber} daha önce başarısız olmuştu (doğal çeşitlilik sınırı) — bu alt konu için üretim durduruluyor, mevcut ${roundNumber - 1} tur ile yetiniliyor.`);
+        break;
+      }
 
       let lockedBlueprint: string[] | null = null;
       if (roundNumber > 1) {
@@ -433,6 +453,10 @@ async function runVariantAltKonu(subtopics: FlattenedSubtopic[], targetRounds: n
         testName: `${subtopic.subtopicName} — Alt Konu Havuz Turu ${roundNumber}`,
         result,
       });
+      if (!result.ok) {
+        console.log(`⏹️  [alt_konu] ${subtopic.subtopicName}: tur ${roundNumber} başarısız oldu (doğal çeşitlilik sınırına ulaşılmış olabilir) — bu alt konu için üretim durduruluyor, mevcut ${roundNumber - 1} tur ile yetiniliyor.`);
+        break;
+      }
     }
   }
   return "continue";
