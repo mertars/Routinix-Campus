@@ -97,7 +97,14 @@ async function handleGet(request: NextRequest) {
     else if (statusFilter === "completed") filtered = filtered.filter((r) => !isPending(r));
     if (minDaysOverdue > 0) filtered = filtered.filter((r) => isPending(r) && r.daysSinceAssigned >= minDaysOverdue);
 
-    filtered.sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime());
+    // "Bekleyen" görünümünde EN ESKİ (en gecikmiş, en acil) atama ÖNCE
+    // gelir — DESC sıralasaydık en acil öğrenciler listenin dibine
+    // gömülürdü, "N+ gündür bekleyen" filtresinin amacını baltalardı.
+    // "Tamamlanan"/"Tümü" görünümünde en yeni önce (özet/recap mantığı).
+    filtered.sort((a, b) => {
+      const diff = new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime();
+      return statusFilter === "pending" ? diff : -diff;
+    });
 
     const totals = { total: rows.length, pending: rows.filter(isPending).length, completed: rows.filter((r) => !isPending(r)).length };
 
