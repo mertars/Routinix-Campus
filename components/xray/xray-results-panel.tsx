@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2 } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf, fetchAndSharePdf } from "@/lib/client/download-pdf";
@@ -12,7 +13,10 @@ import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-a
 import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
 import { XraySetGoalButton } from "@/components/xray/xray-set-goal-button";
 import { XrayAverageDetailModal, XrayRedZoneModal, XrayUntestedTopicsModal, XrayHistoryTimelineModal } from "@/components/xray/xray-stat-detail-modals";
+import { XraySubtopicDetailModal } from "@/components/xray/xray-subtopic-detail-modal";
 import { cn } from "@/lib/utils";
+
+const TOPIC_PREVIEW_COUNT = 4;
 
 export type XrayRosterStudent = { id: string; firstName: string; lastName: string; branchName: string; branchId: string; grade: number };
 
@@ -74,6 +78,39 @@ function StatCard({
   );
 }
 
+// Faz Z6 — konu kartı, hem 4'lük önizlemede hem "Tümünü Gör" tam ekran
+// modalında AYNI bileşen kullanılıyor (tıklama mantığı iki yerde
+// tekrarlanmasın diye). Her alt konu satırı artık tıklanabilir — o alt
+// konudaki geçmiş denemeleri/yanlış soruları gösteren detay modalını açar
+// (bkz. XraySubtopicDetailModal).
+function TopicCard({ topic, onSubtopicClick }: { topic: TopicResult; onSubtopicClick: (subtopicId: string, subtopicName: string) => void }) {
+  return (
+    <div className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
+      <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+        {topic.topicName} · {topic.grade}. Sınıf
+      </p>
+      <div className="space-y-2.5">
+        {topic.subtopics.map((sub) => (
+          <button key={sub.subtopicId} onClick={() => onSubtopicClick(sub.subtopicId, sub.name)} className="group block w-full text-left">
+            <div className="mb-1 flex items-center justify-between text-[11px]">
+              <span className="text-espresso-muted transition group-hover:text-espresso dark:text-cream/50">{sub.name}</span>
+              <span className={cn("font-semibold", scoreTextColor(sub.masteryScore))}>{sub.masteryScore === null ? "Test edilmedi" : `%${sub.masteryScore}`}</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
+              <motion.div
+                className={cn("h-full rounded-full", scoreColor(sub.masteryScore))}
+                initial={{ width: 0 }}
+                animate={{ width: `${sub.masteryScore ?? 4}%` }}
+                transition={{ type: "spring", stiffness: 70, damping: 15 }}
+              />
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Akademik Röntgen — Faz 3 (yönetici/öğretmen sonuç görselleştirme paneli),
 // Faz I'de tam-ekran 3'lü sütun düzenine yükseltildi: sol = öğrenci
 // listesi/arama, orta = seçili öğrencinin analiz kartı + konu dökümü, sağ =
@@ -109,6 +146,8 @@ export function XrayResultsPanel({
   const [history, setHistory] = useState<MasteryHistoryResponse | null>(null);
   const [trendOpen, setTrendOpen] = useState(false);
   const [netTrend, setNetTrend] = useState<{ examLabel: string; net: number }[] | null>(null);
+  const [allTopicsOpen, setAllTopicsOpen] = useState(false);
+  const [subtopicDetail, setSubtopicDetail] = useState<{ subtopicId: string; subtopicName: string } | null>(null);
 
   useEffect(() => {
     setSelectedId((current) => current || roster[0]?.id || "");
@@ -418,40 +457,52 @@ export function XrayResultsPanel({
                     <MasterySparkline points={history.overallTrend} onClick={() => setTrendOpen(true)} />
                   )}
 
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                    {results.topics
-                      .filter((topic) => topic.subtopics.length > 0)
-                      .map((topic) => (
-                        <div
-                          key={topic.topicName}
-                          className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50"
-                        >
-                          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
-                            {topic.topicName} · {topic.grade}. Sınıf
-                          </p>
-                          <div className="space-y-2.5">
-                            {topic.subtopics.map((sub) => (
-                              <div key={sub.subtopicId}>
-                                <div className="mb-1 flex items-center justify-between text-[11px]">
-                                  <span className="text-espresso-muted dark:text-cream/50">{sub.name}</span>
-                                  <span className={cn("font-semibold", scoreTextColor(sub.masteryScore))}>
-                                    {sub.masteryScore === null ? "Test edilmedi" : `%${sub.masteryScore}`}
-                                  </span>
-                                </div>
-                                <div className="h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
-                                  <motion.div
-                                    className={cn("h-full rounded-full", scoreColor(sub.masteryScore))}
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${sub.masteryScore ?? 4}%` }}
-                                    transition={{ type: "spring", stiffness: 70, damping: 15 }}
-                                  />
-                                </div>
-                              </div>
+                  {/* Faz Z6 — konu kartları eskiden TÜMÜ tek grid'de basılıyordu
+                      (10-15+ kart, kalabalık). Kullanıcı isteği: 4'lük bir
+                      önizleme + "Tümünü Gör" ile tam ekran. Önizlemede EN
+                      DÜŞÜK ortalamalı (en acil ilgi gereken) 4 tema önce
+                      gösterilir — rastgele/müfredat sırası yerine anlamlı bir
+                      önceliklendirme. */}
+                  {(() => {
+                    const topicsWithSubtopics = results.topics.filter((topic) => topic.subtopics.length > 0);
+                    const topicAvg = (topic: TopicResult) => {
+                      const scored = topic.subtopics.filter((s): s is SubtopicResult & { masteryScore: number } => s.masteryScore !== null);
+                      return scored.length === 0 ? 101 : scored.reduce((sum, s) => sum + s.masteryScore, 0) / scored.length;
+                    };
+                    const previewTopics = [...topicsWithSubtopics].sort((a, b) => topicAvg(a) - topicAvg(b)).slice(0, TOPIC_PREVIEW_COUNT);
+                    const remaining = topicsWithSubtopics.length - previewTopics.length;
+                    return (
+                      <>
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                          {previewTopics.map((topic) => (
+                            <TopicCard key={topic.topicName} topic={topic} onSubtopicClick={(subtopicId, subtopicName) => setSubtopicDetail({ subtopicId, subtopicName })} />
+                          ))}
+                        </div>
+                        {remaining > 0 && (
+                          <button
+                            onClick={() => setAllTopicsOpen(true)}
+                            className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-hairline bg-white/40 py-3 text-xs font-medium text-espresso-muted transition hover:border-sky-400/40 hover:text-sky-600 dark:border-white/10 dark:bg-white/5 dark:text-cream/40 dark:hover:text-sky-400"
+                          >
+                            <Maximize2 className="h-3.5 w-3.5" /> Tümünü Gör ({remaining} tema daha)
+                          </button>
+                        )}
+                        <Modal isOpen={allTopicsOpen} onClose={() => setAllTopicsOpen(false)} title={`${subject} — Tüm Konular`} variant="center" widthClassName="max-w-6xl">
+                          <div className="grid max-h-[75vh] grid-cols-1 gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
+                            {topicsWithSubtopics.map((topic) => (
+                              <TopicCard
+                                key={topic.topicName}
+                                topic={topic}
+                                onSubtopicClick={(subtopicId, subtopicName) => {
+                                  setAllTopicsOpen(false);
+                                  setSubtopicDetail({ subtopicId, subtopicName });
+                                }}
+                              />
                             ))}
                           </div>
-                        </div>
-                      ))}
-                  </div>
+                        </Modal>
+                      </>
+                    );
+                  })()}
 
                   {redZoneCount > 0 && (
                     <div className="flex items-start gap-2 rounded-2xl bg-rose-50 p-3.5 text-xs text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
@@ -520,6 +571,16 @@ export function XrayResultsPanel({
         }
       />
       <XrayHistoryTimelineModal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} events={history?.overallTrend ?? []} />
+      {subtopicDetail && (
+        <XraySubtopicDetailModal
+          isOpen={!!subtopicDetail}
+          onClose={() => setSubtopicDetail(null)}
+          studentId={selectedId}
+          subject={subject}
+          subtopicId={subtopicDetail.subtopicId}
+          subtopicName={subtopicDetail.subtopicName}
+        />
+      )}
     </div>
   );
 }
