@@ -40,21 +40,30 @@ async function handleGet(request: NextRequest) {
     }
 
     // Faz K: SADECE lise (9-12. sınıf) konuları — bkz. XRAY_MIN_GRADE yorumu.
-    const subtopicNameById = new Map<string, string>();
+    // Faz Z15 — kullanıcı talebi: test seçme ekranına sınıf filtresi
+    // eklenebilsin diye her alt konunun ait olduğu üst konunun grade'i ve
+    // konu adı da (subtopicName YETERSİZ, aynı isim farklı sınıflarda
+    // tekrar edebiliyor — bkz. sarmal müfredat) döndürülüyor.
+    const subtopicMetaById = new Map<string, { subtopicName: string; topicName: string; grade: number }>();
     for (const topic of CURRICULUM_TREE[subject] ?? []) {
       if (topic.grade < XRAY_MIN_GRADE) continue;
-      for (const sub of topic.subtopics) subtopicNameById.set(sub.id, sub.name);
+      for (const sub of topic.subtopics) subtopicMetaById.set(sub.id, { subtopicName: sub.name, topicName: topic.name, grade: topic.grade });
     }
 
     const topics = [...byTopic.entries()]
-      .filter(([subtopicId]) => subtopicNameById.has(subtopicId))
-      .map(([subtopicId, stats]) => ({
-        subtopicId,
-        subtopicName: subtopicNameById.get(subtopicId) ?? subtopicId,
-        questionCount: stats.questionCount,
-        kazanimCount: stats.kazanimIds.size,
-      }))
-      .sort((a, b) => a.subtopicName.localeCompare(b.subtopicName, "tr"));
+      .filter(([subtopicId]) => subtopicMetaById.has(subtopicId))
+      .map(([subtopicId, stats]) => {
+        const meta = subtopicMetaById.get(subtopicId)!;
+        return {
+          subtopicId,
+          subtopicName: meta.subtopicName,
+          topicName: meta.topicName,
+          grade: meta.grade,
+          questionCount: stats.questionCount,
+          kazanimCount: stats.kazanimIds.size,
+        };
+      })
+      .sort((a, b) => a.grade - b.grade || a.subtopicName.localeCompare(b.subtopicName, "tr"));
 
     return NextResponse.json({ topics });
   } catch (error) {
