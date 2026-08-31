@@ -1536,6 +1536,54 @@ model XrayPracticeQuestion {
   @@index([testId])
 }
 
+// Faz Z3 — soru havuzu otomasyon worker'ının (scripts/xray-generate-question-
+// pool.ts) ilerleme/durum takibi. Worker Vercel'de DEĞİL, uzun süre çalışan
+// bir arka plan süreci olarak (yerel/CI) çalışır — bu tablo onun TEK gerçek
+// durum kaynağıdır: kesintiye uğrarsa hangi (subject, subtopicId, round)
+// üçlüsünün zaten "success" olduğuna bakıp kaldığı yerden devam eder, aynı
+// turu tekrar üretip token harcamaz. "blueprint", 1. turda kilitlenen
+// kazanimId dizisidir (30 elemanlı) — 2. ve sonraki turlarda AYNEN modele
+// yeniden verilir (modelin "hatırlamasına" güvenilmez, her çağrıda taze
+// enjekte edilir) — bkz. lib/server/xray/practice-pool.ts'teki occurrence
+// eşleştirmesinin doğru çalışması için turlar arası kazanım YAPISININ
+// (sayı+sıra) tutarlı kalması gerekliliği.
+model XrayPoolGenerationRound {
+  id           String   @id @default(cuid())
+  subject      String
+  subtopicId   String
+  roundNumber  Int
+  status       String // "success" | "failed"
+  blueprint    Json? // kilitlenen kazanimId dizisi (round 1'de üretilir, sonraki turlara enjekte edilir)
+  testId       String? // başarılıysa bu turun XrayPracticeQuestion.testId'si
+  attempts     Int      @default(0)
+  tokensUsed   Int      @default(0)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([subject, subtopicId, roundNumber])
+  @@index([subject, subtopicId])
+  @@index([status])
+}
+
+// Worker'ın TEK satırlık global anahtarı — /platform panelinden
+// Duraklat/Devam Et ve günlük token bütçesi buradan kontrol edilir. Worker
+// her turdan ÖNCE bu satırı taze okur (paused=true ise hemen durur) — bu
+// yüzden panelden "Duraklat" basmak, worker'ı ID'siyle öldürmeye gerek
+// kalmadan bir sonraki turdan önce durdurur. dailyTokenBudget aşılırsa
+// worker de kendini otomatik durdurur (kazara aşırı harcamaya karşı donanım
+// dışı bir güvenlik freni — bkz. kullanıcının "sıfır hatayla en minimum
+// token yemeli" talebi).
+model XrayPoolGenerationControl {
+  id               String   @id @default("singleton")
+  paused           Boolean  @default(true)
+  dailyTokenBudget Int      @default(15000000)
+  tokensUsedToday  Int      @default(0)
+  tokensUsedTotal  Int      @default(0)
+  budgetResetAt    DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
 // Test 1'in bir "oturumu" — süre/kilit yok, ama Faz H revizyonuyle artık
 // öğrenci KENDİ BAŞINA başlatamıyor, TIPKI Test 2 gibi yönetici ataması
 // gerekiyor (kullanıcı kararı: "öğrenci kafasına göre test almayacak,

@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan } from "lucide-react";
+import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan, Activity } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { XrayQuestionPoolWizard } from "@/components/platform/xray-question-pool-wizard";
+import { XrayPoolGenerationDashboard } from "@/components/platform/xray-pool-generation-dashboard";
 import { useToast } from "@/lib/toast-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -181,6 +182,7 @@ export default function PlatformDashboardPage() {
   const [newCredentials, setNewCredentials] = useState<NewInstitutionCredentials | null>(null);
   const [detailInstitutionId, setDetailInstitutionId] = useState<string | null>(null);
   const [isQuestionPoolOpen, setIsQuestionPoolOpen] = useState(false);
+  const [isGenerationDashboardOpen, setIsGenerationDashboardOpen] = useState(false);
 
   async function loadInstitutions() {
     try {
@@ -234,6 +236,12 @@ export default function PlatformDashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsGenerationDashboardOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-sm font-medium text-violet-700 transition hover:bg-violet-500/20 dark:text-violet-300"
+            >
+              <Activity className="h-4 w-4" /> Soru Havuzu Üretim Paneli
+            </button>
             <button
               onClick={() => setIsQuestionPoolOpen(true)}
               className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 text-sm font-medium text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300"
@@ -326,6 +334,7 @@ export default function PlatformDashboardPage() {
       <CredentialsOnceModal credentials={newCredentials} onClose={() => setNewCredentials(null)} />
       <InstitutionDetailModal institutionId={detailInstitutionId} onClose={() => setDetailInstitutionId(null)} />
       <XrayQuestionPoolWizard isOpen={isQuestionPoolOpen} onClose={() => setIsQuestionPoolOpen(false)} />
+      <XrayPoolGenerationDashboard isOpen={isGenerationDashboardOpen} onClose={() => setIsGenerationDashboardOpen(false)} />
     </main>
   );
 }
