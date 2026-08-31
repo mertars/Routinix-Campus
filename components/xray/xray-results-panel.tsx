@@ -536,6 +536,16 @@ export function XrayResultsPanel({
               branchName={selectedStudent.branchName}
               grade={selectedStudent.grade}
               subject={subject}
+              variant="genel"
+            />
+            <XrayPracticeAssignmentSection
+              studentId={selectedId}
+              studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
+              branchId={selectedStudent.branchId}
+              branchName={selectedStudent.branchName}
+              grade={selectedStudent.grade}
+              subject={subject}
+              variant="alt_konu"
             />
             <XrayAssignmentSection
               studentId={selectedId}

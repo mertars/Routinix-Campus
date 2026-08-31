@@ -27,10 +27,11 @@ async function handleGet(request: NextRequest) {
     if (session.role === "STUDENT") assertOwnsSelf(session, studentId);
     else requireRole(session, "principal");
 
+    const variant = request.nextUrl.searchParams.get("variant");
     const assignments = await prisma.xrayPracticeAttempt.findMany({
-      where: { studentId },
+      where: variant ? { studentId, variant } : { studentId },
       orderBy: { assignedAt: "desc" },
-      select: { id: true, subject: true, subtopicId: true, status: true, assignedAt: true, completedAt: true },
+      select: { id: true, subject: true, subtopicId: true, variant: true, status: true, assignedAt: true, completedAt: true },
     });
 
     const withNames = assignments.map((a) => {
@@ -64,13 +65,17 @@ async function handlePost(request: NextRequest) {
     requireRole(session, "principal");
 
     const body = await request.json();
-    const { subject, subtopicId, target } = body as { subject?: string; subtopicId?: string; target?: AssignmentTarget };
+    const { subject, subtopicId, target, variant } = body as { subject?: string; subtopicId?: string; target?: AssignmentTarget; variant?: string };
     if (!subject?.trim() || !subtopicId?.trim() || !target) {
       return NextResponse.json({ error: "subject, subtopicId ve target zorunludur." }, { status: 400 });
     }
+    const resolvedVariant = variant?.trim() || "genel";
 
+    // Faz Z6: variant filtresi ZORUNLU — aksi halde "genel" (tema geneli,
+    // 30 soru) ve "alt_konu" (tek alt konu, 10 soru) havuzları AYNI
+    // subtopicId altında karışırdı (ikisi de aynı tabloya yazıyor).
     const pool = await prisma.xrayPracticeQuestion.findMany({
-      where: { subject: subject.trim(), subtopicId: subtopicId.trim() },
+      where: { subject: subject.trim(), subtopicId: subtopicId.trim(), variant: resolvedVariant },
       select: { id: true, kazanimId: true, order: true, testId: true },
     });
     if (pool.length === 0) return NextResponse.json({ error: "Bu konu için soru havuzu boş." }, { status: 400 });
@@ -86,6 +91,7 @@ async function handlePost(request: NextRequest) {
           studentId,
           subject: subject.trim(),
           subtopicId: subtopicId.trim(),
+          variant: resolvedVariant,
           assignedById: session.sub,
           questions: { create: selection.map((s) => ({ questionId: s.id, order: s.order })) },
         },

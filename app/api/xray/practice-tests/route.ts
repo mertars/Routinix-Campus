@@ -7,21 +7,27 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/xray/practice-tests?subject=Matematik — Test 1 (Konu Bilgisi)
-// için soru havuzu bulunan KONULARI (subtopicId bazlı) döner. Faz G:
-// öğrenci artık belirli bir testId SEÇMİYOR — bir konu seçtiğinde sistem
-// o konunun TÜM havuzundan (onlarca yüklemenin toplamı) rastgele bir test
-// derler (bkz. lib/server/xray/practice-pool.ts), bu yüzden liste artık
-// testId değil subtopicId bazında gruplanıyor.
+// GET /api/xray/practice-tests?subject=Matematik&variant=genel — Test 1
+// (Konu Bilgisi) için soru havuzu bulunan KONULARI (subtopicId bazlı)
+// döner. Faz G: öğrenci artık belirli bir testId SEÇMİYOR — bir konu
+// seçtiğinde sistem o konunun TÜM havuzundan (onlarca yüklemenin toplamı)
+// rastgele bir test derler (bkz. lib/server/xray/practice-pool.ts), bu
+// yüzden liste artık testId değil subtopicId bazında gruplanıyor.
+//
+// Faz Z6: variant zorunlu değil (varsayılan "genel", geriye dönük uyumlu)
+// ama HER ZAMAN filtreye dahil edilir — aksi halde "genel" (tema geneli,
+// 30 soru) ve "alt_konu" (tek alt konu, 10 soru) havuzları AYNI subtopicId
+// altında karışırdı (ikisi de XrayPracticeQuestion.subtopicId'ye yazıyor).
 async function handleGet(request: NextRequest) {
   try {
     await requireSession();
 
     const subject = request.nextUrl.searchParams.get("subject");
     if (!subject?.trim()) return NextResponse.json({ error: "subject parametresi zorunludur." }, { status: 400 });
+    const variant = request.nextUrl.searchParams.get("variant") || "genel";
 
     const questions = await prisma.xrayPracticeQuestion.findMany({
-      where: { subject },
+      where: { subject, variant },
       select: { subtopicId: true, kazanimId: true },
     });
 

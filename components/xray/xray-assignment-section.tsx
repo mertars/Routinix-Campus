@@ -5,7 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ClipboardList, Send, Loader2, Lock, Check, Flag, Clock, ChevronDown, X } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { XrayAssignmentTargetPicker, type AssignmentTarget } from "@/components/xray/xray-assignment-target-picker";
+import { XrayInfoButton } from "@/components/xray/xray-info-button";
 import { cn } from "@/lib/utils";
+
+const COMPREHENSION_INFO_TEXT =
+  "Seçilen konudaki kilitli/çok seçenekli sorulardan oluşur (soru sayısı konuya göre değişir). Kurumumuzun özel soru bankasından gelir, öğrenci teste başladıktan sonra sekme değiştirme/pencere kaybı gibi hareketler tespit edilip işaretlenir — bu yüzden \"kilitli\" test olarak adlandırılır. Her yanlış şık, o kavramda neyin karıştırıldığını gösteren ayrı bir açıklamayla değerlendirilir.";
 
 type Topic = { subtopicId: string; name: string; questionCount: number };
 type Assignment = {
@@ -134,6 +138,7 @@ export function XrayAssignmentSection({
     >
       <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
         <ClipboardList className="h-4 w-4 text-sky-600 dark:text-sky-400" /> Ne Kadar Anlamış — Kilitli Test Ata
+        <XrayInfoButton text={COMPREHENSION_INFO_TEXT} />
       </h3>
 
       {topics.length === 0 ? (

@@ -1632,6 +1632,7 @@ model XrayPracticeAttempt {
   student      Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject      String
   subtopicId   String
+  variant      String               @default("genel") // "genel" | "alt_konu" | "yeterlilik" — bkz. XrayPracticeQuestion.variant yorumu. Atama anında havuz BU alana göre filtrelenir (route.ts) — filtrelenmezse "genel" (tema geneli, 30 soru) ve "alt_konu" (tek alt konu, 10 soru) havuzları AYNI subtopicId altında karışırdı.
   assignedById String
   assignedBy   Admin                @relation(fields: [assignedById], references: [id], onDelete: Cascade)
   status       XrayAssignmentStatus @default(ASSIGNED)
