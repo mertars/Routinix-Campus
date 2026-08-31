@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X } from "lucide-react";
+import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { XrayQuestionPoolWizard } from "@/components/platform/xray-question-pool-wizard";
 import { useToast } from "@/lib/toast-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -179,6 +180,7 @@ export default function PlatformDashboardPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newCredentials, setNewCredentials] = useState<NewInstitutionCredentials | null>(null);
   const [detailInstitutionId, setDetailInstitutionId] = useState<string | null>(null);
+  const [isQuestionPoolOpen, setIsQuestionPoolOpen] = useState(false);
 
   async function loadInstitutions() {
     try {
@@ -231,12 +233,20 @@ export default function PlatformDashboardPage() {
               {institutions ? `${institutions.length} kurum · kurulum yapmak/hesapları görmek için bir karta tıkla` : "Yükleniyor..."}
             </p>
           </div>
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-espresso px-4 py-2.5 text-sm font-medium text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
-          >
-            <Plus className="h-4 w-4" /> Yeni Kurum Aç
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsQuestionPoolOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 text-sm font-medium text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300"
+            >
+              <Scan className="h-4 w-4" /> Röntgen Soru Havuzu Yükle
+            </button>
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-espresso px-4 py-2.5 text-sm font-medium text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+            >
+              <Plus className="h-4 w-4" /> Yeni Kurum Aç
+            </button>
+          </div>
         </div>
 
         {institutions === null ? (
@@ -315,6 +325,7 @@ export default function PlatformDashboardPage() {
       />
       <CredentialsOnceModal credentials={newCredentials} onClose={() => setNewCredentials(null)} />
       <InstitutionDetailModal institutionId={detailInstitutionId} onClose={() => setDetailInstitutionId(null)} />
+      <XrayQuestionPoolWizard isOpen={isQuestionPoolOpen} onClose={() => setIsQuestionPoolOpen(false)} />
     </main>
   );
 }

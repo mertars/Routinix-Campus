@@ -5,7 +5,6 @@ import { XrayTopBar } from "@/components/xray/xray-top-bar";
 import { XrayResultsPanel, type XrayRosterStudent } from "@/components/xray/xray-results-panel";
 import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
 import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
-import { XrayQuestionPoolUpload } from "@/components/xray/xray-question-pool-upload";
 import { useToast } from "@/lib/toast-context";
 
 // Kurum geneli röntgen merkezi — roster TÜM kurumdan gelir (bkz.
@@ -44,7 +43,6 @@ export default function XrayPrincipalPage() {
     <div className="min-h-screen bg-cream dark:bg-midnight">
       <XrayTopBar roleLabel="Yönetici" />
       <div className="space-y-3 px-4 pt-4 lg:px-6">
-        <XrayQuestionPoolUpload />
         <XrayMonthlyScreeningPanel />
         <XrayInstitutionInsights />
       </div>
