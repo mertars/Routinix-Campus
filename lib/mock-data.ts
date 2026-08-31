@@ -437,16 +437,57 @@ export type CurriculumTopic = { id: string; name: string; grade: GradeLevel; sub
 export const XRAY_MIN_GRADE = 9;
 
 export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
+  // Faz Y — kullanıcının verdiği resmi "KONU LİSTESİ SIRA AKIŞI" (2024 MEB
+  // lise matematik müfredat reformu — konular tek seferlik DEĞİL, sarmal
+  // biçimde birden fazla sınıf seviyesinde artan derinlikte TEKRAR ediyor;
+  // örn. "Trigonometri" hem 9. hem 11. hem 12. sınıfta AYRI birer konu
+  // olarak geçiyor). BU YÜZDEN aynı isim farklı grade'lerde AYRI id'lerle
+  // (mt9-/mt10-/mt11-/mt12- öneki) temsil ediliyor — asla tek bir id'ye
+  // birleştirilmiyor, aksi halde 9. sınıftaki temel seviye ile 12.
+  // sınıftaki derinleşmiş seviye AYNI ustalık skoruna karışırdı.
+  //
+  // ⚠️ 4 id BİLEREK ESKİ İSİMLERİYLE/YERLERİYLE KORUNDU çünkü GERÇEK
+  // üretim verisi (yüklenmiş soru havuzu + gerçek TopicMasteryAssessment
+  // kayıtları) onlara referans veriyor — id'leri değiştirmek o veriyi
+  // YETİM bırakırdı: mt9 (isim "Kümeler ve Sayılar"dan resmi "Sayılar"a
+  // güncellendi, id/alt konular AYNI kaldı — mt9-2'de gerçek soru+skor
+  // var), mt11a (zaten "Trigonometri", resmi 11. sınıf listesiyle
+  // birebir eşleşiyor), mt12a (zaten "Türev"), mt12b (zaten "İntegral",
+  // mt12b-1'de GERÇEK 30 soruluk yüklenmiş havuz var). mt10 ("Fonksiyonlar")
+  // ve mt11b ("Diziler", resmi 11. sınıf listesinde YOK) gerçek veri
+  // taşımıyorsa/taşıyorsa ayrı ele alındı — bkz. aşağıdaki yorumlar.
+  //
+  // Kullanıcı SADECE konu (topic) isimlerini verdi, alt konu (subtopic)
+  // kırılımı vermedi — bu yüzden YENİ eklenen her konu, o konuyu temsil
+  // eden TEK bir alt konuyla (aynı isimli) başlıyor; admin panelinden
+  // soru havuzuna hemen atanabilir olsun diye. Daha ayrıntılı bir alt
+  // konu kırılımı istenirse ayrıca eklenir.
   Matematik: [
     {
       id: "mt9",
-      name: "Kümeler ve Sayılar",
+      name: "Sayılar",
       grade: 9,
       subtopics: [
         { id: "mt9-1", name: "Küme Kavramı ve İşlemler", covered: true, dateCovered: "5 hafta önce" },
         { id: "mt9-2", name: "Rasyonel ve Gerçek Sayılar", covered: false },
       ],
     },
+    { id: "mt9-nicelikler-degisimler", name: "Nicelikler ve Değişimler", grade: 9, subtopics: [{ id: "mt9-nicelikler-degisimler-1", name: "Nicelikler ve Değişimler", covered: false }] },
+    { id: "mt9-algoritma-bilisim", name: "Algoritma ve Bilişim", grade: 9, subtopics: [{ id: "mt9-algoritma-bilisim-1", name: "Algoritma ve Bilişim", covered: false }] },
+    { id: "mt9-geometrik-sekiller", name: "Geometrik Şekiller", grade: 9, subtopics: [{ id: "mt9-geometrik-sekiller-1", name: "Geometrik Şekiller", covered: false }] },
+    { id: "mt9-eslik-benzerlik", name: "Eşlik ve Benzerlik", grade: 9, subtopics: [{ id: "mt9-eslik-benzerlik-1", name: "Eşlik ve Benzerlik", covered: false }] },
+    { id: "mt9-istatistiksel-arastirma", name: "İstatistiksel Araştırma Süreci", grade: 9, subtopics: [{ id: "mt9-istatistiksel-arastirma-1", name: "İstatistiksel Araştırma Süreci", covered: false }] },
+    { id: "mt9-ustel-logaritmik", name: "Üstel ve Logaritmik Fonksiyonlar", grade: 9, subtopics: [{ id: "mt9-ustel-logaritmik-1", name: "Üstel ve Logaritmik Fonksiyonlar", covered: false }] },
+    { id: "mt9-diziler", name: "Diziler", grade: 9, subtopics: [{ id: "mt9-diziler-1", name: "Diziler", covered: false }] },
+    { id: "mt9-trigonometri", name: "Trigonometri", grade: 9, subtopics: [{ id: "mt9-trigonometri-1", name: "Trigonometri", covered: false }] },
+    { id: "mt9-donusumler", name: "Dönüşümler", grade: 9, subtopics: [{ id: "mt9-donusumler-1", name: "Dönüşümler", covered: false }] },
+    { id: "mt9-turev", name: "Türev", grade: 9, subtopics: [{ id: "mt9-turev-1", name: "Türev", covered: false }] },
+    { id: "mt9-integral", name: "İntegral", grade: 9, subtopics: [{ id: "mt9-integral-1", name: "İntegral", covered: false }] },
+    { id: "mt9-analitik-geometri", name: "Analitik Geometri", grade: 9, subtopics: [{ id: "mt9-analitik-geometri-1", name: "Analitik Geometri", covered: false }] },
+
+    // "Fonksiyonlar" resmi 10. sınıf listesinde YOK ama mt10-1'de GERÇEK
+    // ustalık kaydı var (bkz. yukarıdaki dosya geneli not) — id/isim
+    // BİLEREK dokunulmadan, resmi 10. sınıf konularının YANINA eklendi.
     {
       id: "mt10",
       name: "Fonksiyonlar",
@@ -457,6 +498,13 @@ export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
         { id: "mt10-3", name: "Ters Fonksiyon", covered: false },
       ],
     },
+    { id: "mt10-sayilar", name: "Sayılar", grade: 10, subtopics: [{ id: "mt10-sayilar-1", name: "Sayılar", covered: false }] },
+    { id: "mt10-nicelikler-degisimler", name: "Nicelikler ve Değişimler", grade: 10, subtopics: [{ id: "mt10-nicelikler-degisimler-1", name: "Nicelikler ve Değişimler", covered: false }] },
+    { id: "mt10-sayma-algoritma-bilisim", name: "Sayma, Algoritma ve Bilişim", grade: 10, subtopics: [{ id: "mt10-sayma-algoritma-bilisim-1", name: "Sayma, Algoritma ve Bilişim", covered: false }] },
+    { id: "mt10-geometrik-sekiller", name: "Geometrik Şekiller", grade: 10, subtopics: [{ id: "mt10-geometrik-sekiller-1", name: "Geometrik Şekiller", covered: false }] },
+    { id: "mt10-analitik-inceleme", name: "Analitik İnceleme", grade: 10, subtopics: [{ id: "mt10-analitik-inceleme-1", name: "Analitik İnceleme", covered: false }] },
+    { id: "mt10-istatistiksel-arastirma", name: "İstatistiksel Araştırma Süreci", grade: 10, subtopics: [{ id: "mt10-istatistiksel-arastirma-1", name: "İstatistiksel Araştırma Süreci", covered: false }] },
+
     {
       id: "mt11a",
       name: "Trigonometri",
@@ -466,15 +514,20 @@ export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
         { id: "mt11a-2", name: "Trigonometrik Fonksiyonlar", covered: false },
       ],
     },
-    {
-      id: "mt11b",
-      name: "Diziler",
-      grade: 11,
-      subtopics: [
-        { id: "mt11b-1", name: "Aritmetik Diziler", covered: true, dateCovered: "1 hafta önce" },
-        { id: "mt11b-2", name: "Geometrik Diziler", covered: false },
-      ],
-    },
+    { id: "mt11-analitik-geometri", name: "Analitik Geometri", grade: 11, subtopics: [{ id: "mt11-analitik-geometri-1", name: "Analitik Geometri", covered: false }] },
+    { id: "mt11-fonksiyonlarda-uygulamalar", name: "Fonksiyonlarda Uygulamalar", grade: 11, subtopics: [{ id: "mt11-fonksiyonlarda-uygulamalar-1", name: "Fonksiyonlarda Uygulamalar", covered: false }] },
+    { id: "mt11-denklem-esitsizlik", name: "Denklem ve Eşitsizlik Sistemleri", grade: 11, subtopics: [{ id: "mt11-denklem-esitsizlik-1", name: "Denklem ve Eşitsizlik Sistemleri", covered: false }] },
+    { id: "mt11-cember-daire", name: "Çember ve Daire", grade: 11, subtopics: [{ id: "mt11-cember-daire-1", name: "Çember ve Daire", covered: false }] },
+    { id: "mt11-uzay-geometri", name: "Uzay Geometri", grade: 11, subtopics: [{ id: "mt11-uzay-geometri-1", name: "Uzay Geometri", covered: false }] },
+    { id: "mt11-olasilik", name: "Olasılık", grade: 11, subtopics: [{ id: "mt11-olasilik-1", name: "Olasılık", covered: false }] },
+    // Eski "mt11b" (Diziler, 11. sınıf) BİLEREK KALDIRILDI — resmi 11.
+    // sınıf listesinde Diziler YOK (sadece 9. ve 12. sınıfta var) ve bu
+    // id'ye bağlı gerçek veri yoktu (kontrol edildi).
+
+    { id: "mt12-ustel-logaritmik", name: "Üstel ve Logaritmik Fonksiyonlar", grade: 12, subtopics: [{ id: "mt12-ustel-logaritmik-1", name: "Üstel ve Logaritmik Fonksiyonlar", covered: false }] },
+    { id: "mt12-diziler", name: "Diziler", grade: 12, subtopics: [{ id: "mt12-diziler-1", name: "Diziler", covered: false }] },
+    { id: "mt12-trigonometri", name: "Trigonometri", grade: 12, subtopics: [{ id: "mt12-trigonometri-1", name: "Trigonometri", covered: false }] },
+    { id: "mt12-donusumler", name: "Dönüşümler", grade: 12, subtopics: [{ id: "mt12-donusumler-1", name: "Dönüşümler", covered: false }] },
     {
       id: "mt12a",
       name: "Türev",
@@ -494,6 +547,7 @@ export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
         { id: "mt12b-2", name: "Belirli İntegral ve Alan Hesabı", covered: false },
       ],
     },
+    { id: "mt12-analitik-geometri", name: "Analitik Geometri", grade: 12, subtopics: [{ id: "mt12-analitik-geometri-1", name: "Analitik Geometri", covered: false }] },
   ],
   Fizik: [
     {
