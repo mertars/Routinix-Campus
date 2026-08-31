@@ -52,7 +52,7 @@ import {
 } from "../lib/server/xray/question-generation/prompt";
 import { validateGenelRoundResponse, validateAltKonuRoundResponse, validateFixResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
 import { verifyContent, type VerificationIssue } from "../lib/server/xray/question-generation/verify-content";
-import { checkAnswerConsistency, checkFormatHealth, checkNoMultipleChoice, checkArithmeticSteps } from "../lib/server/xray/question-generation/deterministic-checks";
+import { checkAnswerConsistency, checkFormatHealth, checkNoMultipleChoice, checkArithmeticSteps, checkCrossRoundDuplication } from "../lib/server/xray/question-generation/deterministic-checks";
 import { slugifyTestName } from "../lib/server/xray/question-pool-upload";
 
 const SUBJECT = "Matematik";
@@ -79,8 +79,15 @@ type LoggedIssue = { soruNo: number; source: "deterministic" | "ai-verify" | "ai
 async function runContentChecks(
   questions: { soruNo: number; questionText: string; finalAnswer: string; detailedSolution: string }[],
   recheckPass: boolean,
+  priorRoundsQuestions: { soruNo: number; questionText: string }[][] = [],
 ): Promise<{ ok: true; tokensUsed: number; logged: LoggedIssue[] } | { ok: false; issues: VerificationIssue[]; tokensUsed: number; logged: LoggedIssue[] }> {
-  const deterministic = [...checkAnswerConsistency(questions), ...checkFormatHealth(questions), ...checkNoMultipleChoice(questions), ...checkArithmeticSteps(questions)];
+  const deterministic = [
+    ...checkAnswerConsistency(questions),
+    ...checkFormatHealth(questions),
+    ...checkNoMultipleChoice(questions),
+    ...checkArithmeticSteps(questions),
+    ...checkCrossRoundDuplication(questions, priorRoundsQuestions),
+  ];
   const aiCheck = await verifyContent(VERIFY_MODEL, VERIFY_MAX_TOKENS, questions);
   const tokensUsed = aiCheck.tokensUsed;
   const aiSource = recheckPass ? ("ai-recheck" as const) : ("ai-verify" as const);
@@ -118,6 +125,7 @@ async function fixFlaggedQuestions<Q extends FixableQuestion>(
   questions: Q[],
   issues: VerificationIssue[],
   subtopicNameBySoruNo: Map<number, string> | null,
+  priorRoundsQuestions: { soruNo: number; questionText: string }[][] = [],
 ): Promise<{ ok: true; questions: Q[]; tokensUsed: number; logged: LoggedIssue[] } | { ok: false; tokensUsed: number; logged: LoggedIssue[] }> {
   let current = questions;
   let remainingIssues = issues.filter((i) => i.soruNo >= 0 && current.some((q) => q.soruNo === i.soruNo));
@@ -132,7 +140,7 @@ async function fixFlaggedQuestions<Q extends FixableQuestion>(
     });
     console.log(`    🔧 Hedefli düzeltme ${fixAttempt}/${MAX_FIX_ATTEMPTS} — ${flawed.length} soru: ${flawed.map((f) => f.soruNo).join(",")}`);
 
-    const fixCompletion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_FIX, userPrompt: buildFixUserPrompt(flawed, fixAttempt > 1), maxTokens: MAX_TOKENS, temperature: 0.5 });
+    const fixCompletion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_FIX, userPrompt: buildFixUserPrompt(flawed, fixAttempt > 1, priorRoundsQuestions), maxTokens: MAX_TOKENS, temperature: 0.5 });
     tokensUsed += fixCompletion.totalTokens;
     const fixValidation = validateFixResponse(
       fixCompletion.content,
@@ -150,7 +158,7 @@ async function fixFlaggedQuestions<Q extends FixableQuestion>(
     });
 
     const toRecheck = current.filter((q) => fixedBySoruNo.has(q.soruNo));
-    const recheck = await runContentChecks(toRecheck, true);
+    const recheck = await runContentChecks(toRecheck, true, priorRoundsQuestions);
     tokensUsed += recheck.tokensUsed;
     logged.push(...recheck.logged);
     if (recheck.ok === true) return { ok: true, questions: current, tokensUsed, logged };
@@ -251,14 +259,33 @@ async function writeRoundResult(params: {
   }
 }
 
+// Faz Z12 — turlar arası çeşitlilik kontrolü (checkCrossRoundDuplication)
+// için, ÖNCEKİ BAŞARILI turların questionText'lerini DB'den çeker. Round
+// 1'de boş dizi döner (karşılaştıracak önceki tur yok).
+async function getPriorRoundsQuestions(variant: string, unitId: string, currentRoundNumber: number): Promise<{ soruNo: number; questionText: string }[][]> {
+  if (currentRoundNumber <= 1) return [];
+  const priorRounds = await prisma.xrayPoolGenerationRound.findMany({
+    where: { subject: SUBJECT, variant, unitId, roundNumber: { lt: currentRoundNumber }, status: "success" },
+    select: { testId: true },
+  });
+  const result: { soruNo: number; questionText: string }[][] = [];
+  for (const r of priorRounds) {
+    if (!r.testId) continue;
+    const qs = await prisma.xrayPracticeQuestion.findMany({ where: { testId: r.testId }, select: { order: true, prompt: true } });
+    result.push(qs.map((q) => ({ soruNo: q.order, questionText: q.prompt })));
+  }
+  return result;
+}
+
 // ── "genel" — 30 soru, tema tümü ──
 
 async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lockedBlueprint: GenelBlueprintSlot[] | null) {
   let totalTokens = 0;
   let lastError = "";
   const allLogged: LoggedIssue[] = [];
+  const priorRoundsQuestions = await getPriorRoundsQuestions("genel", topic.topicId, roundNumber);
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ROUND; attempt++) {
-    const basePrompt = roundNumber === 1 ? buildGenelRound1UserPrompt(topic) : buildGenelRoundNUserPrompt(topic, lockedBlueprint!, roundNumber);
+    const basePrompt = roundNumber === 1 ? buildGenelRound1UserPrompt(topic) : buildGenelRoundNUserPrompt(topic, lockedBlueprint!, roundNumber, priorRoundsQuestions);
     const userPrompt = attempt === 1 ? basePrompt : basePrompt + buildRetryCorrectionSuffix(lastError);
     const completion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_GENEL, userPrompt, maxTokens: MAX_TOKENS });
     totalTokens += completion.totalTokens;
@@ -269,7 +296,7 @@ async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lo
       continue;
     }
 
-    const check = await runContentChecks(validation.questions, false);
+    const check = await runContentChecks(validation.questions, false, priorRoundsQuestions);
     totalTokens += check.tokensUsed;
     allLogged.push(...check.logged);
     if (check.ok === true) {
@@ -278,7 +305,7 @@ async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lo
     }
 
     const subtopicNameBySoruNo = new Map(validation.questions.map((q) => [q.soruNo, topic.subtopics.find((s) => s.subtopicId === q.subtopicId)?.subtopicName ?? q.subtopicId]));
-    const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, subtopicNameBySoruNo);
+    const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, subtopicNameBySoruNo, priorRoundsQuestions);
     totalTokens += fixResult.tokensUsed;
     allLogged.push(...fixResult.logged);
     if (fixResult.ok) {
@@ -336,8 +363,9 @@ async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: nu
   let totalTokens = 0;
   let lastError = "";
   const allLogged: LoggedIssue[] = [];
+  const priorRoundsQuestions = await getPriorRoundsQuestions("alt_konu", subtopic.subtopicId, roundNumber);
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ROUND; attempt++) {
-    const basePrompt = roundNumber === 1 ? buildAltKonuRound1UserPrompt(subtopic) : buildAltKonuRoundNUserPrompt(subtopic, lockedBlueprint!, roundNumber);
+    const basePrompt = roundNumber === 1 ? buildAltKonuRound1UserPrompt(subtopic) : buildAltKonuRoundNUserPrompt(subtopic, lockedBlueprint!, roundNumber, priorRoundsQuestions);
     const userPrompt = attempt === 1 ? basePrompt : basePrompt + buildRetryCorrectionSuffix(lastError);
     const completion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_ALT_KONU, userPrompt, maxTokens: MAX_TOKENS });
     totalTokens += completion.totalTokens;
@@ -348,7 +376,7 @@ async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: nu
       continue;
     }
 
-    const check = await runContentChecks(validation.questions, false);
+    const check = await runContentChecks(validation.questions, false, priorRoundsQuestions);
     totalTokens += check.tokensUsed;
     allLogged.push(...check.logged);
     if (check.ok === true) {
@@ -357,7 +385,7 @@ async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: nu
       return { ok: true as const, questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
     }
 
-    const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, null);
+    const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, null, priorRoundsQuestions);
     totalTokens += fixResult.tokensUsed;
     allLogged.push(...fixResult.logged);
     if (fixResult.ok) {

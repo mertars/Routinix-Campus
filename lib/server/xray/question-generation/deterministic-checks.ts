@@ -54,8 +54,18 @@ function parseSimpleNumber(raw: string): number | null {
 // bir soru YANLIŞLIKLA "sorunlu" işaretleniyordu. Artık HER ÜÇ kalıp
 // (düz sayı, \frac{a}{b}, düz a/b) birlikte taranıp GERÇEKTEN METİNDE EN
 // SON geçen aday seçiliyor.
+// Faz Z13 — canlı düzeltme turlarında bulunan İKİNCİ YANLIŞ POZİTİF: "3x + 2
+// = 4(x - 2)" veya "2 + 8 = 4x - 3x" gibi denklemlerde "=" hemen ardından
+// gelen "4(...)" veya "4x" bir KATSAYI/alt-ifadedir, NİHAİ sonuç DEĞİLDİR —
+// eski regex bunu "= 4" SANIYORDU (çünkü sadece "başka bir rakam" gelmediği
+// sürece eşleşiyordu, parantez/harf kontrolü yoktu). Bu yanlış eşleşme,
+// çözümün asıl son satırı "10 = x" gibi (sayı SOLDA, değişken SAĞDA)
+// yazıldığında hiç eşleşmediği için LİSTEDEKİ SON aday olarak kalıyor ve
+// doğru bir soru ("finalAnswer 10", çözüm de 10'a ulaşıyor) YANLIŞLIKLA
+// tutarsız işaretleniyordu. Artık sayı hemen ardından "(" veya bir harf
+// geliyorsa (katsayı/değişken bitişiği sinyali) o eşleşme ATLANIYOR.
 function extractTrailingNumber(text: string): number | null {
-  const pattern = /=\s*(?:\\?frac\{(-?\d+(?:[.,]\d+)?)\}\{(-?\d+(?:[.,]\d+)?)\}|(-?\d+(?:[.,]\d+)?)\s*\/\s*(-?\d+(?:[.,]\d+)?)|(-?\d+(?:[.,]\d+)?)(?!\d))/g;
+  const pattern = /=\s*(?:\\?frac\{(-?\d+(?:[.,]\d+)?)\}\{(-?\d+(?:[.,]\d+)?)\}|(-?\d+(?:[.,]\d+)?)\s*\/\s*(-?\d+(?:[.,]\d+)?)|(-?\d+(?:[.,]\d+)?)(?!\d|\(|[a-zA-ZçÇğĞıİöÖşŞüÜ]))/g;
   let lastValue: number | null = null;
   for (const m of text.matchAll(pattern)) {
     let value: number | null = null;
@@ -194,6 +204,51 @@ export function checkArithmeticSteps(questions: { soruNo: number; detailedSoluti
         issues.push({
           soruNo: q.soruNo,
           reason: `detailedSolution içinde hatalı aritmetik: "${a} ${op} ${b} = ${stated}" yazılmış ama gerçek sonuç ${expected} olmalı — deterministik kontrol.`,
+        });
+        break;
+      }
+    }
+  }
+  return issues;
+}
+
+// Faz Z12 — kullanıcının "sistem senden sıyrılmıyor dimi, daha çok
+// sorgula" uyarısı üzerine yapılan derin taramada bulundu: doğruluk hep
+// kontrol ediliyordu ama TURLAR ARASI ÇEŞİTLİLİK hiç kontrol edilmiyordu.
+// Gerçek örnek: Tur 3 ve Tur 4'te AYNI soruNo'da "2/3 + 1/6" — SAYILARI
+// BİLE AYNI, sadece "kaçtır?" / "bulunuz." gibi yüzeysel ifade farkı vardı.
+// Havuzun TÜM amacı ("her denemede farklı sorularla gelsin") bu şekilde
+// zedeleniyor — bir öğrenci aynı konuyu 2. kez çözerse rastgele havuzdan
+// birebir AYNI soruyu çekebilir. Bu kontrol, mevcut/önceki turların
+// questionText'inden çıkardığı SAYI+OPERATÖR imzasını (yüzeysel Türkçe
+// ifade farkını YOK SAYARAK) karşılaştırır — imza aynıysa "neredeyse
+// birebir aynı soru" sayılır.
+// Faz Z13 — dışa açıldı: prompt.ts, round N-1 prompt'una "bunları
+// tekrarlama" listesi enjekte etmek için AYNI imza fonksiyonunu kullanır —
+// tek kaynak, kontrol ile üretim prompt'u arasında imza mantığı SÜRÜKLENMEZ.
+export function numericSignature(text: string): string {
+  const tokens = text.match(/\d+(?:[.,]\d+)?|[+\-*/×÷^]|\\frac|\\sqrt/g) ?? [];
+  return tokens.join("|");
+}
+
+// Faz Z13 — kök neden düzeltmesi: eskiden reason SADECE "önceki bir turla
+// aynı" diyordu, HANGİ soru/hangi tur olduğunu SÖYLEMİYORDU — bu yüzden
+// hedefli düzeltme (fixFlaggedQuestions) modelin ÖNCEKİ soruyu GÖRMEDEN
+// "farklı yap" demesine, yani AYNI kör tekrara yol açıyordu. Artık reason
+// önceki sorunun GERÇEK METNİNİ içeriyor — hem loglarda hem düzeltme
+// prompt'unda somut bir "bundan kaçın" referansı oluyor.
+export function checkCrossRoundDuplication(currentQuestions: { soruNo: number; questionText: string }[], priorRoundsQuestions: { soruNo: number; questionText: string }[][]): DeterministicIssue[] {
+  const issues: DeterministicIssue[] = [];
+  for (const q of currentQuestions) {
+    const currentSig = numericSignature(q.questionText);
+    if (currentSig.length === 0) continue; // sayı içermeyen soru (ör. yorum/kanıt sorusu) — güvenle karşılaştırılamaz
+    for (const priorQuestions of priorRoundsQuestions) {
+      const prior = priorQuestions.find((p) => p.soruNo === q.soruNo);
+      if (!prior) continue;
+      if (numericSignature(prior.questionText) === currentSig) {
+        issues.push({
+          soruNo: q.soruNo,
+          reason: `Bu soru, önceki bir turdaki AYNI soruNo'daki şu soruyla (aynı sayılar/işlemler) neredeyse birebir aynı: "${prior.questionText}" — havuzda çeşitlilik olmalı, TAMAMEN FARKLI sayılar/bağlam kullan — deterministik kontrol.`,
         });
         break;
       }

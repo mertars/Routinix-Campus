@@ -1,4 +1,5 @@
 import type { FlattenedTopic, FlattenedSubtopic } from "./curriculum-flatten";
+import { numericSignature } from "./deterministic-checks";
 
 // Faz Z4/Z5 — Akademik Röntgen soru havuzu prompt'ları. İKİ variant burada
 // tanımlı: "genel" (temanın TÜMÜNÜ kapsayan 30 soruluk havuz, tüm alt
@@ -32,7 +33,10 @@ const SELF_CHECK_CLAUSE = `KENDİ KENDİNİ KONTROL ET (ÇOK ÖNEMLİ — geçmi
    - DOĞRU: detailedSolution "...a+b = 5 bulunur" diye bitiyorsa finalAnswer da BİREBİR "5" olmalı.
 2. Kesir sadeleştirirken payı ve paydayı GERÇEKTEN ortak bir tam sayıya bölüp bölemediğini iki kez kontrol et. Payı ve paydası aralarında asal olan (ortak böleni olmayan) bir kesir ZATEN en sade halidir — sadeleştirilebilir SANIP yanlış bir sadeleştirme YAPMA (gerçek üretimde yakalanan hata: "35/66 sadeleştirilerek 1/2" denmiş, ama 35 ile 66 aralarında asaldır, sadeleşmez).
 3. Üslü ifadelerde toplama/çarpma/bölme kurallarını (üs toplama/çıkarma) uygularken, özellikle birden fazla adım varsa SON adımı yazmadan önce baştan bir kez daha elle doğrula.
-4. "Hangi sayı/ifade X değildir?" tarzı soruları YAZARKEN, cevap seçeneklerini "a) ... b) ... c) ... d) ..." şeklinde SIRALAMA — bu, YASAK olan çoktan seçmeli formata kayar (gerçek üretimde defalarca yakalandı, hep AYNI kazanım tipinde: "hangisi rasyonel/gerçek sayı değildir"). Bunun yerine TEK BİR somut sayı/ifade için doğrudan sor (örn. "√2 sayısı rasyonel bir sayı mıdır? Nedenini kısaca açıklayınız.") — asla birden fazla seçeneği yan yana a)/b)/c)/d) etiketleriyle listeleme.`;
+4. "Hangi sayı/ifade X değildir?" tarzı soruları YAZARKEN, cevap seçeneklerini "a) ... b) ... c) ... d) ..." şeklinde SIRALAMA — bu, YASAK olan çoktan seçmeli formata kayar (gerçek üretimde defalarca yakalandı, hep AYNI kazanım tipinde: "hangisi rasyonel/gerçek sayı değildir"). Bunun yerine TEK BİR somut sayı/ifade için doğrudan sor (örn. "√2 sayısı rasyonel bir sayı mıdır? Nedenini kısaca açıklayınız.") — asla birden fazla seçeneği yan yana a)/b)/c)/d) etiketleriyle listeleme.
+5. questionText BİRDEN FAZLA şey istiyorsa (örn. "...üslü gösterimle yazınız VE değerini bulunuz"), finalAnswer İSTENEN HER PARÇAYI içermeli — SADECE son sayısal değeri yazıp diğer istenen parçayı (üslü/köklü gösterim, ifade, birim vb.) ATLAMA.
+   - YANLIŞ örnek (gerçek üretimde defalarca yakalandı): soru "\\sqrt[3]{64} ifadesini üslü gösterimle yazınız ve değerini bulunuz" derken finalAnswer sadece "4" yazılmış — üslü gösterim (64^{1/3}) eksik.
+   - DOĞRU: finalAnswer "64^{\\frac{1}{3}} = 4" gibi İSTENEN HER PARÇAYI içermeli.`;
 
 // ── "genel" — 30 soru, temanın TÜMÜ, tüm alt konulara dağılır ──
 
@@ -64,6 +68,37 @@ VERİ ALANLARI (her soru objesi için, İSTİSNASIZ hepsi dolu olacak):
 
 TEKNİK FORMAT: Çıktı SADECE geçerli bir JSON dizisi (tam 30 eleman) olacak — başka hiçbir açıklama, markdown çiti veya metin ekleme. LaTeX kullan, çift ters eğik çizgi tercih et (\\\\sqrt{}, \\\\frac{}{}).`;
 
+// Faz Z13 — kök neden düzeltmesi: round N-1 prompt'u eskiden SADECE
+// "sayıları önceki turlardan farklı yap" diye BELİRSİZ bir talimat
+// veriyordu, modelin NEYİ tekrarlamaması gerektiğini GÖSTERMİYORDU. Sonuç:
+// aynı kazanım için model hep aynı "kanonik" örneğe (ör. hep "3√5+2√5"
+// tarzı) yakınsıyordu ve tur sayısı arttıkça çakışma oranı da artıyordu
+// (turlar arası çeşitlilik kontrolü canlı taramada bunu kanıtladı — bkz.
+// checkCrossRoundDuplication). Bu fonksiyon her soruNo için ÖNCEKİ
+// turlarda o slotta kullanılmış sayı/işlem imzalarını (numericSignature —
+// yüzeysel Türkçe ifade farkını YOK SAYAR, sadece sayı+operatör dizisini
+// alır) TOPLAYIP modele SOMUT bir "bunlardan kaçın" listesi olarak
+// gösterir. Tam soru metnini DEĞİL sadece kompakt imzayı göstermek, tur
+// sayısı arttıkça prompt boyutunun kontrolsüz büyümesini önler.
+function buildAvoidDuplicationBlock(priorRoundsQuestions: { soruNo: number; questionText: string }[][]): string {
+  if (priorRoundsQuestions.length === 0) return "";
+  const bySoruNo = new Map<number, Set<string>>();
+  for (const round of priorRoundsQuestions) {
+    for (const q of round) {
+      const sig = numericSignature(q.questionText);
+      if (sig.length === 0) continue;
+      if (!bySoruNo.has(q.soruNo)) bySoruNo.set(q.soruNo, new Set());
+      bySoruNo.get(q.soruNo)!.add(sig);
+    }
+  }
+  if (bySoruNo.size === 0) return "";
+  const lines = [...bySoruNo.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([soruNo, sigs]) => `soruNo ${soruNo}: ${[...sigs].map((s) => `[${s.replace(/\|/g, " ")}]`).join(", ")}`)
+    .join("\n");
+  return `\n\nÇEŞİTLİLİK UYARISI (ÇOK ÖNEMLİ): Aşağıda her soruNo için ÖNCEKİ turlarda KULLANILMIŞ sayı/işlem dizileri listelenmiş. Bu turda AYNI soruNo'da bu dizilerin HİÇBİRİNİ (aynı sayılar, aynı işlem sırası) TEKRARLAMA — sayıları/bağlamı MUTLAKA gözle görülür şekilde farklı seç:\n${lines}`;
+}
+
 function topicLabel(t: FlattenedTopic): string {
   return `${t.grade}. Sınıf > ${t.topicName}`;
 }
@@ -84,7 +119,12 @@ Bu, bu konu için İLK tur. Her alt konuyu 1-3 mikro kazanıma (kazanımId) böl
 Sadece JSON dizisini döndür.`;
 }
 
-export function buildGenelRoundNUserPrompt(topic: FlattenedTopic, blueprint: { subtopicId: string; kazanimId: string }[], roundNumber: number): string {
+export function buildGenelRoundNUserPrompt(
+  topic: FlattenedTopic,
+  blueprint: { subtopicId: string; kazanimId: string }[],
+  roundNumber: number,
+  priorRoundsQuestions: { soruNo: number; questionText: string }[][] = [],
+): string {
   const idToName = new Map(topic.subtopics.map((s) => [s.subtopicId, s.subtopicName]));
   const blueprintLines = blueprint.map((slot, i) => `soruNo ${i + 1}: subtopicAdi="${idToName.get(slot.subtopicId) ?? slot.subtopicId}", kazanimId="${slot.kazanimId}"`).join("\n");
   return `SINIF SEVİYESİ: ${topic.grade}. Sınıf
@@ -94,7 +134,9 @@ Bu, bu konu için Tur ${roundNumber}. AŞAĞIDAKİ (subtopicAdi, kazanımId) eş
 
 ${blueprintLines}
 
-Sayıları/bağlamı/senaryoyu ÖNCEKİ turlardan FARKLI yap, ama subtopicAdi/kazanımId dizisini DEĞİŞTİRME. Sadece JSON dizisini döndür.`;
+Sayıları/bağlamı/senaryoyu ÖNCEKİ turlardan FARKLI yap, ama subtopicAdi/kazanımId dizisini DEĞİŞTİRME.${buildAvoidDuplicationBlock(priorRoundsQuestions)}
+
+Sadece JSON dizisini döndür.`;
 }
 
 // ── "alt_konu" — 10 soru, TEK bir alt konu, ORTA seviye ──
@@ -144,7 +186,12 @@ Bu, bu alt konu için İLK tur. Bu alt konuyu 2-4 mikro kazanıma (kazanımId) b
 Sadece JSON dizisini döndür.`;
 }
 
-export function buildAltKonuRoundNUserPrompt(subtopic: FlattenedSubtopic, blueprint: string[], roundNumber: number): string {
+export function buildAltKonuRoundNUserPrompt(
+  subtopic: FlattenedSubtopic,
+  blueprint: string[],
+  roundNumber: number,
+  priorRoundsQuestions: { soruNo: number; questionText: string }[][] = [],
+): string {
   const blueprintLines = blueprint.map((k, i) => `soruNo ${i + 1}: ${k}`).join("\n");
   return `ALT KONU: ${subtopicLabel(subtopic)}
 
@@ -152,7 +199,9 @@ Bu, bu alt konu için Tur ${roundNumber}. AŞAĞIDAKİ kazanımId sırasını B�
 
 ${blueprintLines}
 
-Sayıları/bağlamı/senaryoyu ÖNCEKİ turlardan FARKLI yap, ama kazanımId dizisini DEĞİŞTİRME. Sadece JSON dizisini döndür.`;
+Sayıları/bağlamı/senaryoyu ÖNCEKİ turlardan FARKLI yap, ama kazanımId dizisini DEĞİŞTİRME.${buildAvoidDuplicationBlock(priorRoundsQuestions)}
+
+Sadece JSON dizisini döndür.`;
 }
 
 export function buildRetryCorrectionSuffix(errorSummary: string): string {
@@ -188,10 +237,24 @@ export type FlawedQuestionContext = { soruNo: number; kazanimId: string; subtopi
 // sayı/senaryo/yaklaşım kullanmasını, önceki düzeltmedeki mantığı
 // tekrarlamamasını istiyoruz. Başarısız bir düzeltme döngüsüne
 // takılmayı önlemeye yönelik bir çeşitlilik enjeksiyonu.
-export function buildFixUserPrompt(flawed: FlawedQuestionContext[], isRetry = false): string {
+// Faz Z13 — kök neden düzeltmesi: reason alanı TEK bir çakışan örneği
+// gösteriyordu (checkCrossRoundDuplication ilk eşleşmede duruyor), model
+// O TEK örnekten kaçarken zaten kullanılmış BAŞKA bir örneğe çarpıyordu
+// (canlı düzeltme turlarında GÖZLEMLENDİ: aynı soru 2 denemede de farklı
+// ama YİNE kullanılmış bir değere yakınsadı). Round N prompt'undaki AYNI
+// buildAvoidDuplicationBlock burada da kullanılarak, düzeltme modeline
+// SADECE tek bir örnek değil, o soruNo'da BUGÜNE KADAR kullanılmış TÜM
+// örnekler gösterilir.
+export function buildFixUserPrompt(
+  flawed: FlawedQuestionContext[],
+  isRetry = false,
+  priorRoundsQuestions: { soruNo: number; questionText: string }[][] = [],
+): string {
   const block = flawed
     .map((f) => `soruNo ${f.soruNo} (kazanımId: ${f.kazanimId}${f.subtopicName ? `, alt konu: ${f.subtopicName}` : ""}):\nEski (hatalı) soru: ${f.oldQuestionText}\nSORUN: ${f.reason}`)
     .join("\n\n");
   const retryNote = isRetry ? `\n\n⚠️ ÖNEMLİ: Bu sorular DAHA ÖNCE BİR KEZ "düzeltildi" ama düzeltme de hatalıydı. Bu sefer TAMAMEN FARKLI sayılar/senaryo kullan ve hesabını adım adım, her adımdan sonra tekrar kontrol ederek yap — aynı hatayı TEKRARLAMA.` : "";
-  return `Aşağıdaki ${flawed.length} soruyu düzelt:\n\n${block}${retryNote}\n\nSadece JSON dizisini döndür.`;
+  const relevantSoruNos = new Set(flawed.map((f) => f.soruNo));
+  const avoidBlock = buildAvoidDuplicationBlock(priorRoundsQuestions.map((round) => round.filter((q) => relevantSoruNos.has(q.soruNo))));
+  return `Aşağıdaki ${flawed.length} soruyu düzelt:\n\n${block}${retryNote}${avoidBlock}\n\nSadece JSON dizisini döndür.`;
 }
