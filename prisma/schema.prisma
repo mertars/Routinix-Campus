@@ -1514,10 +1514,24 @@ model XrayMonthlyScreeningConfig {
 // subtopicId ama 12+ farklı kazanımId). Bu yüzden format/options/difficulty
 // KALDIRILDI (MCQ hiç yok, zorluk sıralaması yerine testin kendi soruNo
 // sırası kullanılıyor) — testId/testName/kazanimId/order EKLENDİ.
+// ⚠️ "variant" (Faz Z4) burada kodun başka yerindeki "Test 1"/"Test 2"
+// isimlendirmesiyle (XrayPracticeAttempt="Test 1", aşağıdaki yorumdaki
+// "Test 2"=comprehension) KARIŞTIRILMAMALI — o isimler UYGULAMANIN İKİ AYRI
+// ÖZELLİĞİni ayırt eder. "variant" ise TAMAMEN Test 1'in (bu model) İÇİNDE,
+// kullanıcının istediği 3 havuz türünü ayırt eder:
+//   "genel"    — konunun (temanın) TÜMÜNÜ kapsayan 30 soruluk havuz, sorular
+//                o temanın TÜM alt konularına dağılır (her soru kendi
+//                subtopicId'sine etiketlenir, ama bir TUR/round tema
+//                genelinde tek bir bütündür — bkz. XrayPoolGenerationRound).
+//   "alt_konu" — TEK bir alt konuya özel 10 soruluk havuz.
+//   "yeterlilik" — konu genelinde daha zor/kapsamlı 20 soruluk havuz.
+// Mevcut 30 gerçek üretim sorusu (İntegral) yapısal olarak "genel" ile
+// örtüştüğü için @default("genel") ile geriye dönük uyumlu bırakıldı.
 model XrayPracticeQuestion {
   id            String   @id @default(cuid())
   subject       String
   subtopicId    String
+  variant       String   @default("genel") // "genel" | "alt_konu" | "yeterlilik" — bkz. yukarıdaki not
   testId        String // HANGİ yüklemeden geldiği (içerik yönetimi/izlenebilirlik içindir — bkz. Faz G, öğrenci artık belirli bir testId SEÇMİYOR, havuzdan kazanimId bazlı rastgele çekiliyor)
   testName      String // "Test 1: İki Aşamalı Kontrollü Çalışma Yaprağı" — denormalize, her satırda tekrar eder
   order         Int // soruNo — aynı kazanimId'nin havuzdaki tipik gösterim sırasını belirlemekte kullanılır
@@ -1533,27 +1547,35 @@ model XrayPracticeQuestion {
 
   @@index([subject, subtopicId])
   @@index([subject, subtopicId, kazanimId])
+  @@index([subject, variant])
   @@index([testId])
 }
 
-// Faz Z3 — soru havuzu otomasyon worker'ının (scripts/xray-generate-question-
-// pool.ts) ilerleme/durum takibi. Worker Vercel'de DEĞİL, uzun süre çalışan
-// bir arka plan süreci olarak (yerel/CI) çalışır — bu tablo onun TEK gerçek
-// durum kaynağıdır: kesintiye uğrarsa hangi (subject, subtopicId, round)
-// üçlüsünün zaten "success" olduğuna bakıp kaldığı yerden devam eder, aynı
-// turu tekrar üretip token harcamaz. "blueprint", 1. turda kilitlenen
-// kazanimId dizisidir (30 elemanlı) — 2. ve sonraki turlarda AYNEN modele
-// yeniden verilir (modelin "hatırlamasına" güvenilmez, her çağrıda taze
-// enjekte edilir) — bkz. lib/server/xray/practice-pool.ts'teki occurrence
-// eşleştirmesinin doğru çalışması için turlar arası kazanım YAPISININ
-// (sayı+sıra) tutarlı kalması gerekliliği.
+// Faz Z3/Z4 — soru havuzu otomasyon worker'ının (scripts/xray-generate-
+// question-pool.ts) ilerleme/durum takibi. Worker Vercel'de DEĞİL, uzun
+// süre çalışan bir arka plan süreci olarak (yerel/CI) çalışır — bu tablo
+// onun TEK gerçek durum kaynağıdır: kesintiye uğrarsa hangi (subject,
+// variant, unitId, round) dörtlüsünün zaten "success" olduğuna bakıp
+// kaldığı yerden devam eder, aynı turu tekrar üretip token harcamaz.
+//
+// "unitId" variant'a göre DEĞİŞİR: "genel"/"yeterlilik" için bu bir TEMA
+// (CurriculumTopic.id) — tur o temanın TÜM alt konularını kapsar; "alt_konu"
+// için bu doğrudan bir CurriculumSubtopic.id'dir — tur TEK bir alt konuyu
+// kapsar. "blueprint", 1. turda kilitlenen soru-slotu yapısıdır (30/10/20
+// elemanlı) — 2. ve sonraki turlarda AYNEN modele yeniden verilir (modelin
+// "hatırlamasına" güvenilmez, her çağrıda taze enjekte edilir) — bkz.
+// lib/server/xray/practice-pool.ts'teki occurrence eşleştirmesinin doğru
+// çalışması için turlar arası kazanım YAPISININ (sayı+sıra, "genel"/
+// "yeterlilik" için ayrıca subtopicId dağılımının) tutarlı kalması
+// gerekliliği.
 model XrayPoolGenerationRound {
   id           String   @id @default(cuid())
   subject      String
-  subtopicId   String
+  variant      String // "genel" | "alt_konu" | "yeterlilik"
+  unitId       String // "genel"/"yeterlilik": topicId (tema) — "alt_konu": subtopicId
   roundNumber  Int
   status       String // "success" | "failed"
-  blueprint    Json? // kilitlenen kazanimId dizisi (round 1'de üretilir, sonraki turlara enjekte edilir)
+  blueprint    Json? // "genel"/"yeterlilik": [{subtopicId,kazanimId}, ...] — "alt_konu": [kazanimId, ...]
   testId       String? // başarılıysa bu turun XrayPracticeQuestion.testId'si
   attempts     Int      @default(0)
   tokensUsed   Int      @default(0)
@@ -1561,22 +1583,28 @@ model XrayPoolGenerationRound {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  @@unique([subject, subtopicId, roundNumber])
-  @@index([subject, subtopicId])
+  @@unique([subject, variant, unitId, roundNumber])
+  @@index([subject, variant, unitId])
   @@index([status])
 }
 
 // Worker'ın TEK satırlık global anahtarı — /platform panelinden
-// Duraklat/Devam Et ve günlük token bütçesi buradan kontrol edilir. Worker
-// her turdan ÖNCE bu satırı taze okur (paused=true ise hemen durur) — bu
-// yüzden panelden "Duraklat" basmak, worker'ı ID'siyle öldürmeye gerek
-// kalmadan bir sonraki turdan önce durdurur. dailyTokenBudget aşılırsa
-// worker de kendini otomatik durdurur (kazara aşırı harcamaya karşı donanım
-// dışı bir güvenlik freni — bkz. kullanıcının "sıfır hatayla en minimum
-// token yemeli" talebi).
+// Duraklat/Devam Et ve HANGİ variant(lar)ın aktif (worker'ın sırayla
+// işleyeceği) olduğu buradan kontrol edilir. Worker her turdan ÖNCE bu
+// satırı taze okur (paused=true ise hemen durur) — bu yüzden panelden
+// "Duraklat" basmak, worker'ı ID'siyle öldürmeye gerek kalmadan bir
+// sonraki turdan önce durdurur. Birden fazla variant AYNI ANDA aktif
+// olabilir (kullanıcı "3'ünü birlikte" isteyebilir) — worker bunları
+// GERÇEK PARALEL istek olarak DEĞİL, sırayla (round-robin) işler; aynı API
+// hesabına eşzamanlı çoklu istek atıp rate-limit'e (429) çarpma riskini
+// almadan, aynı toplam ilerlemeyi güvenle sağlar. dailyTokenBudget
+// aşılırsa worker de kendini otomatik durdurur (kazara aşırı harcamaya
+// karşı donanım dışı bir güvenlik freni — bkz. kullanıcının "sıfır hatayla
+// en minimum token yemeli" talebi).
 model XrayPoolGenerationControl {
   id               String   @id @default("singleton")
   paused           Boolean  @default(true)
+  activeVariants   Json     @default("[\"genel\"]") // string[] — worker'ın round-robin işleyeceği variant'lar
   dailyTokenBudget Int      @default(15000000)
   tokensUsedToday  Int      @default(0)
   tokensUsedTotal  Int      @default(0)
