@@ -33,14 +33,14 @@ const SELF_CHECK_CLAUSE = `KENDİ KENDİNİ KONTROL ET (ÇOK ÖNEMLİ — geçmi
    - DOĞRU: detailedSolution "...a+b = 5 bulunur" diye bitiyorsa finalAnswer da BİREBİR "5" olmalı.
 2. Kesir sadeleştirirken payı ve paydayı GERÇEKTEN ortak bir tam sayıya bölüp bölemediğini iki kez kontrol et. Payı ve paydası aralarında asal olan (ortak böleni olmayan) bir kesir ZATEN en sade halidir — sadeleştirilebilir SANIP yanlış bir sadeleştirme YAPMA (gerçek üretimde yakalanan hata: "35/66 sadeleştirilerek 1/2" denmiş, ama 35 ile 66 aralarında asaldır, sadeleşmez).
 3. Üslü ifadelerde toplama/çarpma/bölme kurallarını (üs toplama/çıkarma) uygularken, özellikle birden fazla adım varsa SON adımı yazmadan önce baştan bir kez daha elle doğrula.
-4. "Hangi sayı/ifade X değildir?" VEYA "hangi kenar/açı Y'ye karşılık gelir?" tarzı KARŞILAŞTIRMA soruları YAZARKEN, seçenekleri "a) ... b) ... c) ... d) ..." şeklinde SIRALAMA — bu, YASAK olan çoktan seçmeli formata kayar (gerçek üretimde defalarca yakalandı: hem "hangisi rasyonel/gerçek sayı değildir" hem eş/benzer üçgenlerde "hangi kenar karşılık gelir" tipi sorularda — İKİNCİSİ AYNI turda 9 KEZ tekrarlanarak turun tamamen başarısız olmasına yol açtı). Bunun yerine TEK BİR somut soru sor (örn. "√2 sayısı rasyonel bir sayı mıdır? Nedenini kısaca açıklayınız." veya "AB kenarına karşılık gelen kenar hangisidir?") — asla birden fazla seçeneği yan yana a)/b)/c)/d) etiketleriyle listeleme.
+4. "Hangi sayı/ifade X değildir?" VEYA "hangi kenar/açı Y'ye karşılık gelir?" tarzı KARŞILAŞTIRMA sorularında TERCİHEN tek bir somut soru sor (örn. "√2 sayısı rasyonel bir sayı mıdır? Nedenini kısaca açıklayınız." veya "AB kenarına karşılık gelen kenar hangisidir?") yerine seçenekleri "a) ... b) ... c) ... d) ..." şeklinde SIRALAMA — ama bazı kazanımlar (örn. "hangisi X değildir" tipi kavram soruları) doğası gereği seçenekli formata yakındır; bunu ISRARLA/doğal olarak istiyorsan zorlanıp açık uçlu bir versiyon uydurmana gerek YOK, a)/b)/c)/d) şıklı sor — önemli olan finalAnswer'ın doğru şıkla/değerle TUTARLI olması.
 5. questionText BİRDEN FAZLA şey istiyorsa (örn. "...üslü gösterimle yazınız VE değerini bulunuz"), finalAnswer İSTENEN HER PARÇAYI içermeli — SADECE son sayısal değeri yazıp diğer istenen parçayı (üslü/köklü gösterim, ifade, birim vb.) ATLAMA.
    - YANLIŞ örnek (gerçek üretimde defalarca yakalandı): soru "\\sqrt[3]{64} ifadesini üslü gösterimle yazınız ve değerini bulunuz" derken finalAnswer sadece "4" yazılmış — üslü gösterim (64^{1/3}) eksik.
    - DOĞRU: finalAnswer "64^{\\frac{1}{3}} = 4" gibi İSTENEN HER PARÇAYI içermeli.
 6. Eş/benzer üçgen sorularında köşe eşleşmesini (hangi köşe hangi köşeye karşılık gelir) HER ZAMAN açıkça belirt — "ABC ile DEF eş üçgen" demek TEK BAŞINA yetersizdir, çünkü köşe sırası (A↔D, B↔E, C↔F) varsayılmalı mı yoksa açıkça mı verilmeli belirsiz kalır (gerçek üretimde yakalandı: "AB kenarına hangi kenar karşılık gelir?" sorusu, köşe eşleşmesi metinde yazmadığı için belirsiz bulundu). Köşe eşleşmesini ya soru metninde AÇIKÇA yaz (örn. "△ABC ≅ △DEF (A↔D, B↔E, C↔F)") ya da açı ölçüleri/kenar uzunlukları üzerinden HİÇBİR VARSAYIMA yer bırakmayacak şekilde ver.
 7. Kosinüs teoremi (a² = b² + c² − 2bc·cos(A)) uygularken SIK YAPILAN hata: b²+c²−a² veya 2bc çarpımı yanlış hesaplanıyor, ya da cos(A) bulunduktan sonra formülü YANLIŞ YÖNDE (kenar bulma yerine açı bulma formülüyle karıştırarak) kullanıyor. Her adımdan sonra (b²+c²−a² değerini, 2bc çarpımını, bölme işlemini) AYRI AYRI elle tekrar kontrol et — bu gerçek üretimde AYNI turda 2 farklı soruda, 3 farklı denemede 3 farklı yanlış sonuçla tekrarlanarak TURUN TAMAMEN BAŞARISIZ olmasına yol açtı.
 8. Permütasyon/kombinasyon/sayma problemlerinde (çarpma kuralı, n!, C(n,r), P(n,r)) ara çarpım/bölme adımlarını TEK TEK yaz ve her adımdan sonra elle doğrula — özellikle birden fazla çarpanın art arda çarpıldığı (örn. "4 × 3 × 2 × 1") veya faktöriyel oranı içeren (örn. "8!/6!") sorularda tek bir çarpım/bölme hatası TÜM sonucu bozar (gerçek üretimde çok sayıda yakalandı, ör. finalAnswer 980 iken doğru sonuç 196 gibi büyük sapmalar oluştu).
-9. Koşullu olasılık (P(A|B) = P(A∩B)/P(B)) ve Bayes teoremi soruları GERÇEK ÜRETİMDE EN SIK HATA YAPILAN alandır — bir turda neredeyse TÜM koşullu olasılık soruları yanlış çıkıp turun tamamen başarısız olmasına yol açtı. (a) Verdiğin P(A), P(B|A), P(B) gibi değerlerin BİRBİRİYLE TUTARLI olduğunu ÖNCEDEN kontrol et — tam olasılık kuralına (P(B) = P(A)·P(B|A) + P(A')·P(B|A')) göre imkânsız bir P(B) değeri VERME (gerçek üretimde yakalandı: P(A)=0.3, P(B|A)=0.6, P(B)=0.9 verilmiş ama olası maksimum P(B) 0.72'dir — çelişkili). (b) P(A|B) hesaplarken payda MUTLAKA P(B) (P(A) DEĞİL) olmalı — bu formülü ters kullanma. (c) Koşullu olasılık sorularını ASLA "a) ... b) ... c) ... d) ..." çoktan seçmeli formatında SORMA (kural 4'teki genel yasak burada da geçerli — gerçek üretimde bu kazanımda AYNI turda 8 farklı soruda tekrarlanarak turu tamamen bozdu); her zaman tek bir açık uçlu "P(...) kaçtır?" sorusu sor.`;
+9. Koşullu olasılık (P(A|B) = P(A∩B)/P(B)) ve Bayes teoremi soruları GERÇEK ÜRETİMDE EN SIK HATA YAPILAN alandır — bir turda neredeyse TÜM koşullu olasılık soruları yanlış çıkıp turun tamamen başarısız olmasına yol açtı. (a) Verdiğin P(A), P(B|A), P(B) gibi değerlerin BİRBİRİYLE TUTARLI olduğunu ÖNCEDEN kontrol et — tam olasılık kuralına (P(B) = P(A)·P(B|A) + P(A')·P(B|A')) göre imkânsız bir P(B) değeri VERME (gerçek üretimde yakalandı: P(A)=0.3, P(B|A)=0.6, P(B)=0.9 verilmiş ama olası maksimum P(B) 0.72'dir — çelişkili). (b) P(A|B) hesaplarken payda MUTLAKA P(B) (P(A) DEĞİL) olmalı — bu formülü ters kullanma. (c) Bu kazanımda seçenekli ("a) ... b) ... c) ... d) ...") format doğal geliyorsa kullanabilirsin (bkz. kural 4) — önemli olan hangi seçeneğin/değerin DOĞRU olduğunun hesapla TUTARLI olması.`;
 
 // ── "genel" — 30 soru, temanın TÜMÜ, tüm alt konulara dağılır ──
 
@@ -53,7 +53,7 @@ ${MEB_SCOPE_CLAUSE}
 ${SELF_CHECK_CLAUSE}
 
 SORU YAPISI:
-- A, B, C, D şıkları KESİNLİKLE OLMAYACAK. Sorular açık uçlu/klasik matematik sorularıdır.
+- Sorular ÖNCELİKLE açık uçlu/klasik matematik sorularıdır — ama bazı kazanımlar (kavram karşılaştırması, "hangisi X değildir" tipi sorular) doğası gereği seçenekli formata yakındır; bu durumda a)/b)/c)/d) şıklı sormakta serbestsin (bkz. KENDİ KENDİNİ KONTROL ET kural 4) — zorla açık uçlu bir versiyon uydurmana gerek yok.
 - soruNo 1-10 (GİRİŞ): 1 adımlı, doğrudan tanım/sembol okuma/çok basit işlem.
 - soruNo 11-20 (KURALLAR VE ÖZEL DURUMLAR): Konunun özel kuralları/formülleri (gerekirse aynı kural farklı sayılarla tekrarlanarak 10'a tamamlanır).
 - soruNo 21-30 (KAPSAMLI): Kuralları birleştiren 3-4 adımlı, tamamen işlem odaklı sorular (paragraf/yeni nesil metin YOK).
@@ -125,20 +125,26 @@ Sadece JSON dizisini döndür.`;
 
 export function buildGenelRoundNUserPrompt(
   topic: FlattenedTopic,
-  blueprint: { subtopicId: string; kazanimId: string }[],
+  blueprint: { subtopicId: string; kazanimId: string; isMultipleChoice: boolean }[],
   roundNumber: number,
   priorRoundsQuestions: { soruNo: number; questionText: string }[][] = [],
 ): string {
   const idToName = new Map(topic.subtopics.map((s) => [s.subtopicId, s.subtopicName]));
-  const blueprintLines = blueprint.map((slot, i) => `soruNo ${i + 1}: subtopicAdi="${idToName.get(slot.subtopicId) ?? slot.subtopicId}", kazanimId="${slot.kazanimId}"`).join("\n");
+  // Faz Z18 — kullanıcı talebi: "aynı havuzdaki sorular aynı tip olsun" —
+  // bir slot round 1'de hangi formatta (çoktan seçmeli/açık uçlu) üretildiyse
+  // bu turda da AYNI formatta üretilmeli, aksi halde öğrenci aynı kazanımı
+  // havuzdan farklı denemelerde farklı formatlarda görür.
+  const blueprintLines = blueprint
+    .map((slot, i) => `soruNo ${i + 1}: subtopicAdi="${idToName.get(slot.subtopicId) ?? slot.subtopicId}", kazanimId="${slot.kazanimId}", format="${slot.isMultipleChoice ? "çoktan seçmeli (a/b/c/d şıklı)" : "açık uçlu"}"`)
+    .join("\n");
   return `SINIF SEVİYESİ: ${topic.grade}. Sınıf
 KONU: ${topicLabel(topic)}
 
-Bu, bu konu için Tur ${roundNumber}. AŞAĞIDAKİ (subtopicAdi, kazanımId) eşlemesini BİREBİR ve SIRASIYLA kullan — bu turdaki 30 soru bu diziye tam uymalı:
+Bu, bu konu için Tur ${roundNumber}. AŞAĞIDAKİ (subtopicAdi, kazanımId, format) eşlemesini BİREBİR ve SIRASIYLA kullan — bu turdaki 30 soru bu diziye tam uymalı. "format" alanı ÖNEMLİ: o soruNo'da ÖNCEKİ turda hangi format kullanıldıysa (çoktan seçmeli ya da açık uçlu) BU turda da AYNI formatı kullan — aynı havuzdaki (aynı kazanım) sorular tutarlı bir formatta kalmalı:
 
 ${blueprintLines}
 
-Sayıları/bağlamı/senaryoyu ÖNCEKİ turlardan FARKLI yap, ama subtopicAdi/kazanımId dizisini DEĞİŞTİRME.${buildAvoidDuplicationBlock(priorRoundsQuestions)}
+Sayıları/bağlamı/senaryoyu ÖNCEKİ turlardan FARKLI yap, ama subtopicAdi/kazanımId/format'ı DEĞİŞTİRME.${buildAvoidDuplicationBlock(priorRoundsQuestions)}
 
 Sadece JSON dizisini döndür.`;
 }
@@ -159,7 +165,7 @@ ${MEB_SCOPE_CLAUSE}
 ${SELF_CHECK_CLAUSE}
 
 SORU YAPISI (ÇOK ÖNEMLİ):
-- A, B, C, D şıkları KESİNLİKLE OLMAYACAK. Sorular açık uçlu/klasik matematik sorularıdır.
+- Sorular ÖNCELİKLE açık uçlu/klasik matematik sorularıdır — ama bazı kazanımlar (kavram karşılaştırması, "hangisi X değildir" tipi sorular) doğası gereği seçenekli formata yakındır; bu durumda a)/b)/c)/d) şıklı sormakta serbestsin (bkz. KENDİ KENDİNİ KONTROL ET kural 4) — zorla açık uçlu bir versiyon uydurmana gerek yok.
 - TÜM 10 SORU ORTA SEVİYE olacak — doğrudan tanım/sembol okuma/ezber TEMEL sorular KESİNLİKLE YASAK.
   - YANLIŞ örnek (çok temel, YASAK): "√2 × √2 kaçtır?"
   - DOĞRU örnek (orta seviye, bir kuralın işlemle uygulanması): "3√5 + 2√5 − √20 ifadesinin sonucu kaçtır?"

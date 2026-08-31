@@ -52,7 +52,7 @@ import {
 } from "../lib/server/xray/question-generation/prompt";
 import { validateGenelRoundResponse, validateAltKonuRoundResponse, validateFixResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
 import { verifyContent, type VerificationIssue } from "../lib/server/xray/question-generation/verify-content";
-import { checkAnswerConsistency, checkFormatHealth, checkNoMultipleChoice, checkArithmeticSteps, checkCrossRoundDuplication } from "../lib/server/xray/question-generation/deterministic-checks";
+import { checkAnswerConsistency, checkFormatHealth, checkArithmeticSteps, checkCrossRoundDuplication } from "../lib/server/xray/question-generation/deterministic-checks";
 import { slugifyTestName } from "../lib/server/xray/question-pool-upload";
 
 const SUBJECT = "Matematik";
@@ -94,7 +94,6 @@ async function runContentChecks(
   const deterministic = [
     ...checkAnswerConsistency(questions),
     ...checkFormatHealth(questions),
-    ...checkNoMultipleChoice(questions),
     ...checkArithmeticSteps(questions),
     ...checkCrossRoundDuplication(questions, priorRoundsQuestions),
   ];

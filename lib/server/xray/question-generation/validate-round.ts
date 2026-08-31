@@ -1,4 +1,5 @@
 import { extractJson } from "./ai-client";
+import { isMultipleChoiceFormat } from "./deterministic-checks";
 import type { FlattenedTopic } from "./curriculum-flatten";
 
 export type GenelRawQuestion = {
@@ -11,7 +12,14 @@ export type GenelRawQuestion = {
   diagnosticComment?: string;
 };
 
-export type GenelBlueprintSlot = { subtopicId: string; kazanimId: string };
+// Faz Z18 — isMultipleChoice: round 1'de o slotta ÜRETİLEN gerçek formatı
+// (bkz. isMultipleChoiceFormat) kaydeder — sonraki turlarda AYNI slot AYNI
+// formatta üretilsin diye prompt'a enjekte edilir (bkz.
+// buildGenelRoundNUserPrompt). kazanımId/subtopicId'nin aksine bu alan
+// BURADA (yapısal doğrulamada) ZORUNLU tutulmuyor/reddedilmiyor — sadece
+// modele "bunu kullan" diye bir yönlendirme sağlar, kullanıcı talebiyle
+// ("çok inatla şıklı isterse şık koy") çelişecek bir katı red YOK.
+export type GenelBlueprintSlot = { subtopicId: string; kazanimId: string; isMultipleChoice: boolean };
 export type GenelValidatedQuestion = { soruNo: number; subtopicId: string; kazanimId: string; questionText: string; finalAnswer: string; detailedSolution: string; diagnosticComment: string };
 export type RoundValidationResult = { ok: true; questions: GenelValidatedQuestion[]; blueprint: GenelBlueprintSlot[] } | { ok: false; errorSummary: string };
 
@@ -58,7 +66,11 @@ export function validateGenelRoundResponse(rawContent: string, topic: FlattenedT
   const missingSubtopics = topic.subtopics.filter((s) => !usedSubtopicIds.has(s.subtopicId));
   if (missingSubtopics.length > 0) return { ok: false, errorSummary: `Şu alt konulardan HİÇ soru yok: ${missingSubtopics.map((s) => s.subtopicName).join(", ")}` };
 
-  const resultSequence: GenelBlueprintSlot[] = bySoruNo.map((q) => ({ subtopicId: nameToId.get(q.subtopicAdi!)!, kazanimId: q.kazanimId!.trim() }));
+  const resultSequence: GenelBlueprintSlot[] = bySoruNo.map((q) => ({
+    subtopicId: nameToId.get(q.subtopicAdi!)!,
+    kazanimId: q.kazanimId!.trim(),
+    isMultipleChoice: isMultipleChoiceFormat(q.questionText!),
+  }));
 
   if (lockedBlueprint) {
     const mismatches: string[] = [];

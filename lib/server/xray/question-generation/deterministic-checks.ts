@@ -143,30 +143,19 @@ export function checkFormatHealth(questions: { soruNo: number; questionText: str
   return issues;
 }
 
-// Faz Z11 — kullanıcının hedefli talebi üzerine ("sen kontrol et") ELLE
-// yapılan bir örneklem incelemesinde AI denetiminin (verify-content.ts)
-// ATLADIĞI gerçek bir kural ihlali bulundu: sistem prompt'u "A, B, C, D
-// şıkları KESİNLİKLE OLMAYACAK" diyor ama bir soru questionText içinde
-// "a) 3 b) -7 c) 1/2 d) √(-1)" gibi ÇOKTAN SEÇMELİ şıklar içeriyordu — AI
-// denetimi cevap DOĞRULUĞUNA/mantığına odaklandığı için bu YAPISAL/biçim
-// kuralını kontrol etmiyordu. Bu ÜCRETSİZ, deterministik kontrol o boşluğu
-// kapatır: questionText'te "a)"/"b)"/"c)"/"d)" (veya büyük harfli) gibi
-// art arda şık kalıpları tespit edilirse soru reddedilir.
-const MULTIPLE_CHOICE_PATTERN = /\b[aAbBcCdD]\)\s*\S+.*\b[bBcCdD]\)/;
-
-export function checkNoMultipleChoice(questions: { soruNo: number; questionText: string }[]): DeterministicIssue[] {
-  const issues: DeterministicIssue[] = [];
-  for (const q of questions) {
-    if (MULTIPLE_CHOICE_PATTERN.test(q.questionText)) {
-      // Faz Z14 — canlı üretimde bu ihlal AYNI soruNo'da ARKA ARKAYA 9 kez
-      // tekrarlandı (eş üçgen "hangi kenar/açı karşılık gelir" tarzı
-      // sorularda) — reason eskiden hangi METNİN ihlal ettiğini
-      // GÖSTERMİYORDU, bu da hem debug'ı hem hedefli düzeltmeyi
-      // zorlaştırıyordu. Artık ihlal eden metin somut olarak gösteriliyor.
-      issues.push({ soruNo: q.soruNo, reason: `questionText çoktan seçmeli şıklar (a) b) c) d) tarzı) içeriyor — sistem kuralına göre bu KESİNLİKLE YASAK, sorular açık uçlu olmalı: "${q.questionText}" — deterministik kontrol.` });
-    }
-  }
-  return issues;
+// Faz Z18 — kullanıcı talebi: çoktan seçmeli/açık uçlu formatı YASAKLAMAK
+// yerine (bkz. Z14'te eklenip Z17'de kaldırılan checkNoMultipleChoice —
+// model bazı kazanımlarda ısrarla seçenekli formata kayıyordu, bunu
+// zorla engellemek gereksiz token israfına yol açıyordu) artık serbest
+// bırakıldı — AMA "aynı havuzdaki (aynı soruNo/kazanım) sorular aynı tip
+// olsun" isteniyor: bir slot round 1'de seçenekli/açık uçlu hangi formatta
+// üretildiyse, sonraki turlarda AYNI slot AYNI formatta kalmalı (turlar
+// arası rastgele format değişimi, öğrencinin aynı kazanımı havuzdan farklı
+// denemelerde farklı formatlarda görmesine yol açardı). Bu ÜCRETSİZ tespit
+// fonksiyonu (bloklayıcı bir "issue" ÜRETMEZ, sadece SINIFLANDIRIR)
+// blueprint'e kilitlenecek format bilgisini sağlar — bkz. validate-round.ts.
+export function isMultipleChoiceFormat(questionText: string): boolean {
+  return /\b[aAbBcCdD]\)\s*\S+.*\b[bBcCdD]\)/.test(questionText);
 }
 
 // Faz Z11 — elle örneklem incelemesinde bulunan İKİNCİ hata sınıfı: bu
