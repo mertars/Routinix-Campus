@@ -75,7 +75,7 @@ function GradeRow({ config, onSaved }: { config: Config; onSaved: (next: Config)
       </div>
 
       {enabled && (
-        <div className="space-y-2">
+        <div className="mb-2 space-y-2">
           <div className="flex flex-wrap gap-2">
             <select
               value={subject}
@@ -113,20 +113,29 @@ function GradeRow({ config, onSaved }: { config: Config; onSaved: (next: Config)
               className="w-16 rounded-lg border border-hairline bg-white px-2 py-1.5 text-xs text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
             />
             <label className="text-[11px] text-espresso-muted dark:text-cream/50">günde bir</label>
-            <button
-              onClick={save}
-              disabled={saving || topics.length === 0}
-              className="ml-auto flex min-h-[32px] items-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
-            >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Kaydet
-            </button>
           </div>
-          <p className="text-[10px] text-espresso-muted/70 dark:text-cream/30">
-            {config.enabled && config.subtopicName ? `Şu an: ${config.subtopicName} · Sıradaki tarama: ${daysUntil(config.nextRunAt)}` : "Kaydedince aktifleşir."}
-          </p>
         </div>
       )}
+
+      {/* Save butonu BİLEREK enabled=false iken de görünür kalıyor — bir
+          önceki sürümde {enabled && (...)} bloğunun İÇİNDEYDİ, bu yüzden
+          taramayı kapatmak (enabled=false yapmak) Kaydet butonunu da
+          anında gizliyordu ve kapatma kaydedilemiyordu (bkz. kullanıcının
+          bildirdiği "kapatsan bile bir daha açınca kapanmadığını
+          görüyorum" hatası). */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] text-espresso-muted/70 dark:text-cream/30">
+          {config.enabled && config.subtopicName ? `Şu an: ${config.subtopicName} · Sıradaki tarama: ${daysUntil(config.nextRunAt)}` : enabled ? "Kaydedince aktifleşir." : "Devre dışı — kaydetmek için tıkla."}
+        </p>
+        <button
+          onClick={save}
+          disabled={saving || (enabled && topics.length === 0)}
+          className="ml-auto flex min-h-[32px] shrink-0 items-center gap-1.5 rounded-lg bg-sky-600 px-3 text-xs font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          Kaydet
+        </button>
+      </div>
     </div>
   );
 }
