@@ -226,8 +226,22 @@ export function checkArithmeticSteps(questions: { soruNo: number; detailedSoluti
 // Faz Z13 — dışa açıldı: prompt.ts, round N-1 prompt'una "bunları
 // tekrarlama" listesi enjekte etmek için AYNI imza fonksiyonunu kullanır —
 // tek kaynak, kontrol ile üretim prompt'u arasında imza mantığı SÜRÜKLENMEZ.
+//
+// Faz Z14 — canlı üretimde bulunan ÖNEMLİ eksiklik: bu imza SADECE
+// aritmetik operatörleri (+,-,*,/,^) yakalıyordu, mantık/karşılaştırma
+// sembollerini (∧,∨,¬,∀,∃,=,<,>,≤,≥,≠) YOK SAYIYORDU. Sonuç: "(p∧q)∨r" ile
+// "(p∨q)∧r" gibi YAPISAL OLARAK FARKLI iki önerme, aynı p/q/r değerlerini
+// kullandığında AYNI imzayı üretiyordu (çünkü sadece "1|0|1" gibi rakamlar
+// kalıyordu, hangi operatörün nerede geçtiği kayboluyordu). 3 değişkenli
+// (p,q,r) bir kazanımda sadece 8 olası doğruluk-değeri ataması olduğundan,
+// bu eksiklik birkaç tur içinde YAPAY bir tükenmeye (gerçekte hâlâ farklı
+// olabilecek sorular yanlışlıkla "aynı" sayılıp reddediliyordu) yol açtı —
+// canlı üretimde mt9-algoritma-bilisim tur 6 bu yüzden 3 tam denemeden
+// sonra BAŞARISIZ oldu. Artık mantık/karşılaştırma sembolleri de imzaya
+// dahil — gerçekten aynı değer+operatör kombinasyonu kullanılmadıkça artık
+// "çakışma" sayılmıyor.
 export function numericSignature(text: string): string {
-  const tokens = text.match(/\d+(?:[.,]\d+)?|[+\-*/×÷^]|\\frac|\\sqrt/g) ?? [];
+  const tokens = text.match(/\d+(?:[.,]\d+)?|[+\-*/×÷^]|\\frac|\\sqrt|[∧∨¬∀∃∈⇒⇔≤≥≠=<>]|\\wedge|\\vee|\\neg|\\forall|\\exists/g) ?? [];
   return tokens.join("|");
 }
 
