@@ -36,6 +36,17 @@ export async function callChatCompletion(params: { model: string; systemPrompt: 
       ],
       max_tokens: params.maxTokens,
       temperature: 0.8,
+      // ⚠️ KRİTİK: bu model varsayılan olarak "reasoning" (görünmeyen
+      // zincir-halinde-düşünme) modunda çalışıyor — canlı testte 30 soruluk
+      // bir tur için max_tokens'ın TAMAMINI (16000/16000) görünmeyen
+      // reasoning_content'e harcayıp gerçek content'i HİÇ üretmeden
+      // finish_reason:"length" ile kesiliyordu (content boş kalıyordu).
+      // enable_thinking:false bunu tamamen kapatıyor — aynı istek finish_
+      // reason:"stop" ile TAM içerik döndürüyor, üstelik ~2.4x daha az
+      // token harcıyor (reasoning_tokens hiç sayılmıyor). Yapılandırılmış/
+      // şablona bağlı bir JSON üretim görevi için görünür "düşünme"ye
+      // ihtiyaç yok, sadece israf ediyordu.
+      enable_thinking: false,
     }),
   });
 
