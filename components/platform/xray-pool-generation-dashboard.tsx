@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Pause, Play, Database, AlertTriangle, PauseCircle } from "lucide-react";
+import { Loader2, Pause, Play, Database, AlertTriangle, PauseCircle, Eye, X } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ type Variant = "genel" | "alt_konu" | "yeterlilik";
 
 const VARIANT_META: Record<Variant, { label: string; questionCount: number; description: string; implemented: boolean }> = {
   genel: { label: "Genel Konu", questionCount: 30, description: "Temanın tümünü kapsar, tüm alt konulara dağılır", implemented: true },
-  alt_konu: { label: "Alt Konu", questionCount: 10, description: "Tek bir alt konuya özel", implemented: false },
+  alt_konu: { label: "Alt Konu", questionCount: 10, description: "Tek bir alt konuya özel, orta seviye", implemented: true },
   yeterlilik: { label: "Yeterlilik", questionCount: 20, description: "Zor/kapsamlı genel yeterlilik", implemented: false },
 };
 
@@ -34,6 +34,8 @@ export function XrayPoolGenerationDashboard({ isOpen, onClose }: { isOpen: boole
   const [selectedVariant, setSelectedVariant] = useState<Variant>("genel");
   const [data, setData] = useState<StatusResponse | null>(null);
   const [isToggling, setIsToggling] = useState(false);
+  const [promptView, setPromptView] = useState<{ systemPrompt: string; userPrompt: string } | null>(null);
+  const [isPromptLoading, setIsPromptLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -71,6 +73,21 @@ export function XrayPoolGenerationDashboard({ isOpen, onClose }: { isOpen: boole
     }
   }
 
+  async function viewPrompt() {
+    if (!data || data.units.length === 0) return;
+    setIsPromptLoading(true);
+    try {
+      const res = await fetch(`/api/platform/xray-pool-generation/prompt?variant=${selectedVariant}&unitId=${encodeURIComponent(data.units[0].unitId)}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error);
+      setPromptView(json);
+    } catch {
+      showError("Prompt görüntülenemedi.");
+    } finally {
+      setIsPromptLoading(false);
+    }
+  }
+
   const isVariantActive = data?.control.activeVariants.includes(selectedVariant) && !data.control.paused;
   const meta = VARIANT_META[selectedVariant];
 
@@ -87,7 +104,10 @@ export function XrayPoolGenerationDashboard({ isOpen, onClose }: { isOpen: boole
               {(Object.keys(VARIANT_META) as Variant[]).map((v) => (
                 <button
                   key={v}
-                  onClick={() => setSelectedVariant(v)}
+                  onClick={() => {
+                    setSelectedVariant(v);
+                    setPromptView(null);
+                  }}
                   className={cn(
                     "rounded-lg px-3 py-1.5 text-xs font-medium transition",
                     selectedVariant === v ? "bg-white text-espresso shadow-sm dark:bg-midnight-card dark:text-cream" : "text-espresso-muted hover:text-espresso dark:text-cream/40 dark:hover:text-cream",
@@ -105,7 +125,29 @@ export function XrayPoolGenerationDashboard({ isOpen, onClose }: { isOpen: boole
             )}
           </div>
 
-          <p className="text-[11px] text-espresso-muted dark:text-cream/40">{meta.description}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-espresso-muted dark:text-cream/40">{meta.description}</p>
+            {meta.implemented && (
+              <button onClick={viewPrompt} disabled={isPromptLoading} className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400">
+                {isPromptLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Eye className="h-3 w-3" />} Prompt&apos;u Gör
+              </button>
+            )}
+          </div>
+
+          {promptView && (
+            <div className="rounded-xl border border-hairline bg-cream-card p-3 dark:border-white/10 dark:bg-white/5">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[11px] font-semibold text-espresso dark:text-cream">Gerçek Prompt (1. tur örneği — worker&apos;ın çalıştırdığı kodun ta kendisi)</p>
+                <button onClick={() => setPromptView(null)} className="text-espresso-muted hover:text-espresso dark:text-cream/40">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">System Prompt</p>
+              <pre className="mb-3 max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg bg-white/70 p-2 font-mono text-[10px] leading-relaxed text-espresso dark:bg-midnight-card/60 dark:text-cream">{promptView.systemPrompt}</pre>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">User Prompt (örnek birim)</p>
+              <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg bg-white/70 p-2 font-mono text-[10px] leading-relaxed text-espresso dark:bg-midnight-card/60 dark:text-cream">{promptView.userPrompt}</pre>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-xl bg-cream-card p-3 text-center dark:bg-white/5">

@@ -1,15 +1,13 @@
-// Faz Z3/Z4 — Akademik Röntgen soru havuzu otomasyon worker'ı. Vercel'de
+// Faz Z3/Z4/Z5 — Akademik Röntgen soru havuzu otomasyon worker'ı. Vercel'de
 // DEĞİL, uzun süre çalışan bir arka plan süreci olarak çalıştırılır:
 //   npx tsx --env-file=.env.local scripts/xray-generate-question-pool.ts
-// İsteğe bağlı test bayrakları: --topics=N (ilk N konuyla sınırla),
-// --rounds=N (konu başına hedef tur sayısını geçici olarak değiştir).
+// İsteğe bağlı test bayrakları: --topics=N ("genel" için ilk N konuyla
+// sınırla), --subtopics=N ("alt_konu" için ilk N alt konuyla sınırla),
+// --rounds=N (hedef tur sayısını geçici olarak değiştir).
 //
-// Şu an SADECE "genel" variant'ı (konunun/temanın TÜMÜNÜ kapsayan 30
-// soruluk havuz) uygulanmış durumda — "alt_konu" (10 soru/tek alt konu) ve
-// "yeterlilik" (20 soru/zor) prompt'ları henüz tasarlanmadı (kullanıcının
-// kendi sıralaması: "bunları yap sonrasında diğer 2 promptu belirleyelim").
-// Control.activeVariants'ta "alt_konu"/"yeterlilik" aktif olsa bile worker
-// bunlar için prompt bulamayınca sadece loglar, atlar — asla hatayla durmaz.
+// "yeterlilik" (20 soru/zor) prompt'u henüz tasarlanmadı — Control.
+// activeVariants'ta aktif olsa bile worker prompt bulamayınca sadece
+// loglar, atlar — asla hatayla durmaz.
 //
 // Durum TAMAMEN DB'de tutulur (XrayPoolGenerationRound/Control) — bu yüzden
 // süreç kesintiye uğrarsa (Ctrl+C, ağ hatası, makine uykuya dalması) yeniden
@@ -17,10 +15,10 @@
 // devam eder. /platform panelindeki Duraklat düğmesi Control.paused'u
 // true yapar — worker HER turdan önce bu bayrağı taze okur.
 import { prisma } from "../lib/server/prisma";
-import { flattenTopics, type FlattenedTopic } from "../lib/server/xray/question-generation/curriculum-flatten";
+import { flattenTopics, flattenCurriculum, type FlattenedTopic, type FlattenedSubtopic } from "../lib/server/xray/question-generation/curriculum-flatten";
 import { callChatCompletion } from "../lib/server/xray/question-generation/ai-client";
-import { SYSTEM_PROMPT_GENEL, buildGenelRound1UserPrompt, buildGenelRoundNUserPrompt, buildRetryCorrectionSuffix } from "../lib/server/xray/question-generation/prompt";
-import { validateGenelRoundResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
+import { SYSTEM_PROMPT_GENEL, buildGenelRound1UserPrompt, buildGenelRoundNUserPrompt, SYSTEM_PROMPT_ALT_KONU, buildAltKonuRound1UserPrompt, buildAltKonuRoundNUserPrompt, buildRetryCorrectionSuffix } from "../lib/server/xray/question-generation/prompt";
+import { validateGenelRoundResponse, validateAltKonuRoundResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
 import { slugifyTestName } from "../lib/server/xray/question-pool-upload";
 
 const SUBJECT = "Matematik";
@@ -29,9 +27,8 @@ const MAX_TOKENS = 16000;
 const MAX_ATTEMPTS_PER_ROUND = 3;
 const DEFAULT_TARGET_ROUNDS = 10;
 
-// Şimdilik sadece "genel" implemente edildi — diğer variant'lar prompt'ları
-// tasarlanınca buraya eklenecek.
-const IMPLEMENTED_VARIANTS = new Set(["genel"]);
+// "yeterlilik" prompt'u tasarlanınca buraya eklenecek.
+const IMPLEMENTED_VARIANTS = new Set(["genel", "alt_konu"]);
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -39,7 +36,7 @@ function parseArgs() {
     const found = args.find((a) => a.startsWith(`--${flag}=`));
     return found ? Number(found.split("=")[1]) : undefined;
   };
-  return { topicsLimit: get("topics"), roundsOverride: get("rounds") };
+  return { topicsLimit: get("topics"), subtopicsLimit: get("subtopics"), roundsOverride: get("rounds") };
 }
 
 async function getControl() {
@@ -59,11 +56,72 @@ async function recordTokenUsage(tokens: number) {
   });
 }
 
-async function getLockedBlueprint(variant: string, unitId: string): Promise<GenelBlueprintSlot[] | null> {
+async function getLockedBlueprint<T>(variant: string, unitId: string): Promise<T | null> {
   const round1 = await prisma.xrayPoolGenerationRound.findUnique({ where: { subject_variant_unitId_roundNumber: { subject: SUBJECT, variant, unitId, roundNumber: 1 } } });
-  if (round1?.status === "success" && round1.blueprint) return round1.blueprint as unknown as GenelBlueprintSlot[];
+  if (round1?.status === "success" && round1.blueprint) return round1.blueprint as unknown as T;
   return null;
 }
+
+async function checkGate(): Promise<{ status: "ok"; activeVariants: string[] } | { status: "stop" }> {
+  const control = await getControl();
+  if (control.paused) {
+    console.log("⏸️  Control.paused=true — worker durduruluyor.");
+    return { status: "stop" };
+  }
+  if (control.tokensUsedToday >= control.dailyTokenBudget) {
+    console.log(`⏸️  Günlük token bütçesi doldu (${control.tokensUsedToday}/${control.dailyTokenBudget}) — worker durduruluyor.`);
+    return { status: "stop" };
+  }
+  return { status: "ok", activeVariants: control.activeVariants as unknown as string[] };
+}
+
+async function writeRoundResult(params: {
+  variant: string;
+  unitId: string;
+  roundNumber: number;
+  testId: string;
+  testName: string;
+  result:
+    | { ok: true; questions: { soruNo: number; subtopicId: string; kazanimId: string; questionText: string; finalAnswer: string; detailedSolution: string; diagnosticComment: string }[]; blueprint: unknown; tokensUsed: number; attempts: number }
+    | { ok: false; errorSummary: string; tokensUsed: number; attempts: number };
+}) {
+  const { variant, unitId, roundNumber, testId, testName, result } = params;
+  if (result.ok) {
+    await prisma.$transaction([
+      prisma.xrayPracticeQuestion.deleteMany({ where: { testId } }),
+      prisma.xrayPracticeQuestion.createMany({
+        data: result.questions.map((q) => ({
+          subject: SUBJECT,
+          subtopicId: q.subtopicId,
+          variant,
+          testId,
+          testName,
+          order: q.soruNo,
+          kazanimId: q.kazanimId,
+          prompt: q.questionText,
+          correctAnswer: q.finalAnswer,
+          solution: q.detailedSolution,
+          checks: q.diagnosticComment,
+        })),
+      }),
+      prisma.xrayPoolGenerationRound.upsert({
+        where: { subject_variant_unitId_roundNumber: { subject: SUBJECT, variant, unitId, roundNumber } },
+        create: { subject: SUBJECT, variant, unitId, roundNumber, status: "success", blueprint: result.blueprint as never, testId, attempts: result.attempts, tokensUsed: result.tokensUsed },
+        update: { status: "success", blueprint: result.blueprint as never, testId, attempts: result.attempts, tokensUsed: result.tokensUsed, errorMessage: null },
+      }),
+    ]);
+    console.log(`  ✅ Tur ${roundNumber} yazıldı (${result.questions.length} soru, ${result.tokensUsed} token, ${result.attempts} deneme).`);
+  } else {
+    await prisma.xrayPoolGenerationRound.upsert({
+      where: { subject_variant_unitId_roundNumber: { subject: SUBJECT, variant, unitId, roundNumber } },
+      create: { subject: SUBJECT, variant, unitId, roundNumber, status: "failed", attempts: result.attempts, tokensUsed: result.tokensUsed, errorMessage: result.errorSummary },
+      update: { status: "failed", attempts: result.attempts, tokensUsed: result.tokensUsed, errorMessage: result.errorSummary },
+    });
+    console.log(`  ❌ Tur ${roundNumber} başarısız (${result.attempts} deneme sonrası): ${result.errorSummary}`);
+  }
+}
+
+// ── "genel" — 30 soru, tema tümü ──
 
 async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lockedBlueprint: GenelBlueprintSlot[] | null) {
   let totalTokens = 0;
@@ -71,13 +129,10 @@ async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lo
   for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ROUND; attempt++) {
     const basePrompt = roundNumber === 1 ? buildGenelRound1UserPrompt(topic) : buildGenelRoundNUserPrompt(topic, lockedBlueprint!, roundNumber);
     const userPrompt = attempt === 1 ? basePrompt : basePrompt + buildRetryCorrectionSuffix(lastError);
-
     const completion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_GENEL, userPrompt, maxTokens: MAX_TOKENS });
     totalTokens += completion.totalTokens;
-
     const validation = validateGenelRoundResponse(completion.content, topic, lockedBlueprint);
     if (validation.ok) return { ok: true as const, questions: validation.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
-
     lastError = validation.errorSummary;
     console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız: ${lastError}`);
   }
@@ -87,21 +142,11 @@ async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lo
 async function runVariantGenel(topics: FlattenedTopic[], targetRounds: number): Promise<"continue" | "stop"> {
   for (const topic of topics) {
     for (let roundNumber = 1; roundNumber <= targetRounds; roundNumber++) {
-      const control = await getControl();
-      if (control.paused) {
-        console.log("⏸️  Control.paused=true — worker durduruluyor.");
-        return "stop";
-      }
-      if (control.tokensUsedToday >= control.dailyTokenBudget) {
-        console.log(`⏸️  Günlük token bütçesi doldu (${control.tokensUsedToday}/${control.dailyTokenBudget}) — worker durduruluyor.`);
-        return "stop";
-      }
-      const activeVariants = control.activeVariants as unknown as string[];
-      if (!activeVariants.includes("genel")) return "continue";
+      const gate = await checkGate();
+      if (gate.status === "stop") return "stop";
+      if (!gate.activeVariants.includes("genel")) return "continue";
 
-      const existing = await prisma.xrayPoolGenerationRound.findUnique({
-        where: { subject_variant_unitId_roundNumber: { subject: SUBJECT, variant: "genel", unitId: topic.topicId, roundNumber } },
-      });
+      const existing = await prisma.xrayPoolGenerationRound.findUnique({ where: { subject_variant_unitId_roundNumber: { subject: SUBJECT, variant: "genel", unitId: topic.topicId, roundNumber } } });
       if (existing?.status === "success") {
         console.log(`↷ [genel] ${topic.topicName} tur ${roundNumber} zaten tamam, atlanıyor.`);
         continue;
@@ -109,7 +154,7 @@ async function runVariantGenel(topics: FlattenedTopic[], targetRounds: number): 
 
       let lockedBlueprint: GenelBlueprintSlot[] | null = null;
       if (roundNumber > 1) {
-        lockedBlueprint = await getLockedBlueprint("genel", topic.topicId);
+        lockedBlueprint = await getLockedBlueprint<GenelBlueprintSlot[]>("genel", topic.topicId);
         if (!lockedBlueprint) {
           console.log(`⏭️  [genel] ${topic.topicName}: 1. tur başarılı değil, ${roundNumber}. tur atlanıyor.`);
           break;
@@ -119,62 +164,99 @@ async function runVariantGenel(topics: FlattenedTopic[], targetRounds: number): 
       console.log(`▶ [genel] ${topic.grade}.sınıf > ${topic.topicName} — Tur ${roundNumber}/${targetRounds}`);
       const result = await generateGenelRound(topic, roundNumber, lockedBlueprint);
       await recordTokenUsage(result.tokensUsed);
+      await writeRoundResult({
+        variant: "genel",
+        unitId: topic.topicId,
+        roundNumber,
+        testId: slugifyTestName(`genel-${topic.topicId}-tur-${roundNumber}`),
+        testName: `${topic.topicName} — Genel Havuz Turu ${roundNumber}`,
+        result,
+      });
+    }
+  }
+  return "continue";
+}
 
-      if (result.ok) {
-        const testId = slugifyTestName(`genel-${topic.topicId}-tur-${roundNumber}`);
-        const testName = `${topic.topicName} — Genel Havuz Turu ${roundNumber}`;
-        await prisma.$transaction([
-          prisma.xrayPracticeQuestion.deleteMany({ where: { testId } }),
-          prisma.xrayPracticeQuestion.createMany({
-            data: result.questions.map((q) => ({
-              subject: SUBJECT,
-              subtopicId: q.subtopicId,
-              variant: "genel",
-              testId,
-              testName,
-              order: q.soruNo,
-              kazanimId: q.kazanimId,
-              prompt: q.questionText,
-              correctAnswer: q.finalAnswer,
-              solution: q.detailedSolution,
-              checks: q.diagnosticComment,
-            })),
-          }),
-          prisma.xrayPoolGenerationRound.upsert({
-            where: { subject_variant_unitId_roundNumber: { subject: SUBJECT, variant: "genel", unitId: topic.topicId, roundNumber } },
-            create: { subject: SUBJECT, variant: "genel", unitId: topic.topicId, roundNumber, status: "success", blueprint: result.blueprint, testId, attempts: result.attempts, tokensUsed: result.tokensUsed },
-            update: { status: "success", blueprint: result.blueprint, testId, attempts: result.attempts, tokensUsed: result.tokensUsed, errorMessage: null },
-          }),
-        ]);
-        console.log(`  ✅ Tur ${roundNumber} yazıldı (${result.questions.length} soru, ${result.tokensUsed} token, ${result.attempts} deneme).`);
-      } else {
-        await prisma.xrayPoolGenerationRound.upsert({
-          where: { subject_variant_unitId_roundNumber: { subject: SUBJECT, variant: "genel", unitId: topic.topicId, roundNumber } },
-          create: { subject: SUBJECT, variant: "genel", unitId: topic.topicId, roundNumber, status: "failed", attempts: result.attempts, tokensUsed: result.tokensUsed, errorMessage: result.errorSummary },
-          update: { status: "failed", attempts: result.attempts, tokensUsed: result.tokensUsed, errorMessage: result.errorSummary },
-        });
-        console.log(`  ❌ Tur ${roundNumber} başarısız (${result.attempts} deneme sonrası): ${result.errorSummary}`);
+// ── "alt_konu" — 10 soru, tek alt konu, orta seviye ──
+
+async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: number, lockedBlueprint: string[] | null) {
+  let totalTokens = 0;
+  let lastError = "";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ROUND; attempt++) {
+    const basePrompt = roundNumber === 1 ? buildAltKonuRound1UserPrompt(subtopic) : buildAltKonuRoundNUserPrompt(subtopic, lockedBlueprint!, roundNumber);
+    const userPrompt = attempt === 1 ? basePrompt : basePrompt + buildRetryCorrectionSuffix(lastError);
+    const completion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_ALT_KONU, userPrompt, maxTokens: MAX_TOKENS });
+    totalTokens += completion.totalTokens;
+    const validation = validateAltKonuRoundResponse(completion.content, lockedBlueprint);
+    if (validation.ok) {
+      const questions = validation.questions.map((q) => ({ ...q, subtopicId: subtopic.subtopicId }));
+      return { ok: true as const, questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
+    }
+    lastError = validation.errorSummary;
+    console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız: ${lastError}`);
+  }
+  return { ok: false as const, errorSummary: lastError, tokensUsed: totalTokens, attempts: MAX_ATTEMPTS_PER_ROUND };
+}
+
+async function runVariantAltKonu(subtopics: FlattenedSubtopic[], targetRounds: number): Promise<"continue" | "stop"> {
+  for (const subtopic of subtopics) {
+    for (let roundNumber = 1; roundNumber <= targetRounds; roundNumber++) {
+      const gate = await checkGate();
+      if (gate.status === "stop") return "stop";
+      if (!gate.activeVariants.includes("alt_konu")) return "continue";
+
+      const existing = await prisma.xrayPoolGenerationRound.findUnique({ where: { subject_variant_unitId_roundNumber: { subject: SUBJECT, variant: "alt_konu", unitId: subtopic.subtopicId, roundNumber } } });
+      if (existing?.status === "success") {
+        console.log(`↷ [alt_konu] ${subtopic.subtopicName} tur ${roundNumber} zaten tamam, atlanıyor.`);
+        continue;
       }
+
+      let lockedBlueprint: string[] | null = null;
+      if (roundNumber > 1) {
+        lockedBlueprint = await getLockedBlueprint<string[]>("alt_konu", subtopic.subtopicId);
+        if (!lockedBlueprint) {
+          console.log(`⏭️  [alt_konu] ${subtopic.subtopicName}: 1. tur başarılı değil, ${roundNumber}. tur atlanıyor.`);
+          break;
+        }
+      }
+
+      console.log(`▶ [alt_konu] ${subtopic.grade}.sınıf > ${subtopic.topicName} > ${subtopic.subtopicName} — Tur ${roundNumber}/${targetRounds}`);
+      const result = await generateAltKonuRound(subtopic, roundNumber, lockedBlueprint);
+      await recordTokenUsage(result.tokensUsed);
+      await writeRoundResult({
+        variant: "alt_konu",
+        unitId: subtopic.subtopicId,
+        roundNumber,
+        testId: slugifyTestName(`altkonu-${subtopic.subtopicId}-tur-${roundNumber}`),
+        testName: `${subtopic.subtopicName} — Alt Konu Havuz Turu ${roundNumber}`,
+        result,
+      });
     }
   }
   return "continue";
 }
 
 async function main() {
-  const { topicsLimit, roundsOverride } = parseArgs();
+  const { topicsLimit, subtopicsLimit, roundsOverride } = parseArgs();
   const targetRounds = roundsOverride ?? DEFAULT_TARGET_ROUNDS;
   let topics = flattenTopics(SUBJECT);
   if (topicsLimit) topics = topics.slice(0, topicsLimit);
+  let subtopics = flattenCurriculum(SUBJECT);
+  if (subtopicsLimit) subtopics = subtopics.slice(0, subtopicsLimit);
 
   const control = await getControl();
   const activeVariants = (control.activeVariants as unknown as string[]).filter((v) => IMPLEMENTED_VARIANTS.has(v));
   const skipped = (control.activeVariants as unknown as string[]).filter((v) => !IMPLEMENTED_VARIANTS.has(v));
   if (skipped.length > 0) console.log(`ℹ️  Şu variant'ların prompt'u henüz yok, atlanıyor: ${skipped.join(", ")}`);
 
-  console.log(`Worker başladı — ${topics.length} konu, hedef ${targetRounds} tur/konu, model: ${MODEL}, aktif variant'lar: ${activeVariants.join(", ") || "(yok)"}`);
+  console.log(`Worker başladı — model: ${MODEL}, hedef ${targetRounds} tur/birim, aktif variant'lar: ${activeVariants.join(", ") || "(yok)"}`);
 
   if (activeVariants.includes("genel")) {
     const outcome = await runVariantGenel(topics, targetRounds);
+    if (outcome === "stop") return;
+  }
+  if (activeVariants.includes("alt_konu")) {
+    const outcome = await runVariantAltKonu(subtopics, targetRounds);
     if (outcome === "stop") return;
   }
 

@@ -82,3 +82,63 @@ export function validateGenelRoundResponse(rawContent: string, topic: FlattenedT
 
   return { ok: true, questions: validatedQuestions, blueprint: lockedBlueprint ?? resultSequence };
 }
+
+export type AltKonuRawQuestion = { soruNo?: number; kazanimId?: string; questionText?: string; finalAnswer?: string; detailedSolution?: string; diagnosticComment?: string };
+export type AltKonuValidatedQuestion = { soruNo: number; kazanimId: string; questionText: string; finalAnswer: string; detailedSolution: string; diagnosticComment: string };
+export type AltKonuValidationResult = { ok: true; questions: AltKonuValidatedQuestion[]; blueprint: string[] } | { ok: false; errorSummary: string };
+
+// "alt_konu" variant için doğrulama — 10 soru, TEK bir alt konu. round 1
+// için lockedBlueprint=null (bu turda kilitlenir); round 2+ için dönen
+// kazanımId dizisi BİREBİR lockedBlueprint'le eşleşmezse geçersiz sayılır.
+export function validateAltKonuRoundResponse(rawContent: string, lockedBlueprint: string[] | null): AltKonuValidationResult {
+  let parsed: unknown;
+  try {
+    parsed = extractJson(rawContent);
+  } catch {
+    return { ok: false, errorSummary: "Yanıt geçerli JSON değil." };
+  }
+
+  if (!Array.isArray(parsed)) return { ok: false, errorSummary: "Yanıt bir JSON dizisi olmalı." };
+  if (parsed.length !== 10) return { ok: false, errorSummary: `Tam 10 soru bekleniyordu, ${parsed.length} geldi.` };
+
+  const questions = parsed as AltKonuRawQuestion[];
+  const fieldErrors: string[] = [];
+  for (const [i, q] of questions.entries()) {
+    if (!Number.isInteger(q.soruNo) || q.soruNo! <= 0) fieldErrors.push(`#${i + 1}: soruNo geçersiz`);
+    if (!q.kazanimId?.trim()) fieldErrors.push(`#${i + 1}: kazanimId boş`);
+    if (!q.questionText?.trim()) fieldErrors.push(`#${i + 1}: questionText boş`);
+    if (!q.finalAnswer?.trim()) fieldErrors.push(`#${i + 1}: finalAnswer boş`);
+    if (!q.detailedSolution?.trim()) fieldErrors.push(`#${i + 1}: detailedSolution boş`);
+    if (!q.diagnosticComment?.trim()) fieldErrors.push(`#${i + 1}: diagnosticComment boş`);
+  }
+  if (fieldErrors.length > 0) return { ok: false, errorSummary: `${fieldErrors.length} alan hatası: ${fieldErrors.slice(0, 5).join(" | ")}` };
+
+  const bySoruNo = [...questions].sort((a, b) => a.soruNo! - b.soruNo!);
+  const soruNos = bySoruNo.map((q) => q.soruNo);
+  const expected = Array.from({ length: 10 }, (_, i) => i + 1);
+  if (JSON.stringify(soruNos) !== JSON.stringify(expected)) return { ok: false, errorSummary: "soruNo değerleri 1-10 arasını eksiksiz/tekrarsız kapsamıyor." };
+
+  const texts = new Set(bySoruNo.map((q) => q.questionText!.trim()));
+  if (texts.size !== 10) return { ok: false, errorSummary: "Aynı questionText birden fazla kez tekrar ediyor (kopyala-yapıştır şüphesi)." };
+
+  const kazanimSequence = bySoruNo.map((q) => q.kazanimId!.trim());
+
+  if (lockedBlueprint) {
+    const mismatches: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      if (kazanimSequence[i] !== lockedBlueprint[i]) mismatches.push(`soruNo ${i + 1}: beklenen "${lockedBlueprint[i]}", gelen "${kazanimSequence[i]}"`);
+    }
+    if (mismatches.length > 0) return { ok: false, errorSummary: `kazanimId dizisi blueprint'le uyuşmuyor (${mismatches.length} pozisyon): ${mismatches.slice(0, 5).join(" | ")}` };
+  }
+
+  const validatedQuestions: AltKonuValidatedQuestion[] = bySoruNo.map((q, i) => ({
+    soruNo: q.soruNo!,
+    kazanimId: kazanimSequence[i],
+    questionText: q.questionText!.trim(),
+    finalAnswer: q.finalAnswer!.trim(),
+    detailedSolution: q.detailedSolution!.trim(),
+    diagnosticComment: q.diagnosticComment!.trim(),
+  }));
+
+  return { ok: true, questions: validatedQuestions, blueprint: lockedBlueprint ?? kazanimSequence };
+}
