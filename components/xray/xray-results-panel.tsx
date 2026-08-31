@@ -11,7 +11,7 @@ import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section
 import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
 import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
 import { XraySetGoalButton } from "@/components/xray/xray-set-goal-button";
-import { XrayAverageDetailButton } from "@/components/xray/xray-average-detail-button";
+import { XrayAverageDetailModal, XrayRedZoneModal, XrayUntestedTopicsModal, XrayHistoryTimelineModal } from "@/components/xray/xray-stat-detail-modals";
 import { cn } from "@/lib/utils";
 
 export type XrayRosterStudent = { id: string; firstName: string; lastName: string; branchName: string; branchId: string; grade: number };
@@ -36,15 +36,41 @@ function scoreTextColor(score: number | null): string {
   return "text-rose-600 dark:text-rose-400";
 }
 
-function StatCard({ icon: Icon, label, value, tone }: { icon: typeof Gauge; label: string; value: string; tone?: string }) {
+// Faz V — kullanıcı bu 4 kartın (Ortalama/Test Edilen Konu/Kırmızı Bölge/
+// Son Değerlendirme) HER BİRİNE tıklayınca detaylı bir menü açılmasını
+// istedi — önceki oturumda YANLIŞLIKLA başlıktaki küçük yuvarlak rozet
+// tıklanabilir yapılmıştı, kullanıcının GERÇEKTEN tıkladığı bu kartlardı
+// (DevTools'ta doğrulandı — bkz. commit yorumu). onClick verilirse
+// <button>, verilmezse eskisi gibi salt-görüntüleme <div> olarak render
+// edilir (geriye dönük uyumluluk gerekmiyor ama iki kullanım da var).
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  tone,
+  onClick,
+}: {
+  icon: typeof Gauge;
+  label: string;
+  value: string;
+  tone?: string;
+  onClick?: () => void;
+}) {
+  const Wrapper = onClick ? "button" : "div";
   return (
-    <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
+    <Wrapper
+      onClick={onClick}
+      className={cn(
+        "rounded-2xl border border-hairline bg-white/70 p-3.5 text-left shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50",
+        onClick && "transition hover:border-sky-400/40 hover:bg-white dark:hover:bg-white/5"
+      )}
+    >
       <div className="mb-1.5 flex items-center gap-1.5 text-espresso-muted dark:text-cream/40">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
       </div>
       <p className={cn("text-lg font-bold text-espresso dark:text-cream", tone)}>{value}</p>
-    </div>
+    </Wrapper>
   );
 }
 
@@ -74,6 +100,10 @@ export function XrayResultsPanel({
   const [downloading, setDownloading] = useState(false);
   const [downloadingBranch, setDownloadingBranch] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [averageDetailOpen, setAverageDetailOpen] = useState(false);
+  const [redZoneOpen, setRedZoneOpen] = useState(false);
+  const [untestedOpen, setUntestedOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<MasteryHistoryResponse | null>(null);
   const [trendOpen, setTrendOpen] = useState(false);
   const [netTrend, setNetTrend] = useState<{ examLabel: string; net: number }[] | null>(null);
@@ -172,7 +202,9 @@ export function XrayResultsPanel({
   const allSubtopics = results?.topics.flatMap((t) => t.subtopics) ?? [];
   const tested = allSubtopics.filter((s): s is SubtopicResult & { masteryScore: number } => s.masteryScore !== null);
   const averageScore = tested.length === 0 ? null : Math.round(tested.reduce((sum, s) => sum + (s.masteryScore ?? 0), 0) / tested.length);
-  const redZoneCount = tested.filter((s) => (s.masteryScore ?? 100) < 30).length;
+  const weakSubtopics = tested.filter((s) => s.masteryScore < 30);
+  const untestedSubtopics = allSubtopics.filter((s) => s.masteryScore === null);
+  const redZoneCount = weakSubtopics.length;
   const lastAssessedAt = tested.reduce<string | null>((latest, s) => {
     if (!s.assessedAt) return latest;
     if (!latest || s.assessedAt > latest) return s.assessedAt;
@@ -294,7 +326,9 @@ export function XrayResultsPanel({
                       >
                         {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                       </button>
-                      <XrayAverageDetailButton averageScore={averageScore} tested={tested} onOpenTrend={() => setTrendOpen(true)} />
+                      <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
+                        %{averageScore}
+                      </div>
                       </>
                     )}
                   </div>
@@ -312,13 +346,25 @@ export function XrayResultsPanel({
               {!loading && results && tested.length > 0 && (
                 <>
                   <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                    <StatCard icon={Gauge} label="Ortalama" value={`%${averageScore}`} tone={scoreTextColor(averageScore)} />
-                    <StatCard icon={ListChecks} label="Test Edilen Konu" value={`${tested.length} / ${allSubtopics.length}`} />
-                    <StatCard icon={Flame} label="Kırmızı Bölge" value={`${redZoneCount}`} tone={redZoneCount > 0 ? "text-rose-600 dark:text-rose-400" : undefined} />
+                    <StatCard icon={Gauge} label="Ortalama" value={`%${averageScore}`} tone={scoreTextColor(averageScore)} onClick={() => setAverageDetailOpen(true)} />
+                    <StatCard
+                      icon={ListChecks}
+                      label="Test Edilen Konu"
+                      value={`${tested.length} / ${allSubtopics.length}`}
+                      onClick={() => setUntestedOpen(true)}
+                    />
+                    <StatCard
+                      icon={Flame}
+                      label="Kırmızı Bölge"
+                      value={`${redZoneCount}`}
+                      tone={redZoneCount > 0 ? "text-rose-600 dark:text-rose-400" : undefined}
+                      onClick={() => setRedZoneOpen(true)}
+                    />
                     <StatCard
                       icon={CalendarClock}
                       label="Son Değerlendirme"
                       value={lastAssessedAt ? new Date(lastAssessedAt).toLocaleDateString("tr-TR") : "—"}
+                      onClick={() => setHistoryOpen(true)}
                     />
                   </div>
 
@@ -385,7 +431,7 @@ export function XrayResultsPanel({
 
         {/* SAĞ — test atama panelleri (SADECE yönetici) */}
         {canAssign && selectedStudent && (
-          <div className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
+          <div id="xray-assignment-column" className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
             <XrayPracticeAssignmentSection
               studentId={selectedId}
               studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
@@ -407,6 +453,27 @@ export function XrayResultsPanel({
       </div>
 
       <MasteryTrendDrilldown isOpen={trendOpen} onClose={() => setTrendOpen(false)} data={history} />
+      {averageScore !== null && (
+        <XrayAverageDetailModal
+          isOpen={averageDetailOpen}
+          onClose={() => setAverageDetailOpen(false)}
+          averageScore={averageScore}
+          tested={tested}
+          onOpenTrend={() => setTrendOpen(true)}
+        />
+      )}
+      <XrayRedZoneModal isOpen={redZoneOpen} onClose={() => setRedZoneOpen(false)} weak={weakSubtopics} />
+      <XrayUntestedTopicsModal
+        isOpen={untestedOpen}
+        onClose={() => setUntestedOpen(false)}
+        untested={untestedSubtopics}
+        onAssign={
+          canAssign
+            ? () => document.getElementById("xray-assignment-column")?.scrollIntoView({ behavior: "smooth", block: "start" })
+            : undefined
+        }
+      />
+      <XrayHistoryTimelineModal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} events={history?.overallTrend ?? []} />
     </div>
   );
 }

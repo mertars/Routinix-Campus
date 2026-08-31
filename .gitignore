@@ -10,3 +10,5 @@ public/uploads
 /test-results
 /playwright-report
 /blob-report
+.vercel
+.env*
