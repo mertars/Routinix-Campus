@@ -19,13 +19,26 @@ import { flattenTopics, flattenCurriculum, type FlattenedTopic, type FlattenedSu
 import { callChatCompletion } from "../lib/server/xray/question-generation/ai-client";
 import { SYSTEM_PROMPT_GENEL, buildGenelRound1UserPrompt, buildGenelRoundNUserPrompt, SYSTEM_PROMPT_ALT_KONU, buildAltKonuRound1UserPrompt, buildAltKonuRoundNUserPrompt, buildRetryCorrectionSuffix } from "../lib/server/xray/question-generation/prompt";
 import { validateGenelRoundResponse, validateAltKonuRoundResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
+import { verifyContent } from "../lib/server/xray/question-generation/verify-content";
 import { slugifyTestName } from "../lib/server/xray/question-pool-upload";
 
 const SUBJECT = "Matematik";
 const MODEL = "deepseek-v4-flash-0731";
 const MAX_TOKENS = 16000;
+const VERIFY_MAX_TOKENS = 4000;
 const MAX_ATTEMPTS_PER_ROUND = 3;
 const DEFAULT_TARGET_ROUNDS = 10;
+
+// Faz Z8 — kullanıcı talebi: her tur DB'ye yazılmadan önce ikinci, BAĞIMSIZ
+// bir geçişte gözden geçirilsin (cevap doğru mu, soru mantıklı mı, yazım
+// hatası var mı). Maliyeti kabul edilebilir seviyede tutmak için AYNI ucuz
+// (flash) model kullanılıyor — bu bir bağımsız/daha güçlü model denetimi
+// DEĞİL, kendi kendine ikinci bir "temiz gözle okuma" turu; asıl güvence
+// yine de programatik yapısal doğrulama + kullanıcının kendi örneklem
+// kontrolüdür.
+function formatIssuesAsCorrection(issues: { soruNo: number; reason: string }[]): string {
+  return `İçerik kontrolünde şu sorunlar bulundu, DÜZELT: ${issues.map((i) => `soruNo ${i.soruNo}: ${i.reason}`).join(" | ")}`;
+}
 
 // "yeterlilik" prompt'u tasarlanınca buraya eklenecek.
 const IMPLEMENTED_VARIANTS = new Set(["genel", "alt_konu"]);
@@ -132,9 +145,17 @@ async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lo
     const completion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_GENEL, userPrompt, maxTokens: MAX_TOKENS });
     totalTokens += completion.totalTokens;
     const validation = validateGenelRoundResponse(completion.content, topic, lockedBlueprint);
-    if (validation.ok) return { ok: true as const, questions: validation.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
-    lastError = validation.errorSummary;
-    console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız: ${lastError}`);
+    if (!validation.ok) {
+      lastError = validation.errorSummary;
+      console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız (yapısal): ${lastError}`);
+      continue;
+    }
+
+    const check = await verifyContent(MODEL, VERIFY_MAX_TOKENS, validation.questions);
+    totalTokens += check.tokensUsed;
+    if (check.ok === true) return { ok: true as const, questions: validation.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
+    lastError = check.ok === false ? formatIssuesAsCorrection(check.issues) : `İçerik kontrolü başarısız oldu: ${check.errorSummary}`;
+    console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız (içerik kontrolü): ${lastError}`);
   }
   return { ok: false as const, errorSummary: lastError, tokensUsed: totalTokens, attempts: MAX_ATTEMPTS_PER_ROUND };
 }
@@ -188,12 +209,20 @@ async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: nu
     const completion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_ALT_KONU, userPrompt, maxTokens: MAX_TOKENS });
     totalTokens += completion.totalTokens;
     const validation = validateAltKonuRoundResponse(completion.content, lockedBlueprint);
-    if (validation.ok) {
+    if (!validation.ok) {
+      lastError = validation.errorSummary;
+      console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız (yapısal): ${lastError}`);
+      continue;
+    }
+
+    const check = await verifyContent(MODEL, VERIFY_MAX_TOKENS, validation.questions);
+    totalTokens += check.tokensUsed;
+    if (check.ok === true) {
       const questions = validation.questions.map((q) => ({ ...q, subtopicId: subtopic.subtopicId }));
       return { ok: true as const, questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
     }
-    lastError = validation.errorSummary;
-    console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız: ${lastError}`);
+    lastError = check.ok === false ? formatIssuesAsCorrection(check.issues) : `İçerik kontrolü başarısız oldu: ${check.errorSummary}`;
+    console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız (içerik kontrolü): ${lastError}`);
   }
   return { ok: false as const, errorSummary: lastError, tokensUsed: totalTokens, attempts: MAX_ATTEMPTS_PER_ROUND };
 }
