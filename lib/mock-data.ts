@@ -437,41 +437,33 @@ export type CurriculumTopic = { id: string; name: string; grade: GradeLevel; sub
 export const XRAY_MIN_GRADE = 9;
 
 export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
-  // Faz Z — "İkisi bir arada" hibrit yapı. Kullanıcının orijinal listesi ile
-  // 2024 MEB "Türkiye Yüzyılı Maarif Modeli" resmi lise matematik müfredatı
-  // (bkz. bolluk.meb.k12.tr üzerindeki resmi PDF, sf. 9-12 tema tabloları)
-  // ARASINDA doğrudan çelişki bulundu: resmi program konuları klasik isimler
-  // (Türev/İntegral/Trigonometri vb.) yerine soyut "tema" başlıklarıyla
-  // (MAT.{sınıf}.{n}) örgütlüyor ve İntegral'i programdan TAMAMEN ÇIKARIYOR
-  // ("...integral kavramına yer verilmemiş"). Kullanıcıya bu çelişki
-  // kaynaklarıyla sunuldu; kullanıcı "İkisi bir arada" seçeneğini onayladı:
-  // ÜST seviye (topic) = resmi MEB tema adı, ALT seviye (subtopic) = dershane
-  // pratiğinde gerçekten kullanılan klasik/geleneksel konu adı. Bu, uygulamanın
-  // zaten 2 seviyeli (topic→subtopic) veri modeliyle doğal olarak örtüşüyor:
-  // gerçek yabancı anahtar (XrayPracticeQuestion.subtopicId,
-  // TopicMasteryAssessment.subtopicId vb.) HER ZAMAN subtopic.id'dir — topic.id
-  // SADECE görsel gruplama/React key amaçlıdır ve hiçbir DB satırından
-  // referans edilmez (kod genelinde doğrulandı). Bu yüzden mevcut GERÇEK
-  // üretim verisi taşıyan subtopic id'leri (mt9-1, mt9-2, mt10-1, mt10-2,
-  // mt10-3, mt12a-1, mt12a-2, mt12a-3, mt12b-1 [30 soruluk gerçek havuz],
-  // mt12b-2) TAMAMEN KORUNDU — sadece hangi ÜST konunun altında gruplandıkları
-  // (resmi temaya taşındı) değişti, kendi id'leri asla değişmedi.
+  // Faz Z2 — kullanıcının paylaştığı "Rehber Matematik" kaynaklı 4 detaylı
+  // infografik (1./2. Aşama Matematik + Geometri konuları, 9-12. sınıf) ile
+  // hibrit yapı NET alt konu kırılımına kavuşturuldu. Bu kaynak 2024 MEB
+  // reformunun resmi tema iskeletini (bkz. Faz Z'de bolluk.meb.k12.tr PDF'i)
+  // DOĞRULUYOR ve çok daha isabetli alt konu detayı veriyor — önceki turdaki
+  // "pratik yerleşim" (kaynaksız tahmin) etiketli konuların çoğu ya bu
+  // kaynakla NET olarak eşleşti (o zaman sourced'e çevrildi) ya da yanlış
+  // sınıf/temada olduğu ortaya çıktı ve düzeltildi (örn. Üstel ve Logaritmik
+  // Fonksiyonlar aslında 12. değil 11. sınıfta; Dönüşümler/Analitik Geometri/
+  // grade-12 Trigonometri/grade-11 Uzay Geometri hiçbir sınıfta resmi temada
+  // yer almıyor — kaldırıldı, çünkü zaten başka sınıflarda [Eşlik ve
+  // Benzerlik@9, Analitik İnceleme@10, Geometrik Şekiller@10-11] sarmal
+  // olarak işleniyorlar). İntegral yine tek istisna: resmi kaynakta YOK ama
+  // mt12b-1'de 30 soruluk GERÇEK yüklenmiş havuz olduğu için dershane
+  // pratiği olarak Değişimin Matematiği altında KORUNDU.
   //
-  // PDF'te sınıf başına açıkça geçen yerleşimler (Geometrik Şekiller alt
-  // kırılımları, Değişimin Matematiği→türev, vb.) sourced olarak işaretlendi.
-  // PDF'in yeri belirtmediği klasik konular (Diziler, Dönüşümler, Üstel-
-  // Logaritmik, Olasılık@11, Uzay Geometri, Analitik Geometri, grade12
-  // Trigonometri) en yakın kavramsal resmi temanın altına PRATİK/dershane
-  // kararıyla yerleştirildi — bu satırlar "pratik yerleşim" diye işaretli,
-  // resmi kaynağı yok, kullanıcı isterse kolayca taşınabilir.
-  //
-  // Eski "mt11a/mt11b" (Trigonometri/Diziler, 11. sınıf) tamamen kaldırıldı:
-  // resmi 11. sınıf tema listesinde (sadece 3 tema: Nicelikler ve
-  // Değişimler, Geometrik Şekiller, İstatistiksel Araştırma Süreci) hiçbiri
-  // yer almıyordu ve ikisine de bağlı gerçek üretim verisi yoktu (kontrol
-  // edildi) — bu yüzden veri kaybı riski olmadan yeniden yapılandırıldılar.
+  // Gerçek üretim verisi taşıyan 10 subtopic id'si (mt9-1, mt9-2, mt10-1,
+  // mt10-2, mt10-3, mt12a-1, mt12a-2, mt12a-3, mt12b-1, mt12b-2) yine
+  // AYNEN korundu — id'ler asla değişmedi, sadece görüntülenen konu grubu
+  // ve (gerekliyse) name metni bu kaynakla daha isabetli hale getirildi.
   Matematik: [
-    // ── 9. SINIF — resmi 7 tema (MAT.9.1–MAT.9.7) ──
+    // ── 9. SINIF — resmi 7 tema ──
+    // sourced: Sayılar → "Üslü ve Köklü Gösterimler" / "Gerçek Sayı
+    // Aralıkları ve Kümeler" / "Sayı Kümeleri ve İşlem Özellikleri". Son iki
+    // madde mt9-1/mt9-2'nin GERÇEK verili konularıyla kavramsal olarak zaten
+    // örtüşüyor (id/name KORUNDU) — sadece eksik kalan "Üslü ve Köklü
+    // Gösterimler" yeni alt konu olarak eklendi.
     {
       id: "mt9",
       name: "Sayılar",
@@ -479,22 +471,86 @@ export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
       subtopics: [
         { id: "mt9-1", name: "Küme Kavramı ve İşlemler", covered: true, dateCovered: "5 hafta önce" },
         { id: "mt9-2", name: "Rasyonel ve Gerçek Sayılar", covered: false },
+        { id: "mt9-sayilar-3", name: "Üslü ve Köklü Gösterimler", covered: false },
       ],
     },
-    { id: "mt9-nicelikler-degisimler", name: "Nicelikler ve Değişimler", grade: 9, subtopics: [{ id: "mt9-nicelikler-degisimler-1", name: "Nicelikler ve Değişimler", covered: false }] },
-    { id: "mt9-algoritma-bilisim", name: "Algoritma ve Bilişim", grade: 9, subtopics: [{ id: "mt9-algoritma-bilisim-1", name: "Algoritma ve Bilişim", covered: false }] },
-    // sourced: PDF — "9. sınıf seviyesinde üçgende temel elemanlar (açı,
-    // kenar), üçgen eşitsizliği"
-    { id: "mt9-geometrik-sekiller", name: "Geometrik Şekiller", grade: 9, subtopics: [{ id: "mt9-geometrik-sekiller-1", name: "Üçgende Temel Elemanlar ve Üçgen Eşitsizliği", covered: false }] },
-    { id: "mt9-eslik-benzerlik", name: "Eşlik ve Benzerlik", grade: 9, subtopics: [{ id: "mt9-eslik-benzerlik-1", name: "Eşlik ve Benzerlik", covered: false }] },
-    { id: "mt9-istatistiksel-arastirma", name: "İstatistiksel Araştırma Süreci", grade: 9, subtopics: [{ id: "mt9-istatistiksel-arastirma-1", name: "İstatistiksel Araştırma Süreci", covered: false }] },
-    { id: "mt9-veriden-olasiliga", name: "Veriden Olasılığa", grade: 9, subtopics: [{ id: "mt9-veriden-olasiliga-1", name: "Veriden Olasılığa", covered: false }] },
+    {
+      id: "mt9-nicelikler-degisimler",
+      name: "Nicelikler ve Değişimler",
+      grade: 9,
+      subtopics: [
+        { id: "mt9-nicelikler-degisimler-1", name: "Doğrusal Fonksiyonlar", covered: false },
+        { id: "mt9-nicelikler-degisimler-2", name: "Mutlak Değer Fonksiyonları", covered: false },
+        { id: "mt9-nicelikler-degisimler-3", name: "Doğrusal Denklem ve Eşitsizlik Problemleri", covered: false },
+      ],
+    },
+    {
+      id: "mt9-algoritma-bilisim",
+      name: "Algoritma ve Bilişim",
+      grade: 9,
+      subtopics: [
+        { id: "mt9-algoritma-bilisim-1", name: "Algoritma Temelli Problemler", covered: false },
+        { id: "mt9-algoritma-bilisim-2", name: "Akış Şeması, Çizge ve Sözde Kod", covered: false },
+        { id: "mt9-algoritma-bilisim-3", name: "Mantık Bağlaçları ve Niceleyiciler", covered: false },
+      ],
+    },
+    {
+      id: "mt9-geometrik-sekiller",
+      name: "Geometrik Şekiller",
+      grade: 9,
+      subtopics: [
+        { id: "mt9-geometrik-sekiller-1", name: "Üçgende İç ve Dış Açı Özellikleri", covered: false },
+        { id: "mt9-geometrik-sekiller-2", name: "Üçgende Açı-Kenar İlişkileri", covered: false },
+        { id: "mt9-geometrik-sekiller-3", name: "Kenar İlişkileri ve Üçgen Eşitsizliği", covered: false },
+      ],
+    },
+    {
+      id: "mt9-eslik-benzerlik",
+      name: "Eşlik ve Benzerlik",
+      grade: 9,
+      subtopics: [
+        { id: "mt9-eslik-benzerlik-1", name: "Yansıma, Öteleme ve Dönme", covered: false },
+        { id: "mt9-eslik-benzerlik-2", name: "Üçgenlerde Eşlik ve Benzerlik Koşulları", covered: false },
+        { id: "mt9-eslik-benzerlik-3", name: "Tales, Öklid ve Pisagor Teoremleri", covered: false },
+      ],
+    },
+    {
+      id: "mt9-istatistiksel-arastirma",
+      name: "İstatistiksel Araştırma Süreci",
+      grade: 9,
+      subtopics: [
+        { id: "mt9-istatistiksel-arastirma-1", name: "Tek Nicel Değişkenli Veriler", covered: false },
+        { id: "mt9-istatistiksel-arastirma-2", name: "Histogram, Kutu ve Nokta Grafiği", covered: false },
+        { id: "mt9-istatistiksel-arastirma-3", name: "Ortalama, Medyan, Mod ve Yayılım Ölçüleri", covered: false },
+      ],
+    },
+    {
+      id: "mt9-veriden-olasiliga",
+      name: "Veriden Olasılığa",
+      grade: 9,
+      subtopics: [
+        { id: "mt9-veriden-olasiliga-1", name: "Deneysel ve Teorik Olasılık", covered: false },
+        { id: "mt9-veriden-olasiliga-2", name: "Örnek Uzay ve Göreli Sıklık", covered: false },
+        { id: "mt9-veriden-olasiliga-3", name: "Ayrık ve Ayrık Olmayan Olaylar", covered: false },
+      ],
+    },
 
-    // ── 10. SINIF — resmi 7 tema (MAT.10.1–MAT.10.7) ──
-    { id: "mt10-sayilar", name: "Sayılar", grade: 10, subtopics: [{ id: "mt10-sayilar-1", name: "Sayılar", covered: false }] },
-    // "Fonksiyonlar" resmi listede ayrı bir tema değil, MEB'de Nicelikler ve
-    // Değişimler temasının kapsamına giriyor — mt10-1/2/3'teki GERÇEK ustalık
-    // kaydı (id'ler AYNEN korunarak) bu resmi temanın altına taşındı.
+    // ── 10. SINIF — resmi 7 tema ──
+    {
+      id: "mt10-sayilar",
+      name: "Sayılar",
+      grade: 10,
+      subtopics: [
+        { id: "mt10-sayilar-1", name: "Asal Çarpanlar ve Bölenler", covered: false },
+        { id: "mt10-sayilar-2", name: "EBOB ve EKOK", covered: false },
+        { id: "mt10-sayilar-3", name: "Bölünebilme Kuralları", covered: false },
+      ],
+    },
+    // "Fonksiyonlar" resmi listede ayrı bir tema değil, Nicelikler ve
+    // Değişimler temasının kapsamına giriyor — mt10-1/2/3'teki GERÇEK
+    // ustalık kaydı (id/name AYNEN korunarak) bu resmi temanın altında;
+    // kaynakta eksik kalan "Karesel, Kareköklü ve Rasyonel Fonksiyonlar"
+    // yeni alt konu olarak eklendi.
     {
       id: "mt10-nicelikler-degisimler",
       name: "Nicelikler ve Değişimler",
@@ -503,87 +559,122 @@ export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
         { id: "mt10-1", name: "Fonksiyon Kavramı", covered: true, dateCovered: "4 hafta önce" },
         { id: "mt10-2", name: "Bileşke Fonksiyon", covered: true, dateCovered: "3 hafta önce" },
         { id: "mt10-3", name: "Ters Fonksiyon", covered: false },
+        { id: "mt10-nicelikler-degisimler-4", name: "Karesel, Kareköklü ve Rasyonel Fonksiyonlar", covered: false },
       ],
     },
-    { id: "mt10-sayma-algoritma-bilisim", name: "Sayma, Algoritma ve Bilişim", grade: 10, subtopics: [{ id: "mt10-sayma-algoritma-bilisim-1", name: "Sayma, Algoritma ve Bilişim", covered: false }] },
-    // sourced: PDF — "üçgende yardımcı elemanlar..., iç teğet çember ve dış
-    // teğet çember, çevrel çember" + "trigonometrik oranlar, sinüs ve
-    // kosinüs teoremleri" (10. sınıf Geometrik Şekiller teması)
+    {
+      id: "mt10-sayma-algoritma-bilisim",
+      name: "Sayma, Algoritma ve Bilişim",
+      grade: 10,
+      subtopics: [
+        { id: "mt10-sayma-algoritma-bilisim-1", name: "Sayma Stratejileri", covered: false },
+        { id: "mt10-sayma-algoritma-bilisim-2", name: "Faktöriyel, Seçme ve Sıralama Sayısı", covered: false },
+        { id: "mt10-sayma-algoritma-bilisim-3", name: "Cebirsel ve Fonksiyonel İşlemlerin Algoritmik Yapısı", covered: false },
+      ],
+    },
+    // 10. sınıfta Eşlik ve Benzerlik ayrı bir tema değil, kaynağın kendi
+    // notuna göre ("Geometrik Şekiller temasında kullanılıyor") bu temanın
+    // içine katılıyor — 4. alt konu olarak eklendi.
     {
       id: "mt10-geometrik-sekiller",
       name: "Geometrik Şekiller",
       grade: 10,
       subtopics: [
-        { id: "mt10-geometrik-sekiller-1", name: "Üçgende Yardımcı Elemanlar ve Çemberler", covered: false },
-        { id: "mt10-geometrik-sekiller-2", name: "Trigonometrik Oranlar, Sinüs ve Kosinüs Teoremleri", covered: false },
+        { id: "mt10-geometrik-sekiller-1", name: "Dik Üçgende Trigonometrik Oranlar ve Özdeşlikler", covered: false },
+        { id: "mt10-geometrik-sekiller-2", name: "Üçgenin Yardımcı Elemanları ve Alan", covered: false },
+        { id: "mt10-geometrik-sekiller-3", name: "Sinüs ve Kosinüs Teoremleri", covered: false },
+        { id: "mt10-geometrik-sekiller-4", name: "Eşlik, Benzerlik ve Pisagor Bilgileri", covered: false },
       ],
     },
-    { id: "mt10-analitik-inceleme", name: "Analitik İnceleme", grade: 10, subtopics: [{ id: "mt10-analitik-inceleme-1", name: "Analitik İnceleme", covered: false }] },
-    { id: "mt10-istatistiksel-arastirma", name: "İstatistiksel Araştırma Süreci", grade: 10, subtopics: [{ id: "mt10-istatistiksel-arastirma-1", name: "İstatistiksel Araştırma Süreci", covered: false }] },
-    { id: "mt10-veriden-olasiliga", name: "Veriden Olasılığa", grade: 10, subtopics: [{ id: "mt10-veriden-olasiliga-1", name: "Veriden Olasılığa", covered: false }] },
+    {
+      id: "mt10-analitik-inceleme",
+      name: "Analitik İnceleme",
+      grade: 10,
+      subtopics: [
+        { id: "mt10-analitik-inceleme-1", name: "Dik Koordinat Sisteminde Nokta ve Doğru", covered: false },
+        { id: "mt10-analitik-inceleme-2", name: "İki Nokta Arasındaki Uzaklık", covered: false },
+        { id: "mt10-analitik-inceleme-3", name: "Doğru Parçasını Belli Oranda Bölme", covered: false },
+        { id: "mt10-analitik-inceleme-4", name: "Eğim, Paralellik, Diklik ve Kesişme", covered: false },
+      ],
+    },
+    {
+      id: "mt10-istatistiksel-arastirma",
+      name: "İstatistiksel Araştırma Süreci",
+      grade: 10,
+      subtopics: [
+        { id: "mt10-istatistiksel-arastirma-1", name: "İki Kategorik Değişkenli Veriler", covered: false },
+        { id: "mt10-istatistiksel-arastirma-2", name: "İki Yönlü Tablo ve Koşullu Göreli Sıklık", covered: false },
+        { id: "mt10-istatistiksel-arastirma-3", name: "Değişkenler Arasındaki İlişkiler", covered: false },
+      ],
+    },
+    {
+      id: "mt10-veriden-olasiliga",
+      name: "Veriden Olasılığa",
+      grade: 10,
+      subtopics: [
+        { id: "mt10-veriden-olasiliga-1", name: "Koşullu Olasılık", covered: false },
+        { id: "mt10-veriden-olasiliga-2", name: "Bağımlı ve Bağımsız Olaylar", covered: false },
+        { id: "mt10-veriden-olasiliga-3", name: "Bayes Teoremi", covered: false },
+      ],
+    },
 
-    // ── 11. SINIF — resmi SADECE 3 tema (diğer sınıflardan az) ──
-    // pratik yerleşim: Fonksiyonlarda Uygulamalar + Denklem ve Eşitsizlik
-    // Sistemleri, kullanıcının listesindeki 11. sınıf cebir/fonksiyon
-    // konuları — kavramsal olarak en yakın resmi tema burası.
+    // ── 11. SINIF — resmi SADECE 3 tema ──
     {
       id: "mt11-nicelikler-degisimler",
       name: "Nicelikler ve Değişimler",
       grade: 11,
       subtopics: [
-        { id: "mt11-nicelikler-degisimler-1", name: "Fonksiyonlarda Uygulamalar", covered: false },
-        { id: "mt11-nicelikler-degisimler-2", name: "Denklem ve Eşitsizlik Sistemleri", covered: false },
+        { id: "mt11-nicelikler-degisimler-1", name: "Trigonometrik Fonksiyonlar ve Denklemler", covered: false },
+        { id: "mt11-nicelikler-degisimler-2", name: "Üstel ve Logaritmik Fonksiyonlar", covered: false },
+        { id: "mt11-nicelikler-degisimler-3", name: "Fonksiyonlarla Dört İşlem ve Bileşke", covered: false },
       ],
     },
-    // sourced (ilk alt konu): PDF — "çokgenler (içbükey/dışbükey, düzgün
-    // çokgen), dörtgenler ve bunların özellikleri" (11. sınıf Geometrik
-    // Şekiller teması). "Uzay Geometri" pratik yerleşim — kullanıcının
-    // listesinde 11. sınıfta, resmi PDF'te açık yeri belirtilmemiş.
     {
       id: "mt11-geometrik-sekiller",
       name: "Geometrik Şekiller",
       grade: 11,
       subtopics: [
-        { id: "mt11-geometrik-sekiller-1", name: "Çokgenler ve Dörtgenler", covered: false },
-        { id: "mt11-geometrik-sekiller-2", name: "Uzay Geometri", covered: false },
+        { id: "mt11-geometrik-sekiller-1", name: "Dörtgenlerin Açı, Kenar, Köşegen, Simetri ve Alan Özellikleri", covered: false },
+        { id: "mt11-geometrik-sekiller-2", name: "Özel Dörtgenler ve Aralarındaki İlişkiler", covered: false },
+        { id: "mt11-geometrik-sekiller-3", name: "İçbükey ve Dışbükey Çokgenlerin Sınıflandırılması", covered: false },
+        { id: "mt11-geometrik-sekiller-4", name: "Çokgenlerin Açı, Köşegen, Simetri ve Alan Özellikleri", covered: false },
       ],
     },
-    // "Olasılık" pratik yerleşim — resmi 11. sınıf listesinde ayrı bir
-    // Veriden Olasılığa teması yok (sadece 9-10'da var); istatistikle en
-    // yakın kavramsal eşleşme burası.
     {
       id: "mt11-istatistiksel-arastirma",
       name: "İstatistiksel Araştırma Süreci",
       grade: 11,
       subtopics: [
-        { id: "mt11-istatistiksel-arastirma-1", name: "İstatistiksel Araştırma Süreci", covered: false },
-        { id: "mt11-istatistiksel-arastirma-2", name: "Olasılık", covered: false },
+        { id: "mt11-istatistiksel-arastirma-1", name: "İki Nicel Değişkenli Veriler", covered: false },
+        { id: "mt11-istatistiksel-arastirma-2", name: "Serpme Diyagramı", covered: false },
+        { id: "mt11-istatistiksel-arastirma-3", name: "Bölgelere Göre Sayım Oranı ve Korelasyon Katsayısı", covered: false },
       ],
     },
 
-    // ── 12. SINIF — resmi 5 tema (MAT.12.1–MAT.12.5) ──
-    // pratik yerleşim: Üstel-Logaritmik, Diziler, Dönüşümler — kullanıcının
-    // listesindeki 12. sınıf cebir/fonksiyon konuları.
+    // ── 12. SINIF — resmi 5 tema ──
     {
       id: "mt12-nicelikler-degisimler",
       name: "Nicelikler ve Değişimler",
       grade: 12,
       subtopics: [
-        { id: "mt12-nicelikler-degisimler-1", name: "Üstel ve Logaritmik Fonksiyonlar", covered: false },
-        { id: "mt12-nicelikler-degisimler-2", name: "Diziler", covered: false },
-        { id: "mt12-nicelikler-degisimler-3", name: "Dönüşümler", covered: false },
+        { id: "mt12-nicelikler-degisimler-1", name: "Aritmetik ve Geometrik Diziler", covered: false },
+        { id: "mt12-nicelikler-degisimler-2", name: "Polinom Fonksiyonlar", covered: false },
+        { id: "mt12-nicelikler-degisimler-3", name: "Polinom ve Rasyonel Fonksiyonlarla Denklem-Eşitsizlikler", covered: false },
       ],
     },
-    // sourced: PDF — "limit ve türev kavramları 12. sınıfta Değişimin
-    // Matematiği teması altında" işleniyor; İntegral resmi programda YOK
-    // ama dershanenin gerçek pratiğinde (mt12b-1'de 30 soruluk GERÇEK
-    // yüklenmiş havuz) hâlâ öğretiliyor/test ediliyor — bu yüzden aynı
-    // "değişim/hesap" temasının altına, id'leri korunarak eklendi.
+    // sourced: "Limit ve Süreklilik" / "Değişim Oranı, Türev ve Türev
+    // Kuralları" / "Türev Uygulamaları, Rolle ve Ortalama Değer Teoremleri"
+    // — mt12a-1/2/3 (GERÇEK ustalık kaydı) bu üç maddeyle kavramsal olarak
+    // zaten örtüşüyor, sadece eksik kalan "Limit ve Süreklilik" yeni alt
+    // konu olarak eklendi. İntegral (mt12b-1/2) resmi kaynakta YOK ama
+    // mt12b-1'de 30 soruluk GERÇEK yüklenmiş havuz olduğu için dershane
+    // pratiği olarak aynı temanın altında KORUNDU.
     {
       id: "mt12-degisimin-matematigi",
       name: "Değişimin Matematiği",
       grade: 12,
       subtopics: [
+        { id: "mt12-degisimin-matematigi-1", name: "Limit ve Süreklilik", covered: false },
         { id: "mt12a-1", name: "Türev Kuralları", covered: true, dateCovered: "1 hafta önce" },
         { id: "mt12a-2", name: "Türev Uygulamaları", covered: false },
         { id: "mt12a-3", name: "Grafik Çizimi", covered: false },
@@ -591,21 +682,38 @@ export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
         { id: "mt12b-2", name: "Belirli İntegral ve Alan Hesabı", covered: false },
       ],
     },
-    // sourced (ilk alt konu): PDF — "çember ve çemberle ilişkili elemanlar
-    // (kesen, kiriş, teğet, çap ve yay)" (12. sınıf Geometrik Şekiller
-    // teması). Analitik Geometri + Trigonometri pratik yerleşim.
     {
       id: "mt12-geometrik-sekiller",
       name: "Geometrik Şekiller",
       grade: 12,
       subtopics: [
-        { id: "mt12-geometrik-sekiller-1", name: "Çember ve Çemberle İlgili Elemanlar", covered: false },
-        { id: "mt12-geometrik-sekiller-2", name: "Analitik Geometri", covered: false },
-        { id: "mt12-geometrik-sekiller-3", name: "Trigonometri", covered: false },
+        { id: "mt12-geometrik-sekiller-1", name: "Çemberin Elemanları: Kesen, Kiriş, Teğet, Çap ve Yay", covered: false },
+        { id: "mt12-geometrik-sekiller-2", name: "Çemberde Açı, Kiriş ve Teğet Özellikleri", covered: false },
+        { id: "mt12-geometrik-sekiller-3", name: "Dairenin Alanı", covered: false },
+        { id: "mt12-geometrik-sekiller-4", name: "Çember ve Daire Problemleri", covered: false },
       ],
     },
-    { id: "mt12-geometrik-cisimler", name: "Geometrik Cisimler", grade: 12, subtopics: [{ id: "mt12-geometrik-cisimler-1", name: "Geometrik Cisimler", covered: false }] },
-    { id: "mt12-hazir-veriler", name: "Hazır Veriler Üzerinde Çalışma", grade: 12, subtopics: [{ id: "mt12-hazir-veriler-1", name: "Hazır Veriler Üzerinde Çalışma", covered: false }] },
+    {
+      id: "mt12-geometrik-cisimler",
+      name: "Geometrik Cisimler",
+      grade: 12,
+      subtopics: [
+        { id: "mt12-geometrik-cisimler-1", name: "Dik Prizma ve Dik Dairesel Silindirin Elemanları", covered: false },
+        { id: "mt12-geometrik-cisimler-2", name: "Dik Piramit, Dik Dairesel Koni ve Küre", covered: false },
+        { id: "mt12-geometrik-cisimler-3", name: "Yüzey Alanı ve Hacim Bağıntıları", covered: false },
+        { id: "mt12-geometrik-cisimler-4", name: "Geometrik Cisim Problemleri", covered: false },
+      ],
+    },
+    {
+      id: "mt12-hazir-veriler",
+      name: "Hazır Veriler Üzerinde Çalışma",
+      grade: 12,
+      subtopics: [
+        { id: "mt12-hazir-veriler-1", name: "Hazır Verilerle İstatistiksel Araştırma", covered: false },
+        { id: "mt12-hazir-veriler-2", name: "Veri Kaynaklarını İnceleme ve Verileri Analiz Etme", covered: false },
+        { id: "mt12-hazir-veriler-3", name: "Veriye Dayalı Çıkarım ve Karar Verme", covered: false },
+      ],
+    },
   ],
   Fizik: [
     {
