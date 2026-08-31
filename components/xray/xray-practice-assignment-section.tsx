@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, Send, Loader2, Clock, Check, ChevronDown } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
-import { XrayAssignmentTargetPicker, type AssignmentTarget } from "@/components/xray/xray-assignment-target-picker";
+import { XrayAssignmentTargetPicker, type AssignmentTarget, type RosterForTargeting } from "@/components/xray/xray-assignment-target-picker";
 import { XrayInfoButton } from "@/components/xray/xray-info-button";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +62,7 @@ export function XrayPracticeAssignmentSection({
   grade,
   subject,
   variant = "genel",
+  roster,
 }: {
   studentId: string;
   studentName: string;
@@ -70,6 +71,7 @@ export function XrayPracticeAssignmentSection({
   grade: number;
   subject: string;
   variant?: "genel" | "alt_konu";
+  roster: RosterForTargeting[];
 }) {
   const { showError, showToast } = useToast();
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -79,7 +81,7 @@ export function XrayPracticeAssignmentSection({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [results, setResults] = useState<ResultItem[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
-  const [targetType, setTargetType] = useState<AssignmentTarget["type"]>("student");
+  const [target, setTarget] = useState<AssignmentTarget>({ type: "student", studentId });
   const meta = VARIANT_META[variant];
 
   useEffect(() => {
@@ -95,7 +97,7 @@ export function XrayPracticeAssignmentSection({
   }, [subject, variant]);
 
   useEffect(() => {
-    setTargetType("student");
+    setTarget({ type: "student", studentId });
     fetch(`/api/xray/practice-assignments?studentId=${encodeURIComponent(studentId)}&variant=${encodeURIComponent(variant)}`)
       .then((res) => res.json())
       .then((data) => setAssignments(data.assignments ?? []))
@@ -107,8 +109,6 @@ export function XrayPracticeAssignmentSection({
     if (!selectedTopic) return;
     setAssigning(true);
     try {
-      const target: AssignmentTarget =
-        targetType === "student" ? { type: "student", studentId } : targetType === "branch" ? { type: "branch", branchId } : { type: "grade", grade };
       const res = await fetch("/api/xray/practice-assignments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -161,7 +161,16 @@ export function XrayPracticeAssignmentSection({
         <p className="text-xs text-espresso-muted dark:text-cream/40">Bu ders için soru havuzunda henüz içerik yok.</p>
       ) : (
         <div className="mb-4">
-          <XrayAssignmentTargetPicker studentName={studentName} branchName={branchName} grade={grade} value={targetType} onChange={setTargetType} />
+          <XrayAssignmentTargetPicker
+            studentId={studentId}
+            studentName={studentName}
+            branchId={branchId}
+            branchName={branchName}
+            grade={grade}
+            roster={roster}
+            value={target}
+            onChange={setTarget}
+          />
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={selectedTopic}
