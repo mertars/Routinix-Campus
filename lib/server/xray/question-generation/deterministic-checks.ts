@@ -158,7 +158,12 @@ export function checkNoMultipleChoice(questions: { soruNo: number; questionText:
   const issues: DeterministicIssue[] = [];
   for (const q of questions) {
     if (MULTIPLE_CHOICE_PATTERN.test(q.questionText)) {
-      issues.push({ soruNo: q.soruNo, reason: `questionText çoktan seçmeli şıklar (a) b) c) d) tarzı) içeriyor — sistem kuralına göre bu KESİNLİKLE YASAK, sorular açık uçlu olmalı — deterministik kontrol.` });
+      // Faz Z14 — canlı üretimde bu ihlal AYNI soruNo'da ARKA ARKAYA 9 kez
+      // tekrarlandı (eş üçgen "hangi kenar/açı karşılık gelir" tarzı
+      // sorularda) — reason eskiden hangi METNİN ihlal ettiğini
+      // GÖSTERMİYORDU, bu da hem debug'ı hem hedefli düzeltmeyi
+      // zorlaştırıyordu. Artık ihlal eden metin somut olarak gösteriliyor.
+      issues.push({ soruNo: q.soruNo, reason: `questionText çoktan seçmeli şıklar (a) b) c) d) tarzı) içeriyor — sistem kuralına göre bu KESİNLİKLE YASAK, sorular açık uçlu olmalı: "${q.questionText}" — deterministik kontrol.` });
     }
   }
   return issues;
