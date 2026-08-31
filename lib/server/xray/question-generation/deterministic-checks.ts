@@ -113,3 +113,24 @@ export function checkFormatHealth(questions: { soruNo: number; questionText: str
   }
   return issues;
 }
+
+// Faz Z11 — kullanıcının hedefli talebi üzerine ("sen kontrol et") ELLE
+// yapılan bir örneklem incelemesinde AI denetiminin (verify-content.ts)
+// ATLADIĞI gerçek bir kural ihlali bulundu: sistem prompt'u "A, B, C, D
+// şıkları KESİNLİKLE OLMAYACAK" diyor ama bir soru questionText içinde
+// "a) 3 b) -7 c) 1/2 d) √(-1)" gibi ÇOKTAN SEÇMELİ şıklar içeriyordu — AI
+// denetimi cevap DOĞRULUĞUNA/mantığına odaklandığı için bu YAPISAL/biçim
+// kuralını kontrol etmiyordu. Bu ÜCRETSİZ, deterministik kontrol o boşluğu
+// kapatır: questionText'te "a)"/"b)"/"c)"/"d)" (veya büyük harfli) gibi
+// art arda şık kalıpları tespit edilirse soru reddedilir.
+const MULTIPLE_CHOICE_PATTERN = /\b[aAbBcCdD]\)\s*\S+.*\b[bBcCdD]\)/;
+
+export function checkNoMultipleChoice(questions: { soruNo: number; questionText: string }[]): DeterministicIssue[] {
+  const issues: DeterministicIssue[] = [];
+  for (const q of questions) {
+    if (MULTIPLE_CHOICE_PATTERN.test(q.questionText)) {
+      issues.push({ soruNo: q.soruNo, reason: `questionText çoktan seçmeli şıklar (a) b) c) d) tarzı) içeriyor — sistem kuralına göre bu KESİNLİKLE YASAK, sorular açık uçlu olmalı — deterministik kontrol.` });
+    }
+  }
+  return issues;
+}

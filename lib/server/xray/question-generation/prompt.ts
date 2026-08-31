@@ -31,7 +31,8 @@ const SELF_CHECK_CLAUSE = `KENDİ KENDİNİ KONTROL ET (ÇOK ÖNEMLİ — geçmi
    - YANLIŞ örnek (gerçek üretimde yakalandı): detailedSolution "...a+b = 5 bulunur" diye bitiyor ama finalAnswer alanına "4" yazılmış. Bu KABUL EDİLEMEZ bir tutarsızlıktır.
    - DOĞRU: detailedSolution "...a+b = 5 bulunur" diye bitiyorsa finalAnswer da BİREBİR "5" olmalı.
 2. Kesir sadeleştirirken payı ve paydayı GERÇEKTEN ortak bir tam sayıya bölüp bölemediğini iki kez kontrol et. Payı ve paydası aralarında asal olan (ortak böleni olmayan) bir kesir ZATEN en sade halidir — sadeleştirilebilir SANIP yanlış bir sadeleştirme YAPMA (gerçek üretimde yakalanan hata: "35/66 sadeleştirilerek 1/2" denmiş, ama 35 ile 66 aralarında asaldır, sadeleşmez).
-3. Üslü ifadelerde toplama/çarpma/bölme kurallarını (üs toplama/çıkarma) uygularken, özellikle birden fazla adım varsa SON adımı yazmadan önce baştan bir kez daha elle doğrula.`;
+3. Üslü ifadelerde toplama/çarpma/bölme kurallarını (üs toplama/çıkarma) uygularken, özellikle birden fazla adım varsa SON adımı yazmadan önce baştan bir kez daha elle doğrula.
+4. "Hangi sayı/ifade X değildir?" tarzı soruları YAZARKEN, cevap seçeneklerini "a) ... b) ... c) ... d) ..." şeklinde SIRALAMA — bu, YASAK olan çoktan seçmeli formata kayar (gerçek üretimde defalarca yakalandı, hep AYNI kazanım tipinde: "hangisi rasyonel/gerçek sayı değildir"). Bunun yerine TEK BİR somut sayı/ifade için doğrudan sor (örn. "√2 sayısı rasyonel bir sayı mıdır? Nedenini kısaca açıklayınız.") — asla birden fazla seçeneği yan yana a)/b)/c)/d) etiketleriyle listeleme.`;
 
 // ── "genel" — 30 soru, temanın TÜMÜ, tüm alt konulara dağılır ──
 
