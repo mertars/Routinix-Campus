@@ -142,3 +142,48 @@ export function validateAltKonuRoundResponse(rawContent: string, lockedBlueprint
 
   return { ok: true, questions: validatedQuestions, blueprint: lockedBlueprint ?? kazanimSequence };
 }
+
+export type FixedQuestion = { soruNo: number; questionText: string; finalAnswer: string; detailedSolution: string; diagnosticComment: string };
+export type FixValidationResult = { ok: true; fixed: FixedQuestion[] } | { ok: false; errorSummary: string };
+
+// Faz Z9 — hedefli düzeltme yanıtını doğrular: SADECE istenen soruNo'lar
+// (ne eksik ne fazla) dönmüş mü, tüm alanlar dolu mu. kazanımId/subtopicId
+// bilerek BURADA doğrulanmıyor — fix prompt'u zaten bunları modelin
+// EMİTMEMESİNİ istiyor (worker script çağıran taraf zaten blueprint'ten
+// biliyor, üzerine yazmaz).
+export function validateFixResponse(rawContent: string, expectedSoruNos: number[]): FixValidationResult {
+  let parsed: unknown;
+  try {
+    parsed = extractJson(rawContent);
+  } catch {
+    return { ok: false, errorSummary: "Düzeltme yanıtı geçerli JSON değil." };
+  }
+  if (!Array.isArray(parsed)) return { ok: false, errorSummary: "Düzeltme yanıtı bir JSON dizisi olmalı." };
+  if (parsed.length !== expectedSoruNos.length) return { ok: false, errorSummary: `${expectedSoruNos.length} düzeltilmiş soru bekleniyordu, ${parsed.length} geldi.` };
+
+  const rows = parsed as { soruNo?: number; questionText?: string; finalAnswer?: string; detailedSolution?: string; diagnosticComment?: string }[];
+  const fieldErrors: string[] = [];
+  for (const [i, q] of rows.entries()) {
+    if (!Number.isInteger(q.soruNo)) fieldErrors.push(`#${i + 1}: soruNo geçersiz`);
+    if (!q.questionText?.trim()) fieldErrors.push(`#${i + 1}: questionText boş`);
+    if (!q.finalAnswer?.trim()) fieldErrors.push(`#${i + 1}: finalAnswer boş`);
+    if (!q.detailedSolution?.trim()) fieldErrors.push(`#${i + 1}: detailedSolution boş`);
+    if (!q.diagnosticComment?.trim()) fieldErrors.push(`#${i + 1}: diagnosticComment boş`);
+  }
+  if (fieldErrors.length > 0) return { ok: false, errorSummary: `${fieldErrors.length} alan hatası: ${fieldErrors.slice(0, 5).join(" | ")}` };
+
+  const gotSoruNos = new Set(rows.map((r) => r.soruNo));
+  const expectedSet = new Set(expectedSoruNos);
+  const missing = expectedSoruNos.filter((n) => !gotSoruNos.has(n));
+  const extra = [...gotSoruNos].filter((n) => !expectedSet.has(n as number));
+  if (missing.length > 0 || extra.length > 0) return { ok: false, errorSummary: `soruNo uyuşmazlığı — eksik: [${missing.join(",")}], fazla: [${extra.join(",")}]` };
+
+  const fixed: FixedQuestion[] = rows.map((q) => ({
+    soruNo: q.soruNo!,
+    questionText: q.questionText!.trim(),
+    finalAnswer: q.finalAnswer!.trim(),
+    detailedSolution: q.detailedSolution!.trim(),
+    diagnosticComment: q.diagnosticComment!.trim(),
+  }));
+  return { ok: true, fixed };
+}

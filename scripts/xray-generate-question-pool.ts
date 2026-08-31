@@ -17,9 +17,20 @@
 import { prisma } from "../lib/server/prisma";
 import { flattenTopics, flattenCurriculum, type FlattenedTopic, type FlattenedSubtopic } from "../lib/server/xray/question-generation/curriculum-flatten";
 import { callChatCompletion } from "../lib/server/xray/question-generation/ai-client";
-import { SYSTEM_PROMPT_GENEL, buildGenelRound1UserPrompt, buildGenelRoundNUserPrompt, SYSTEM_PROMPT_ALT_KONU, buildAltKonuRound1UserPrompt, buildAltKonuRoundNUserPrompt, buildRetryCorrectionSuffix } from "../lib/server/xray/question-generation/prompt";
-import { validateGenelRoundResponse, validateAltKonuRoundResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
-import { verifyContent } from "../lib/server/xray/question-generation/verify-content";
+import {
+  SYSTEM_PROMPT_GENEL,
+  buildGenelRound1UserPrompt,
+  buildGenelRoundNUserPrompt,
+  SYSTEM_PROMPT_ALT_KONU,
+  buildAltKonuRound1UserPrompt,
+  buildAltKonuRoundNUserPrompt,
+  buildRetryCorrectionSuffix,
+  SYSTEM_PROMPT_FIX,
+  buildFixUserPrompt,
+  type FlawedQuestionContext,
+} from "../lib/server/xray/question-generation/prompt";
+import { validateGenelRoundResponse, validateAltKonuRoundResponse, validateFixResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
+import { verifyContent, type VerificationIssue } from "../lib/server/xray/question-generation/verify-content";
 import { slugifyTestName } from "../lib/server/xray/question-pool-upload";
 
 const SUBJECT = "Matematik";
@@ -27,21 +38,66 @@ const MODEL = "deepseek-v4-flash-0731";
 const MAX_TOKENS = 16000;
 const VERIFY_MAX_TOKENS = 4000;
 const MAX_ATTEMPTS_PER_ROUND = 3;
+const MAX_FIX_ATTEMPTS = 2;
 const DEFAULT_TARGET_ROUNDS = 10;
-
-// Faz Z8 — kullanıcı talebi: her tur DB'ye yazılmadan önce ikinci, BAĞIMSIZ
-// bir geçişte gözden geçirilsin (cevap doğru mu, soru mantıklı mı, yazım
-// hatası var mı). Maliyeti kabul edilebilir seviyede tutmak için AYNI ucuz
-// (flash) model kullanılıyor — bu bir bağımsız/daha güçlü model denetimi
-// DEĞİL, kendi kendine ikinci bir "temiz gözle okuma" turu; asıl güvence
-// yine de programatik yapısal doğrulama + kullanıcının kendi örneklem
-// kontrolüdür.
-function formatIssuesAsCorrection(issues: { soruNo: number; reason: string }[]): string {
-  return `İçerik kontrolünde şu sorunlar bulundu, DÜZELT: ${issues.map((i) => `soruNo ${i.soruNo}: ${i.reason}`).join(" | ")}`;
-}
 
 // "yeterlilik" prompt'u tasarlanınca buraya eklenecek.
 const IMPLEMENTED_VARIANTS = new Set(["genel", "alt_konu"]);
+
+type FixableQuestion = { soruNo: number; kazanimId: string; questionText: string; finalAnswer: string; detailedSolution: string; diagnosticComment: string };
+
+// Faz Z9 — kullanıcı talebi: "hatalı sorudan dolayı baştan yapması sadece
+// hatalı olan soruyu düzeltsin". İçerik denetimi (verify-content.ts) bir
+// turun 30/10 sorusundan sadece 1-2'sini "sorunlu" bulsa bile önceden
+// TÜM tur (bkz. generateGenelRound/generateAltKonuRound'daki eski hali)
+// sıfırdan yeniden üretiliyordu — hem israf hem de zaten doğru olan
+// soruların bir daha üretilip denetlenmesi anlamsızdı. Bu fonksiyon SADECE
+// flawed soruların İÇERİĞİNİ (questionText/finalAnswer/detailedSolution/
+// diagnosticComment) yeniden yazdırır, soruNo/kazanımId/subtopicId
+// (blueprint yapısı) ASLA değişmez. Düzeltilen sorular tekrar (SADECE
+// kendileri) içerik denetiminden geçer — düzeltme kendisi de hatalıysa
+// MAX_FIX_ATTEMPTS'e kadar tekrar dener.
+async function fixFlaggedQuestions<Q extends FixableQuestion>(
+  questions: Q[],
+  issues: VerificationIssue[],
+  subtopicNameBySoruNo: Map<number, string> | null,
+): Promise<{ ok: true; questions: Q[]; tokensUsed: number } | { ok: false; tokensUsed: number }> {
+  let current = questions;
+  let remainingIssues = issues;
+  let tokensUsed = 0;
+  for (let fixAttempt = 1; fixAttempt <= MAX_FIX_ATTEMPTS; fixAttempt++) {
+    const flawed: FlawedQuestionContext[] = remainingIssues.map((issue) => {
+      const q = current.find((x) => x.soruNo === issue.soruNo)!;
+      return { soruNo: q.soruNo, kazanimId: q.kazanimId, subtopicName: subtopicNameBySoruNo?.get(q.soruNo), oldQuestionText: q.questionText, reason: issue.reason };
+    });
+    console.log(`    🔧 Hedefli düzeltme ${fixAttempt}/${MAX_FIX_ATTEMPTS} — ${flawed.length} soru: ${flawed.map((f) => f.soruNo).join(",")}`);
+
+    const fixCompletion = await callChatCompletion({ model: MODEL, systemPrompt: SYSTEM_PROMPT_FIX, userPrompt: buildFixUserPrompt(flawed), maxTokens: MAX_TOKENS });
+    tokensUsed += fixCompletion.totalTokens;
+    const fixValidation = validateFixResponse(
+      fixCompletion.content,
+      flawed.map((f) => f.soruNo),
+    );
+    if (!fixValidation.ok) {
+      console.log(`    ⚠️ Düzeltme yanıtı geçersiz: ${fixValidation.errorSummary}`);
+      continue;
+    }
+
+    const fixedBySoruNo = new Map(fixValidation.fixed.map((f) => [f.soruNo, f]));
+    current = current.map((q) => {
+      const f = fixedBySoruNo.get(q.soruNo);
+      return f ? { ...q, questionText: f.questionText, finalAnswer: f.finalAnswer, detailedSolution: f.detailedSolution, diagnosticComment: f.diagnosticComment } : q;
+    });
+
+    const toRecheck = current.filter((q) => fixedBySoruNo.has(q.soruNo));
+    const recheck = await verifyContent(MODEL, VERIFY_MAX_TOKENS, toRecheck);
+    tokensUsed += recheck.tokensUsed;
+    if (recheck.ok === true) return { ok: true, questions: current, tokensUsed };
+    remainingIssues = recheck.ok === false ? recheck.issues : remainingIssues;
+    console.log(`    ⚠️ Düzeltme sonrası hâlâ sorunlu: ${remainingIssues.map((i) => `soruNo ${i.soruNo}: ${i.reason}`).join(" | ")}`);
+  }
+  return { ok: false, tokensUsed };
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -154,7 +210,16 @@ async function generateGenelRound(topic: FlattenedTopic, roundNumber: number, lo
     const check = await verifyContent(MODEL, VERIFY_MAX_TOKENS, validation.questions);
     totalTokens += check.tokensUsed;
     if (check.ok === true) return { ok: true as const, questions: validation.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
-    lastError = check.ok === false ? formatIssuesAsCorrection(check.issues) : `İçerik kontrolü başarısız oldu: ${check.errorSummary}`;
+
+    if (check.ok === false) {
+      const subtopicNameBySoruNo = new Map(validation.questions.map((q) => [q.soruNo, topic.subtopics.find((s) => s.subtopicId === q.subtopicId)?.subtopicName ?? q.subtopicId]));
+      const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, subtopicNameBySoruNo);
+      totalTokens += fixResult.tokensUsed;
+      if (fixResult.ok) return { ok: true as const, questions: fixResult.questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
+      lastError = `Hedefli düzeltme başarısız oldu (${check.issues.length} soru), tur yeniden üretiliyor.`;
+    } else {
+      lastError = `İçerik kontrolü başarısız oldu: ${check.errorSummary}`;
+    }
     console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız (içerik kontrolü): ${lastError}`);
   }
   return { ok: false as const, errorSummary: lastError, tokensUsed: totalTokens, attempts: MAX_ATTEMPTS_PER_ROUND };
@@ -221,7 +286,18 @@ async function generateAltKonuRound(subtopic: FlattenedSubtopic, roundNumber: nu
       const questions = validation.questions.map((q) => ({ ...q, subtopicId: subtopic.subtopicId }));
       return { ok: true as const, questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
     }
-    lastError = check.ok === false ? formatIssuesAsCorrection(check.issues) : `İçerik kontrolü başarısız oldu: ${check.errorSummary}`;
+
+    if (check.ok === false) {
+      const fixResult = await fixFlaggedQuestions(validation.questions, check.issues, null);
+      totalTokens += fixResult.tokensUsed;
+      if (fixResult.ok) {
+        const questions = fixResult.questions.map((q) => ({ ...q, subtopicId: subtopic.subtopicId }));
+        return { ok: true as const, questions, blueprint: validation.blueprint, tokensUsed: totalTokens, attempts: attempt };
+      }
+      lastError = `Hedefli düzeltme başarısız oldu (${check.issues.length} soru), tur yeniden üretiliyor.`;
+    } else {
+      lastError = `İçerik kontrolü başarısız oldu: ${check.errorSummary}`;
+    }
     console.log(`    ⚠️ Deneme ${attempt}/${MAX_ATTEMPTS_PER_ROUND} başarısız (içerik kontrolü): ${lastError}`);
   }
   return { ok: false as const, errorSummary: lastError, tokensUsed: totalTokens, attempts: MAX_ATTEMPTS_PER_ROUND };

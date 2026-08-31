@@ -17,6 +17,20 @@ import type { FlattenedTopic, FlattenedSubtopic } from "./curriculum-flatten";
 // birbirinden bağımsız kopyalanıp SÜRÜKLENMEDEN (drift) tutarlı kalsın diye.
 const MEB_SCOPE_CLAUSE = `MÜFREDAT SINIRI (ÇOK ÖNEMLİ, ASLA İHLAL ETME): Aşağıda verilen konu/alt konu, Türkiye MEB'in (Milli Eğitim Bakanlığı) resmi lise matematik müfredatında BELİRTİLEN SINIF SEVİYESİNE ait, dershane pratiğinde kullanılan bir alt başlıktır. Aynı konu adı (örn. "Türev", "Trigonometri") FARKLI sınıflarda FARKLI derinliklerde/farklı alt başlıklar altında da geçebilir — SEN SADECE verilen sınıf seviyesinin, verilen alt konunun müfredatta KAPSADIĞI konuları/yöntemleri/formülleri kullanacaksın. Konu adı aynı diye daha ileri bir sınıfın, farklı bir müfredatın (üniversite düzeyi dahil) veya bu alt konunun kapsamadığı bir yöntemin/formülün İÇERİĞİNİ ASLA KULLANMA. Emin olmadığın bir yöntem/formül varsa, KESİNLİKLE müfredat dışına çıkmaktansa daha basit/temel bir yaklaşım kullan.`;
 
+// Faz Z9 — gerçek üretimlerde bağımsız içerik denetiminin (verify-content.ts)
+// yakaladığı hataların KÖK NEDEN analizi sonucu eklendi. Gözlenen 2 ana
+// hata sınıfı: (1) finalAnswer alanı detailedSolution'ın kendi ulaştığı
+// sonuçla TUTARSIZ yazılmış (model çözümde doğru hesaplıyor ama ayrı
+// finalAnswer alanına farklı/yanlış bir değer yazıyor — bir "transkripsiyon"
+// hatası, muhakeme hatası değil); (2) gerçek hesap hataları, özellikle
+// kesir sadeleştirme (sadeleşmeyen bir kesri sadeleşmiş gibi göstermek) ve
+// üslü ifade hesaplarında. Bu madde HER İKİ prompt'a da enjekte edilir —
+// gelecekte yeni bir hata sınıfı gözlenirse BURAYA eklenmeli (tek kaynak).
+const SELF_CHECK_CLAUSE = `KENDİ KENDİNİ KONTROL ET (ÇOK ÖNEMLİ — geçmiş üretimlerde en sık görülen hatalar):
+1. finalAnswer'ı ASLA detailedSolution'dan BAĞIMSIZ hesaplama. Önce detailedSolution'ı TAMAMLA, sonra finalAnswer'ı o çözümün SON SATIRINDAKİ sonuçtan BİREBİR KOPYALA — iki alan arasında EN UFAK bir sayısal farklılık dahi KABUL EDİLEMEZ.
+2. Kesir sadeleştirirken payı ve paydayı GERÇEKTEN ortak bir tam sayıya bölüp bölemediğini iki kez kontrol et. Payı ve paydası aralarında asal olan (ortak böleni olmayan) bir kesir ZATEN en sade halidir — sadeleştirilebilir SANIP yanlış bir sadeleştirme YAPMA.
+3. Üslü ifadelerde toplama/çarpma/bölme kurallarını (üs toplama/çıkarma) uygularken, özellikle birden fazla adım varsa SON adımı yazmadan önce baştan bir kez daha elle doğrula.`;
+
 // ── "genel" — 30 soru, temanın TÜMÜ, tüm alt konulara dağılır ──
 
 export const SYSTEM_PROMPT_GENEL = `SEN MÜKEMMEL BİR LİSE MATEMATİK ÖLÇME-DEĞERLENDİRME VE PEDAGOJİ UZMANISIN.
@@ -24,6 +38,8 @@ export const SYSTEM_PROMPT_GENEL = `SEN MÜKEMMEL BİR LİSE MATEMATİK ÖLÇME-
 GÖREV: Verilen TEK bir KONUNUN (temanın) TÜMÜNÜ ölçen 30 soruluk bir "havuz turu" üreteceksin. Bu 30 soru, verilen temanın TÜM alt konularına mümkün olduğunca EŞİT dağıtılmalı (örn. 6 alt konu varsa ~5'er soru, 4 alt konu varsa 7-8'er soru) — HER alt konudan EN AZ 1 soru olmalı. Bu sorular sabit bir sınav kağıdı DEĞİL, rastgele seçimle öğrenciye sunulacak bir SORU HAVUZUNUN parçasıdır.
 
 ${MEB_SCOPE_CLAUSE}
+
+${SELF_CHECK_CLAUSE}
 
 SORU YAPISI:
 - A, B, C, D şıkları KESİNLİKLE OLMAYACAK. Sorular açık uçlu/klasik matematik sorularıdır.
@@ -91,6 +107,8 @@ GÖREV: Verilen TEK bir ALT KONUYA özel, 10 soruluk bir "havuz turu" üreteceks
 
 ${MEB_SCOPE_CLAUSE}
 
+${SELF_CHECK_CLAUSE}
+
 SORU YAPISI (ÇOK ÖNEMLİ):
 - A, B, C, D şıkları KESİNLİKLE OLMAYACAK. Sorular açık uçlu/klasik matematik sorularıdır.
 - TÜM 10 SORU ORTA SEVİYE olacak — doğrudan tanım/sembol okuma/ezber TEMEL sorular KESİNLİKLE YASAK.
@@ -136,4 +154,34 @@ Sayıları/bağlamı/senaryoyu ÖNCEKİ turlardan FARKLI yap, ama kazanımId diz
 
 export function buildRetryCorrectionSuffix(errorSummary: string): string {
   return `\n\nÖNCEKİ YANITIN GEÇERSİZDİ, ŞU HATA(LAR) DÜZELTİLMELİ: ${errorSummary}\nLütfen SADECE düzeltilmiş, geçerli JSON dizisini tekrar döndür.`;
+}
+
+// ── Hedefli düzeltme — SADECE içerik denetiminin (verify-content.ts)
+// "sorunlu" bulduğu soruları yeniden yazdırır, turun TAMAMINI DEĞİL. ──
+//
+// Faz Z9 — kullanıcı talebi: "hatalı sorudan dolayı baştan yapması sadece
+// hatalı olan soruyu düzeltsin". Önceden 30 sorunun 1'i bile sorunlu
+// bulunsa turun TAMAMI (30 soru) yeniden üretiliyordu — hem israf hem de
+// zaten DOĞRU olan 29 sorunun bir daha üretilip tekrar denetlenmesi
+// anlamsızdı. Bu prompt SADECE flawed soruların soruNo/kazanımId'sini
+// (ve "genel" için subtopicAdi'sini) SABİT tutup İÇERİĞİNİ (questionText/
+// finalAnswer/detailedSolution/diagnosticComment) yeniden yazdırır —
+// blueprint yapısı (hangi soruNo hangi kazanıma ait) ASLA bozulmaz.
+export const SYSTEM_PROMPT_FIX = `SEN MÜKEMMEL BİR LİSE MATEMATİK ÖLÇME-DEĞERLENDİRME VE PEDAGOJİ UZMANISIN.
+
+GÖREV: Sana daha önce üretilmiş, kalite kontrolünde SORUNLU bulunmuş birkaç soru verilecek. Her biri için verilen SORUN AÇIKLAMASINI dikkatle oku ve SIFIRDAN, sorunu içermeyen YENİ bir soru/çözüm yaz — aynı kazanımı (konuyu) ölçmeye devam etmeli ama eski (hatalı) hali TEKRARLAMA.
+
+${SELF_CHECK_CLAUSE}
+
+VERİ ALANLARI (her soru için, İSTİSNASIZ hepsi dolu olacak): soruNo (verilenle AYNI), questionText, finalAnswer, detailedSolution, diagnosticComment. kazanımId'yi veya alt konuyu DEĞİŞTİRME/EMİTME — sadece bu 5 alanı döndür.
+
+TEKNİK FORMAT: Çıktı SADECE geçerli bir JSON dizisi olacak (verilen soru sayısı kadar eleman) — başka açıklama ekleme. LaTeX kullan, çift ters eğik çizgi tercih et (\\\\sqrt{}, \\\\frac{}{}).`;
+
+export type FlawedQuestionContext = { soruNo: number; kazanimId: string; subtopicName?: string; oldQuestionText: string; reason: string };
+
+export function buildFixUserPrompt(flawed: FlawedQuestionContext[]): string {
+  const block = flawed
+    .map((f) => `soruNo ${f.soruNo} (kazanımId: ${f.kazanimId}${f.subtopicName ? `, alt konu: ${f.subtopicName}` : ""}):\nEski (hatalı) soru: ${f.oldQuestionText}\nSORUN: ${f.reason}`)
+    .join("\n\n");
+  return `Aşağıdaki ${flawed.length} soruyu düzelt:\n\n${block}\n\nSadece JSON dizisini döndür.`;
 }
