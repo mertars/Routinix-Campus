@@ -52,7 +52,7 @@ import {
 } from "../lib/server/xray/question-generation/prompt";
 import { validateGenelRoundResponse, validateAltKonuRoundResponse, validateFixResponse, type GenelBlueprintSlot } from "../lib/server/xray/question-generation/validate-round";
 import { verifyContent, type VerificationIssue } from "../lib/server/xray/question-generation/verify-content";
-import { checkAnswerConsistency, checkFormatHealth, checkNoMultipleChoice } from "../lib/server/xray/question-generation/deterministic-checks";
+import { checkAnswerConsistency, checkFormatHealth, checkNoMultipleChoice, checkArithmeticSteps } from "../lib/server/xray/question-generation/deterministic-checks";
 import { slugifyTestName } from "../lib/server/xray/question-pool-upload";
 
 const SUBJECT = "Matematik";
@@ -80,7 +80,7 @@ async function runContentChecks(
   questions: { soruNo: number; questionText: string; finalAnswer: string; detailedSolution: string }[],
   recheckPass: boolean,
 ): Promise<{ ok: true; tokensUsed: number; logged: LoggedIssue[] } | { ok: false; issues: VerificationIssue[]; tokensUsed: number; logged: LoggedIssue[] }> {
-  const deterministic = [...checkAnswerConsistency(questions), ...checkFormatHealth(questions), ...checkNoMultipleChoice(questions)];
+  const deterministic = [...checkAnswerConsistency(questions), ...checkFormatHealth(questions), ...checkNoMultipleChoice(questions), ...checkArithmeticSteps(questions)];
   const aiCheck = await verifyContent(VERIFY_MODEL, VERIFY_MAX_TOKENS, questions);
   const tokensUsed = aiCheck.tokensUsed;
   const aiSource = recheckPass ? ("ai-recheck" as const) : ("ai-verify" as const);

@@ -153,3 +153,46 @@ export function checkNoMultipleChoice(questions: { soruNo: number; questionText:
   }
   return issues;
 }
+
+// Faz Z11 — elle örneklem incelemesinde bulunan İKİNCİ hata sınıfı: bu
+// checkAnswerConsistency'den FARKLI bir hata — finalAnswer/detailedSolution
+// birbiriyle TUTARLIYDI ama detailedSolution'ın İÇİNDEKİ basit bir toplama/
+// çıkarma adımı bizzat YANLIŞ hesaplanmıştı ("s(A∪B)+s(A∩B) = 7 + 3 = 8"
+// yazılmış, gerçekte 7+3=10). checkAnswerConsistency bunu YAKALAYAMAZ
+// (finalAnswer zaten o yanlış "8" ile eşleşiyordu, iç tutarlılık vardı —
+// sorun MATEMATİKSEL doğruluktaydı, transkripsiyon değil).
+//
+// ⚠️ BİLİNÇLİ SINIRLAMA (yanlış pozitif riskini kontrol altında tutmak
+// için): SADECE +/− (toplama/çıkarma) kontrol edilir, çarpma/bölme DEĞİL
+// (önceliği/zincirleme ifadeleri karıştırma riski daha yüksek). Bir
+// eşleşmenin HEMEN ÖNCESİNDE başka bir "sayı op" varsa (yani bu, 3 terimli
+// daha uzun bir ifadenin ORTASI/SONU olabilir, örn. "5 + 2 + 3 = 10"
+// ifadesinde "2 + 3 = 10" alt dizisini YANLIŞLIKLA tek başına
+// değerlendirmemek için) o eşleşme ATLANIR.
+const ARITHMETIC_STEP_PATTERN = /(-?\d+(?:[.,]\d+)?)\s*([+-])\s*(-?\d+(?:[.,]\d+)?)\s*=\s*(-?\d+(?:[.,]\d+)?)(?!\d)/g;
+
+export function checkArithmeticSteps(questions: { soruNo: number; detailedSolution: string }[]): DeterministicIssue[] {
+  const issues: DeterministicIssue[] = [];
+  for (const q of questions) {
+    const text = q.detailedSolution;
+    for (const m of text.matchAll(ARITHMETIC_STEP_PATTERN)) {
+      const matchStart = m.index ?? 0;
+      const before = text.slice(Math.max(0, matchStart - 6), matchStart);
+      if (/\d\s*[+-]\s*$/.test(before)) continue; // muhtemelen 3 terimli bir ifadenin ortası — atla
+
+      const a = Number(m[1].replace(",", "."));
+      const op = m[2];
+      const b = Number(m[3].replace(",", "."));
+      const stated = Number(m[4].replace(",", "."));
+      const expected = op === "+" ? a + b : a - b;
+      if (Math.abs(expected - stated) > EPSILON) {
+        issues.push({
+          soruNo: q.soruNo,
+          reason: `detailedSolution içinde hatalı aritmetik: "${a} ${op} ${b} = ${stated}" yazılmış ama gerçek sonuç ${expected} olmalı — deterministik kontrol.`,
+        });
+        break;
+      }
+    }
+  }
+  return issues;
+}
