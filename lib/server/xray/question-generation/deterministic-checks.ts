@@ -46,12 +46,31 @@ function parseSimpleNumber(raw: string): number | null {
 // detailedSolution'ın İÇİNDEKİ (genellikle son) "= <sayı>" kalıplarını
 // bulur, EN SONUNCUSUNU döner — çözümün ULAŞTIĞI nihai sayısal sonuç
 // genellikle metnin sonunda geçer.
+// Faz Z11 — gerçek üretimde bulunan YANLIŞ POZİTİF: bu fonksiyon eskiden
+// SADECE düz sayı kalıplarını ("= 12") tanıyordu, "= \frac{7}{4}" gibi
+// LaTeX kesirlerini GÖRMEZDEN GELİYORDU — bu yüzden çözüm metninde ÖNCE
+// geçen alakasız bir "= 12" (ör. "OKEK(...) = 12" ara adımı), asıl SONUÇ
+// olan "= \frac{7}{4}"den DAHA SONRA eşleşen bir kalıp SANILIYOR, doğru
+// bir soru YANLIŞLIKLA "sorunlu" işaretleniyordu. Artık HER ÜÇ kalıp
+// (düz sayı, \frac{a}{b}, düz a/b) birlikte taranıp GERÇEKTEN METİNDE EN
+// SON geçen aday seçiliyor.
 function extractTrailingNumber(text: string): number | null {
-  const matches = [...text.matchAll(/=\s*(-?\d+(?:[.,]\d+)?)(?!\d)/g)];
-  if (matches.length === 0) return null;
-  const last = matches[matches.length - 1][1];
-  const v = Number(last.replace(",", "."));
-  return Number.isNaN(v) ? null : v;
+  const pattern = /=\s*(?:\\?frac\{(-?\d+(?:[.,]\d+)?)\}\{(-?\d+(?:[.,]\d+)?)\}|(-?\d+(?:[.,]\d+)?)\s*\/\s*(-?\d+(?:[.,]\d+)?)|(-?\d+(?:[.,]\d+)?)(?!\d))/g;
+  let lastValue: number | null = null;
+  for (const m of text.matchAll(pattern)) {
+    let value: number | null = null;
+    if (m[1] !== undefined && m[2] !== undefined) {
+      const den = Number(m[2].replace(",", "."));
+      if (den !== 0) value = Number(m[1].replace(",", ".")) / den;
+    } else if (m[3] !== undefined && m[4] !== undefined) {
+      const den = Number(m[4].replace(",", "."));
+      if (den !== 0) value = Number(m[3].replace(",", ".")) / den;
+    } else if (m[5] !== undefined) {
+      value = Number(m[5].replace(",", "."));
+    }
+    if (value !== null && !Number.isNaN(value)) lastValue = value;
+  }
+  return lastValue;
 }
 
 const EPSILON = 0.0001;
