@@ -7,6 +7,7 @@ import { BookOpen, ArrowLeft, KeyRound, Check, Loader2, Download } from "lucide-
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
+import { MathText } from "@/components/ui/math-text";
 import { cn } from "@/lib/utils";
 
 type Question = { id: string; order: number; prompt: string };
@@ -139,7 +140,7 @@ export default function PracticeTestPage() {
                 <div key={q.id} className="rounded-2xl border border-sky-500/15 bg-white/70 p-4 shadow-sm dark:border-sky-400/10 dark:bg-midnight-card/50">
                   <div className="mb-2 flex items-start gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-600 text-xs font-bold text-white">{q.order}</span>
-                    <p className="pt-0.5 text-sm font-medium leading-relaxed text-espresso dark:text-cream">{q.prompt}</p>
+                    <MathText text={q.prompt} className="pt-0.5 text-sm font-medium leading-relaxed text-espresso dark:text-cream" />
                   </div>
                   <textarea
                     placeholder="Çözümünü buraya yazabilirsin (sadece senin için, kaydedilmez)..."
@@ -163,11 +164,13 @@ export default function PracticeTestPage() {
                 <div key={item.id} className="rounded-2xl border border-sky-500/15 bg-white/70 p-4 shadow-sm dark:border-sky-400/10 dark:bg-midnight-card/50">
                   <div className="mb-2 flex items-start gap-3">
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-600 text-xs font-bold text-white">{item.order}</span>
-                    <p className="pt-0.5 text-sm font-medium leading-relaxed text-espresso dark:text-cream">{item.prompt}</p>
+                    <MathText text={item.prompt} className="pt-0.5 text-sm font-medium leading-relaxed text-espresso dark:text-cream" />
                   </div>
                   <div className="ml-9 space-y-1">
-                    <p className="text-xs font-semibold text-sky-600 dark:text-sky-300">Cevap: {item.correctAnswer}</p>
-                    <p className="text-[11px] leading-relaxed text-espresso-muted dark:text-cream/50">{item.solution}</p>
+                    <p className="text-xs font-semibold text-sky-600 dark:text-sky-300">
+                      Cevap: <MathText text={item.correctAnswer} />
+                    </p>
+                    <MathText text={item.solution} className="text-[11px] leading-relaxed text-espresso-muted dark:text-cream/50" />
                   </div>
                 </div>
               ))}

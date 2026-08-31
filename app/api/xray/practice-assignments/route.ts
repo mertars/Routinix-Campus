@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { pickRandomTestFromPool } from "@/lib/server/xray/practice-pool";
 import { resolveTargetStudentIds, type AssignmentTarget } from "@/lib/server/xray/assignment-target";
+import { resolveUnitLabel, resolveUnitSubtopicIds } from "@/lib/server/xray/unit-label";
 import { requireSession, requireRole, requireInstitution, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -34,11 +34,7 @@ async function handleGet(request: NextRequest) {
       select: { id: true, subject: true, subtopicId: true, variant: true, status: true, assignedAt: true, completedAt: true },
     });
 
-    const withNames = assignments.map((a) => {
-      const topics = CURRICULUM_TREE[a.subject] ?? [];
-      const name = topics.flatMap((t) => t.subtopics).find((s) => s.id === a.subtopicId)?.name ?? a.subtopicId;
-      return { ...a, subtopicName: name };
-    });
+    const withNames = assignments.map((a) => ({ ...a, subtopicName: resolveUnitLabel(a.subject, a.subtopicId, a.variant) }));
 
     return NextResponse.json({ assignments: withNames });
   } catch (error) {
@@ -71,11 +67,20 @@ async function handlePost(request: NextRequest) {
     }
     const resolvedVariant = variant?.trim() || "genel";
 
+    // Faz Z16 — "genel"/"yeterlilik" için gelen subtopicId aslında bir
+    // TEMA (topicId) id'sidir (bkz. practice-tests route.ts ve
+    // lib/server/xray/unit-label.ts) — 30 soru TÜM alt konulara dağıldığı
+    // için havuz sorgusu o temanın TÜM alt konularını kapsamalı, tek bir
+    // subtopicId'yle sınırlı kalırsa öğrenciye 30 yerine sadece o payın
+    // düştüğü birkaç soru (örn. 8) gider.
+    const scopeSubtopicIds = resolveUnitSubtopicIds(subject.trim(), subtopicId.trim(), resolvedVariant);
+    if (scopeSubtopicIds.length === 0) return NextResponse.json({ error: "Geçersiz konu." }, { status: 400 });
+
     // Faz Z6: variant filtresi ZORUNLU — aksi halde "genel" (tema geneli,
     // 30 soru) ve "alt_konu" (tek alt konu, 10 soru) havuzları AYNI
     // subtopicId altında karışırdı (ikisi de aynı tabloya yazıyor).
     const pool = await prisma.xrayPracticeQuestion.findMany({
-      where: { subject: subject.trim(), subtopicId: subtopicId.trim(), variant: resolvedVariant },
+      where: { subject: subject.trim(), subtopicId: { in: scopeSubtopicIds }, variant: resolvedVariant },
       select: { id: true, kazanimId: true, order: true, testId: true },
     });
     if (pool.length === 0) return NextResponse.json({ error: "Bu konu için soru havuzu boş." }, { status: 400 });

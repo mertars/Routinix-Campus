@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, ChevronDown, XCircle, CalendarClock } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { MathText } from "@/components/ui/math-text";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -41,12 +42,12 @@ function AttemptRow({ attempt }: { attempt: AttemptDetail }) {
             <div key={i} className="rounded-lg bg-rose-50 p-2.5 text-xs dark:bg-rose-500/10">
               <div className="mb-1 flex items-start gap-1.5">
                 <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" />
-                <p className="font-medium text-espresso dark:text-cream">{q.questionText}</p>
+                <MathText text={q.questionText} className="font-medium text-espresso dark:text-cream" />
               </div>
               <p className="mb-1 text-espresso-muted dark:text-cream/50">
-                Doğru cevap: <span className="font-semibold text-emerald-700 dark:text-emerald-400">{q.correctAnswer}</span>
+                Doğru cevap: <span className="font-semibold text-emerald-700 dark:text-emerald-400"><MathText text={q.correctAnswer} /></span>
               </p>
-              <p className="text-rose-700 dark:text-rose-300">{q.checks}</p>
+              <MathText text={q.checks} className="text-rose-700 dark:text-rose-300" />
             </div>
           ))}
         </div>

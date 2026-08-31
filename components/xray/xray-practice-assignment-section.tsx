@@ -7,6 +7,7 @@ import { useToast } from "@/lib/toast-context";
 import { type RosterForTargeting } from "@/components/xray/xray-assignment-target-picker";
 import { XrayTestPickerModal } from "@/components/xray/xray-test-picker-modal";
 import { XrayInfoButton } from "@/components/xray/xray-info-button";
+import { MathText } from "@/components/ui/math-text";
 import { cn } from "@/lib/utils";
 
 type Assignment = {
@@ -193,9 +194,11 @@ export function XrayPracticeAssignmentSection({
                                   </span>
                                 )}
                               </div>
-                              <p className="mb-1.5 text-xs font-medium text-espresso dark:text-cream">{r.prompt}</p>
-                              <p className="mb-1 text-[11px] font-semibold text-sky-600 dark:text-sky-300">Cevap: {r.correctAnswer}</p>
-                              {r.wasCorrect === false && <p className="text-[11px] text-espresso-muted dark:text-cream/50">{r.checks}</p>}
+                              <MathText text={r.prompt} className="mb-1.5 text-xs font-medium text-espresso dark:text-cream" />
+                              <p className="mb-1 text-[11px] font-semibold text-sky-600 dark:text-sky-300">
+                                Cevap: <MathText text={r.correctAnswer} />
+                              </p>
+                              {r.wasCorrect === false && <MathText text={r.checks} className="text-[11px] text-espresso-muted dark:text-cream/50" />}
                             </div>
                           ))
                         )}

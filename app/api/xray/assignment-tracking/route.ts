@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { resolveUnitLabel } from "@/lib/server/xray/unit-label";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -70,7 +71,10 @@ async function handleGet(request: NextRequest) {
         studentName: `${a.student.firstName} ${a.student.lastName}`,
         branchName: a.student.branch?.name ?? "—",
         grade: a.student.branch?.grade ?? 0,
-        subtopicName: subtopicNameById.get(a.subtopicId) ?? a.subtopicId,
+        // Faz Z16 — "genel" atamalarında a.subtopicId artık bir TEMA
+        // (topicId) id'si taşır (bkz. lib/server/xray/unit-label.ts) —
+        // düz subtopic sözlüğü sadece "alt_konu" için doğru sonuç verir.
+        subtopicName: resolveUnitLabel(subject.trim(), a.subtopicId, a.variant),
         status: a.status,
         assignedAt: a.assignedAt.toISOString(),
         completedAt: a.completedAt?.toISOString() ?? null,

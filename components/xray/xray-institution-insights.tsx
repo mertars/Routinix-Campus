@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TrendingDown, ChevronDown, Users } from "lucide-react";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
+import { MathText } from "@/components/ui/math-text";
 import { cn } from "@/lib/utils";
 
 type KazanimRow = { kazanimId: string; subtopicId: string; subtopicName: string; checks: string; wrongCount: number; studentCount: number };
@@ -82,7 +83,7 @@ export function XrayInstitutionInsights() {
                       <div className="mb-1.5 h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
                         <div className="h-full rounded-full bg-rose-500" style={{ width: `${(r.wrongCount / maxCount) * 100}%` }} />
                       </div>
-                      <p className="text-[11px] leading-relaxed text-espresso-muted dark:text-cream/50">{r.checks}</p>
+                      <MathText text={r.checks} className="text-[11px] leading-relaxed text-espresso-muted dark:text-cream/50" />
                     </div>
                   ))}
                 </div>

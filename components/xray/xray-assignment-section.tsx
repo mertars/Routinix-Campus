@@ -6,6 +6,7 @@ import { ClipboardList, Send, Loader2, Lock, Check, Flag, Clock, ChevronDown, X 
 import { useToast } from "@/lib/toast-context";
 import { XrayAssignmentTargetPicker, type AssignmentTarget, type RosterForTargeting } from "@/components/xray/xray-assignment-target-picker";
 import { XrayInfoButton } from "@/components/xray/xray-info-button";
+import { MathText } from "@/components/ui/math-text";
 import { cn } from "@/lib/utils";
 
 const COMPREHENSION_INFO_TEXT =
@@ -218,13 +219,13 @@ export function XrayAssignmentSection({
                           results.map((r, index) => (
                             <div key={r.questionId} className="rounded-lg bg-white p-2.5 dark:bg-midnight-card">
                               <p className="mb-1 text-[10px] font-semibold text-espresso-muted dark:text-cream/40">Soru {index + 1}</p>
-                              <p className="mb-1.5 text-xs font-medium text-espresso dark:text-cream">{r.prompt}</p>
+                              <MathText text={r.prompt} className="mb-1.5 text-xs font-medium text-espresso dark:text-cream" />
                               {r.answered ? (
                                 <>
                                   <p className={cn("mb-1 text-[11px] font-semibold", r.isCorrect ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
-                                    Seçilen: {r.selectedLabel}) {r.selectedText}
+                                    Seçilen: {r.selectedLabel}) <MathText text={r.selectedText ?? ""} />
                                   </p>
-                                  <p className="text-[11px] text-espresso-muted dark:text-cream/50">{r.diagnosis}</p>
+                                  {r.diagnosis && <MathText text={r.diagnosis} className="text-[11px] text-espresso-muted dark:text-cream/50" />}
                                 </>
                               ) : (
                                 <p className="text-[11px] italic text-espresso-muted dark:text-cream/40">Bu soru cevaplanmadı.</p>

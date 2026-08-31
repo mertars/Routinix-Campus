@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Scan, Check, X, Loader2, Sparkles, RotateCcw } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
+import { MathText } from "@/components/ui/math-text";
 import { cn } from "@/lib/utils";
 
 type Question = { id: string; subtopicId: string; difficulty: number; prompt: string; options: string[] };
@@ -132,7 +133,7 @@ export function XrayDiagnosticTest() {
               <span>Soru {answeredCount + 1}</span>
               <span className="rounded-full bg-sky-500/10 px-2 py-0.5 font-semibold text-sky-600 dark:text-sky-300">Zorluk {question.difficulty}/5</span>
             </div>
-            <p className="text-sm font-medium text-espresso dark:text-cream">{question.prompt}</p>
+            <MathText text={question.prompt} className="text-sm font-medium text-espresso dark:text-cream" />
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {question.options.map((option) => {
                 const isSelected = selected === option;
@@ -149,7 +150,7 @@ export function XrayDiagnosticTest() {
                       !showFeedback && "border-hairline bg-cream-card text-espresso hover:border-sky-400 dark:border-white/10 dark:bg-white/5 dark:text-cream"
                     )}
                   >
-                    {option}
+                    <MathText text={option} />
                     {showFeedback && (wasCorrect ? <Check className="h-4 w-4 shrink-0" /> : <X className="h-4 w-4 shrink-0" />)}
                   </button>
                 );

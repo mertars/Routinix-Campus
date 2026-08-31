@@ -8,16 +8,21 @@ import { withApiLogging, logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 // GET /api/xray/practice-tests?subject=Matematik&variant=genel — Test 1
-// (Konu Bilgisi) için soru havuzu bulunan KONULARI (subtopicId bazlı)
-// döner. Faz G: öğrenci artık belirli bir testId SEÇMİYOR — bir konu
-// seçtiğinde sistem o konunun TÜM havuzundan (onlarca yüklemenin toplamı)
-// rastgele bir test derler (bkz. lib/server/xray/practice-pool.ts), bu
-// yüzden liste artık testId değil subtopicId bazında gruplanıyor.
+// (Konu Bilgisi) için soru havuzu bulunan BİRİMLERİ döner. Faz G: öğrenci
+// artık belirli bir testId SEÇMİYOR — bir birim seçtiğinde sistem o
+// birimin TÜM havuzundan rastgele bir test derler (bkz.
+// lib/server/xray/practice-pool.ts).
 //
-// Faz Z6: variant zorunlu değil (varsayılan "genel", geriye dönük uyumlu)
-// ama HER ZAMAN filtreye dahil edilir — aksi halde "genel" (tema geneli,
-// 30 soru) ve "alt_konu" (tek alt konu, 10 soru) havuzları AYNI subtopicId
-// altında karışırdı (ikisi de XrayPracticeQuestion.subtopicId'ye yazıyor).
+// Faz Z16 — kullanıcı geri bildirimi ile düzeltildi: "genel" (30 soru,
+// TEMANIN TÜMÜNÜ kapsar) turları TÜM alt konulara dağıldığı için, bu liste
+// eskiden yanlışlıkla ALT KONU bazında gruplanıyordu — bir alt konu
+// seçilince o alt konuya düşen PAY (örn. 8 soru) atanıyordu, 30 soruluk
+// bütün test DEĞİL. Artık "genel"/"yeterlilik" için gruplama TEMA (topicId)
+// bazında, "alt_konu" için (değişmeden) SUBTOPIC bazında yapılıyor. Yanıt
+// alanı adı geriye dönük uyumluluk için "subtopicId"/"subtopicName" olarak
+// KALDI ama "genel" için SEMANTİĞİ topicId/topicName'dir (bkz.
+// lib/server/xray/unit-label.ts — aynı ikili anlam POST tarafında da
+// çözülür).
 async function handleGet(request: NextRequest) {
   try {
     await requireSession();
@@ -25,44 +30,40 @@ async function handleGet(request: NextRequest) {
     const subject = request.nextUrl.searchParams.get("subject");
     if (!subject?.trim()) return NextResponse.json({ error: "subject parametresi zorunludur." }, { status: 400 });
     const variant = request.nextUrl.searchParams.get("variant") || "genel";
+    const groupByTopic = variant !== "alt_konu";
 
     const questions = await prisma.xrayPracticeQuestion.findMany({
       where: { subject, variant },
       select: { subtopicId: true, kazanimId: true },
     });
 
-    const byTopic = new Map<string, { questionCount: number; kazanimIds: Set<string> }>();
-    for (const q of questions) {
-      const entry = byTopic.get(q.subtopicId) ?? { questionCount: 0, kazanimIds: new Set<string>() };
-      entry.questionCount++;
-      entry.kazanimIds.add(q.kazanimId);
-      byTopic.set(q.subtopicId, entry);
-    }
-
     // Faz K: SADECE lise (9-12. sınıf) konuları — bkz. XRAY_MIN_GRADE yorumu.
-    // Faz Z15 — kullanıcı talebi: test seçme ekranına sınıf filtresi
-    // eklenebilsin diye her alt konunun ait olduğu üst konunun grade'i ve
-    // konu adı da (subtopicName YETERSİZ, aynı isim farklı sınıflarda
-    // tekrar edebiliyor — bkz. sarmal müfredat) döndürülüyor.
-    const subtopicMetaById = new Map<string, { subtopicName: string; topicName: string; grade: number }>();
+    const subtopicMetaById = new Map<string, { subtopicName: string; topicId: string; topicName: string; grade: number }>();
     for (const topic of CURRICULUM_TREE[subject] ?? []) {
       if (topic.grade < XRAY_MIN_GRADE) continue;
-      for (const sub of topic.subtopics) subtopicMetaById.set(sub.id, { subtopicName: sub.name, topicName: topic.name, grade: topic.grade });
+      for (const sub of topic.subtopics) subtopicMetaById.set(sub.id, { subtopicName: sub.name, topicId: topic.id, topicName: topic.name, grade: topic.grade });
     }
 
-    const topics = [...byTopic.entries()]
-      .filter(([subtopicId]) => subtopicMetaById.has(subtopicId))
-      .map(([subtopicId, stats]) => {
-        const meta = subtopicMetaById.get(subtopicId)!;
-        return {
-          subtopicId,
-          subtopicName: meta.subtopicName,
-          topicName: meta.topicName,
-          grade: meta.grade,
-          questionCount: stats.questionCount,
-          kazanimCount: stats.kazanimIds.size,
-        };
-      })
+    const byUnit = new Map<string, { unitName: string; topicName: string; grade: number; questionCount: number; kazanimIds: Set<string> }>();
+    for (const q of questions) {
+      const meta = subtopicMetaById.get(q.subtopicId);
+      if (!meta) continue;
+      const unitId = groupByTopic ? meta.topicId : q.subtopicId;
+      const entry = byUnit.get(unitId) ?? { unitName: groupByTopic ? meta.topicName : meta.subtopicName, topicName: meta.topicName, grade: meta.grade, questionCount: 0, kazanimIds: new Set<string>() };
+      entry.questionCount++;
+      entry.kazanimIds.add(q.kazanimId);
+      byUnit.set(unitId, entry);
+    }
+
+    const topics = [...byUnit.entries()]
+      .map(([unitId, stats]) => ({
+        subtopicId: unitId,
+        subtopicName: stats.unitName,
+        topicName: stats.topicName,
+        grade: stats.grade,
+        questionCount: stats.questionCount,
+        kazanimCount: stats.kazanimIds.size,
+      }))
       .sort((a, b) => a.grade - b.grade || a.subtopicName.localeCompare(b.subtopicName, "tr"));
 
     return NextResponse.json({ topics });

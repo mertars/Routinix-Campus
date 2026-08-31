@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, ShieldAlert, Loader2, Check, ChevronRight, Flag, ArrowLeft } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
+import { MathText } from "@/components/ui/math-text";
 
 type Option = { id: string; label: string; text: string };
 type Question = { id: string; difficulty: number; prompt: string; options: Option[] };
@@ -188,7 +189,7 @@ export default function ComprehensionExamPage() {
                   Soru {currentIndex + 1}/{questions.length}
                 </span>
               </div>
-              <p className="text-base font-medium leading-relaxed">{question.prompt}</p>
+              <MathText text={question.prompt} className="text-base font-medium leading-relaxed" />
               <div className="space-y-2.5">
                 {question.options.map((option) => (
                   <button
@@ -203,7 +204,7 @@ export default function ComprehensionExamPage() {
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-current text-xs font-bold">
                       {option.label}
                     </span>
-                    {option.text}
+                    <MathText text={option.text} />
                   </button>
                 ))}
               </div>
