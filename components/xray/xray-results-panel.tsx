@@ -93,6 +93,8 @@ export function XrayResultsPanel({
 }) {
   const { showError, showToast } = useToast();
   const [query, setQuery] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
   const [selectedId, setSelectedId] = useState("");
   const [subject, setSubject] = useState(defaultSubject && SUBJECTS.includes(defaultSubject) ? defaultSubject : SUBJECTS[0]);
   const [results, setResults] = useState<ResultsResponse | null>(null);
@@ -112,11 +114,26 @@ export function XrayResultsPanel({
     setSelectedId((current) => current || roster[0]?.id || "");
   }, [roster]);
 
+  // Faz Z6 — sınıf seviyesi/şube filtreleri: öncesinde sadece isim arama
+  // vardı, kalabalık bir okulda (100+ öğrenci) belirli bir sınıfı/şubeyi
+  // bulmak zordu. Şube listesi SEÇİLİ sınıf seviyesine göre daralır (bir
+  // üst sınıfın şubesi başka sınıfta anlamsız/karışık görünmesin diye).
+  const gradeOptions = useMemo(() => [...new Set(roster.map((s) => s.grade))].sort((a, b) => a - b), [roster]);
+  const branchOptions = useMemo(() => {
+    const scoped = gradeFilter ? roster.filter((s) => String(s.grade) === gradeFilter) : roster;
+    const byId = new Map(scoped.map((s) => [s.branchId, s.branchName]));
+    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1], "tr-TR"));
+  }, [roster, gradeFilter]);
+
   const filteredRoster = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("tr-TR");
-    if (!q) return roster;
-    return roster.filter((s) => `${s.firstName} ${s.lastName}`.toLocaleLowerCase("tr-TR").includes(q));
-  }, [roster, query]);
+    return roster.filter((s) => {
+      if (q && !`${s.firstName} ${s.lastName}`.toLocaleLowerCase("tr-TR").includes(q)) return false;
+      if (gradeFilter && String(s.grade) !== gradeFilter) return false;
+      if (branchFilter && s.branchId !== branchFilter) return false;
+      return true;
+    });
+  }, [roster, query, gradeFilter, branchFilter]);
 
   useEffect(() => {
     if (!selectedId || !subject) return;
@@ -237,6 +254,35 @@ export function XrayResultsPanel({
               placeholder="Öğrenci ara..."
               className="w-full rounded-lg border border-hairline bg-white py-2 pl-8 pr-3 text-sm text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
             />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={gradeFilter}
+              onChange={(event) => {
+                setGradeFilter(event.target.value);
+                setBranchFilter("");
+              }}
+              className="w-full rounded-lg border border-hairline bg-white px-2 py-2 text-xs text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+            >
+              <option value="">Tüm Sınıflar</option>
+              {gradeOptions.map((g) => (
+                <option key={g} value={g}>
+                  {g}. Sınıf
+                </option>
+              ))}
+            </select>
+            <select
+              value={branchFilter}
+              onChange={(event) => setBranchFilter(event.target.value)}
+              className="w-full rounded-lg border border-hairline bg-white px-2 py-2 text-xs text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+            >
+              <option value="">Tüm Şubeler</option>
+              {branchOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </div>
           <select
             value={subject}
