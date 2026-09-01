@@ -9,6 +9,7 @@ import { XrayDiagnosticTest } from "@/components/student/tabs/xray-diagnostic-te
 import { XrayPracticeBanner } from "@/components/student/tabs/xray-practice-banner";
 import { XrayComprehensionBanner } from "@/components/student/tabs/xray-comprehension-banner";
 import { XraySelfProgressCard } from "@/components/student/tabs/xray-self-progress-card";
+import { XrayRoadmapCard } from "@/components/student/tabs/xray-roadmap-card";
 import { XrayGoalsCard } from "@/components/student/tabs/xray-goals-card";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,7 @@ export function XrayTab() {
       <XrayComprehensionBanner />
       <XrayPracticeBanner />
       <XraySelfProgressCard />
+      <XrayRoadmapCard />
       <XrayGoalsCard />
       <XrayDiagnosticTest />
 
