@@ -1638,6 +1638,97 @@ model XrayPoolGenerationControl {
   updatedAt        DateTime @updatedAt
 }
 
+// ----------------------------------------------------------------------------
+// Faz C — manuel QA sürecinin arka plana taşınmış hâli. Kullanıcı talebi:
+// "en az senin incelediğin kadar detaylı" bir denetim, zaten ÜRETİLİP DB'ye
+// yazılmış (ve generation-time verify-content.ts ile bir kez zaten süzülmüş)
+// soru havuzunu İKİNCİ, daha titiz bir bağımsız AI geçişiyle (bkz.
+// lib/server/xray/question-generation/qa-review-prompt.ts) yeniden denetler:
+// hesap hatası, yazım, müfredat uygunluğu, ölçme-değerlendirme kalitesi VE
+// diagnosticComment'in soruya özgü/gerçek olup olmadığını (bkz. bu oturumda
+// elle bulunan Bulgu #2/#3 — 572 satırlık toplu şablon-kopyalama hatası)
+// kontrol eder. Worker (scripts/xray-qa-review.ts) üretim worker'ıyla AYNI
+// "paused okuma" desenini kullanır ama TAMAMEN AYRI bir singleton satırdır —
+// ikisi birbirinden bağımsız duraklatılabilir.
+// ----------------------------------------------------------------------------
+model XrayQaReviewControl {
+  id        String   @id @default("singleton")
+  paused    Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+// Hangi turun (XrayPoolGenerationRound.testId) bu denetimden GEÇTİĞİNİ kalıcı
+// tutar — worker kaldığı yerden devam edebilsin diye (üretim worker'ındaki
+// XrayPoolGenerationRound'un aynı mantığı, ama bu AYRI bir geçiş olduğu için
+// ayrı bir tabloda).
+model XrayQaReviewedRound {
+  id            String   @id @default(cuid())
+  testId        String   @unique
+  subject       String
+  variant       String
+  unitId        String
+  roundNumber   Int
+  questionCount Int
+  issuesFound   Int      @default(0)
+  tokensUsed    Int      @default(0)
+  reviewedAt    DateTime @default(now())
+
+  @@index([subject])
+}
+
+// Bu denetimde tespit edilen HER sorun — before/after TAM METİN olarak (bu
+// oturumdaki 572 satırlık toplu düzeltmede orijinal metni arşivlemeden
+// üzerine yazma hatasından ders alınarak, bu sefer KASITLI olarak önce
+// snapshot alınır, SONRA düzeltme denenir). relatedFindingId, bir bulgunun
+// tetiklediği "aynı kazanımı TÜM havuzda ara" taramasında bulunan EK
+// örnekleri kök bulguya bağlar (kullanıcı talebi: "1 sorun yakaladığında o
+// sorunu tüm sorularda arasın hepsinde düzeltsin").
+model XrayQaFinding {
+  id                  String    @id @default(cuid())
+  questionId          String
+  testId              String
+  subject             String
+  unitId              String
+  soruNo              Int
+  kazanimId           String
+  category            String // "hesap-hatasi" | "yazim" | "mufredat" | "olcme-degerlendirme" | "tani-notu-uyumsuz" | "diger"
+  severity            String // "kritik" | "orta" | "dusuk"
+  summary             String
+  beforePrompt        String
+  beforeCorrectAnswer String
+  beforeSolution      String
+  beforeChecks        String
+  afterPrompt         String?
+  afterCorrectAnswer  String?
+  afterSolution       String?
+  afterChecks         String?
+  status              String    @default("open") // "open" | "fixed" | "fix-failed"
+  relatedFindingId    String?
+  createdAt           DateTime  @default(now())
+  fixedAt             DateTime?
+
+  @@index([subject, status])
+  @@index([testId])
+  @@index([kazanimId])
+  @@index([relatedFindingId])
+}
+
+// Kullanıcı talebi: panelde "şurda sorun buldum, bakıyorum, düzelttim, şimdi
+// taramaya devam ediyorum" tarzı CANLI, insan-okunur Türkçe bir akış görmek
+// istiyor — worker'ın konsol log'unun statik özet tablolara indirgenmeden
+// AYNEN panelde de görünmesi için. message zaten TAMAMEN Türkçe/insan-okunur
+// yazılır (worker'ın console.log'larıyla BİREBİR aynı metin) — panel bunu
+// olduğu gibi listeler, ayrıca bir çeviri/formatlama katmanı GEREKMEZ.
+model XrayQaActivityLog {
+  id        String   @id @default(cuid())
+  subject   String
+  level     String // "info" | "found" | "fixed" | "manual" | "error"
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([subject, createdAt])
+}
+
 // Test 1'in bir "oturumu" — süre/kilit yok, ama Faz H revizyonuyle artık
 // öğrenci KENDİ BAŞINA başlatamıyor, TIPKI Test 2 gibi yönetici ataması
 // gerekiyor (kullanıcı kararı: "öğrenci kafasına göre test almayacak,

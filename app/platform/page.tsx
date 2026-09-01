@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan, Activity, ListChecks } from "lucide-react";
+import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan, Activity, ListChecks, ShieldCheck } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { XrayQuestionPoolWizard } from "@/components/platform/xray-question-pool-wizard";
 import { XrayPoolGenerationDashboard } from "@/components/platform/xray-pool-generation-dashboard";
+import { XrayQaReviewDashboard } from "@/components/platform/xray-qa-review-dashboard";
 import { XrayPoolQuestionsBrowser } from "@/components/platform/xray-pool-questions-browser";
 import { useToast } from "@/lib/toast-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
@@ -185,6 +186,7 @@ export default function PlatformDashboardPage() {
   const [isQuestionPoolOpen, setIsQuestionPoolOpen] = useState(false);
   const [isGenerationDashboardOpen, setIsGenerationDashboardOpen] = useState(false);
   const [isQuestionsBrowserOpen, setIsQuestionsBrowserOpen] = useState(false);
+  const [isQaReviewOpen, setIsQaReviewOpen] = useState(false);
 
   async function loadInstitutions() {
     try {
@@ -249,6 +251,12 @@ export default function PlatformDashboardPage() {
               className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
             >
               <ListChecks className="h-4 w-4" /> Soruları Görüntüle / Düzenle
+            </button>
+            <button
+              onClick={() => setIsQaReviewOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-500/20 dark:text-rose-300"
+            >
+              <ShieldCheck className="h-4 w-4" /> QA Denetim Paneli
             </button>
             <button
               onClick={() => setIsQuestionPoolOpen(true)}
@@ -344,6 +352,7 @@ export default function PlatformDashboardPage() {
       <XrayQuestionPoolWizard isOpen={isQuestionPoolOpen} onClose={() => setIsQuestionPoolOpen(false)} />
       <XrayPoolGenerationDashboard isOpen={isGenerationDashboardOpen} onClose={() => setIsGenerationDashboardOpen(false)} />
       <XrayPoolQuestionsBrowser isOpen={isQuestionsBrowserOpen} onClose={() => setIsQuestionsBrowserOpen(false)} />
+      <XrayQaReviewDashboard isOpen={isQaReviewOpen} onClose={() => setIsQaReviewOpen(false)} />
     </main>
   );
 }
