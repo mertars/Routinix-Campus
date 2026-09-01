@@ -124,20 +124,49 @@ async function cmdSubmit(filePath: string) {
     }
   }
 
+  // update: increment (not overwrite) — bir tur zaten denetlenmişken, o
+  // turdaki bir kazanımı hedefleyen sonraki bir kazanım-geneli taramanın
+  // (ör. başka bir turda bulunan bir kalıbın bu turda da aranması) EK
+  // bulgu eklemesi normaldir; overwrite önceki turun sayısını kaybederdi.
   await prisma.xrayQaReviewedRound.upsert({
     where: { testId: payload.testId },
     create: { testId: payload.testId, subject: SUBJECT, variant: round.variant, unitId: round.unitId, roundNumber: round.roundNumber, questionCount: questions.length, issuesFound: payload.findings.length, tokensUsed: 0 },
-    update: { issuesFound: payload.findings.length, tokensUsed: 0, reviewedAt: new Date() },
+    update: { issuesFound: { increment: payload.findings.length }, reviewedAt: new Date() },
   });
   await logActivity("info", payload.findings.length === 0 ? `✅ ${round.unitId} tur ${round.roundNumber} bitti — temiz.` : `✅ ${round.unitId} tur ${round.roundNumber} bitti — ${payload.findings.length} sorun buldum, hepsini ele aldım.`);
+}
+
+// Kullanıcı talebi: "1 sorun yakaladığında o sorunu tüm sorularda arasın".
+// Bir kazanımId'yi PAYLAŞAN TÜM soruları (hangi turda/ne zaman üretilmiş
+// olursa olsun, zaten denetlenmiş turlar dahil) tek seferde basar — Claude
+// bunları okuyup aynı kalıbın başka örneği var mı diye kontrol eder, varsa
+// ilgili testId'ler için ayrı ayrı `submit` çağırır (submit artık issuesFound'u
+// ÜZERİNE YAZMAK yerine ARTIRIR, bkz. cmdSubmit — bu yüzden zaten denetlenmiş
+// bir tura ikinci kez bulgu eklemek güvenlidir).
+async function cmdKazanim(kazanimId: string) {
+  const rows = await prisma.xrayPracticeQuestion.findMany({
+    where: { subject: SUBJECT, kazanimId },
+    select: { id: true, testId: true, order: true, prompt: true, correctAnswer: true, solution: true, checks: true },
+    orderBy: [{ testId: "asc" }, { order: "asc" }],
+  });
+  console.log(`${kazanimId}: ${rows.length} soru\n`);
+  for (const r of rows) {
+    console.log(`[${r.testId} #${r.order}]`);
+    console.log(`SORU: ${r.prompt}`);
+    console.log(`CEVAP: ${r.correctAnswer}`);
+    console.log(`ÇÖZÜM: ${r.solution}`);
+    console.log(`TANI: ${r.checks}`);
+    console.log();
+  }
 }
 
 async function main() {
   const [cmd, arg] = process.argv.slice(2);
   if (cmd === "next") await cmdNext();
   else if (cmd === "submit" && arg) await cmdSubmit(arg);
+  else if (cmd === "kazanim" && arg) await cmdKazanim(arg);
   else {
-    console.error("Kullanım: xray-qa-manual.ts next | xray-qa-manual.ts submit <dosya.json>");
+    console.error("Kullanım: xray-qa-manual.ts next | xray-qa-manual.ts submit <dosya.json> | xray-qa-manual.ts kazanim <kazanimId>");
     process.exitCode = 1;
   }
 }
