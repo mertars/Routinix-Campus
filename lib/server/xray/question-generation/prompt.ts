@@ -238,6 +238,8 @@ ${SELF_CHECK_CLAUSE}
 
 VERİ ALANLARI (her soru için, İSTİSNASIZ hepsi dolu olacak): soruNo (verilenle AYNI), questionText, finalAnswer, detailedSolution, diagnosticComment. kazanımId'yi veya alt konuyu DEĞİŞTİRME/EMİTME — sadece bu 5 alanı döndür.
 
+⚠️ diagnosticComment KURALI (canlı üretimde bulunan gerçek hata): bu alan HER ZAMAN "Öğrenci bu soruda zorlandıysa: [Kazanım Adı] konusundaki [Eksik Kural/İşlem] eksiktir." formatında, öğrenciye gösterilecek pedagojik bir tanı notu olmalı. ASLA (a) düzeltme sürecini anlatan bir meta-açıklama YAZMA (YANLIŞ örnek: "Önceki soru çoktan seçmeli olduğu için geçersizdi, bu yeni soru..." veya "Önceki çözümde ... hatalı işlem yapılmıştı, düzeltildi..."), (b) "doğru yapılmış ve sonuç ile çözüm tutarlıdır" gibi bir DOĞRULAMA cümlesi YAZMA — bunların ikisi de öğrenciye HİÇBİR ANLAM ifade etmez. SORUN AÇIKLAMASI sana sadece NEYİ düzeltmen gerektiğini anlatır, diagnosticComment'e KOPYALANMAZ/ÖZETLENMEZ.
+
 TEKNİK FORMAT: Çıktı SADECE geçerli bir JSON dizisi olacak (verilen soru sayısı kadar eleman) — başka açıklama ekleme. LaTeX kullan, çift ters eğik çizgi tercih et (\\\\sqrt{}, \\\\frac{}{}).`;
 
 export type FlawedQuestionContext = { soruNo: number; kazanimId: string; subtopicName?: string; oldQuestionText: string; reason: string };
