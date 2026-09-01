@@ -16,6 +16,13 @@ import { flattenTopics, flattenCurriculum } from "./question-generation/curricul
 // anlamı DOĞRU çözmek için TEK kaynak — hem okunabilir isim çözümü hem
 // havuz sorgusu için gerekli subtopicId listesi burada toplanır.
 export function resolveUnitLabel(subject: string, unitId: string, variant: string): string {
+  if (variant === "yerlestirme") {
+    // bkz. lib/server/xray/placement-pool.ts resolvePlacementScope — unitId
+    // burada gerçek bir topicId/subtopicId DEĞİL, "yerlestirme:9" veya
+    // "yerlestirme:9-12" gibi sentetik bir kapsam etiketidir.
+    const scope = unitId.split(":")[1];
+    return scope === "9-12" ? "Seviye Belirleme Sınavı (9-12. Sınıf)" : `Seviye Belirleme Sınavı (${scope}. Sınıf)`;
+  }
   if (variant === "alt_konu") {
     return flattenCurriculum(subject).find((s) => s.subtopicId === unitId)?.subtopicName ?? unitId;
   }

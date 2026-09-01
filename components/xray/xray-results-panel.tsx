@@ -10,6 +10,9 @@ import { fetchAndDownloadPdf, fetchAndSharePdf } from "@/lib/client/download-pdf
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section";
 import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
+import { XrayPlacementAssignButton } from "@/components/xray/xray-placement-assign-button";
+import { XrayPlacementProgressCard } from "@/components/xray/xray-placement-progress-card";
+import { XraySendToParentButton } from "@/components/xray/xray-send-to-parent-button";
 import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
 import { XraySetGoalButton } from "@/components/xray/xray-set-goal-button";
 import { XrayAverageDetailModal, XrayRedZoneModal, XrayUntestedTopicsModal, XrayHistoryTimelineModal } from "@/components/xray/xray-stat-detail-modals";
@@ -392,6 +395,9 @@ export function XrayResultsPanel({
                       {downloadingBranch ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
                     </button>
                     <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+                    {canAssign && (
+                      <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+                    )}
                     {averageScore !== null && (
                       <>
                       <button
@@ -419,6 +425,8 @@ export function XrayResultsPanel({
                   </div>
                 </div>
               </motion.div>
+
+              <XrayPlacementProgressCard studentId={selectedId} subject={subject} />
 
               {loading && <p className="text-xs text-espresso-muted dark:text-cream/40">Yükleniyor...</p>}
 
@@ -529,6 +537,7 @@ export function XrayResultsPanel({
         {/* SAĞ — test atama panelleri (SADECE yönetici) */}
         {canAssign && selectedStudent && (
           <div id="xray-assignment-column" className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
+            <XrayPlacementAssignButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
             <XrayPracticeAssignmentSection
               studentId={selectedId}
               studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}

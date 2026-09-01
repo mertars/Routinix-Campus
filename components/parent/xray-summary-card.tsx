@@ -6,6 +6,7 @@ import { Scan, MessageCircleHeart } from "lucide-react";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { generateParentSummary } from "@/lib/xray-parent-summary";
 import { MasterySparkline, type OverallTrendPoint } from "@/components/xray/mastery-trend-charts";
+import { XrayPlacementProgressCard } from "@/components/xray/xray-placement-progress-card";
 import { cn } from "@/lib/utils";
 
 type SubtopicResult = { subtopicId: string; name: string; masteryScore: number | null };
@@ -77,6 +78,10 @@ export function XrayParentSummaryCard({ studentId }: { studentId: string }) {
       <div className="mb-4 flex items-start gap-2 rounded-xl bg-brand-500/5 p-3.5 text-sm leading-relaxed text-espresso dark:bg-brand-500/10 dark:text-cream">
         <MessageCircleHeart className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
         <span>{summarySentence}</span>
+      </div>
+
+      <div className="mb-4">
+        <XrayPlacementProgressCard studentId={studentId} subject={subject} />
       </div>
 
       {trend && trend.length >= 2 && (
