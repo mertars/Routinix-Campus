@@ -1,12 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ListTodo } from "lucide-react";
 import { XrayTopBar } from "@/components/xray/xray-top-bar";
 import { XrayResultsPanel, type XrayRosterStudent } from "@/components/xray/xray-results-panel";
-import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
-import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
-import { XrayAssignmentTrackingDashboard } from "@/components/xray/xray-assignment-tracking-dashboard";
 import { useToast } from "@/lib/toast-context";
 
 // Kurum geneli röntgen merkezi — roster TÜM kurumdan gelir (bkz.
@@ -17,10 +13,14 @@ import { useToast } from "@/lib/toast-context";
 // Ortaokul desteği ileride eklenecek — bu filtre o zaman kaldırılacak/
 // genişletilecek, panelin geri kalanı (3 sütunlu düzen, atama, trend
 // grafikleri) zaten sınıf seviyesinden bağımsız, değişiklik gerekmeyecek.
+//
+// Kullanıcı geri bildirimi — "Unutma Testi", "En Zor Kazanımlar" ve "Ödev
+// Takip" artık burada DEĞİL, XrayTopBar'ın principalTools menüsünde (bkz.
+// xray-top-bar.tsx) — bu sayfa artık sadece sonuç panelini içeriyor, üst
+// kısım kalabalıklaşmıyor.
 export default function XrayPrincipalPage() {
   const { showError } = useToast();
   const [roster, setRoster] = useState<XrayRosterStudent[]>([]);
-  const [trackingOpen, setTrackingOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/users/directory?role=STUDENT")
@@ -44,21 +44,8 @@ export default function XrayPrincipalPage() {
 
   return (
     <div className="min-h-screen bg-cream dark:bg-midnight">
-      <XrayTopBar roleLabel="Yönetici" />
-      <div className="space-y-3 px-4 pt-4 lg:px-6">
-        <div className="mx-auto flex max-w-[1600px] justify-end">
-          <button
-            onClick={() => setTrackingOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3.5 py-2 text-xs font-medium text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300"
-          >
-            <ListTodo className="h-3.5 w-3.5" /> Ödev Takip
-          </button>
-        </div>
-        <XrayMonthlyScreeningPanel />
-        <XrayInstitutionInsights />
-      </div>
+      <XrayTopBar roleLabel="Yönetici" principalTools />
       <XrayResultsPanel roster={roster} canAssign />
-      <XrayAssignmentTrackingDashboard isOpen={trackingOpen} onClose={() => setTrackingOpen(false)} />
     </div>
   );
 }

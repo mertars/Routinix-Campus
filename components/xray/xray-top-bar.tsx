@@ -1,13 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Scan, ArrowLeft, LogOut } from "lucide-react";
+import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
+import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
+import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
+import { XrayAssignmentTrackingDashboard } from "@/components/xray/xray-assignment-tracking-dashboard";
 import { cn } from "@/lib/utils";
 
 // Akademik Röntgen (Hub'daki 2. modül) — BİLEREK ERP'nin TopBar'ından ayrı
@@ -19,10 +23,27 @@ import { cn } from "@/lib/utils";
 // principal/student/teacher top-bar.tsx'teki AYNI kurulmuş desen) — tek
 // satırı küçültmeye/truncate'e güvenmek yerine dar ekranda ne göründüğü
 // NET olsun diye.
-export function XrayTopBar({ roleLabel }: { roleLabel: string }) {
+//
+// Kullanıcı geri bildirimi — "Unutma Testi", "En Zor Kazanımlar" ve "Ödev
+// Takip" eskiden /xray/principal sayfasının içeriğinde HER ZAMAN görünen,
+// üst kısmı kalabalıklaştıran ayrı bölümlerdi (+ Ödev Takip'in kendi
+// tetikleyici butonu vardı). Artık ÜÇÜ DE bu üst barda birer menü öğesi —
+// tıklanınca ortada açılan bir Modal olarak gösterilir, sayfa gövdesi
+// sadece sonuç panelini içerir. Sadece principalTools=true iken gösterilir
+// (öğretmen tarafında bu üç araç YOK — bkz. app/xray/teacher/page.tsx).
+export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: string; principalTools?: boolean }) {
   const router = useRouter();
   const logout = useLogout();
   const institutionName = useInstitutionName();
+  const [screeningOpen, setScreeningOpen] = useState(false);
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const [trackingOpen, setTrackingOpen] = useState(false);
+
+  const tools = [
+    { label: "Unutma Testi", icon: ShieldAlert, onClick: () => setScreeningOpen(true) },
+    { label: "En Zor Kazanımlar", icon: TrendingDown, onClick: () => setInsightsOpen(true) },
+    { label: "Ödev Takip", icon: ListTodo, onClick: () => setTrackingOpen(true) },
+  ];
 
   return (
     <motion.header
@@ -58,6 +79,20 @@ export function XrayTopBar({ roleLabel }: { roleLabel: string }) {
             </button>
           </div>
         </div>
+        {/* Mobil araç satırı — principalTools açıkken, kaydırılabilir tek sıra ikon+etiket */}
+        {principalTools && (
+          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 md:hidden">
+            {tools.map((tool) => (
+              <button
+                key={tool.label}
+                onClick={tool.onClick}
+                className="flex shrink-0 items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3 py-1.5 text-[11px] font-medium text-sky-700 shadow-sm backdrop-blur-sm dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300"
+              >
+                <tool.icon className="h-3.5 w-3.5" /> {tool.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Masaüstü düzen */}
         <div className="hidden items-center justify-between gap-3 md:flex">
@@ -81,6 +116,20 @@ export function XrayTopBar({ roleLabel }: { roleLabel: string }) {
             </div>
           </div>
 
+          {principalTools && (
+            <div className="flex items-center gap-1.5">
+              {tools.map((tool) => (
+                <button
+                  key={tool.label}
+                  onClick={tool.onClick}
+                  className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3 py-1.5 text-xs font-medium text-sky-700 shadow-sm backdrop-blur-sm transition hover:bg-sky-500/10 dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300 dark:hover:bg-sky-400/10"
+                >
+                  <tool.icon className="h-3.5 w-3.5" /> {tool.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
               <InstitutionBadgeIcon className="h-3.5 w-3.5" />
@@ -97,6 +146,14 @@ export function XrayTopBar({ roleLabel }: { roleLabel: string }) {
           </div>
         </div>
       </div>
+
+      {principalTools && (
+        <>
+          <XrayMonthlyScreeningPanel isOpen={screeningOpen} onClose={() => setScreeningOpen(false)} />
+          <XrayInstitutionInsights isOpen={insightsOpen} onClose={() => setInsightsOpen(false)} />
+          <XrayAssignmentTrackingDashboard isOpen={trackingOpen} onClose={() => setTrackingOpen(false)} />
+        </>
+      )}
     </motion.header>
   );
 }

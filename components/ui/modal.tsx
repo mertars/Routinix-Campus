@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useIsMobile } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,18 @@ export function Modal({
 }) {
   const isMobileQuery = useIsMobile();
   const isMobile = variant === "auto" && isMobileQuery;
+
+  // Kolaylaştırıcı: Esc tuşuyla kapatma — tüm Modal çağıranlarına (bu
+  // dosyayı değiştirenler dahil) otomatik olarak kazandırılır, ayrı ayrı
+  // eklenmesi gerekmez.
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   // document.body'ye Portal: bu Modal, bir kart bileşeninin (örn.
   // whileHover ile animasyon uygulanan bir motion.div) içinden çağrılırsa,

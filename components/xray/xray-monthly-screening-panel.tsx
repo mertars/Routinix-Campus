@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ShieldAlert, ChevronDown, Loader2, Save } from "lucide-react";
+import { motion } from "framer-motion";
+import { Loader2, Save } from "lucide-react";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
+import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
 type Config = { grade: number; enabled: boolean; subject: string | null; subtopicId: string | null; subtopicName: string | null; intervalDays: number; nextRunAt: string | null };
@@ -143,12 +144,15 @@ function GradeRow({ config, onSaved }: { config: Config; onSaved: (next: Config)
 // Faz N — yöneticinin aylık "unutma riski" tarama testi ayarları. Test
 // 1/Test 2'nin öğrenci-bazlı atama panellerinden BİLEREK AYRI (o ikisi
 // SEÇİLİ öğrenciye özelken, bu kurum geneli/sınıf seviyesi bazlı bir
-// AYAR) — bu yüzden XrayResultsPanel'in sağ sütununda değil, /xray/
-// principal sayfasında BAĞIMSIZ bir bölüm olarak gösterilir.
-export function XrayMonthlyScreeningPanel() {
+// AYAR) — bu yüzden XrayResultsPanel'in sağ sütununda değil, üst bardaki
+// bir menü öğesinden açılan bağımsız bir modal olarak gösterilir.
+//
+// Kullanıcı geri bildirimi — eskiden sayfa içeriğinde HER ZAMAN görünen,
+// kendi kendine açılıp kapanan bir akordeon kartıydı ve üst kısmı
+// kalabalıklaştırıyordu. Artık üst bardan tıklanarak açılan bir Modal.
+export function XrayMonthlyScreeningPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { showError } = useToast();
   const [configs, setConfigs] = useState<Config[] | null>(null);
-  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     fetch("/api/xray/monthly-screening-config")
@@ -158,36 +162,17 @@ export function XrayMonthlyScreeningPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!configs) return null;
-  const activeCount = configs.filter((c) => c.enabled).length;
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="mx-auto max-w-[1600px] overflow-hidden rounded-3xl border border-sky-500/20 bg-white/70 shadow-sm backdrop-blur-sm dark:border-sky-400/15 dark:bg-midnight-card/50"
-    >
-      <button onClick={() => setExpanded((v) => !v)} className="flex w-full items-center justify-between gap-2 px-5 py-4 text-left">
-        <span className="flex items-center gap-2 text-sm font-semibold text-espresso dark:text-cream">
-          <ShieldAlert className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-          Aylık Unutma Riski Taraması
-          {activeCount > 0 && (
-            <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:text-sky-300">{activeCount} aktif</span>
-          )}
-        </span>
-        <ChevronDown className={cn("h-4 w-4 text-espresso-muted transition-transform dark:text-cream/40", expanded && "rotate-180")} />
-      </button>
-      <AnimatePresence>
-        {expanded && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-2 xl:grid-cols-4">
-              {configs.map((c) => (
-                <GradeRow key={c.grade} config={c} onSaved={(next) => setConfigs((prev) => prev!.map((p) => (p.grade === next.grade ? next : p)))} />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+    <Modal isOpen={isOpen} onClose={onClose} title="Aylık Unutma Riski Taraması" variant="center" widthClassName="max-w-3xl">
+      {!configs ? (
+        <p className="py-6 text-center text-xs text-espresso-muted dark:text-cream/40">Yükleniyor...</p>
+      ) : (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {configs.map((c) => (
+            <GradeRow key={c.grade} config={c} onSaved={(next) => setConfigs((prev) => prev!.map((p) => (p.grade === next.grade ? next : p)))} />
+          ))}
+        </motion.div>
+      )}
+    </Modal>
   );
 }
