@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, ChevronRight, ChevronLeft, Building2, Users, Flame, Gauge } from "lucide-react";
+import { Loader2, ChevronRight, ChevronLeft, Building2, Users, Flame, Gauge, Download } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
+import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { cn } from "@/lib/utils";
 
 type BranchOverview = { branchId: string; branchName: string; grade: number; studentCount: number; testedCount: number; average: number | null; redZoneCount: number };
@@ -114,6 +115,7 @@ export function XrayInstitutionOverviewPanel({ isOpen, onClose }: { isOpen: bool
   const [data, setData] = useState<InstitutionOverviewResponse | null>(null);
   const [level, setLevel] = useState<Level>({ kind: "institution" });
   const [branchDetail, setBranchDetail] = useState<BranchDetail | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -139,6 +141,37 @@ export function XrayInstitutionOverviewPanel({ isOpen, onClose }: { isOpen: bool
   const gradeData = level.kind !== "institution" && data ? data.grades.find((g) => g.grade === level.grade) : undefined;
   const branchMeta = level.kind === "branch" && gradeData ? gradeData.branches.find((b) => b.branchId === level.branchId) : undefined;
 
+  // Kullanıcı talebi (2026-09-03) — "her yere pdf rapor çıkarma ekle okul
+  // için sınıf seviyesi için şube için indirebilmeli": hangi katmandaysa
+  // ONUN raporu iner. Kurum/sınıf seviyesi YENİ /api/xray/institution-
+  // report ucunu (institution-overview'in AYNI sayılarını PDF'e döker),
+  // şube ZATEN VAR OLAN /api/xray/branch-report'u kullanır (kod
+  // tekrarı yok).
+  async function downloadReport() {
+    setDownloading(true);
+    try {
+      if (level.kind === "institution") {
+        await fetchAndDownloadPdf(`/api/xray/institution-report?subject=${encodeURIComponent(subject)}`, undefined, `genel-bakis-kurum-geneli-${subject}.pdf`.replace(/\s+/g, "-"));
+      } else if (level.kind === "grade") {
+        await fetchAndDownloadPdf(
+          `/api/xray/institution-report?subject=${encodeURIComponent(subject)}&grade=${level.grade}`,
+          undefined,
+          `genel-bakis-${level.grade}-sinif-${subject}.pdf`.replace(/\s+/g, "-")
+        );
+      } else if (branchMeta) {
+        await fetchAndDownloadPdf(
+          `/api/xray/branch-report?branchId=${encodeURIComponent(level.branchId)}&subject=${encodeURIComponent(subject)}`,
+          undefined,
+          `${branchMeta.branchName}-veli-toplantisi-raporu.pdf`.replace(/\s+/g, "-")
+        );
+      }
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Rapor oluşturulamadı.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Genel Bakış" variant="center" widthClassName="max-w-3xl">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -154,17 +187,29 @@ export function XrayInstitutionOverviewPanel({ isOpen, onClose }: { isOpen: bool
             <ChevronLeft className="h-3.5 w-3.5" /> {level.kind === "branch" ? `${level.grade}. Sınıf` : "Kurum Geneli"}
           </button>
         )}
-        <select
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          className="rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-xs text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-        >
-          {XRAY_SUBJECTS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-1.5">
+          <select
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            className="rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-xs text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          >
+            {XRAY_SUBJECTS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          {data && (level.kind !== "branch" || branchDetail) && (
+            <button
+              onClick={downloadReport}
+              disabled={downloading}
+              aria-label="PDF indir"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-sky-500/25 bg-sky-500/10 text-sky-700 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
+            >
+              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
       </div>
 
       {!data ? (

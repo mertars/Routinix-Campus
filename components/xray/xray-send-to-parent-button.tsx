@@ -1,75 +1,68 @@
 "use client";
 
-import { useState } from "react";
-import { Send, Bell, Share2, Loader2, AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Send, MessageCircle, Loader2, ChevronDown } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
-import { fetchAndSharePdf } from "@/lib/client/download-pdf";
+import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
+import { buildWhatsappLink } from "@/lib/client/whatsapp";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
 
-type SmsState = "idle" | "sending" | "sent" | "no-recipient" | "failed";
+type Target = { key: string; label: string; phone: string };
 
-// Faz Q — kullanıcı talebi: "tek tuşla veliye atabilecek... whatsapptan
-// atma ve veli paneline yollama". İki AYRI, birbirinden bağımsız kanal:
-// SMS otomatik gider (xray-assignment-tracking-dashboard.tsx'teki
-// RemindButton'la BİREBİR AYNI /api/notifications/send deseni), WhatsApp
-// ise gerçek bir API entegrasyonu GEREKTİRMEZ — fetchAndSharePdf (Web
-// Share API) zaten xray-results-panel.tsx'teki "Paylaş" butonunda
-// kullanılan AYNI mekanizma. Veli paneli ayrıca hiçbir eylem GEREKTİRMEZ.
+// Kullanıcı geri bildirimi (2026-09-03) — SMS seçeneği kaldırıldı: "smsten
+// pdf atmayacağımız için kalkmalı" (SMS zaten sadece metin bildirimi
+// gönderiyordu, PDF hiç taşımıyordu — kafa karıştırıcı bulundu). Yerine
+// WhatsApp hedefi olarak ÖĞRENCİ de eklendi (eskiden SADECE veli vardı).
 //
-// Faz "menü düzenlemesi" — eskiden 2 ayrı ikon-buton yan yanaydı, artık
-// TEK "Veliye Gönder" tetikleyicisi altında iki menü satırı (SMS/WhatsApp'ın
-// KENDİ fonksiyon mantığı DEĞİŞMEDİ, sadece dış görünüm).
+// WhatsApp'ın kendisi bir web sitesinden dosya eki OTOMATİK göndermeyi
+// SAĞLAMIYOR (wa.me linki SADECE metin ön-doldurur — platform kısıtı,
+// bkz. lib/client/whatsapp.ts). Kullanıcı onayıyla (2026-09-03) seçilen
+// yol: doğru numaraya ADRESLİ bir WhatsApp sohbeti aç + PDF'i AYNI ANDA
+// indir — son "sohbete sürükleyip ekleme" adımı manuel kalır. window.open
+// senkron (await'ten ÖNCE) çağrılıyor — aksi halde popup engelleyici
+// kullanıcı etkileşim penceresi kapandığı için sessizce engeller (bkz.
+// lib/client/download-pdf.ts'teki AYNI uyarı).
 export function XraySendToParentButton({ studentId, studentName, subject }: { studentId: string; studentName: string; subject: string }) {
-  const { showError } = useToast();
-  const [smsState, setSmsState] = useState<SmsState>("idle");
-  const [sharing, setSharing] = useState(false);
+  const { showError, showToast } = useToast();
+  const [targets, setTargets] = useState<Target[] | null>(null);
+  const [sendingKey, setSendingKey] = useState<string | null>(null);
 
-  async function sendSms() {
-    setSmsState("sending");
-    try {
-      const res = await fetch("/api/notifications/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scopeType: "CUSTOM_ID_LIST",
-          scopeValue: studentId,
-          templateBody: "Sayın {veli_adi}, {ogrenci_adi} için Akademik Röntgen seviye belirleme sonucu hazır. Detaylar için veli panelinizi ziyaret edebilirsiniz.",
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (typeof data?.error === "string" && data.error.includes("SMS onayı")) {
-          setSmsState("no-recipient");
-          return;
+  useEffect(() => {
+    setTargets(null);
+    fetch(`/api/xray/send-targets/${encodeURIComponent(studentId)}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data) => {
+        const list: Target[] = [];
+        if (data.studentPhone) list.push({ key: "student", label: `${data.studentName ?? studentName} (Öğrenci)`, phone: data.studentPhone });
+        for (const p of data.parents ?? []) {
+          if (p.phone) list.push({ key: p.id, label: `${p.name} (${p.relationshipLabel})`, phone: p.phone });
         }
-        throw new Error(data?.error ?? "Gönderilemedi.");
-      }
-      setSmsState(data.recipientCount > 0 ? "sent" : "no-recipient");
-    } catch {
-      setSmsState("failed");
-    }
-  }
+        setTargets(list);
+      })
+      .catch(() => setTargets([]));
+  }, [studentId, studentName]);
 
-  async function shareWhatsapp() {
-    setSharing(true);
+  async function sendTo(target: Target) {
+    setSendingKey(target.key);
+    const waLink = buildWhatsappLink(
+      target.phone,
+      `Sayın ${target.label.replace(/\s*\(.*\)$/, "")}, ${studentName} için Akademik Röntgen raporu hazır. Az önce indirdiğim PDF'i bu sohbete ekliyorum.`
+    );
+    const win = window.open(waLink, "_blank", "noopener,noreferrer");
     try {
-      await fetchAndSharePdf(
+      await fetchAndDownloadPdf(
         `/api/xray/report/${encodeURIComponent(studentId)}?subject=${encodeURIComponent(subject)}`,
         undefined,
-        `${studentName}-rontgen-raporu.pdf`.replace(/\s+/g, "-"),
-        `${studentName} — Akademik Röntgen Raporu`
+        `${studentName}-rontgen-raporu.pdf`.replace(/\s+/g, "-")
       );
+      showToast("info", "PDF indirildi — açılan WhatsApp sohbetine sürükleyip ekleyebilirsiniz.");
     } catch (error) {
+      win?.close();
       showError(error instanceof Error ? error.message : "Rapor oluşturulamadı.");
     } finally {
-      setSharing(false);
+      setSendingKey(null);
     }
   }
-
-  const smsLabel =
-    smsState === "sent" ? "SMS gönderildi" : smsState === "no-recipient" ? "SMS onayı yok" : smsState === "failed" ? "Tekrar dene" : "SMS Gönder";
-  const SmsIcon = smsState === "sending" ? Loader2 : smsState === "sent" ? CheckCircle2 : smsState === "no-recipient" || smsState === "failed" ? AlertTriangle : Bell;
 
   return (
     <DropdownMenu
@@ -79,32 +72,25 @@ export function XraySendToParentButton({ studentId, studentName, subject }: { st
         </button>
       }
     >
-      <button
-        onClick={sendSms}
-        disabled={smsState === "sending" || smsState === "sent"}
-        className={cn(
-          "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-medium transition disabled:opacity-70",
-          smsState === "no-recipient" || smsState === "failed" ? "text-amber-700 dark:text-amber-400" : "text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5"
-        )}
-      >
-        <SmsIcon
-          className={cn(
-            "h-4 w-4 shrink-0",
-            smsState === "idle" && "text-sky-600 dark:text-sky-400",
-            smsState === "sent" && "text-emerald-600 dark:text-emerald-400",
-            smsState === "sending" && "animate-spin"
-          )}
-        />
-        <span className="min-w-0 flex-1 truncate">{smsLabel}</span>
-      </button>
-      <DropdownMenuItem
-        icon={sharing ? Loader2 : Share2}
-        label="WhatsApp'ta Paylaş"
-        onClick={shareWhatsapp}
-        disabled={sharing}
-        spinning={sharing}
-        iconClassName="text-emerald-500"
-      />
+      {targets === null ? (
+        <div className="flex items-center justify-center px-3.5 py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
+        </div>
+      ) : targets.length === 0 ? (
+        <p className="px-3.5 py-2.5 text-[12px] text-espresso-muted dark:text-cream/40">Kayıtlı telefon bulunamadı.</p>
+      ) : (
+        targets.map((t) => (
+          <DropdownMenuItem
+            key={t.key}
+            icon={sendingKey === t.key ? Loader2 : MessageCircle}
+            label={t.label}
+            onClick={() => sendTo(t)}
+            disabled={sendingKey !== null}
+            spinning={sendingKey === t.key}
+            iconClassName="text-emerald-500"
+          />
+        ))
+      )}
     </DropdownMenu>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit, FileStack, ChevronDown } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit, FileStack, ChevronDown, History } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -14,6 +14,7 @@ import { XrayAssignmentTabs } from "@/components/xray/xray-assignment-tabs";
 import { XrayPlacementProgressCard } from "@/components/xray/xray-placement-progress-card";
 import { XrayRoadmapPanel } from "@/components/xray/xray-roadmap-panel";
 import { XraySendToParentButton } from "@/components/xray/xray-send-to-parent-button";
+import { XrayTestHistoryModal } from "@/components/xray/xray-test-history-modal";
 import { XrayCustomReportBuilder } from "@/components/xray/xray-custom-report-builder";
 import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
 import { XraySetGoalButton } from "@/components/xray/xray-set-goal-button";
@@ -155,6 +156,7 @@ export function XrayResultsPanel({
   const [customReportOpen, setCustomReportOpen] = useState(false);
   const [subtopicDetail, setSubtopicDetail] = useState<{ subtopicId: string; subtopicName: string } | null>(null);
   const [rosterListOpen, setRosterListOpen] = useState(true);
+  const [testHistoryOpen, setTestHistoryOpen] = useState(false);
 
   useEffect(() => {
     setSelectedId((current) => current || roster[0]?.id || "");
@@ -450,11 +452,20 @@ export function XrayResultsPanel({
                       />
                     </DropdownMenu>
                     {canAssign && <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />}
-                    {averageScore !== null && (
-                      <Tooltip label="Ortalama">
-                        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
-                          %{averageScore}
-                        </div>
+                    {/* Kullanıcı geri bildirimi — ortalama yüzdesi zaten
+                        aşağıdaki "Ortalama" istatistik kartında görünüyor,
+                        burada TEKRAR göstermeye gerek yok. Yerine, 4 test
+                        tipinin dağınık geçmişini TEK ekranda toplayan
+                        yuvarlak bir "Geçmiş" tuşu geldi (SADECE yönetici —
+                        altındaki uçlar principal-only). */}
+                    {canAssign && (
+                      <Tooltip label="Test Geçmişi">
+                        <button
+                          onClick={() => setTestHistoryOpen(true)}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300"
+                        >
+                          <History className="h-4 w-4" />
+                        </button>
                       </Tooltip>
                     )}
                   </div>
@@ -619,6 +630,14 @@ export function XrayResultsPanel({
         />
       )}
       <XrayRedZoneModal isOpen={redZoneOpen} onClose={() => setRedZoneOpen(false)} weak={weakSubtopics} />
+      {canAssign && selectedStudent && (
+        <XrayTestHistoryModal
+          isOpen={testHistoryOpen}
+          onClose={() => setTestHistoryOpen(false)}
+          studentId={selectedId}
+          studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
+        />
+      )}
       <XrayUntestedTopicsModal
         isOpen={untestedOpen}
         onClose={() => setUntestedOpen(false)}
