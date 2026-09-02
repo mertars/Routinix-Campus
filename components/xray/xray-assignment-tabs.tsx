@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { ClipboardCheck, BookOpen, ListFilter, ClipboardList } from "lucide-react";
 import { XrayPlacementAssignButton } from "@/components/xray/xray-placement-assign-button";
 import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
@@ -10,11 +11,16 @@ import { cn } from "@/lib/utils";
 
 type Tab = "yerlestirme" | "genel" | "alt_konu" | "yeterlilik";
 
-const TABS: { key: Tab; label: string; icon: typeof ClipboardCheck }[] = [
-  { key: "yerlestirme", label: "Seviye Belirleme", icon: ClipboardCheck },
-  { key: "genel", label: "Genel Konu", icon: BookOpen },
-  { key: "alt_konu", label: "Alt Konu", icon: ListFilter },
-  { key: "yeterlilik", label: "Ne Kadar Anlamış", icon: ClipboardList },
+// Kullanıcı geri bildirimi — 4 sekmenin logosu/yazısı kendi renginde olsun,
+// seçili sekme "fosforlu kalem" gibi YUMUŞAK ama KESİN bir vurguyla belli
+// olsun. Her sekmenin sabit bir tonu var (seçili DEĞİLKEN de ikon o tonda
+// kalır, sadece soluk) — seçilince aynı ton dolar + highlighter'ın kendisi
+// (layoutId ile) sekmeler arası kayarak taşınır.
+const TABS: { key: Tab; label: string; icon: typeof ClipboardCheck; tone: string; highlight: string; underline: string }[] = [
+  { key: "yerlestirme", label: "Seviye Belirleme", icon: ClipboardCheck, tone: "text-sky-600 dark:text-sky-400", highlight: "bg-sky-400/15 dark:bg-sky-400/10", underline: "bg-sky-500" },
+  { key: "genel", label: "Genel Konu", icon: BookOpen, tone: "text-emerald-600 dark:text-emerald-400", highlight: "bg-emerald-400/15 dark:bg-emerald-400/10", underline: "bg-emerald-500" },
+  { key: "alt_konu", label: "Alt Konu", icon: ListFilter, tone: "text-amber-600 dark:text-amber-400", highlight: "bg-amber-400/15 dark:bg-amber-400/10", underline: "bg-amber-500" },
+  { key: "yeterlilik", label: "Ne Kadar Anlamış", icon: ClipboardList, tone: "text-violet-600 dark:text-violet-400", highlight: "bg-violet-400/15 dark:bg-violet-400/10", underline: "bg-violet-500" },
 ];
 
 // Faz "menü düzenlemesi" — eskiden bu 4 atama paneli (Seviye Belirleme +
@@ -46,19 +52,30 @@ export function XrayAssignmentTabs({
   return (
     <div>
       <div className="mb-3 grid grid-cols-2 gap-1.5 rounded-xl bg-cream-card p-1 dark:bg-white/5">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActive(tab.key)}
-            className={cn(
-              "flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11px] font-medium transition",
-              active === tab.key ? "bg-white text-espresso shadow-sm dark:bg-midnight-card dark:text-cream" : "text-espresso-muted hover:text-espresso dark:text-cream/40 dark:hover:text-cream"
-            )}
-          >
-            <tab.icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{tab.label}</span>
-          </button>
-        ))}
+        {TABS.map((tab) => {
+          const isActive = active === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActive(tab.key)}
+              className="relative flex items-center justify-center gap-1.5 overflow-hidden rounded-lg px-2 py-2 text-[11px] font-medium transition"
+            >
+              {isActive && (
+                <motion.span
+                  layoutId="assignment-tab-highlight"
+                  transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                  className={cn("absolute inset-0 rounded-lg", tab.highlight)}
+                >
+                  <span className={cn("absolute inset-x-2 bottom-0 h-[2px] rounded-full", tab.underline)} />
+                </motion.span>
+              )}
+              <span className={cn("relative z-10 flex items-center gap-1.5", isActive ? tab.tone : "text-espresso-muted/70 dark:text-cream/30")}>
+                <tab.icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{tab.label}</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {active === "yerlestirme" && <XrayPlacementAssignButton roster={roster} subject={subject} />}

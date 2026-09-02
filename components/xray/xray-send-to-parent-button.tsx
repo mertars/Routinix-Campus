@@ -87,10 +87,24 @@ export function XraySendToParentButton({ studentId, studentName, subject }: { st
           smsState === "no-recipient" || smsState === "failed" ? "text-amber-700 dark:text-amber-400" : "text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5"
         )}
       >
-        <SmsIcon className={cn("h-4 w-4 shrink-0", smsState === "sending" && "animate-spin")} />
+        <SmsIcon
+          className={cn(
+            "h-4 w-4 shrink-0",
+            smsState === "idle" && "text-sky-600 dark:text-sky-400",
+            smsState === "sent" && "text-emerald-600 dark:text-emerald-400",
+            smsState === "sending" && "animate-spin"
+          )}
+        />
         <span className="min-w-0 flex-1 truncate">{smsLabel}</span>
       </button>
-      <DropdownMenuItem icon={sharing ? Loader2 : Share2} label="WhatsApp'ta Paylaş" onClick={shareWhatsapp} disabled={sharing} spinning={sharing} />
+      <DropdownMenuItem
+        icon={sharing ? Loader2 : Share2}
+        label="WhatsApp'ta Paylaş"
+        onClick={shareWhatsapp}
+        disabled={sharing}
+        spinning={sharing}
+        iconClassName="text-emerald-500"
+      />
     </DropdownMenu>
   );
 }

@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit, FileStack, ChevronDown } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf, fetchAndSharePdf } from "@/lib/client/download-pdf";
@@ -288,8 +289,15 @@ export function XrayResultsPanel({
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 lg:px-6">
       <div className={cn("grid gap-4", canAssign ? "lg:grid-cols-[280px_1fr_380px]" : "lg:grid-cols-[280px_1fr]")}>
-        {/* SOL — öğrenci listesi/arama */}
-        <div className="space-y-3 lg:sticky lg:top-20 lg:self-start">
+        {/* SOL — öğrenci listesi/arama. Kullanıcı geri bildirimi — bu sütun
+            eskiden `lg:self-start` ile grid hücresini kendi (kısa) içerik
+            yüksekliğine küçültüyordu; sticky'nin "yapışabileceği" alan da o
+            kısa yükseklikle sınırlı kalıyor, o alanı geçince sol panel de
+            sayfayla birlikte kayıyordu. self-start'ı kaldırmak hücreyi orta
+            sütunla AYNI (uzun) satır yüksekliğine geriyor — sticky artık
+            sayfanın sonuna kadar üstte sabit kalabiliyor. İçindeki öğrenci
+            listesi zaten kendi overflow-y-auto'suyla ayrıca kayıyor. */}
+        <div className="space-y-3 lg:sticky lg:top-20">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
             <input
@@ -387,7 +395,9 @@ export function XrayResultsPanel({
                     </p>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
-                    <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+                    <Tooltip label="Hedef Belirle">
+                      <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+                    </Tooltip>
                     <DropdownMenu
                       trigger={
                         <button className="flex h-9 items-center gap-1.5 rounded-full border border-sky-500/25 bg-sky-500/10 px-3.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300">
@@ -395,23 +405,54 @@ export function XrayResultsPanel({
                         </button>
                       }
                     >
-                      <DropdownMenuItem icon={downloading ? Loader2 : Download} label="İndir" onClick={downloadReport} disabled={downloading || averageScore === null} spinning={downloading} />
-                      <DropdownMenuItem icon={sharing ? Loader2 : Share2} label="Paylaş" onClick={shareReport} disabled={sharing || averageScore === null} spinning={sharing} />
-                      {canAssign && <DropdownMenuItem icon={FileEdit} label="Özel PDF Oluştur" onClick={() => setCustomReportOpen(true)} />}
-                      <DropdownMenuItem icon={downloadingBranch ? Loader2 : Users} label="Şube Raporu İndir" onClick={downloadBranchReport} disabled={downloadingBranch} spinning={downloadingBranch} />
+                      <DropdownMenuItem
+                        icon={downloading ? Loader2 : Download}
+                        label="İndir"
+                        onClick={downloadReport}
+                        disabled={downloading || averageScore === null}
+                        spinning={downloading}
+                        iconClassName="text-sky-600 dark:text-sky-400"
+                      />
+                      <DropdownMenuItem
+                        icon={sharing ? Loader2 : Share2}
+                        label="Paylaş"
+                        onClick={shareReport}
+                        disabled={sharing || averageScore === null}
+                        spinning={sharing}
+                        iconClassName="text-emerald-600 dark:text-emerald-400"
+                      />
+                      {canAssign && (
+                        <DropdownMenuItem icon={FileEdit} label="Özel PDF Oluştur" onClick={() => setCustomReportOpen(true)} iconClassName="text-violet-600 dark:text-violet-400" />
+                      )}
+                      <DropdownMenuItem
+                        icon={downloadingBranch ? Loader2 : Users}
+                        label="Şube Raporu İndir"
+                        onClick={downloadBranchReport}
+                        disabled={downloadingBranch}
+                        spinning={downloadingBranch}
+                        iconClassName="text-amber-600 dark:text-amber-400"
+                      />
                     </DropdownMenu>
                     {canAssign && <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />}
                     {averageScore !== null && (
-                      <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
-                        %{averageScore}
-                      </div>
+                      <Tooltip label="Ortalama">
+                        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
+                          %{averageScore}
+                        </div>
+                      </Tooltip>
                     )}
                   </div>
                 </div>
               </motion.div>
 
               <XrayPlacementProgressCard studentId={selectedId} subject={subject} />
-              <XrayRoadmapPanel studentId={selectedId} subject={subject} />
+              {/* Kullanıcı geri bildirimi — Bulgu Kareleri sağ alta (test
+                  atama sütununun altındaki boşluğa) taşındı — ama sağ sütun
+                  SADECE canAssign=true iken var (bkz. /xray/teacher'da hiç
+                  render edilmiyor), o yüzden öğretmen tarafında bu panel
+                  ESKİ yerinde (orta sütun, tam boy) kalmaya devam ediyor —
+                  yoksa öğretmen bu özelliği tamamen kaybederdi. */}
+              {!canAssign && <XrayRoadmapPanel studentId={selectedId} subject={subject} />}
 
               {loading && <p className="text-xs text-espresso-muted dark:text-cream/40">Yükleniyor...</p>}
 
@@ -531,6 +572,7 @@ export function XrayResultsPanel({
               subject={subject}
               roster={roster}
             />
+            <XrayRoadmapPanel studentId={selectedId} subject={subject} compact />
           </div>
         )}
       </div>

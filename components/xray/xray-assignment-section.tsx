@@ -7,7 +7,10 @@ import { useToast } from "@/lib/toast-context";
 import { XrayAssignmentTargetPicker, type AssignmentTarget, type RosterForTargeting } from "@/components/xray/xray-assignment-target-picker";
 import { XrayInfoButton } from "@/components/xray/xray-info-button";
 import { MathText } from "@/components/ui/math-text";
+import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
+
+const PREVIEW_COUNT = 3;
 
 const COMPREHENSION_INFO_TEXT =
   "Seçilen konudaki kilitli/çok seçenekli sorulardan oluşur (soru sayısı konuya göre değişir). Kurumumuzun özel soru bankasından gelir, öğrenci teste başladıktan sonra sekme değiştirme/pencere kaybı gibi hareketler tespit edilip işaretlenir — bu yüzden \"kilitli\" test olarak adlandırılır. Her yanlış şık, o kavramda neyin karıştırıldığını gösteren ayrı bir açıklamayla değerlendirilir.";
@@ -69,6 +72,7 @@ export function XrayAssignmentSection({
   const [results, setResults] = useState<ResultItem[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
   const [target, setTarget] = useState<AssignmentTarget>({ type: "student", studentId });
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     fetch(`/api/xray/comprehension-topics?subject=${encodeURIComponent(subject)}`)
@@ -182,66 +186,80 @@ export function XrayAssignmentSection({
 
       {assignments.length > 0 && (
         <div className="space-y-1.5">
-          {assignments.map((a) => {
-            const meta = STATUS_META[a.status];
-            const Icon = meta.icon;
-            const canExpand = a.status === "COMPLETED" || a.status === "FLAGGED";
-            const isExpanded = expandedId === a.id;
-            return (
-              <div key={a.id} className="overflow-hidden rounded-xl bg-cream-card dark:bg-white/5">
-                <button
-                  onClick={() => toggleExpand(a)}
-                  disabled={!canExpand}
-                  className={cn("flex w-full items-center justify-between gap-2 px-3 py-2 text-left", canExpand && "cursor-pointer")}
-                >
-                  <span className="min-w-0 truncate text-xs font-medium text-espresso dark:text-cream">{a.subtopicName}</span>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.className)}>
-                      <Icon className="h-3 w-3" /> {meta.label}
-                    </span>
-                    {canExpand && (
-                      <ChevronDown className={cn("h-3.5 w-3.5 text-espresso-muted transition-transform dark:text-cream/40", isExpanded && "rotate-180")} />
-                    )}
-                  </span>
-                </button>
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                      <div className="space-y-2 px-3 pb-3">
-                        {a.status === "FLAGGED" && a.flagReason && (
-                          <div className="flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-                            <X className="h-3 w-3 shrink-0" /> {a.flagReason}
-                          </div>
-                        )}
-                        {loadingResults ? (
-                          <p className="text-[11px] text-espresso-muted dark:text-cream/40">Yükleniyor...</p>
-                        ) : (
-                          results.map((r, index) => (
-                            <div key={r.questionId} className="rounded-lg bg-white p-2.5 dark:bg-midnight-card">
-                              <p className="mb-1 text-[10px] font-semibold text-espresso-muted dark:text-cream/40">Soru {index + 1}</p>
-                              <MathText text={r.prompt} className="mb-1.5 text-xs font-medium text-espresso dark:text-cream" />
-                              {r.answered ? (
-                                <>
-                                  <p className={cn("mb-1 text-[11px] font-semibold", r.isCorrect ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
-                                    Seçilen: {r.selectedLabel}) <MathText text={r.selectedText ?? ""} />
-                                  </p>
-                                  {r.diagnosis && <MathText text={r.diagnosis} className="text-[11px] text-espresso-muted dark:text-cream/50" />}
-                                </>
-                              ) : (
-                                <p className="text-[11px] italic text-espresso-muted dark:text-cream/40">Bu soru cevaplanmadı.</p>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
+          {assignments.slice(0, PREVIEW_COUNT).map((a) => renderAssignmentRow(a))}
+          {assignments.length > PREVIEW_COUNT && (
+            <button
+              onClick={() => setHistoryOpen(true)}
+              className="w-full rounded-xl border border-dashed border-hairline py-2 text-[11px] font-medium text-espresso-muted transition hover:border-sky-400/40 hover:text-sky-600 dark:border-white/10 dark:text-cream/40 dark:hover:text-sky-400"
+            >
+              Tümünü Gör ({assignments.length})
+            </button>
+          )}
         </div>
       )}
+
+      <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title="Ne Kadar Anlamış — Tüm Atamalar" variant="center" widthClassName="max-w-lg">
+        <div className="max-h-[65vh] space-y-1.5 overflow-y-auto pr-1">{assignments.map((a) => renderAssignmentRow(a))}</div>
+      </Modal>
     </motion.div>
   );
+
+  function renderAssignmentRow(a: Assignment) {
+    const meta = STATUS_META[a.status];
+    const Icon = meta.icon;
+    const canExpand = a.status === "COMPLETED" || a.status === "FLAGGED";
+    const isExpanded = expandedId === a.id;
+    return (
+      <div key={a.id} className="overflow-hidden rounded-xl bg-cream-card dark:bg-white/5">
+        <button
+          onClick={() => toggleExpand(a)}
+          disabled={!canExpand}
+          className={cn("flex w-full items-center justify-between gap-2 px-3 py-2 text-left", canExpand && "cursor-pointer")}
+        >
+          <span className="min-w-0 truncate text-xs font-medium text-espresso dark:text-cream">{a.subtopicName}</span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.className)}>
+              <Icon className="h-3 w-3" /> {meta.label}
+            </span>
+            {canExpand && (
+              <ChevronDown className={cn("h-3.5 w-3.5 text-espresso-muted transition-transform dark:text-cream/40", isExpanded && "rotate-180")} />
+            )}
+          </span>
+        </button>
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+              <div className="space-y-2 px-3 pb-3">
+                {a.status === "FLAGGED" && a.flagReason && (
+                  <div className="flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1.5 text-[11px] text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                    <X className="h-3 w-3 shrink-0" /> {a.flagReason}
+                  </div>
+                )}
+                {loadingResults ? (
+                  <p className="text-[11px] text-espresso-muted dark:text-cream/40">Yükleniyor...</p>
+                ) : (
+                  results.map((r, index) => (
+                    <div key={r.questionId} className="rounded-lg bg-white p-2.5 dark:bg-midnight-card">
+                      <p className="mb-1 text-[10px] font-semibold text-espresso-muted dark:text-cream/40">Soru {index + 1}</p>
+                      <MathText text={r.prompt} className="mb-1.5 text-xs font-medium text-espresso dark:text-cream" />
+                      {r.answered ? (
+                        <>
+                          <p className={cn("mb-1 text-[11px] font-semibold", r.isCorrect ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                            Seçilen: {r.selectedLabel}) <MathText text={r.selectedText ?? ""} />
+                          </p>
+                          {r.diagnosis && <MathText text={r.diagnosis} className="text-[11px] text-espresso-muted dark:text-cream/50" />}
+                        </>
+                      ) : (
+                        <p className="text-[11px] italic text-espresso-muted dark:text-cream/40">Bu soru cevaplanmadı.</p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
 }

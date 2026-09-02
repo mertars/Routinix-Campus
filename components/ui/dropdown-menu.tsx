@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -13,14 +13,18 @@ export function DropdownMenu({
   children,
   align = "right",
   className,
+  panelClassName,
 }: {
   trigger: ReactNode;
   children: ReactNode;
   align?: "left" | "right";
   className?: string;
+  panelClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -38,20 +42,36 @@ export function DropdownMenu({
     };
   }, [open]);
 
+  // Kullanıcı geri bildirimi — sayfada aşağı kaydırılmış bir tetikleyiciye
+  // tıklanınca panel varsayılan olarak AŞAĞI açılıyordu ve viewport dışında
+  // kalıp görünmez oluyordu. Açılışta gerçek panel yüksekliğiyle altta kalan
+  // alanı ölçüp yetmiyorsa YUKARI açılışa çeviriyoruz. useLayoutEffect —
+  // boyama öncesi çalışır, ilk karede görünür bir sıçrama olmaz.
+  useLayoutEffect(() => {
+    if (!open || !ref.current || !panelRef.current) return;
+    const triggerRect = ref.current.getBoundingClientRect();
+    const panelHeight = panelRef.current.offsetHeight;
+    const spaceBelow = window.innerHeight - triggerRect.bottom;
+    setOpenUpward(spaceBelow < panelHeight + 16 && triggerRect.top > panelHeight + 16);
+  }, [open]);
+
   return (
     <div ref={ref} className={cn("relative inline-block", className)}>
       <div onClick={() => setOpen((v) => !v)}>{trigger}</div>
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -4, scale: 0.98 }}
+            ref={panelRef}
+            initial={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            exit={{ opacity: 0, y: openUpward ? 4 : -4, scale: 0.98 }}
             transition={{ duration: 0.12 }}
             onClick={() => setOpen(false)}
             className={cn(
-              "absolute top-full z-30 mt-1.5 min-w-[200px] overflow-hidden rounded-xl border border-hairline bg-white py-1.5 shadow-xl dark:border-white/10 dark:bg-midnight-card",
-              align === "right" ? "right-0" : "left-0"
+              "absolute z-30 min-w-[200px] overflow-hidden rounded-xl border border-hairline bg-white py-1.5 shadow-xl dark:border-white/10 dark:bg-midnight-card",
+              openUpward ? "bottom-full mb-1.5" : "top-full mt-1.5",
+              align === "right" ? "right-0" : "left-0",
+              panelClassName
             )}
           >
             {children}
@@ -69,6 +89,7 @@ export function DropdownMenuItem({
   disabled,
   danger,
   spinning,
+  iconClassName,
 }: {
   icon?: React.ComponentType<{ className?: string }>;
   label: ReactNode;
@@ -76,6 +97,7 @@ export function DropdownMenuItem({
   disabled?: boolean;
   danger?: boolean;
   spinning?: boolean;
+  iconClassName?: string;
 }) {
   return (
     <button
@@ -86,7 +108,7 @@ export function DropdownMenuItem({
         danger ? "text-rose-600 hover:bg-rose-500/10 dark:text-rose-400" : "text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5"
       )}
     >
-      {Icon && <Icon className={cn("h-4 w-4 shrink-0", spinning && "animate-spin")} />}
+      {Icon && <Icon className={cn("h-4 w-4 shrink-0", iconClassName, spinning && "animate-spin")} />}
       <span className="min-w-0 flex-1 truncate">{label}</span>
     </button>
   );
