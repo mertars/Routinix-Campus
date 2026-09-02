@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo, Users, LayoutGrid, ChevronDown } from "lucide-react";
+import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo, Users, LayoutGrid, LayoutDashboard, ChevronDown } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -14,6 +14,7 @@ import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screen
 import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
 import { XrayAssignmentTrackingDashboard } from "@/components/xray/xray-assignment-tracking-dashboard";
 import { XrayBranchAveragePanel } from "@/components/xray/xray-branch-average-panel";
+import { XrayInstitutionOverviewPanel } from "@/components/xray/xray-institution-overview-panel";
 import { cn } from "@/lib/utils";
 
 // Akademik Röntgen (Hub'daki 2. modül) — BİLEREK ERP'nin TopBar'ından ayrı
@@ -41,6 +42,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [trackingOpen, setTrackingOpen] = useState(false);
   const [branchAverageOpen, setBranchAverageOpen] = useState(false);
+  const [overviewOpen, setOverviewOpen] = useState(false);
 
   const tools = [
     { label: "Unutma Testi", icon: ShieldAlert, onClick: () => setScreeningOpen(true), tone: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
@@ -107,7 +109,13 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
         {/* Mobil araç menüsü — principalTools açıkken, TEK "Araçlar" tetikleyicisi
             (bkz. kullanıcı geri bildirimi: 4 ayrı pill çok kalabalıktı) */}
         {principalTools && (
-          <div className="mt-2 md:hidden">
+          <div className="mt-2 flex items-center gap-1.5 md:hidden">
+            <button
+              onClick={() => setOverviewOpen(true)}
+              className="flex items-center gap-1.5 rounded-full bg-sky-600 px-3 py-1.5 text-[11px] font-medium text-white shadow-sm transition hover:bg-sky-500"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" /> Genel Bakış
+            </button>
             <DropdownMenu
               align="left"
               panelClassName="min-w-[180px] py-0"
@@ -145,16 +153,24 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
           </div>
 
           {principalTools && (
-            <DropdownMenu
-              panelClassName="min-w-[180px] py-0"
-              trigger={
-                <button className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3.5 py-1.5 text-xs font-medium text-sky-700 shadow-sm backdrop-blur-sm transition hover:bg-sky-500/10 dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300 dark:hover:bg-sky-400/10">
-                  <LayoutGrid className="h-3.5 w-3.5" /> Araçlar <ChevronDown className="h-3 w-3" />
-                </button>
-              }
-            >
-              {toolsGrid}
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setOverviewOpen(true)}
+                className="flex items-center gap-1.5 rounded-full bg-sky-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-500"
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" /> Genel Bakış
+              </button>
+              <DropdownMenu
+                panelClassName="min-w-[180px] py-0"
+                trigger={
+                  <button className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3.5 py-1.5 text-xs font-medium text-sky-700 shadow-sm backdrop-blur-sm transition hover:bg-sky-500/10 dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300 dark:hover:bg-sky-400/10">
+                    <LayoutGrid className="h-3.5 w-3.5" /> Araçlar <ChevronDown className="h-3 w-3" />
+                  </button>
+                }
+              >
+                {toolsGrid}
+              </DropdownMenu>
+            </div>
           )}
 
           <div className="flex items-center gap-3">
@@ -180,6 +196,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
           <XrayInstitutionInsights isOpen={insightsOpen} onClose={() => setInsightsOpen(false)} />
           <XrayBranchAveragePanel isOpen={branchAverageOpen} onClose={() => setBranchAverageOpen(false)} />
           <XrayAssignmentTrackingDashboard isOpen={trackingOpen} onClose={() => setTrackingOpen(false)} />
+          <XrayInstitutionOverviewPanel isOpen={overviewOpen} onClose={() => setOverviewOpen(false)} />
         </>
       )}
     </motion.header>
