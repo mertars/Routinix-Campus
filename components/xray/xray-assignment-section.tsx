@@ -70,6 +70,7 @@ export function XrayAssignmentSection({
   const [results, setResults] = useState<ResultItem[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [previewFilter, setPreviewFilter] = useState<"pending" | "done">("pending");
 
   function loadAssignments() {
     return fetch(`/api/xray/comprehension-assignments?studentId=${encodeURIComponent(studentId)}`)
@@ -87,6 +88,9 @@ export function XrayAssignmentSection({
   // picker'da işaretli görünsün (bkz. XrayPracticeAssignmentSection'daki
   // AYNI desen).
   const assignedSubtopicIds = useMemo(() => new Set(assignments.map((a) => a.subtopicId)), [assignments]);
+  const pendingAssignments = useMemo(() => assignments.filter((a) => a.status === "ASSIGNED" || a.status === "IN_PROGRESS"), [assignments]);
+  const doneAssignments = useMemo(() => assignments.filter((a) => a.status === "COMPLETED" || a.status === "FLAGGED"), [assignments]);
+  const previewList = previewFilter === "pending" ? pendingAssignments : doneAssignments;
 
   async function toggleExpand(assignment: Assignment) {
     if (assignment.status === "ASSIGNED" || assignment.status === "IN_PROGRESS") return;
@@ -141,9 +145,38 @@ export function XrayAssignmentSection({
       />
 
       {assignments.length > 0 && (
-        <div className="space-y-1.5">
-          {assignments.slice(0, PREVIEW_COUNT).map((a) => renderAssignmentRow(a))}
-          {assignments.length > PREVIEW_COUNT && (
+        <div className="space-y-2">
+          {/* Kullanıcı geri bildirimi — "son 3" yerine "Bekleyen"/"Yapılan"
+              diye AYRIŞTIRILMIŞ, doğrudan tıklanabilir 2 tuş — hangi bucket
+              seçiliyse önizlemede SADECE o gösterilir. */}
+          <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-cream-card p-1 dark:bg-white/5">
+            <button
+              onClick={() => setPreviewFilter("pending")}
+              className={cn(
+                "rounded-lg px-2 py-1.5 text-[11px] font-medium transition",
+                previewFilter === "pending" ? "bg-white text-espresso shadow-sm dark:bg-midnight-card dark:text-cream" : "text-espresso-muted hover:text-espresso dark:text-cream/40 dark:hover:text-cream"
+              )}
+            >
+              Bekleyen ({pendingAssignments.length})
+            </button>
+            <button
+              onClick={() => setPreviewFilter("done")}
+              className={cn(
+                "rounded-lg px-2 py-1.5 text-[11px] font-medium transition",
+                previewFilter === "done" ? "bg-white text-espresso shadow-sm dark:bg-midnight-card dark:text-cream" : "text-espresso-muted hover:text-espresso dark:text-cream/40 dark:hover:text-cream"
+              )}
+            >
+              Yapılan ({doneAssignments.length})
+            </button>
+          </div>
+          {previewList.length === 0 ? (
+            <p className="px-1 py-2 text-[11px] text-espresso-muted dark:text-cream/40">
+              {previewFilter === "pending" ? "Bekleyen test yok." : "Henüz tamamlanan test yok."}
+            </p>
+          ) : (
+            previewList.slice(0, PREVIEW_COUNT).map((a) => renderAssignmentRow(a))
+          )}
+          {assignments.length > Math.min(previewList.length, PREVIEW_COUNT) && (
             <button
               onClick={() => setHistoryOpen(true)}
               className="w-full rounded-xl border border-dashed border-hairline py-2 text-[11px] font-medium text-espresso-muted transition hover:border-sky-400/40 hover:text-sky-600 dark:border-white/10 dark:text-cream/40 dark:hover:text-sky-400"

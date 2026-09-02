@@ -601,7 +601,7 @@ export function XrayResultsPanel({
               />
             </div>
             <div className="shrink-0 space-y-3">
-              {history && history.overallTrend.length >= 2 && <MasterySparkline points={history.overallTrend} onClick={() => setTrendOpen(true)} />}
+              {history && history.overallTrend.length >= 2 && <MasterySparkline points={history.overallTrend} onClick={() => setTrendOpen(true)} size="lg" />}
               <XrayRoadmapPanel studentId={selectedId} subject={subject} compact />
             </div>
           </div>

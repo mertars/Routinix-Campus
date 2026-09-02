@@ -34,9 +34,14 @@ function monthLabel(key: string): string {
 // trendinin küçük bir sparkline'ı. Tıklanınca detaylı grafiklere açılır
 // (bkz. MasteryTrendDrilldown) — kullanıcının "öne çıkan bir tanesini
 // sayfaya koy, tıklayınca detaylı grafiklere giriş yapılsın" isteği.
-export function MasterySparkline({ points, onClick }: { points: OverallTrendPoint[]; onClick?: () => void }) {
-  const width = 160;
-  const height = 44;
+// Kullanıcı geri bildirimi — sağ sütunun sabit alt bölümünde (bkz.
+// xray-results-panel.tsx) bu kart eski küçük boyutuyla altındaki boş
+// alanı doldurmuyor, "sıkışık" görünüyordu — `size="lg"` o kullanım için,
+// öğretmen tarafındaki orta sütun kullanımı (varsayılan "sm") DEĞİŞMEDİ.
+export function MasterySparkline({ points, onClick, size = "sm" }: { points: OverallTrendPoint[]; onClick?: () => void; size?: "sm" | "lg" }) {
+  const large = size === "lg";
+  const width = large ? 220 : 160;
+  const height = large ? 64 : 44;
   const values = points.map((p) => p.average);
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -54,7 +59,10 @@ export function MasterySparkline({ points, onClick }: { points: OverallTrendPoin
   return (
     <Wrapper
       onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-2xl border border-hairline bg-white/70 p-3.5 text-left shadow-sm backdrop-blur-sm transition hover:border-sky-400/40 dark:border-white/10 dark:bg-midnight-card/50"
+      className={cn(
+        "flex w-full items-center gap-3 rounded-2xl border border-hairline bg-white/70 text-left shadow-sm backdrop-blur-sm transition hover:border-sky-400/40 dark:border-white/10 dark:bg-midnight-card/50",
+        large ? "p-5" : "p-3.5"
+      )}
     >
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="shrink-0 overflow-visible text-sky-600 dark:text-sky-400">
         <motion.polyline
@@ -70,9 +78,11 @@ export function MasterySparkline({ points, onClick }: { points: OverallTrendPoin
         />
       </svg>
       <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">Genel Gelişim Trendi</p>
+        <p className={cn("font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40", large ? "text-[11px]" : "text-[10px]")}>
+          Genel Gelişim Trendi
+        </p>
         <div className="mt-0.5 flex items-center gap-1.5">
-          <span className="text-lg font-bold text-espresso dark:text-cream">%{last}</span>
+          <span className={cn("font-bold text-espresso dark:text-cream", large ? "text-2xl" : "text-lg")}>%{last}</span>
           {Math.abs(delta) < 1 ? (
             <span className="flex items-center gap-0.5 text-[10px] font-semibold text-espresso-muted dark:text-cream/40">
               <Minus className="h-3 w-3" /> değişim yok

@@ -86,33 +86,43 @@ export function XrayRoadmapPanel({ studentId, subject, compact = false }: { stud
     const remaining = data.recommendations.length - preview.length;
     return (
       <>
+        {/* Kullanıcı geri bildirimi — sağ sütunun sabit alt bölümünde bu
+            kart eski (küçük) boyutuyla altındaki boşluğu doldurmuyordu.
+            Önizleme adedi (2) AYNI kaldı — sadece kart/satırlar büyüdü ve
+            her bulguya kısa bir öneri satırı eklendi, boşluk anlamlı
+            içerikle dolsun diye. */}
         <motion.button
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           onClick={() => setModalOpen(true)}
-          className="group w-full rounded-3xl border border-hairline bg-white/70 p-4 text-left shadow-sm backdrop-blur-sm transition hover:scale-[1.015] hover:border-sky-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/50"
+          className="group w-full rounded-3xl border border-hairline bg-white/70 p-5 text-left shadow-sm backdrop-blur-sm transition hover:scale-[1.015] hover:border-sky-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/50"
         >
-          <div className="mb-2.5 flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
-              <Frame className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" /> Bulgu Kareleri
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+              <Frame className="h-4 w-4 text-sky-600 dark:text-sky-400" /> Bulgu Kareleri
             </h2>
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-espresso-muted transition group-hover:translate-x-0.5 dark:text-cream/40" />
+            <ChevronRight className="h-4 w-4 shrink-0 text-espresso-muted transition group-hover:translate-x-0.5 dark:text-cream/40" />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {preview.map((r) => {
               const meta = SEVERITY_META[r.severity];
               return (
-                <div key={r.subtopicId} className="flex items-center justify-between gap-2 rounded-lg bg-cream-card px-2.5 py-1.5 dark:bg-white/5">
-                  <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-medium text-espresso dark:text-cream">
-                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", meta.dot)} />
-                    <span className="truncate">{r.name}</span>
-                  </span>
-                  <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold", meta.badge)}>%{r.masteryScore}</span>
+                <div key={r.subtopicId} className="rounded-xl bg-cream-card p-3 dark:bg-white/5">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", meta.dot)} />
+                      <span className="truncate">{r.name}</span>
+                    </span>
+                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.badge)}>
+                      {meta.label} · %{r.masteryScore}
+                    </span>
+                  </div>
+                  <p className="line-clamp-2 text-[11px] leading-relaxed text-espresso-muted dark:text-cream/40">{r.advice}</p>
                 </div>
               );
             })}
           </div>
-          {remaining > 0 && <p className="mt-2 text-[10.5px] font-medium text-sky-600 dark:text-sky-400">+{remaining} bulgu daha — tümünü gör</p>}
+          {remaining > 0 && <p className="mt-2.5 text-[11px] font-medium text-sky-600 dark:text-sky-400">+{remaining} bulgu daha — tümünü gör</p>}
         </motion.button>
         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Bulgu Kareleri" variant="center" widthClassName="max-w-lg">
           {body}
