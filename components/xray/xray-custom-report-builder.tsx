@@ -15,10 +15,14 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  ArrowUp,
+  ArrowDown,
   Loader2,
   Download,
   Share2,
   X,
+  Search,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf, fetchAndSharePdf } from "@/lib/client/download-pdf";
@@ -44,15 +48,15 @@ type HistoryPoint = { assessedAt: string; average: number; subtopicId: string; m
 type PlacementData = { hasPlacement: false } | { hasPlacement: true; before: { avg: number; assessedAt: string }; after: { avg: number; assessedAt: string } };
 type BranchAverageData = { branchName: string; branchAverage: number };
 
-const PALETTE: { type: BlockType; label: string; icon: typeof HeadingIcon }[] = [
-  { type: "heading", label: "Başlık", icon: HeadingIcon },
-  { type: "text", label: "Yazı", icon: TypeIcon },
-  { type: "summary", label: "Özet", icon: FileText },
-  { type: "subtopicScan", label: "Tarama", icon: BarChart3 },
-  { type: "trend", label: "Eğri", icon: LineChartIcon },
-  { type: "doubleExposure", label: "Çift Pozlama", icon: Layers },
-  { type: "branchAverage", label: "Şube", icon: Users },
-  { type: "history", label: "Geçmiş", icon: TableIcon },
+const PALETTE: { type: BlockType; label: string; icon: typeof HeadingIcon; description: string }[] = [
+  { type: "heading", label: "Başlık", icon: HeadingIcon, description: "Rapora bir bölüm başlığı ekler." },
+  { type: "text", label: "Yazı", icon: TypeIcon, description: "Serbest metin — dilediğin notu yazabilirsin." },
+  { type: "summary", label: "Özet", icon: FileText, description: "Genel ortalama ve otomatik değerlendirme özetini ekler." },
+  { type: "subtopicScan", label: "Tarama", icon: BarChart3, description: "Seçtiğin konuların skorlarını çubuk grafikle listeler." },
+  { type: "trend", label: "Eğri", icon: LineChartIcon, description: "Zaman içindeki gelişim eğrisini çizer." },
+  { type: "doubleExposure", label: "Çift Pozlama", icon: Layers, description: "Seviye belirleme sınavındaki başlangıç skoru ile bugünkü skoru yan yana karşılaştırır (önce/sonra)." },
+  { type: "branchAverage", label: "Şube", icon: Users, description: "Öğrencinin skorunu kendi şubesinin ortalamasıyla karşılaştırır." },
+  { type: "history", label: "Geçmiş", icon: TableIcon, description: "Öğrencinin girdiği testlerin tarihli dökümünü tablo olarak ekler." },
 ];
 
 function defaultBlockFor(type: BlockType, branchId: string): LocalBlock {
@@ -125,6 +129,7 @@ export function XrayCustomReportBuilder({
   const [loadingData, setLoadingData] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [pickerForBlockId, setPickerForBlockId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -158,7 +163,13 @@ export function XrayCustomReportBuilder({
         .catch(() => null),
     ])
       .then(([results, roadmapData, historyData, placementData, branchAverageData]) => {
-        const opts: SubtopicOption[] = (results?.topics ?? []).flatMap((t: { subtopics: { subtopicId: string; name: string }[] }) => t.subtopics);
+        // Kullanıcı talebi: "sadece öğrencinin girdiği taramalar sıralansın" —
+        // müfredattaki TÜM alt konular değil, SADECE masteryScore'u olan
+        // (yani öğrencinin en az bir kez test edildiği) konular listelenir.
+        const opts: SubtopicOption[] = (results?.topics ?? [])
+          .flatMap((t: { subtopics: { subtopicId: string; name: string; masteryScore: number | null }[] }) => t.subtopics)
+          .filter((s: { masteryScore: number | null }) => s.masteryScore !== null)
+          .map((s: { subtopicId: string; name: string }) => ({ subtopicId: s.subtopicId, name: s.name }));
         setSubtopicOptions(opts);
         setRoadmap(roadmapData ?? null);
         setHistory(historyData?.overallTrend ?? null);
@@ -190,6 +201,7 @@ export function XrayCustomReportBuilder({
   }
 
   const fileName = useMemo(() => `${studentName}-ozel-rontgen-raporu.pdf`.replace(/\s+/g, "-"), [studentName]);
+  const pickerBlock = blocks.find((b) => b.id === pickerForBlockId) ?? null;
 
   async function handleDownload() {
     setDownloading(true);
@@ -241,7 +253,7 @@ export function XrayCustomReportBuilder({
           </div>
 
           {/* Gövde */}
-          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          <div className="relative flex min-h-0 flex-1 flex-col lg:flex-row">
             {/* SOL — sabit üst (palet) + kayan orta (bloklar) + sabit alt (indir/paylaş) */}
             <div className="flex w-full shrink-0 flex-col border-b border-hairline dark:border-white/10 lg:w-[380px] lg:border-b-0 lg:border-r">
               <div className="shrink-0 border-b border-hairline p-4 dark:border-white/10">
@@ -251,7 +263,7 @@ export function XrayCustomReportBuilder({
                     <button
                       key={p.type}
                       onClick={() => addBlock(p.type)}
-                      title={p.label}
+                      title={p.description}
                       className="flex items-center gap-1.5 rounded-full border border-hairline bg-white/60 px-2.5 py-1.5 text-[11px] font-medium text-espresso transition hover:border-sky-400/40 hover:bg-sky-500/5 dark:border-white/10 dark:bg-midnight-card/40 dark:text-cream"
                     >
                       <p.icon className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
@@ -275,10 +287,10 @@ export function XrayCustomReportBuilder({
                         block={b}
                         index={i}
                         total={blocks.length}
-                        subtopicOptions={subtopicOptions}
                         onChange={(patch) => updateBlock(b.id, patch)}
                         onRemove={() => removeBlock(b.id)}
                         onMove={(dir) => moveBlock(b.id, dir)}
+                        onOpenPicker={() => setPickerForBlockId(b.id)}
                       />
                     ))}
                   </div>
@@ -343,6 +355,21 @@ export function XrayCustomReportBuilder({
                 </div>
               )}
             </div>
+
+            {/* Kullanıcı talebi: "onlarda seç dendiğinde bir panel daha
+                açılsın... soldaki panelin sağına açılsın, ekran büyük ve
+                çok boşluk var" — dar sidebar içine sıkışan onay kutusu
+                listesi yerine, geniş bir yan panel. */}
+            <AnimatePresence>
+              {pickerBlock && (pickerBlock.type === "subtopicScan" || pickerBlock.type === "history") && (
+                <SubtopicPickerDrawer
+                  options={subtopicOptions}
+                  selected={pickerBlock.subtopicIds}
+                  onApply={(ids) => updateBlock(pickerBlock.id, { subtopicIds: ids } as Partial<LocalBlock>)}
+                  onClose={() => setPickerForBlockId(null)}
+                />
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       )}
@@ -520,45 +547,161 @@ function TrendPreviewChart({ points }: { points: HistoryPoint[] }) {
   );
 }
 
+// ==================== Konu seçim paneli (sol panelin sağına açılan geniş
+// yan panel — kullanıcı talebi) ====================
+
+function SubtopicPickerDrawer({
+  options,
+  selected,
+  onApply,
+  onClose,
+}: {
+  options: SubtopicOption[];
+  selected: string[] | null;
+  onApply: (ids: string[] | null) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLocaleLowerCase("tr-TR");
+  const filtered = q ? options.filter((o) => o.name.toLocaleLowerCase("tr-TR").includes(q)) : options;
+  const allSelected = selected === null;
+
+  return (
+    <motion.div
+      initial={{ x: "-100%", opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: "-100%", opacity: 0 }}
+      transition={{ type: "spring", stiffness: 320, damping: 32 }}
+      className="absolute inset-y-0 left-0 z-20 flex w-full flex-col border-r border-hairline bg-cream shadow-2xl dark:border-white/10 dark:bg-midnight lg:left-[380px] lg:w-[460px]"
+    >
+      <div className="flex shrink-0 items-center justify-between border-b border-hairline p-4 dark:border-white/10">
+        <div>
+          <h2 className="text-sm font-semibold text-espresso dark:text-cream">Konu Seç</h2>
+          <p className="text-xs text-espresso-muted dark:text-cream/40">Sadece öğrencinin girdiği testler listelenir.</p>
+        </div>
+        <button onClick={onClose} aria-label="Kapat" className="flex h-9 w-9 items-center justify-center rounded-full text-espresso-muted transition hover:bg-cream-card dark:text-cream/50 dark:hover:bg-white/10">
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="shrink-0 p-4 pb-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Konu ara..."
+            className="w-full rounded-lg border border-hairline bg-white py-2.5 pl-9 pr-3 text-sm text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          />
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-2">
+        <label className="mb-1 flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 text-sm font-medium text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5">
+          <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2", allSelected ? "border-sky-500 bg-sky-500" : "border-hairline dark:border-white/20")}>
+            {allSelected && <Check className="h-3.5 w-3.5 text-white" />}
+          </span>
+          <input type="checkbox" checked={allSelected} onChange={(e) => onApply(e.target.checked ? null : [])} className="sr-only" />
+          Tüm konular
+        </label>
+        <div className="my-2 h-px bg-hairline dark:bg-white/10" />
+        {filtered.length === 0 && <p className="px-2 py-4 text-sm text-espresso-muted dark:text-cream/40">Eşleşen konu yok.</p>}
+        {!allSelected &&
+          filtered.map((opt) => {
+            const checked = selected!.includes(opt.subtopicId);
+            return (
+              <label key={opt.subtopicId} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 text-sm text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5">
+                <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2", checked ? "border-sky-500 bg-sky-500" : "border-hairline dark:border-white/20")}>
+                  {checked && <Check className="h-3.5 w-3.5 text-white" />}
+                </span>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    const ids = selected ?? [];
+                    onApply(e.target.checked ? [...ids, opt.subtopicId] : ids.filter((x) => x !== opt.subtopicId));
+                  }}
+                  className="sr-only"
+                />
+                {opt.name}
+              </label>
+            );
+          })}
+        {allSelected && (
+          <p className="px-2 py-4 text-sm text-espresso-muted dark:text-cream/40">Tüm konular seçili durumda — tek tek seçmek için yukarıdaki kutucuğu kapat.</p>
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-hairline p-4 dark:border-white/10">
+        <button onClick={onClose} className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-500">
+          Tamam
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 // ==================== Blok düzenleyici (sol panel) ====================
 
 function BlockEditor({
   block,
   index,
   total,
-  subtopicOptions,
   onChange,
   onRemove,
   onMove,
+  onOpenPicker,
 }: {
   block: LocalBlock;
   index: number;
   total: number;
-  subtopicOptions: SubtopicOption[];
   onChange: (patch: Partial<LocalBlock>) => void;
   onRemove: () => void;
   onMove: (dir: -1 | 1) => void;
+  onOpenPicker: () => void;
 }) {
   const meta = PALETTE.find((p) => p.type === block.type)!;
   const hasConfig = block.type === "heading" || block.type === "text" || block.type === "subtopicScan" || block.type === "trend" || block.type === "history";
+  // Kullanıcı talebi: "açılır olan panellerde kapanma seçeneği de olsun" —
+  // varsayılan açık (yeni eklenen blok hemen düzenlenebilsin) ama başlığa
+  // tıklayınca kapatılabilir.
+  const [expanded, setExpanded] = useState(true);
+  const selectedCount = (block.type === "subtopicScan" || block.type === "history") && block.subtopicIds !== null ? block.subtopicIds.length : null;
 
   return (
     <div className="rounded-xl border border-hairline bg-white/60 p-3 dark:border-white/10 dark:bg-midnight-card/40">
       <div className="flex items-center gap-2">
         <meta.icon className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
-        <span className="flex-1 truncate text-[13px] font-semibold text-espresso dark:text-cream">{meta.label}</span>
-        <button onClick={() => onMove(-1)} disabled={index === 0} className="text-espresso-muted transition hover:text-espresso disabled:opacity-30 dark:text-cream/40">
-          <ChevronUp className="h-4 w-4" />
+        <button
+          onClick={() => hasConfig && setExpanded((v) => !v)}
+          className={cn("flex-1 truncate text-left text-[13px] font-semibold text-espresso dark:text-cream", hasConfig && "cursor-pointer")}
+        >
+          {meta.label}
         </button>
-        <button onClick={() => onMove(1)} disabled={index === total - 1} className="text-espresso-muted transition hover:text-espresso disabled:opacity-30 dark:text-cream/40">
-          <ChevronDown className="h-4 w-4" />
+        {hasConfig && (
+          <button onClick={() => setExpanded((v) => !v)} className="text-espresso-muted transition hover:text-espresso dark:text-cream/40" aria-label={expanded ? "Kapat" : "Aç"}>
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+        )}
+        <span className="mx-0.5 h-4 w-px bg-hairline dark:bg-white/10" />
+        <button onClick={() => onMove(-1)} disabled={index === 0} className="text-espresso-muted transition hover:text-espresso disabled:opacity-30 dark:text-cream/40" aria-label="Yukarı taşı">
+          <ArrowUp className="h-4 w-4" />
         </button>
-        <button onClick={onRemove} className="text-espresso-muted transition hover:text-rose-600 dark:text-cream/40">
+        <button onClick={() => onMove(1)} disabled={index === total - 1} className="text-espresso-muted transition hover:text-espresso disabled:opacity-30 dark:text-cream/40" aria-label="Aşağı taşı">
+          <ArrowDown className="h-4 w-4" />
+        </button>
+        <button onClick={onRemove} className="text-espresso-muted transition hover:text-rose-600 dark:text-cream/40" aria-label="Sil">
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
 
-      {hasConfig && block.type === "heading" && (
+      {/* Kullanıcı talebi: "çift pozlama özelliği ne anlamadım" — konfigürasyonu
+          OLMAYAN bloklarda (özet/çift pozlama/şube) tek görülebilecek şey
+          zaten bu açıklama olduğu için HER ZAMAN gösterilir; ayarlı
+          bloklarda ise sadece kapalıyken (yer kazanmak için). */}
+      {(!hasConfig || !expanded) && <p className="mt-1 text-[11px] leading-relaxed text-espresso-muted dark:text-cream/40">{meta.description}</p>}
+
+      {expanded && hasConfig && block.type === "heading" && (
         <input
           value={block.text}
           onChange={(e) => onChange({ text: e.target.value } as Partial<LocalBlock>)}
@@ -567,7 +710,7 @@ function BlockEditor({
         />
       )}
 
-      {hasConfig && block.type === "text" && (
+      {expanded && hasConfig && block.type === "text" && (
         <textarea
           value={block.text}
           onChange={(e) => onChange({ text: e.target.value } as Partial<LocalBlock>)}
@@ -577,7 +720,7 @@ function BlockEditor({
         />
       )}
 
-      {hasConfig && (block.type === "trend" || block.type === "history") && (
+      {expanded && hasConfig && (block.type === "trend" || block.type === "history") && (
         <div className="mt-2.5 flex gap-2">
           <div className="flex-1">
             <label className="mb-1 block text-[10px] text-espresso-muted dark:text-cream/40">Başlangıç</label>
@@ -600,27 +743,14 @@ function BlockEditor({
         </div>
       )}
 
-      {hasConfig && (block.type === "subtopicScan" || block.type === "history") && (
-        <div className="mt-2.5 max-h-40 space-y-0.5 overflow-y-auto rounded-lg border border-hairline bg-white/50 p-2 dark:border-white/10 dark:bg-white/5">
-          <label className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12px] font-medium text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5">
-            <input type="checkbox" checked={block.subtopicIds === null} onChange={(e) => onChange({ subtopicIds: e.target.checked ? null : [] } as Partial<LocalBlock>)} />
-            Tüm konular
-          </label>
-          {block.subtopicIds !== null &&
-            subtopicOptions.map((opt) => (
-              <label key={opt.subtopicId} className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12px] text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5">
-                <input
-                  type="checkbox"
-                  checked={block.subtopicIds!.includes(opt.subtopicId)}
-                  onChange={(e) => {
-                    const ids = block.subtopicIds!;
-                    onChange({ subtopicIds: e.target.checked ? [...ids, opt.subtopicId] : ids.filter((x) => x !== opt.subtopicId) } as Partial<LocalBlock>);
-                  }}
-                />
-                {opt.name}
-              </label>
-            ))}
-        </div>
+      {expanded && hasConfig && (block.type === "subtopicScan" || block.type === "history") && (
+        <button
+          onClick={onOpenPicker}
+          className="mt-2.5 flex w-full items-center justify-between rounded-lg border border-hairline bg-white/50 px-3 py-2 text-[12px] text-espresso transition hover:border-sky-400/40 dark:border-white/10 dark:bg-white/5 dark:text-cream"
+        >
+          <span>{block.subtopicIds === null ? "Tüm konular" : `${selectedCount} konu seçili`}</span>
+          <span className="text-sky-600 dark:text-sky-400">Konu Seç →</span>
+        </button>
       )}
     </div>
   );
