@@ -9,6 +9,40 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
+// GET /api/xray/placement-assignments?subject= — yöneticinin "kime atandı,
+// kim hâlâ eksik" menüsü için: kurumdaki her öğrencinin (varsa) EN SON
+// yerlestirme denemesinin durumunu döner. Roster'da olup burada
+// GÖRÜNMEYEN her öğrenci hiç atanmamış demektir — istemci tarafında bu
+// fark roster - statuses olarak hesaplanır.
+async function handleGet(request: NextRequest) {
+  try {
+    const session = await requireSession();
+    requireRole(session, "principal");
+
+    const subject = request.nextUrl.searchParams.get("subject");
+    if (!subject?.trim()) return NextResponse.json({ error: "subject parametresi zorunludur." }, { status: 400 });
+
+    const attempts = await prisma.xrayPracticeAttempt.findMany({
+      where: { subject, variant: "yerlestirme", student: { institutionId: session.institutionId } },
+      orderBy: { assignedAt: "desc" },
+      select: { studentId: true, status: true, assignedAt: true },
+    });
+
+    // Bir öğrencinin BİRDEN FAZLA yerlestirme denemesi olabilir (yeniden
+    // atama) — assignedAt DESC sıralandığı için ilk görülen EN GÜNCEL olan.
+    const latestByStudent = new Map<string, { status: string; assignedAt: string }>();
+    for (const a of attempts) {
+      if (!latestByStudent.has(a.studentId)) latestByStudent.set(a.studentId, { status: a.status, assignedAt: a.assignedAt.toISOString() });
+    }
+
+    return NextResponse.json({ statuses: [...latestByStudent.entries()].map(([studentId, v]) => ({ studentId, ...v })) });
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    logger.error("xray_placement_assignment_status_failed", { error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+  }
+}
+
 // POST /api/xray/placement-assignments — { target, subject? } — yöneticinin
 // "Seviye Belirleme Sınavı" ataması. practice-assignments'tan (TEK tema)
 // farkı: her hedef öğrencinin KENDİ sınıf seviyesine göre (9/10/11 → sadece
@@ -78,4 +112,5 @@ async function handlePost(request: NextRequest) {
   }
 }
 
+export const GET = withApiLogging("GET /api/xray/placement-assignments", handleGet);
 export const POST = withApiLogging("POST /api/xray/placement-assignments", handlePost);

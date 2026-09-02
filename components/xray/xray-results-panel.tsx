@@ -537,7 +537,7 @@ export function XrayResultsPanel({
         {/* SAĞ — test atama panelleri (SADECE yönetici) */}
         {canAssign && selectedStudent && (
           <div id="xray-assignment-column" className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
-            <XrayPlacementAssignButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+            <XrayPlacementAssignButton roster={roster} subject={subject} />
             <XrayPracticeAssignmentSection
               studentId={selectedId}
               studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
