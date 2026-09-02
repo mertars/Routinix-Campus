@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 type BlockSpec =
   | { type: "heading"; text: string }
   | { type: "text"; text: string }
-  | { type: "summary" }
+  | { type: "summary"; text: string | null }
   | { type: "subtopicScan"; subtopicIds: string[] | null }
   | { type: "trend"; from: string | null; to: string | null }
   | { type: "doubleExposure" }
@@ -74,7 +74,12 @@ async function handlePost(request: NextRequest) {
       }
       if (spec.type === "summary") {
         const r = await roadmap();
-        resolved.push({ type: "summary", summary: r.summary, recommendationCount: r.recommendations.length });
+        // Kullanıcı talebi: "özet otomatik hazırlansın ama yönetici yazıda
+        // değişiklik yapabilsin" — spec.text DOLUYSA (yönetici düzenlediyse)
+        // otomatik overallAdvice'ın YERİNE geçer, boşsa (null) otomatik metin
+        // aynen kullanılır.
+        const summary = spec.text !== null ? { ...r.summary, overallAdvice: spec.text } : r.summary;
+        resolved.push({ type: "summary", summary, recommendationCount: r.recommendations.length });
         continue;
       }
       if (spec.type === "subtopicScan") {

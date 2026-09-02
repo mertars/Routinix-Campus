@@ -33,7 +33,7 @@ type BlockType = "heading" | "text" | "summary" | "subtopicScan" | "trend" | "do
 type LocalBlock =
   | { id: string; type: "heading"; text: string }
   | { id: string; type: "text"; text: string }
-  | { id: string; type: "summary" }
+  | { id: string; type: "summary"; text: string | null }
   | { id: string; type: "subtopicScan"; subtopicIds: string[] | null }
   | { id: string; type: "trend"; from: string | null; to: string | null }
   | { id: string; type: "doubleExposure" }
@@ -67,7 +67,7 @@ function defaultBlockFor(type: BlockType, branchId: string): LocalBlock {
     case "text":
       return { id, type, text: "" };
     case "summary":
-      return { id, type };
+      return { id, type, text: null };
     case "subtopicScan":
       return { id, type, subtopicIds: null };
     case "trend":
@@ -291,6 +291,7 @@ export function XrayCustomReportBuilder({
                         onRemove={() => removeBlock(b.id)}
                         onMove={(dir) => moveBlock(b.id, dir)}
                         onOpenPicker={() => setPickerForBlockId(b.id)}
+                        roadmap={roadmap}
                       />
                     ))}
                   </div>
@@ -405,7 +406,7 @@ function PreviewBlock({
     const s = roadmap.summary;
     return (
       <PreviewCard label="GENEL ÖZET">
-        <p className="text-[12.5px] leading-relaxed text-slate-100">{s.overallAdvice}</p>
+        <p className="text-[12.5px] leading-relaxed text-slate-100">{block.text ?? s.overallAdvice}</p>
         <p className="mt-1.5 text-[11px] text-slate-400">
           Ortalama %{s.averageScore} · {roadmap.recommendations.length} konu test edildi · {s.criticalCount} kritik, {s.moderateCount} orta, {s.strongCount} güçlü.
         </p>
@@ -651,6 +652,7 @@ function BlockEditor({
   onRemove,
   onMove,
   onOpenPicker,
+  roadmap,
 }: {
   block: LocalBlock;
   index: number;
@@ -659,9 +661,10 @@ function BlockEditor({
   onRemove: () => void;
   onMove: (dir: -1 | 1) => void;
   onOpenPicker: () => void;
+  roadmap: RoadmapData | null;
 }) {
   const meta = PALETTE.find((p) => p.type === block.type)!;
-  const hasConfig = block.type === "heading" || block.type === "text" || block.type === "subtopicScan" || block.type === "trend" || block.type === "history";
+  const hasConfig = block.type === "heading" || block.type === "text" || block.type === "summary" || block.type === "subtopicScan" || block.type === "trend" || block.type === "history";
   // Kullanıcı talebi: "açılır olan panellerde kapanma seçeneği de olsun" —
   // varsayılan açık (yeni eklenen blok hemen düzenlenebilsin) ama başlığa
   // tıklayınca kapatılabilir.
@@ -708,6 +711,26 @@ function BlockEditor({
           placeholder="Başlık metni"
           className="mt-2.5 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
         />
+      )}
+
+      {expanded && hasConfig && block.type === "summary" && (
+        <div className="mt-2.5">
+          <textarea
+            value={block.text ?? roadmap?.summary.overallAdvice ?? ""}
+            onChange={(e) => onChange({ text: e.target.value } as Partial<LocalBlock>)}
+            placeholder="Otomatik özet metni yükleniyor..."
+            rows={3}
+            className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          />
+          <div className="mt-1.5 flex items-center justify-between">
+            <p className="text-[10px] text-espresso-muted dark:text-cream/40">{block.text === null ? "Otomatik oluşturuldu — dilersen düzenleyebilirsin." : "Elle düzenlendi."}</p>
+            {block.text !== null && (
+              <button onClick={() => onChange({ text: null } as Partial<LocalBlock>)} className="text-[10px] font-medium text-sky-600 hover:underline dark:text-sky-400">
+                Otomatiğe sıfırla
+              </button>
+            )}
+          </div>
+        </div>
       )}
 
       {expanded && hasConfig && block.type === "text" && (
