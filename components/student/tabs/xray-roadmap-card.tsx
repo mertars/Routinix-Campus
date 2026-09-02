@@ -6,8 +6,8 @@ import { Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Severity = "critical" | "moderate" | "strong";
-type Recommendation = { subtopicId: string; name: string; masteryScore: number; severity: Severity; advice: string };
-type Summary = { averageScore: number; criticalCount: number; moderateCount: number; strongCount: number; overallAdvice: string };
+type Recommendation = { subtopicId: string; name: string; masteryScore: number; severity: Severity; studioNote: string };
+type Summary = { averageScore: number; criticalCount: number; moderateCount: number; strongCount: number; studioSummary: string };
 type SubjectRoadmap = { subject: string; summary: Summary; recommendations: Recommendation[] };
 
 const SEVERITY_META: Record<Severity, { label: string; dot: string; badge: string }> = {
@@ -18,13 +18,16 @@ const SEVERITY_META: Record<Severity, { label: string; dot: string; badge: strin
 
 const VISIBLE_COUNT = 5;
 
-// Faz P — rakip araştırmasında ("Matematik Röntgeni") bulunan boşluğu
-// kapatır: kural bazlı reçete motoru (lib/server/xray/recommendations.ts)
+// Faz P/Q — rakip araştırmasında ("Matematik Röntgeni") bulunan boşluğu
+// kapatır: kural bazlı öneri motoru (lib/server/xray/recommendations.ts)
 // ŞİMDİYE KADAR sadece indirilen PDF raporunda vardı, öğrenci "sırada ne
 // çalışmalıyım" tavsiyesini kendi panelinde HİÇ görmüyordu. Bu kart,
-// XraySelfProgressCard'ın ("Gelişimin" — SADECE trend) hemen yanında,
-// AYNI veriyi (TopicMasteryAssessment) somut bir ÇALIŞMA ÖNERİSİNE çevirip
+// XraySelfProgressCard'ın ("Gelişimin" — SADECE trend) hemen yanında, AYNI
+// veriyi (TopicMasteryAssessment) somut bir ÇALIŞMA ÖNERİSİNE çevirip
 // gösterir — en zayıf konudan başlayarak sıralı, önceliklendirilmiş liste.
+// BİLEREK `studioNote`/`studioSummary` (samimi/sohbet dilinde) render
+// edilir — `advice`/`overallAdvice` (resmi dil) SADECE yönetici ekranında
+// (xray-roadmap-panel.tsx) ve PDF'lerde kullanılır.
 export function XrayRoadmapCard() {
   const [subjects, setSubjects] = useState<SubjectRoadmap[] | null>(null);
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
@@ -53,7 +56,7 @@ export function XrayRoadmapCard() {
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-          <Compass className="h-4 w-4 text-brand-600" /> Kişisel Çalışma Yol Haritan
+          <Compass className="h-4 w-4 text-brand-600" /> Stüdyo Notların
         </h2>
         {subjects.length > 1 && (
           <select
@@ -73,7 +76,7 @@ export function XrayRoadmapCard() {
         )}
       </div>
 
-      <p className="mb-3 text-xs leading-relaxed text-espresso-muted dark:text-cream/50">{active.summary.overallAdvice}</p>
+      <p className="mb-3 text-xs leading-relaxed text-espresso-muted dark:text-cream/50">{active.summary.studioSummary}</p>
 
       <div className="space-y-2">
         {visible.map((r) => {
@@ -89,7 +92,7 @@ export function XrayRoadmapCard() {
                   {meta.label} · %{r.masteryScore}
                 </span>
               </div>
-              <p className="text-[11px] leading-relaxed text-espresso-muted dark:text-cream/50">{r.advice}</p>
+              <p className="text-[11px] leading-relaxed text-espresso-muted dark:text-cream/50">{r.studioNote}</p>
             </div>
           );
         })}

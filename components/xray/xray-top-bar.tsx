@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo } from "lucide-react";
+import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo, Users } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -12,6 +12,7 @@ import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
 import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
 import { XrayAssignmentTrackingDashboard } from "@/components/xray/xray-assignment-tracking-dashboard";
+import { XrayBranchAveragePanel } from "@/components/xray/xray-branch-average-panel";
 import { cn } from "@/lib/utils";
 
 // Akademik Röntgen (Hub'daki 2. modül) — BİLEREK ERP'nin TopBar'ından ayrı
@@ -38,10 +39,12 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
   const [screeningOpen, setScreeningOpen] = useState(false);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [trackingOpen, setTrackingOpen] = useState(false);
+  const [branchAverageOpen, setBranchAverageOpen] = useState(false);
 
   const tools = [
     { label: "Unutma Testi", icon: ShieldAlert, onClick: () => setScreeningOpen(true) },
     { label: "En Zor Kazanımlar", icon: TrendingDown, onClick: () => setInsightsOpen(true) },
+    { label: "Şube Ortalamaları", icon: Users, onClick: () => setBranchAverageOpen(true) },
     { label: "Ödev Takip", icon: ListTodo, onClick: () => setTrackingOpen(true) },
   ];
 
@@ -151,6 +154,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
         <>
           <XrayMonthlyScreeningPanel isOpen={screeningOpen} onClose={() => setScreeningOpen(false)} />
           <XrayInstitutionInsights isOpen={insightsOpen} onClose={() => setInsightsOpen(false)} />
+          <XrayBranchAveragePanel isOpen={branchAverageOpen} onClose={() => setBranchAverageOpen(false)} />
           <XrayAssignmentTrackingDashboard isOpen={trackingOpen} onClose={() => setTrackingOpen(false)} />
         </>
       )}

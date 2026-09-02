@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2 } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
@@ -12,7 +12,9 @@ import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section
 import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
 import { XrayPlacementAssignButton } from "@/components/xray/xray-placement-assign-button";
 import { XrayPlacementProgressCard } from "@/components/xray/xray-placement-progress-card";
+import { XrayRoadmapPanel } from "@/components/xray/xray-roadmap-panel";
 import { XraySendToParentButton } from "@/components/xray/xray-send-to-parent-button";
+import { XrayCustomReportBuilder } from "@/components/xray/xray-custom-report-builder";
 import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } from "@/components/xray/mastery-trend-charts";
 import { XraySetGoalButton } from "@/components/xray/xray-set-goal-button";
 import { XrayAverageDetailModal, XrayRedZoneModal, XrayUntestedTopicsModal, XrayHistoryTimelineModal } from "@/components/xray/xray-stat-detail-modals";
@@ -150,6 +152,7 @@ export function XrayResultsPanel({
   const [trendOpen, setTrendOpen] = useState(false);
   const [netTrend, setNetTrend] = useState<{ examLabel: string; net: number }[] | null>(null);
   const [allTopicsOpen, setAllTopicsOpen] = useState(false);
+  const [customReportOpen, setCustomReportOpen] = useState(false);
   const [subtopicDetail, setSubtopicDetail] = useState<{ subtopicId: string; subtopicName: string } | null>(null);
 
   useEffect(() => {
@@ -396,7 +399,17 @@ export function XrayResultsPanel({
                     </button>
                     <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
                     {canAssign && (
-                      <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+                      <>
+                        <button
+                          onClick={() => setCustomReportOpen(true)}
+                          aria-label="Özel PDF Oluştur"
+                          title="Özel PDF Oluştur"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 dark:text-sky-300"
+                        >
+                          <FileEdit className="h-4 w-4" />
+                        </button>
+                        <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+                      </>
                     )}
                     {averageScore !== null && (
                       <>
@@ -427,6 +440,7 @@ export function XrayResultsPanel({
               </motion.div>
 
               <XrayPlacementProgressCard studentId={selectedId} subject={subject} />
+              <XrayRoadmapPanel studentId={selectedId} subject={subject} />
 
               {loading && <p className="text-xs text-espresso-muted dark:text-cream/40">Yükleniyor...</p>}
 
@@ -601,6 +615,16 @@ export function XrayResultsPanel({
           subject={subject}
           subtopicId={subtopicDetail.subtopicId}
           subtopicName={subtopicDetail.subtopicName}
+        />
+      )}
+      {selectedStudent && (
+        <XrayCustomReportBuilder
+          isOpen={customReportOpen}
+          onClose={() => setCustomReportOpen(false)}
+          studentId={selectedId}
+          studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
+          branchId={selectedStudent.branchId}
+          subject={subject}
         />
       )}
     </div>

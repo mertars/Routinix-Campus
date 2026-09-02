@@ -271,7 +271,7 @@ export function PdfXrayReport({ institutionName, logoUrl, studentName, branchNam
 
         <View style={styles.prescriptionBox}>
           <View style={styles.prescriptionHeader}>
-            <Text style={styles.prescriptionTitle}>{t("REÇETE")}</Text>
+            <Text style={styles.prescriptionTitle}>{t("BULGULAR")}</Text>
           </View>
           <Text style={styles.prescriptionSummary}>{t(summary.overallAdvice)}</Text>
           {sorted.slice(0, 5).map((r) => (
