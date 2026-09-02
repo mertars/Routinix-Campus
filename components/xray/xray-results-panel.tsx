@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit, FileStack, ChevronDown } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf, fetchAndSharePdf } from "@/lib/client/download-pdf";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
-import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section";
-import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
-import { XrayPlacementAssignButton } from "@/components/xray/xray-placement-assign-button";
+import { XrayAssignmentTabs } from "@/components/xray/xray-assignment-tabs";
 import { XrayPlacementProgressCard } from "@/components/xray/xray-placement-progress-card";
 import { XrayRoadmapPanel } from "@/components/xray/xray-roadmap-panel";
 import { XraySendToParentButton } from "@/components/xray/xray-send-to-parent-button";
@@ -154,6 +154,7 @@ export function XrayResultsPanel({
   const [allTopicsOpen, setAllTopicsOpen] = useState(false);
   const [customReportOpen, setCustomReportOpen] = useState(false);
   const [subtopicDetail, setSubtopicDetail] = useState<{ subtopicId: string; subtopicName: string } | null>(null);
+  const [rosterListOpen, setRosterListOpen] = useState(true);
 
   useEffect(() => {
     setSelectedId((current) => current || roster[0]?.id || "");
@@ -289,8 +290,15 @@ export function XrayResultsPanel({
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 lg:px-6">
       <div className={cn("grid gap-4", canAssign ? "lg:grid-cols-[280px_1fr_380px]" : "lg:grid-cols-[280px_1fr]")}>
-        {/* SOL — öğrenci listesi/arama */}
-        <div className="space-y-3 lg:sticky lg:top-20 lg:self-start">
+        {/* SOL — öğrenci listesi/arama. Kullanıcı geri bildirimi — bu sütun
+            eskiden `lg:self-start` ile grid hücresini kendi (kısa) içerik
+            yüksekliğine küçültüyordu; sticky'nin "yapışabileceği" alan da o
+            kısa yükseklikle sınırlı kalıyor, o alanı geçince sol panel de
+            sayfayla birlikte kayıyordu. self-start'ı kaldırmak hücreyi orta
+            sütunla AYNI (uzun) satır yüksekliğine geriyor — sticky artık
+            sayfanın sonuna kadar üstte sabit kalabiliyor. İçindeki öğrenci
+            listesi zaten kendi overflow-y-auto'suyla ayrıca kayıyor. */}
+        <div className="space-y-3 lg:sticky lg:top-20">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
             <input
@@ -340,32 +348,47 @@ export function XrayResultsPanel({
               </option>
             ))}
           </select>
-          <div className="max-h-[60vh] space-y-1 overflow-y-auto rounded-2xl border border-hairline bg-white/70 p-1.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 lg:max-h-[calc(100vh-14rem)]">
-            {filteredRoster.length === 0 && (
-              <p className="px-2.5 py-3 text-xs text-espresso-muted dark:text-cream/40">Eşleşen öğrenci yok.</p>
-            )}
-            {filteredRoster.map((s) => {
-              const isActive = s.id === selectedId;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedId(s.id)}
-                  className={cn(
-                    "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
-                    isActive ? "bg-sky-500/15 dark:bg-sky-400/10" : "hover:bg-cream-card dark:hover:bg-white/5"
+          {/* Kullanıcı geri bildirimi — öğrenci listesi varsayılan AÇIK
+              (mevcut davranış) ama artık bir tuşla kapatılabiliyor. */}
+          <button
+            onClick={() => setRosterListOpen((v) => !v)}
+            className="flex w-full items-center justify-between rounded-lg px-1 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted transition hover:text-espresso dark:text-cream/40 dark:hover:text-cream"
+          >
+            Öğrenciler ({filteredRoster.length})
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !rosterListOpen && "-rotate-90")} />
+          </button>
+          <AnimatePresence initial={false}>
+            {rosterListOpen && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                <div className="max-h-[60vh] space-y-1 overflow-y-auto rounded-2xl border border-hairline bg-white/70 p-1.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 lg:max-h-[calc(100vh-14rem)]">
+                  {filteredRoster.length === 0 && (
+                    <p className="px-2.5 py-3 text-xs text-espresso-muted dark:text-cream/40">Eşleşen öğrenci yok.</p>
                   )}
-                >
-                  <AvatarInitials name={`${s.firstName} ${s.lastName}`} className="h-8 w-8 shrink-0 text-xs" />
-                  <div className="min-w-0">
-                    <p className={cn("truncate text-xs font-medium", isActive ? "text-sky-700 dark:text-sky-300" : "text-espresso dark:text-cream")}>
-                      {s.firstName} {s.lastName}
-                    </p>
-                    <p className="truncate text-[10px] text-espresso-muted dark:text-cream/40">{s.branchName}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                  {filteredRoster.map((s) => {
+                    const isActive = s.id === selectedId;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => setSelectedId(s.id)}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition",
+                          isActive ? "bg-sky-500/15 dark:bg-sky-400/10" : "hover:bg-cream-card dark:hover:bg-white/5"
+                        )}
+                      >
+                        <AvatarInitials name={`${s.firstName} ${s.lastName}`} className="h-8 w-8 shrink-0 text-xs" />
+                        <div className="min-w-0">
+                          <p className={cn("truncate text-xs font-medium", isActive ? "text-sky-700 dark:text-sky-300" : "text-espresso dark:text-cream")}>
+                            {s.firstName} {s.lastName}
+                          </p>
+                          <p className="truncate text-[10px] text-espresso-muted dark:text-cream/40">{s.branchName}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* ORTA — analiz kartı + konu dökümü */}
@@ -388,59 +411,64 @@ export function XrayResultsPanel({
                     </p>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
-                    <button
-                      onClick={downloadBranchReport}
-                      disabled={downloadingBranch}
-                      aria-label="Veli toplantısı raporunu indir (tüm şube)"
-                      title="Veli toplantısı raporu (tüm şube)"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
-                    >
-                      {downloadingBranch ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-                    </button>
-                    <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
-                    {canAssign && (
-                      <>
-                        <button
-                          onClick={() => setCustomReportOpen(true)}
-                          aria-label="Özel PDF Oluştur"
-                          title="Özel PDF Oluştur"
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 dark:text-sky-300"
-                        >
-                          <FileEdit className="h-4 w-4" />
+                    <Tooltip label="Hedef Belirle">
+                      <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
+                    </Tooltip>
+                    <DropdownMenu
+                      trigger={
+                        <button className="flex h-9 items-center gap-1.5 rounded-full border border-sky-500/25 bg-sky-500/10 px-3.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300">
+                          <FileStack className="h-3.5 w-3.5" /> Rapor <ChevronDown className="h-3 w-3" />
                         </button>
-                        <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
-                      </>
-                    )}
-                    {averageScore !== null && (
-                      <>
-                      <button
-                        onClick={shareReport}
-                        disabled={sharing}
-                        aria-label="Röntgen raporunu paylaş"
-                        title="Paylaş (WhatsApp, AirDrop vb.)"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
-                      >
-                        {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-                      </button>
-                      <button
+                      }
+                    >
+                      <DropdownMenuItem
+                        icon={downloading ? Loader2 : Download}
+                        label="İndir"
                         onClick={downloadReport}
-                        disabled={downloading}
-                        aria-label="Röntgen raporunu indir"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
-                      >
-                        {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                      </button>
-                      <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
-                        %{averageScore}
-                      </div>
-                      </>
+                        disabled={downloading || averageScore === null}
+                        spinning={downloading}
+                        iconClassName="text-sky-600 dark:text-sky-400"
+                      />
+                      <DropdownMenuItem
+                        icon={sharing ? Loader2 : Share2}
+                        label="Paylaş"
+                        onClick={shareReport}
+                        disabled={sharing || averageScore === null}
+                        spinning={sharing}
+                        iconClassName="text-emerald-600 dark:text-emerald-400"
+                      />
+                      {canAssign && (
+                        <DropdownMenuItem icon={FileEdit} label="Özel PDF Oluştur" onClick={() => setCustomReportOpen(true)} iconClassName="text-violet-600 dark:text-violet-400" />
+                      )}
+                      <DropdownMenuItem
+                        icon={downloadingBranch ? Loader2 : Users}
+                        label="Şube Raporu İndir"
+                        onClick={downloadBranchReport}
+                        disabled={downloadingBranch}
+                        spinning={downloadingBranch}
+                        iconClassName="text-amber-600 dark:text-amber-400"
+                      />
+                    </DropdownMenu>
+                    {canAssign && <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />}
+                    {averageScore !== null && (
+                      <Tooltip label="Ortalama">
+                        <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
+                          %{averageScore}
+                        </div>
+                      </Tooltip>
                     )}
                   </div>
                 </div>
               </motion.div>
 
               <XrayPlacementProgressCard studentId={selectedId} subject={subject} />
-              <XrayRoadmapPanel studentId={selectedId} subject={subject} />
+              {/* Kullanıcı geri bildirimi — Bulgu Kareleri sağ alta (test
+                  atama sütununun altındaki boşluğa) taşındı — ama sağ sütun
+                  SADECE canAssign=true iken var (bkz. /xray/teacher'da hiç
+                  render edilmiyor), o yüzden öğretmen tarafında bu panel
+                  ESKİ yerinde (orta sütun, tam boy) kalmaya devam ediyor —
+                  yoksa öğretmen bu özelliği tamamen kaybederdi. */}
+              {!canAssign && <XrayRoadmapPanel studentId={selectedId} subject={subject} />}
 
               {loading && <p className="text-xs text-espresso-muted dark:text-cream/40">Yükleniyor...</p>}
 
@@ -475,7 +503,11 @@ export function XrayResultsPanel({
                     />
                   </div>
 
-                  {history && history.overallTrend.length >= 2 && (
+                  {/* Kullanıcı geri bildirimi — Genel Gelişim Trendi de Bulgu
+                      Kareleri'yle AYNI sebeple (bkz. yukarısı) sağ sütuna,
+                      sabit alt bölüme taşındı — SADECE canAssign iken.
+                      Öğretmen tarafında (sağ sütun yok) eski yerinde kalır. */}
+                  {!canAssign && history && history.overallTrend.length >= 2 && (
                     <MasterySparkline points={history.overallTrend} onClick={() => setTrendOpen(true)} />
                   )}
 
@@ -548,39 +580,30 @@ export function XrayResultsPanel({
           )}
         </div>
 
-        {/* SAĞ — test atama panelleri (SADECE yönetici) */}
+        {/* SAĞ — test atama panelleri (SADECE yönetici). Kullanıcı geri
+            bildirimi — Genel Gelişim Trendi + Bulgu Kareleri önizlemesi
+            eskiden sekme içeriğinin ALTINDA, normal akışta duruyordu —
+            sekme değişince (farklı yükseklikte içerik) yerleri kayıyordu.
+            Artık sütun `flex flex-col` + sabit yükseklik: üstte SADECE
+            sekmeler kendi overflow-y-auto'suyla kayıyor, alttaki bu ikili
+            `shrink-0` ile HER ZAMAN aynı yerde, sabit kalıyor. */}
         {canAssign && selectedStudent && (
-          <div id="xray-assignment-column" className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
-            <XrayPlacementAssignButton roster={roster} subject={subject} />
-            <XrayPracticeAssignmentSection
-              studentId={selectedId}
-              studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
-              branchId={selectedStudent.branchId}
-              branchName={selectedStudent.branchName}
-              grade={selectedStudent.grade}
-              subject={subject}
-              variant="genel"
-              roster={roster}
-            />
-            <XrayPracticeAssignmentSection
-              studentId={selectedId}
-              studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
-              branchId={selectedStudent.branchId}
-              branchName={selectedStudent.branchName}
-              grade={selectedStudent.grade}
-              subject={subject}
-              variant="alt_konu"
-              roster={roster}
-            />
-            <XrayAssignmentSection
-              studentId={selectedId}
-              studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
-              branchId={selectedStudent.branchId}
-              branchName={selectedStudent.branchName}
-              grade={selectedStudent.grade}
-              subject={subject}
-              roster={roster}
-            />
+          <div id="xray-assignment-column" className="flex flex-col gap-3 lg:sticky lg:top-20 lg:h-[calc(100vh-6rem)]">
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <XrayAssignmentTabs
+                studentId={selectedId}
+                studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
+                branchId={selectedStudent.branchId}
+                branchName={selectedStudent.branchName}
+                grade={selectedStudent.grade}
+                subject={subject}
+                roster={roster}
+              />
+            </div>
+            <div className="shrink-0 space-y-3">
+              {history && history.overallTrend.length >= 2 && <MasterySparkline points={history.overallTrend} onClick={() => setTrendOpen(true)} size="lg" />}
+              <XrayRoadmapPanel studentId={selectedId} subject={subject} compact />
+            </div>
           </div>
         )}
       </div>

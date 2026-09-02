@@ -8,7 +8,10 @@ import { type RosterForTargeting } from "@/components/xray/xray-assignment-targe
 import { XrayTestPickerModal } from "@/components/xray/xray-test-picker-modal";
 import { XrayInfoButton } from "@/components/xray/xray-info-button";
 import { MathText } from "@/components/ui/math-text";
+import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
+
+const PREVIEW_COUNT = 3;
 
 type Assignment = {
   id: string;
@@ -80,6 +83,8 @@ export function XrayPracticeAssignmentSection({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [results, setResults] = useState<ResultItem[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [previewFilter, setPreviewFilter] = useState<"pending" | "done">("pending");
   const meta = VARIANT_META[variant];
 
   function loadAssignments() {
@@ -99,6 +104,9 @@ export function XrayPracticeAssignmentSection({
   // burada elimizde olan assignments listesinden hesaplanıyor, ayrı bir API
   // gerekmiyor.
   const assignedSubtopicIds = useMemo(() => new Set(assignments.map((a) => a.subtopicId)), [assignments]);
+  const pendingAssignments = useMemo(() => assignments.filter((a) => a.status === "ASSIGNED" || a.status === "IN_PROGRESS"), [assignments]);
+  const doneAssignments = useMemo(() => assignments.filter((a) => a.status === "COMPLETED" || a.status === "FLAGGED"), [assignments]);
+  const previewList = previewFilter === "pending" ? pendingAssignments : doneAssignments;
 
   async function toggleExpand(assignment: Assignment) {
     if (assignment.status === "ASSIGNED" || assignment.status === "IN_PROGRESS") return;
@@ -154,63 +162,103 @@ export function XrayPracticeAssignmentSection({
       />
 
       {assignments.length > 0 && (
-        <div className="space-y-1.5">
-          {assignments.map((a) => {
-            const meta = STATUS_META[a.status];
-            const Icon = meta.icon;
-            const canExpand = a.status === "COMPLETED" || a.status === "FLAGGED";
-            const isExpanded = expandedId === a.id;
-            return (
-              <div key={a.id} className="overflow-hidden rounded-xl bg-cream-card dark:bg-white/5">
-                <button
-                  onClick={() => toggleExpand(a)}
-                  disabled={!canExpand}
-                  className={cn("flex w-full items-center justify-between gap-2 px-3 py-2 text-left", canExpand && "cursor-pointer")}
-                >
-                  <span className="min-w-0 truncate text-xs font-medium text-espresso dark:text-cream">{a.subtopicName}</span>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.className)}>
-                      <Icon className="h-3 w-3" /> {meta.label}
-                    </span>
-                    {canExpand && (
-                      <ChevronDown className={cn("h-3.5 w-3.5 text-espresso-muted transition-transform dark:text-cream/40", isExpanded && "rotate-180")} />
-                    )}
-                  </span>
-                </button>
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                      <div className="space-y-2 px-3 pb-3">
-                        {loadingResults ? (
-                          <p className="text-[11px] text-espresso-muted dark:text-cream/40">Yükleniyor...</p>
-                        ) : (
-                          results.map((r) => (
-                            <div key={r.questionId} className="rounded-lg bg-white p-2.5 dark:bg-midnight-card">
-                              <div className="mb-1 flex items-center justify-between">
-                                <p className="text-[10px] font-semibold text-espresso-muted dark:text-cream/40">Soru {r.order}</p>
-                                {r.wasCorrect !== null && (
-                                  <span className={cn("text-[10px] font-semibold", r.wasCorrect ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
-                                    {r.wasCorrect ? "Yaptı" : "Yapamadı"}
-                                  </span>
-                                )}
-                              </div>
-                              <MathText text={r.prompt} className="mb-1.5 text-xs font-medium text-espresso dark:text-cream" />
-                              <p className="mb-1 text-[11px] font-semibold text-sky-600 dark:text-sky-300">
-                                Cevap: <MathText text={r.correctAnswer} />
-                              </p>
-                              {r.wasCorrect === false && <MathText text={r.checks} className="text-[11px] text-espresso-muted dark:text-cream/50" />}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
+        <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-1.5 rounded-xl bg-cream-card p-1 dark:bg-white/5">
+            <button
+              onClick={() => setPreviewFilter("pending")}
+              className={cn(
+                "rounded-lg px-2 py-1.5 text-[11px] font-medium transition",
+                previewFilter === "pending" ? "bg-white text-espresso shadow-sm dark:bg-midnight-card dark:text-cream" : "text-espresso-muted hover:text-espresso dark:text-cream/40 dark:hover:text-cream"
+              )}
+            >
+              Bekleyen ({pendingAssignments.length})
+            </button>
+            <button
+              onClick={() => setPreviewFilter("done")}
+              className={cn(
+                "rounded-lg px-2 py-1.5 text-[11px] font-medium transition",
+                previewFilter === "done" ? "bg-white text-espresso shadow-sm dark:bg-midnight-card dark:text-cream" : "text-espresso-muted hover:text-espresso dark:text-cream/40 dark:hover:text-cream"
+              )}
+            >
+              Yapılan ({doneAssignments.length})
+            </button>
+          </div>
+          {previewList.length === 0 ? (
+            <p className="px-1 py-2 text-[11px] text-espresso-muted dark:text-cream/40">
+              {previewFilter === "pending" ? "Bekleyen test yok." : "Henüz tamamlanan test yok."}
+            </p>
+          ) : (
+            previewList.slice(0, PREVIEW_COUNT).map((a) => renderAssignmentRow(a))
+          )}
+          {assignments.length > Math.min(previewList.length, PREVIEW_COUNT) && (
+            <button
+              onClick={() => setHistoryOpen(true)}
+              className="w-full rounded-xl border border-dashed border-hairline py-2 text-[11px] font-medium text-espresso-muted transition hover:border-sky-400/40 hover:text-sky-600 dark:border-white/10 dark:text-cream/40 dark:hover:text-sky-400"
+            >
+              Tümünü Gör ({assignments.length})
+            </button>
+          )}
         </div>
       )}
+
+      <Modal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} title={`${meta.title} — Tüm Atamalar`} variant="center" widthClassName="max-w-lg">
+        <div className="max-h-[65vh] space-y-1.5 overflow-y-auto pr-1">{assignments.map((a) => renderAssignmentRow(a))}</div>
+      </Modal>
     </motion.div>
   );
+
+  function renderAssignmentRow(a: Assignment) {
+    const meta = STATUS_META[a.status];
+    const Icon = meta.icon;
+    const canExpand = a.status === "COMPLETED" || a.status === "FLAGGED";
+    const isExpanded = expandedId === a.id;
+    return (
+      <div key={a.id} className="overflow-hidden rounded-xl bg-cream-card dark:bg-white/5">
+        <button
+          onClick={() => toggleExpand(a)}
+          disabled={!canExpand}
+          className={cn("flex w-full items-center justify-between gap-2 px-3 py-2 text-left", canExpand && "cursor-pointer")}
+        >
+          <span className="min-w-0 truncate text-xs font-medium text-espresso dark:text-cream">{a.subtopicName}</span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", meta.className)}>
+              <Icon className="h-3 w-3" /> {meta.label}
+            </span>
+            {canExpand && (
+              <ChevronDown className={cn("h-3.5 w-3.5 text-espresso-muted transition-transform dark:text-cream/40", isExpanded && "rotate-180")} />
+            )}
+          </span>
+        </button>
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+              <div className="space-y-2 px-3 pb-3">
+                {loadingResults ? (
+                  <p className="text-[11px] text-espresso-muted dark:text-cream/40">Yükleniyor...</p>
+                ) : (
+                  results.map((r) => (
+                    <div key={r.questionId} className="rounded-lg bg-white p-2.5 dark:bg-midnight-card">
+                      <div className="mb-1 flex items-center justify-between">
+                        <p className="text-[10px] font-semibold text-espresso-muted dark:text-cream/40">Soru {r.order}</p>
+                        {r.wasCorrect !== null && (
+                          <span className={cn("text-[10px] font-semibold", r.wasCorrect ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+                            {r.wasCorrect ? "Yaptı" : "Yapamadı"}
+                          </span>
+                        )}
+                      </div>
+                      <MathText text={r.prompt} className="mb-1.5 text-xs font-medium text-espresso dark:text-cream" />
+                      <p className="mb-1 text-[11px] font-semibold text-sky-600 dark:text-sky-300">
+                        Cevap: <MathText text={r.correctAnswer} />
+                      </p>
+                      {r.wasCorrect === false && <MathText text={r.checks} className="text-[11px] text-espresso-muted dark:text-cream/50" />}
+                    </div>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
 }

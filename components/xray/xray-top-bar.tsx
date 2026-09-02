@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo, Users } from "lucide-react";
+import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo, Users, LayoutGrid, ChevronDown } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
 import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
 import { XrayAssignmentTrackingDashboard } from "@/components/xray/xray-assignment-tracking-dashboard";
@@ -42,11 +43,32 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
   const [branchAverageOpen, setBranchAverageOpen] = useState(false);
 
   const tools = [
-    { label: "Unutma Testi", icon: ShieldAlert, onClick: () => setScreeningOpen(true) },
-    { label: "En Zor Kazanımlar", icon: TrendingDown, onClick: () => setInsightsOpen(true) },
-    { label: "Şube Ortalamaları", icon: Users, onClick: () => setBranchAverageOpen(true) },
-    { label: "Ödev Takip", icon: ListTodo, onClick: () => setTrackingOpen(true) },
+    { label: "Unutma Testi", icon: ShieldAlert, onClick: () => setScreeningOpen(true), tone: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
+    { label: "En Zor Kazanımlar", icon: TrendingDown, onClick: () => setInsightsOpen(true), tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+    { label: "Şube Ortalamaları", icon: Users, onClick: () => setBranchAverageOpen(true), tone: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+    { label: "Ödev Takip", icon: ListTodo, onClick: () => setTrackingOpen(true), tone: "bg-violet-500/10 text-violet-600 dark:text-violet-400" },
   ];
+
+  // Kullanıcı geri bildirimi — 4 araç alt alta bir liste yerine, her
+  // birinin logosu kendi renkli rozetinde, 2x2 bir "ızgara" olarak daha şık
+  // duruyor. DropdownMenu'nün varsayılan dikey liste düzenini (panelClassName
+  // ile) burada override ediyoruz — tools dizisi/onClick mantığı DEĞİŞMEDİ.
+  const toolsGrid = (
+    <div className="grid grid-cols-2 gap-1.5 p-1.5">
+      {tools.map((tool) => (
+        <button
+          key={tool.label}
+          onClick={tool.onClick}
+          className="group flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center transition hover:bg-cream-card dark:hover:bg-white/5"
+        >
+          <span className={cn("flex h-9 w-9 items-center justify-center rounded-full transition group-hover:scale-110", tool.tone)}>
+            <tool.icon className="h-4 w-4" />
+          </span>
+          <span className="text-[10.5px] font-medium leading-tight text-espresso dark:text-cream">{tool.label}</span>
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <motion.header
@@ -82,18 +104,21 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
             </button>
           </div>
         </div>
-        {/* Mobil araç satırı — principalTools açıkken, kaydırılabilir tek sıra ikon+etiket */}
+        {/* Mobil araç menüsü — principalTools açıkken, TEK "Araçlar" tetikleyicisi
+            (bkz. kullanıcı geri bildirimi: 4 ayrı pill çok kalabalıktı) */}
         {principalTools && (
-          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 md:hidden">
-            {tools.map((tool) => (
-              <button
-                key={tool.label}
-                onClick={tool.onClick}
-                className="flex shrink-0 items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3 py-1.5 text-[11px] font-medium text-sky-700 shadow-sm backdrop-blur-sm dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300"
-              >
-                <tool.icon className="h-3.5 w-3.5" /> {tool.label}
-              </button>
-            ))}
+          <div className="mt-2 md:hidden">
+            <DropdownMenu
+              align="left"
+              panelClassName="min-w-[180px] py-0"
+              trigger={
+                <button className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3 py-1.5 text-[11px] font-medium text-sky-700 shadow-sm backdrop-blur-sm dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300">
+                  <LayoutGrid className="h-3.5 w-3.5" /> Araçlar <ChevronDown className="h-3 w-3" />
+                </button>
+              }
+            >
+              {toolsGrid}
+            </DropdownMenu>
           </div>
         )}
 
@@ -120,17 +145,16 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
           </div>
 
           {principalTools && (
-            <div className="flex items-center gap-1.5">
-              {tools.map((tool) => (
-                <button
-                  key={tool.label}
-                  onClick={tool.onClick}
-                  className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3 py-1.5 text-xs font-medium text-sky-700 shadow-sm backdrop-blur-sm transition hover:bg-sky-500/10 dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300 dark:hover:bg-sky-400/10"
-                >
-                  <tool.icon className="h-3.5 w-3.5" /> {tool.label}
+            <DropdownMenu
+              panelClassName="min-w-[180px] py-0"
+              trigger={
+                <button className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3.5 py-1.5 text-xs font-medium text-sky-700 shadow-sm backdrop-blur-sm transition hover:bg-sky-500/10 dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300 dark:hover:bg-sky-400/10">
+                  <LayoutGrid className="h-3.5 w-3.5" /> Araçlar <ChevronDown className="h-3 w-3" />
                 </button>
-              ))}
-            </div>
+              }
+            >
+              {toolsGrid}
+            </DropdownMenu>
           )}
 
           <div className="flex items-center gap-3">
