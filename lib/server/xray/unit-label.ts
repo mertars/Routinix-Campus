@@ -6,7 +6,7 @@ import { flattenTopics, flattenCurriculum } from "./question-generation/curricul
 // öğrenciye 30 yerine ~8 soru geliyordu (30 soru temanın TÜM alt
 // konularına dağıldığı için, tek bir subtopicId'ye SADECE o payı düşüyor).
 //
-// Çözüm: "genel"/"yeterlilik" atamalarında XrayPracticeAttempt.subtopicId
+// Çözüm: "genel" atamalarında XrayPracticeAttempt.subtopicId
 // alanı artık bir SUBTOPIC id'si değil, bir TOPIC (tema) id'si taşır —
 // tıpkı soru üretim pipeline'ındaki XrayPoolGenerationRound.unitId'nin
 // AYNI ikili anlamı taşıması gibi (variant'a göre topicId veya
@@ -29,7 +29,7 @@ export function resolveUnitLabel(subject: string, unitId: string, variant: strin
   return flattenTopics(subject).find((t) => t.topicId === unitId)?.topicName ?? unitId;
 }
 
-// "genel"/"yeterlilik" için verilen unitId'nin (topicId) KAPSADIĞI TÜM
+// "genel" için verilen unitId'nin (topicId) KAPSADIĞI TÜM
 // subtopicId'leri döner (havuz sorgusu bunların TAMAMINI çekmeli) —
 // "alt_konu" için zaten unitId'nin kendisi tek bir subtopicId'dir.
 export function resolveUnitSubtopicIds(subject: string, unitId: string, variant: string): string[] {

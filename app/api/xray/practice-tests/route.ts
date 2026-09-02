@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 // TEMANIN TÜMÜNÜ kapsar) turları TÜM alt konulara dağıldığı için, bu liste
 // eskiden yanlışlıkla ALT KONU bazında gruplanıyordu — bir alt konu
 // seçilince o alt konuya düşen PAY (örn. 8 soru) atanıyordu, 30 soruluk
-// bütün test DEĞİL. Artık "genel"/"yeterlilik" için gruplama TEMA (topicId)
+// bütün test DEĞİL. Artık "genel" için gruplama TEMA (topicId)
 // bazında, "alt_konu" için (değişmeden) SUBTOPIC bazında yapılıyor. Yanıt
 // alanı adı geriye dönük uyumluluk için "subtopicId"/"subtopicName" olarak
 // KALDI ama "genel" için SEMANTİĞİ topicId/topicName'dir (bkz.

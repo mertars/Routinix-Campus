@@ -6,8 +6,8 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
-type Variant = "genel" | "alt_konu" | "yeterlilik";
-const VARIANT_LABEL: Record<Variant, string> = { genel: "Genel Konu (30 soru)", alt_konu: "Alt Konu (10 soru)", yeterlilik: "Yeterlilik (20 soru)" };
+type Variant = "genel" | "alt_konu";
+const VARIANT_LABEL: Record<Variant, string> = { genel: "Genel Konu (30 soru)", alt_konu: "Alt Konu (10 soru)" };
 
 type RoundRow = { roundNumber: number; testId: string; questionCount: number };
 type UnitRow = { unitId: string; label: string; rounds: RoundRow[] };

@@ -39,9 +39,8 @@ export type FlattenedTopic = {
   subtopics: { subtopicId: string; subtopicName: string }[];
 };
 
-// "genel" ve "yeterlilik" variant'ları için — TEMANIN TÜMÜNÜ (tüm alt
-// konularını) kapsayan turlar (22 birim). Her ikisi de aynı birim
-// kümesinde çalışır, sadece soru sayısı/zorluğu farklıdır (bkz. prompt.ts).
+// "genel" variant'ı için — TEMANIN TÜMÜNÜ (tüm alt konularını) kapsayan
+// turlar (22 birim).
 export function flattenTopics(subject: string): FlattenedTopic[] {
   const topics = CURRICULUM_TREE[subject] ?? [];
   return topics

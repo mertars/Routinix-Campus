@@ -11,6 +11,20 @@ export const dynamic = "force-dynamic";
 // Anlamış") havuzunda GERÇEKTEN soru bulunan konuları döner — yöneticinin
 // atama ekranındaki konu seçici, sabit liste yerine veri odaklı (bkz.
 // practice-topics'teki AYNI desen).
+//
+// Kullanıcı geri bildirimi (2026-09-03) — bu havuz (XrayComprehensionQuestion)
+// şu an BOŞ, hiçbir yerde içine soru YAZAN bir kod yok. Planlanan kaynak:
+// "yeterlilik" (20 soru, zor/kapsamlı) — ama bu KİLİTLİ/ÇOKTAN SEÇMELİ bir
+// FORMAT (her seçenek kendi `diagnosis` metnini taşır, bkz.
+// XrayComprehensionOption), scripts/xray-generate-question-pool.ts'teki
+// worker İSE açık uçlu (tek doğru cevap + serbest metin çözüm) formata göre
+// tasarlandı — o worker'a "yeterlilik" eklemek YANLIŞ formatta soru
+// üretirdi, o yüzden oradan bilerek kaldırıldı (bkz. o dosyanın notu).
+// Gerçek üretim AYRI bir prompt+worker (ya da elle/CSV yükleme) gerektirir.
+// Bu route'un (ve tüm "Ne Kadar Anlamış" atama/gösterme akışının) kendisi
+// EK KOD GEREKMEDEN hazır — sorular bu tabloya nasıl düşerse düşsün
+// (worker, elle upload, ne olursa) otomatik olarak burada görünüp
+// atanabilir hale gelir.
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();

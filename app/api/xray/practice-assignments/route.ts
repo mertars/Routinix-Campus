@@ -67,7 +67,7 @@ async function handlePost(request: NextRequest) {
     }
     const resolvedVariant = variant?.trim() || "genel";
 
-    // Faz Z16 — "genel"/"yeterlilik" için gelen subtopicId aslında bir
+    // Faz Z16 — "genel" için gelen subtopicId aslında bir
     // TEMA (topicId) id'sidir (bkz. practice-tests route.ts ve
     // lib/server/xray/unit-label.ts) — 30 soru TÜM alt konulara dağıldığı
     // için havuz sorgusu o temanın TÜM alt konularını kapsamalı, tek bir

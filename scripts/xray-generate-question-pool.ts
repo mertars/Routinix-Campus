@@ -6,10 +6,6 @@
 // sınırla), --subtopics=N ("alt_konu" için ilk N alt konuyla sınırla),
 // --rounds=N (hedef tur sayısını geçici olarak değiştir).
 //
-// "yeterlilik" (20 soru/zor) prompt'u henüz tasarlanmadı — Control.
-// activeVariants'ta aktif olsa bile worker prompt bulamayınca sadece
-// loglar, atlar — asla hatayla durmaz.
-//
 // Durum TAMAMEN DB'de tutulur (XrayPoolGenerationRound/Control) — bu yüzden
 // süreç kesintiye uğrarsa (Ctrl+C, ağ hatası, makine uykuya dalması) yeniden
 // çalıştırıldığında zaten "success" olan turları ATLAR, kaldığı yerden
@@ -77,7 +73,10 @@ const DEFAULT_TARGET_ROUNDS = 10;
 // tükenmiş bir birimde harcanan token'ı öngörülebilir bir tavana sabitler.
 const MAX_TOKENS_PER_ROUND_ATTEMPT_BUDGET = 45_000;
 
-// "yeterlilik" prompt'u tasarlanınca buraya eklenecek.
+// Bu worker'ın gerçekten prompt'u yazılmış variant'ları — Control.
+// activeVariants'ta olup burada OLMAYAN bir variant varsa (örn. ileride
+// DB'ye elle eklenirse) worker hatayla DURMAZ, sadece loglayıp atlar (bkz.
+// aşağıdaki filtre kullanımı).
 const IMPLEMENTED_VARIANTS = new Set(["genel", "alt_konu"]);
 
 type FixableQuestion = { soruNo: number; kazanimId: string; questionText: string; finalAnswer: string; detailedSolution: string; diagnosticComment: string };

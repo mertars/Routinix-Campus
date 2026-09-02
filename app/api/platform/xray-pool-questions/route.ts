@@ -8,7 +8,9 @@ import { flattenCurriculum, flattenTopics } from "@/lib/server/xray/question-gen
 export const dynamic = "force-dynamic";
 
 const SUBJECT = "Matematik";
-const VARIANTS = ["genel", "alt_konu", "yeterlilik"] as const;
+// "yeterlilik" bilerek kaldırıldı — bkz. xray-pool-generation/route.ts'teki
+// AYNI notun.
+const VARIANTS = ["genel", "alt_konu"] as const;
 type Variant = (typeof VARIANTS)[number];
 
 function unitsForVariant(variant: Variant): { unitId: string; label: string }[] {
@@ -16,7 +18,7 @@ function unitsForVariant(variant: Variant): { unitId: string; label: string }[] 
   return flattenTopics(SUBJECT).map((t) => ({ unitId: t.topicId, label: `${t.grade}. Sınıf > ${t.topicName}` }));
 }
 
-// GET ?variant=genel|alt_konu|yeterlilik → birim + başarılı tur listesi
+// GET ?variant=genel|alt_konu → birim + başarılı tur listesi
 // (soru listesi YOK, sadece testId/roundNumber/soru sayısı — havuz
 // tarayıcısının "birim → tur" ilk iki seviyesi).
 // GET ?testId=... → o turun TÜM sorularını (düzenlenebilir alanlarla) döner.

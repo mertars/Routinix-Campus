@@ -9,18 +9,26 @@ export const dynamic = "force-dynamic";
 
 const SUBJECT = "Matematik";
 const TARGET_ROUNDS = 10;
-const VARIANTS = ["genel", "alt_konu", "yeterlilik"] as const;
+// Kullanıcı geri bildirimi (2026-09-03) — "yeterlilik" burada YANLIŞ hedefe
+// (bu açık uçlu havuza, XrayPracticeQuestion) scaffold edilmişti. Gerçek
+// niyet "Ne Kadar Anlamış" ekranını (kilitli/çoktan seçmeli, farklı bir
+// FORMAT — bkz. XrayComprehensionQuestion/XrayComprehensionOption)
+// beslemekti; bu worker'ın açık-uçlu prompt/blueprint mimarisi o formatı
+// üretemez, ayrı bir prompt+worker gerekir. Karışıklığı önlemek için
+// buradan tamamen kaldırıldı — bkz. comprehension-topics/route.ts'teki
+// notta gerçek üretim ne zaman yapılırsa nereye bağlanacağı.
+const VARIANTS = ["genel", "alt_konu"] as const;
 type Variant = (typeof VARIANTS)[number];
 
-// "genel"/"yeterlilik" TEMA (topicId) bazlı birim listesi kullanır, "alt_konu"
-// SUBTOPIC (subtopicId) bazlı — bkz. prisma/schema.prisma XrayPoolGeneration
-// Round yorumu.
+// "genel" TEMA (topicId) bazlı birim listesi kullanır, "alt_konu" SUBTOPIC
+// (subtopicId) bazlı — bkz. prisma/schema.prisma XrayPoolGenerationRound
+// yorumu.
 function unitsForVariant(variant: Variant): { unitId: string; label: string }[] {
   if (variant === "alt_konu") return flattenCurriculum(SUBJECT).map((s) => ({ unitId: s.subtopicId, label: `${s.grade}.${s.topicName} › ${s.subtopicName}` }));
   return flattenTopics(SUBJECT).map((t) => ({ unitId: t.topicId, label: `${t.grade}. Sınıf > ${t.topicName}` }));
 }
 
-// GET ?variant=genel|alt_konu|yeterlilik — worker (scripts/xray-generate-
+// GET ?variant=genel|alt_konu — worker (scripts/xray-generate-
 // question-pool.ts) TAMAMEN ayrı bir süreç olarak çalışır (Vercel'de değil);
 // bu route sadece worker'ın DB'ye yazdığı durumu OKUR ve panelde gösterir —
 // worker'ı kendisi TETİKLEMEZ.
@@ -36,8 +44,8 @@ async function handleGet(request: NextRequest) {
       prisma.xrayPracticeQuestion.groupBy({ by: ["variant", "subtopicId"], where: { subject: SUBJECT }, _count: true }),
     ]);
 
-    // subtopicId -> topicId eşlemesi ("genel"/"yeterlilik" soru sayısını
-    // TEMA bazında toplamak için — her soru kendi subtopicId'sine yazılır,
+    // subtopicId -> topicId eşlemesi ("genel" soru sayısını TEMA bazında
+    // toplamak için — her soru kendi subtopicId'sine yazılır,
     // ama panelde tema düzeyinde gösteriliyor).
     const subtopicToTopic = new Map(flattenCurriculum(SUBJECT).map((s) => [s.subtopicId, s.topicId]));
 
@@ -86,7 +94,7 @@ async function handleGet(request: NextRequest) {
   }
 }
 
-// POST { action: "pause" | "resume", variant?: "genel"|"alt_konu"|"yeterlilik" }
+// POST { action: "pause" | "resume", variant?: "genel"|"alt_konu" }
 // resume: verilen variant'ı activeVariants'a EKLER (diğerleri aktif kalmaya
 // devam eder — kullanıcı birden fazlasını "birlikte" aktif edebilir, worker
 // bunları sırayla/round-robin işler, bkz. schema yorumu). pause (variant'sız):

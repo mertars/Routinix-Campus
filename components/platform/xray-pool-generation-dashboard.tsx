@@ -6,12 +6,18 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
-type Variant = "genel" | "alt_konu" | "yeterlilik";
+// Kullanıcı geri bildirimi (2026-09-03) — "Yeterlilik" burada YANLIŞ hedefe
+// (bu açık uçlu havuz, XrayPracticeQuestion) scaffold edilmişti; gerçek
+// niyet "Ne Kadar Anlamış" ekranını beslemekti ama o KİLİTLİ/ÇOKTAN SEÇMELİ
+// bir FORMAT (XrayComprehensionQuestion/XrayComprehensionOption) — bu
+// worker'ın açık-uçlu blueprint mimarisi onu üretemez. Karışıklık olmasın
+// diye buradan kaldırıldı — gerçek üretim ayrı bir prompt+worker gerektirir,
+// bkz. app/api/xray/comprehension-topics/route.ts'teki not.
+type Variant = "genel" | "alt_konu";
 
 const VARIANT_META: Record<Variant, { label: string; questionCount: number; description: string; implemented: boolean }> = {
   genel: { label: "Genel Konu", questionCount: 30, description: "Temanın tümünü kapsar, tüm alt konulara dağılır", implemented: true },
   alt_konu: { label: "Alt Konu", questionCount: 10, description: "Tek bir alt konuya özel, orta seviye", implemented: true },
-  yeterlilik: { label: "Yeterlilik", questionCount: 20, description: "Zor/kapsamlı genel yeterlilik", implemented: false },
 };
 
 type UnitRow = { unitId: string; label: string; roundsSuccess: number; roundsFailed: number; questionCount: number };
