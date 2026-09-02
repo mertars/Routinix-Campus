@@ -624,6 +624,7 @@ export function XrayResultsPanel({
           studentId={selectedId}
           studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
           branchId={selectedStudent.branchId}
+          branchName={selectedStudent.branchName}
           subject={subject}
         />
       )}
