@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Bell, Share2, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Send, Bell, Share2, Loader2, AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndSharePdf } from "@/lib/client/download-pdf";
+import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 type SmsState = "idle" | "sending" | "sent" | "no-recipient" | "failed";
@@ -14,10 +15,11 @@ type SmsState = "idle" | "sending" | "sent" | "no-recipient" | "failed";
 // RemindButton'la BİREBİR AYNI /api/notifications/send deseni), WhatsApp
 // ise gerçek bir API entegrasyonu GEREKTİRMEZ — fetchAndSharePdf (Web
 // Share API) zaten xray-results-panel.tsx'teki "Paylaş" butonunda
-// kullanılan AYNI mekanizma, native paylaşım sayfası WhatsApp'ı da
-// listeler (yüklüyse). Veli paneli ayrıca hiçbir eylem GEREKTİRMEZ — veli
-// zaten kendi çocuğunun verisine portalinden erişebiliyor (bkz.
-// xray-summary-card.tsx'e eklenen XrayPlacementProgressCard).
+// kullanılan AYNI mekanizma. Veli paneli ayrıca hiçbir eylem GEREKTİRMEZ.
+//
+// Faz "menü düzenlemesi" — eskiden 2 ayrı ikon-buton yan yanaydı, artık
+// TEK "Veliye Gönder" tetikleyicisi altında iki menü satırı (SMS/WhatsApp'ın
+// KENDİ fonksiyon mantığı DEĞİŞMEDİ, sadece dış görünüm).
 export function XraySendToParentButton({ studentId, studentName, subject }: { studentId: string; studentName: string; subject: string }) {
   const { showError } = useToast();
   const [smsState, setSmsState] = useState<SmsState>("idle");
@@ -65,38 +67,30 @@ export function XraySendToParentButton({ studentId, studentName, subject }: { st
     }
   }
 
+  const smsLabel =
+    smsState === "sent" ? "SMS gönderildi" : smsState === "no-recipient" ? "SMS onayı yok" : smsState === "failed" ? "Tekrar dene" : "SMS Gönder";
+  const SmsIcon = smsState === "sending" ? Loader2 : smsState === "sent" ? CheckCircle2 : smsState === "no-recipient" || smsState === "failed" ? AlertTriangle : Bell;
+
   return (
-    <div className="flex items-center gap-1.5">
+    <DropdownMenu
+      trigger={
+        <button className="flex h-9 items-center gap-1.5 rounded-full border border-sky-500/25 bg-sky-500/10 px-3.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300">
+          <Send className="h-3.5 w-3.5" /> Veliye Gönder <ChevronDown className="h-3 w-3" />
+        </button>
+      }
+    >
       <button
         onClick={sendSms}
         disabled={smsState === "sending" || smsState === "sent"}
-        title={smsState === "no-recipient" ? "Bu veli SMS onayı vermemiş" : "Veliye SMS gönder"}
         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm transition disabled:opacity-70",
-          smsState === "sent" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-          smsState === "no-recipient" && "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-          smsState === "failed" && "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
-          (smsState === "idle" || smsState === "sending") && "border-sky-500/25 bg-sky-500/10 text-sky-600 hover:bg-sky-500/20 dark:text-sky-300"
+          "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[13px] font-medium transition disabled:opacity-70",
+          smsState === "no-recipient" || smsState === "failed" ? "text-amber-700 dark:text-amber-400" : "text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5"
         )}
       >
-        {smsState === "sending" ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : smsState === "sent" ? (
-          <CheckCircle2 className="h-4 w-4" />
-        ) : smsState === "no-recipient" || smsState === "failed" ? (
-          <AlertTriangle className="h-4 w-4" />
-        ) : (
-          <Bell className="h-4 w-4" />
-        )}
+        <SmsIcon className={cn("h-4 w-4 shrink-0", smsState === "sending" && "animate-spin")} />
+        <span className="min-w-0 flex-1 truncate">{smsLabel}</span>
       </button>
-      <button
-        onClick={shareWhatsapp}
-        disabled={sharing}
-        title="WhatsApp'ta paylaş"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
-      >
-        {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-      </button>
-    </div>
+      <DropdownMenuItem icon={sharing ? Loader2 : Share2} label="WhatsApp'ta Paylaş" onClick={shareWhatsapp} disabled={sharing} spinning={sharing} />
+    </DropdownMenu>
   );
 }

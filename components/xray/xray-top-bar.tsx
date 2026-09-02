@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo, Users } from "lucide-react";
+import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo, Users, LayoutGrid, ChevronDown } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
+import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
 import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
 import { XrayAssignmentTrackingDashboard } from "@/components/xray/xray-assignment-tracking-dashboard";
@@ -82,18 +83,22 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
             </button>
           </div>
         </div>
-        {/* Mobil araç satırı — principalTools açıkken, kaydırılabilir tek sıra ikon+etiket */}
+        {/* Mobil araç menüsü — principalTools açıkken, TEK "Araçlar" tetikleyicisi
+            (bkz. kullanıcı geri bildirimi: 4 ayrı pill çok kalabalıktı) */}
         {principalTools && (
-          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 md:hidden">
-            {tools.map((tool) => (
-              <button
-                key={tool.label}
-                onClick={tool.onClick}
-                className="flex shrink-0 items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3 py-1.5 text-[11px] font-medium text-sky-700 shadow-sm backdrop-blur-sm dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300"
-              >
-                <tool.icon className="h-3.5 w-3.5" /> {tool.label}
-              </button>
-            ))}
+          <div className="mt-2 md:hidden">
+            <DropdownMenu
+              align="left"
+              trigger={
+                <button className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3 py-1.5 text-[11px] font-medium text-sky-700 shadow-sm backdrop-blur-sm dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300">
+                  <LayoutGrid className="h-3.5 w-3.5" /> Araçlar <ChevronDown className="h-3 w-3" />
+                </button>
+              }
+            >
+              {tools.map((tool) => (
+                <DropdownMenuItem key={tool.label} icon={tool.icon} label={tool.label} onClick={tool.onClick} />
+              ))}
+            </DropdownMenu>
           </div>
         )}
 
@@ -120,17 +125,17 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
           </div>
 
           {principalTools && (
-            <div className="flex items-center gap-1.5">
-              {tools.map((tool) => (
-                <button
-                  key={tool.label}
-                  onClick={tool.onClick}
-                  className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3 py-1.5 text-xs font-medium text-sky-700 shadow-sm backdrop-blur-sm transition hover:bg-sky-500/10 dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300 dark:hover:bg-sky-400/10"
-                >
-                  <tool.icon className="h-3.5 w-3.5" /> {tool.label}
+            <DropdownMenu
+              trigger={
+                <button className="flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-white/60 px-3.5 py-1.5 text-xs font-medium text-sky-700 shadow-sm backdrop-blur-sm transition hover:bg-sky-500/10 dark:border-sky-400/20 dark:bg-midnight-card/50 dark:text-sky-300 dark:hover:bg-sky-400/10">
+                  <LayoutGrid className="h-3.5 w-3.5" /> Araçlar <ChevronDown className="h-3 w-3" />
                 </button>
+              }
+            >
+              {tools.map((tool) => (
+                <DropdownMenuItem key={tool.label} icon={tool.icon} label={tool.label} onClick={tool.onClick} />
               ))}
-            </div>
+            </DropdownMenu>
           )}
 
           <div className="flex items-center gap-3">

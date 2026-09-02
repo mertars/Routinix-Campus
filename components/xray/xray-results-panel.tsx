@@ -2,15 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit, FileStack, ChevronDown } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { XRAY_SUBJECTS } from "@/lib/mock-data";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf, fetchAndSharePdf } from "@/lib/client/download-pdf";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
-import { XrayAssignmentSection } from "@/components/xray/xray-assignment-section";
-import { XrayPracticeAssignmentSection } from "@/components/xray/xray-practice-assignment-section";
-import { XrayPlacementAssignButton } from "@/components/xray/xray-placement-assign-button";
+import { XrayAssignmentTabs } from "@/components/xray/xray-assignment-tabs";
 import { XrayPlacementProgressCard } from "@/components/xray/xray-placement-progress-card";
 import { XrayRoadmapPanel } from "@/components/xray/xray-roadmap-panel";
 import { XraySendToParentButton } from "@/components/xray/xray-send-to-parent-button";
@@ -388,52 +387,24 @@ export function XrayResultsPanel({
                     </p>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
-                    <button
-                      onClick={downloadBranchReport}
-                      disabled={downloadingBranch}
-                      aria-label="Veli toplantısı raporunu indir (tüm şube)"
-                      title="Veli toplantısı raporu (tüm şube)"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
-                    >
-                      {downloadingBranch ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-                    </button>
                     <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
-                    {canAssign && (
-                      <>
-                        <button
-                          onClick={() => setCustomReportOpen(true)}
-                          aria-label="Özel PDF Oluştur"
-                          title="Özel PDF Oluştur"
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 dark:text-sky-300"
-                        >
-                          <FileEdit className="h-4 w-4" />
+                    <DropdownMenu
+                      trigger={
+                        <button className="flex h-9 items-center gap-1.5 rounded-full border border-sky-500/25 bg-sky-500/10 px-3.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300">
+                          <FileStack className="h-3.5 w-3.5" /> Rapor <ChevronDown className="h-3 w-3" />
                         </button>
-                        <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
-                      </>
-                    )}
+                      }
+                    >
+                      <DropdownMenuItem icon={downloading ? Loader2 : Download} label="İndir" onClick={downloadReport} disabled={downloading || averageScore === null} spinning={downloading} />
+                      <DropdownMenuItem icon={sharing ? Loader2 : Share2} label="Paylaş" onClick={shareReport} disabled={sharing || averageScore === null} spinning={sharing} />
+                      {canAssign && <DropdownMenuItem icon={FileEdit} label="Özel PDF Oluştur" onClick={() => setCustomReportOpen(true)} />}
+                      <DropdownMenuItem icon={downloadingBranch ? Loader2 : Users} label="Şube Raporu İndir" onClick={downloadBranchReport} disabled={downloadingBranch} spinning={downloadingBranch} />
+                    </DropdownMenu>
+                    {canAssign && <XraySendToParentButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />}
                     {averageScore !== null && (
-                      <>
-                      <button
-                        onClick={shareReport}
-                        disabled={sharing}
-                        aria-label="Röntgen raporunu paylaş"
-                        title="Paylaş (WhatsApp, AirDrop vb.)"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
-                      >
-                        {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-                      </button>
-                      <button
-                        onClick={downloadReport}
-                        disabled={downloading}
-                        aria-label="Röntgen raporunu indir"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-sky-500/25 bg-sky-500/10 text-sky-600 transition hover:bg-sky-500/20 disabled:opacity-60 dark:text-sky-300"
-                      >
-                        {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                      </button>
                       <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-sm font-bold", scoreTextColor(averageScore))}>
                         %{averageScore}
                       </div>
-                      </>
                     )}
                   </div>
                 </div>
@@ -551,28 +522,7 @@ export function XrayResultsPanel({
         {/* SAĞ — test atama panelleri (SADECE yönetici) */}
         {canAssign && selectedStudent && (
           <div id="xray-assignment-column" className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
-            <XrayPlacementAssignButton roster={roster} subject={subject} />
-            <XrayPracticeAssignmentSection
-              studentId={selectedId}
-              studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
-              branchId={selectedStudent.branchId}
-              branchName={selectedStudent.branchName}
-              grade={selectedStudent.grade}
-              subject={subject}
-              variant="genel"
-              roster={roster}
-            />
-            <XrayPracticeAssignmentSection
-              studentId={selectedId}
-              studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
-              branchId={selectedStudent.branchId}
-              branchName={selectedStudent.branchName}
-              grade={selectedStudent.grade}
-              subject={subject}
-              variant="alt_konu"
-              roster={roster}
-            />
-            <XrayAssignmentSection
+            <XrayAssignmentTabs
               studentId={selectedId}
               studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`}
               branchId={selectedStudent.branchId}
