@@ -37,6 +37,12 @@ function buildCsp(nonce: string): string {
     "font-src 'self' data:",
     "connect-src 'self'",
     "worker-src 'self' blob:",
+    // Özel PDF Oluşturucu'nun canlı önizlemesi (xray-custom-report-builder.tsx)
+    // /api/xray/custom-report'tan dönen PDF blob'unu bir <iframe>'de gösteriyor
+    // — frame-src AÇIKÇA belirtilmezse default-src'ye ('self') düşer ve
+    // 'self' blob: URL'lerini KAPSAMAZ (img-src/worker-src'deki AYNI kural,
+    // burada da tekrarlanmalı) — tarayıcı iframe'i sessizce engelliyordu.
+    "frame-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
