@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Heading as HeadingIcon,
   Type as TypeIcon,
@@ -17,8 +19,8 @@ import {
   Download,
   Share2,
   Plus,
+  X,
 } from "lucide-react";
-import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { fetchAndDownloadPdf, fetchAndSharePdf } from "@/lib/client/download-pdf";
 import { cn } from "@/lib/utils";
@@ -75,15 +77,13 @@ function stripId(block: LocalBlock) {
   return rest;
 }
 
-// Faz Q — "Özel PDF Oluşturucu": kullanıcı talebi "istediği konuların
-// istediği tarihteki grafiklerini eklesin, yazılar ekleyebilsin... canlı
-// önizlemesini görsün". Bu kod tabanında react-pdf'in tarayıcıda render
-// eden <PDFViewer>'ı HİÇ kullanılmıyor (9 PDF component'i de sunucuda
-// renderToBuffer ile üretiliyor) — yeni/kanıtlanmamış bir client-render
-// deseni yerine, "canlı önizleme" AYNI /api/xray/custom-report ucuna
-// debounce'lı POST atıp dönen PDF'i bir <iframe>'de göstererek sağlanır.
-// Final indirme/paylaşma AYNI ucu kullanır — önizleme ile çıktı arasında
-// tutarsızlık riski YOK.
+// Faz Q — kullanıcı geri bildirimi: modal-içi düzen çok sıkışıktı ("rapor
+// içeriği kısmı çok küçük, seçmek zulüm"). Bu artık paylaşılan Modal
+// KABUĞUNU kullanmıyor — Modal'ın kendi portal/backdrop desenini (bkz.
+// components/ui/modal.tsx) BİREBİR taklit eden, ama TAM EKRAN (inset-0,
+// kenardan kenara) bağımsız bir katman. "Canlı önizleme" mimarisi
+// DEĞİŞMEDİ (debounce'lı POST → iframe, bkz. dosyanın önceki sürümündeki
+// gerekçe) — sadece çalışma alanı büyüdü.
 export function XrayCustomReportBuilder({
   isOpen,
   onClose,
@@ -108,6 +108,15 @@ export function XrayCustomReportBuilder({
   const [sharing, setSharing] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -209,87 +218,115 @@ export function XrayCustomReportBuilder({
     }
   }
 
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Özel PDF Oluştur" variant="center" widthClassName="max-w-6xl">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1.1fr]">
-        {/* SOL — blok paleti + eklenen bloklar */}
-        <div className="space-y-3">
-          <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">Blok Ekle</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {PALETTE.map((p) => (
-                <button
-                  key={p.type}
-                  onClick={() => addBlock(p.type)}
-                  className="flex items-center gap-1.5 rounded-lg border border-hairline bg-white/60 px-2.5 py-2 text-left text-[11px] font-medium text-espresso transition hover:border-sky-400/40 hover:bg-sky-500/5 dark:border-white/10 dark:bg-midnight-card/40 dark:text-cream"
-                >
-                  <p.icon className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
-                  <span className="truncate">{p.label}</span>
-                  <Plus className="ml-auto h-3 w-3 shrink-0 text-espresso-muted dark:text-cream/40" />
-                </button>
-              ))}
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[70] flex flex-col bg-cream dark:bg-midnight"
+        >
+          {/* Üst çubuk */}
+          <div className="flex shrink-0 items-center justify-between border-b border-hairline px-5 py-3.5 dark:border-white/10">
+            <div>
+              <h1 className="text-base font-semibold text-espresso dark:text-cream">Özel PDF Oluştur</h1>
+              <p className="text-xs text-espresso-muted dark:text-cream/40">{studentName} · {subject}</p>
             </div>
+            <button
+              onClick={onClose}
+              aria-label="Kapat"
+              className="flex h-10 w-10 items-center justify-center rounded-full text-espresso-muted transition hover:bg-cream-card dark:text-cream/50 dark:hover:bg-white/10"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
-          <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">Rapor İçeriği ({blocks.length})</p>
-            {blocks.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-hairline bg-white/30 px-3 py-6 text-center text-[11px] text-espresso-muted dark:border-white/10 dark:bg-white/5 dark:text-cream/40">
-                Yukarıdan blok ekleyerek başla.
-              </p>
-            ) : (
-              <div className="max-h-[50vh] space-y-1.5 overflow-y-auto pr-1">
-                {blocks.map((b, i) => (
-                  <BlockEditor
-                    key={b.id}
-                    block={b}
-                    index={i}
-                    total={blocks.length}
-                    subtopicOptions={subtopicOptions}
-                    onChange={(patch) => updateBlock(b.id, patch)}
-                    onRemove={() => removeBlock(b.id)}
-                    onMove={(dir) => moveBlock(b.id, dir)}
-                  />
-                ))}
+          {/* Gövde */}
+          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+            {/* SOL — blok paleti + eklenen bloklar */}
+            <div className="flex w-full shrink-0 flex-col border-b border-hairline p-5 dark:border-white/10 lg:w-[420px] lg:border-b-0 lg:border-r lg:overflow-y-auto">
+              <div className="mb-5">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">Blok Ekle</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {PALETTE.map((p) => (
+                    <button
+                      key={p.type}
+                      onClick={() => addBlock(p.type)}
+                      className="flex items-center gap-2 rounded-xl border border-hairline bg-white/60 px-3 py-2.5 text-left text-[13px] font-medium text-espresso transition hover:border-sky-400/40 hover:bg-sky-500/5 dark:border-white/10 dark:bg-midnight-card/40 dark:text-cream"
+                    >
+                      <p.icon className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+                      <span className="truncate">{p.label}</span>
+                      <Plus className="ml-auto h-3.5 w-3.5 shrink-0 text-espresso-muted dark:text-cream/40" />
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
-          </div>
 
-          <div className="flex gap-2 border-t border-hairline pt-3 dark:border-white/10">
-            <button
-              onClick={handleDownload}
-              disabled={downloading || blocks.length === 0}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
-            >
-              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} İndir
-            </button>
-            <button
-              onClick={handleShare}
-              disabled={sharing || blocks.length === 0}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-500/20 disabled:opacity-50 dark:text-sky-300"
-            >
-              {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />} Paylaş
-            </button>
-          </div>
-        </div>
+              <div className="min-h-0 flex-1">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">Rapor İçeriği ({blocks.length})</p>
+                {blocks.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-hairline bg-white/30 px-4 py-10 text-center text-[13px] text-espresso-muted dark:border-white/10 dark:bg-white/5 dark:text-cream/40">
+                    Yukarıdan blok ekleyerek başla.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {blocks.map((b, i) => (
+                      <BlockEditor
+                        key={b.id}
+                        block={b}
+                        index={i}
+                        total={blocks.length}
+                        subtopicOptions={subtopicOptions}
+                        onChange={(patch) => updateBlock(b.id, patch)}
+                        onRemove={() => removeBlock(b.id)}
+                        onMove={(dir) => moveBlock(b.id, dir)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
 
-        {/* SAĞ — canlı önizleme */}
-        <div className="relative min-h-[50vh] overflow-hidden rounded-2xl border border-hairline bg-cream-card dark:border-white/10 dark:bg-white/5">
-          {rendering && (
-            <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] text-white">
-              <Loader2 className="h-3 w-3 animate-spin" /> Güncelleniyor
+              <div className="mt-5 flex shrink-0 gap-2 border-t border-hairline pt-4 dark:border-white/10">
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading || blocks.length === 0}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-sky-600 px-3 py-3 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
+                >
+                  {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} İndir
+                </button>
+                <button
+                  onClick={handleShare}
+                  disabled={sharing || blocks.length === 0}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-sky-500/25 bg-sky-500/10 px-3 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-500/20 disabled:opacity-50 dark:text-sky-300"
+                >
+                  {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />} Paylaş
+                </button>
+              </div>
             </div>
-          )}
-          {previewUrl ? (
-            <iframe title="Özel PDF Önizleme" src={previewUrl} className="h-full min-h-[50vh] w-full" />
-          ) : (
-            <div className="flex h-full min-h-[50vh] items-center justify-center px-6 text-center text-xs text-espresso-muted dark:text-cream/40">
-              Blok eklediğinde canlı önizleme burada görünecek.
+
+            {/* SAĞ — canlı önizleme */}
+            <div className="relative min-h-[50vh] flex-1 bg-cream-card dark:bg-white/[0.03]">
+              {rendering && (
+                <div className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-black/70 px-3 py-1.5 text-xs text-white shadow-lg">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Güncelleniyor
+                </div>
+              )}
+              {previewUrl ? (
+                <iframe title="Özel PDF Önizleme" src={previewUrl} className="h-full w-full" />
+              ) : (
+                <div className="flex h-full items-center justify-center px-6 text-center text-sm text-espresso-muted dark:text-cream/40">
+                  Blok eklediğinde canlı önizleme burada görünecek.
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-    </Modal>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -311,25 +348,24 @@ function BlockEditor({
   onMove: (dir: -1 | 1) => void;
 }) {
   const meta = PALETTE.find((p) => p.type === block.type)!;
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const hasConfig = block.type === "heading" || block.type === "text" || block.type === "subtopicScan" || block.type === "trend" || block.type === "history";
 
   return (
-    <div className="rounded-xl border border-hairline bg-white/60 p-2.5 dark:border-white/10 dark:bg-midnight-card/40">
+    <div className="rounded-xl border border-hairline bg-white/60 p-3 dark:border-white/10 dark:bg-midnight-card/40">
       <div className="flex items-center gap-2">
-        <meta.icon className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
-        <button onClick={() => hasConfig && setExpanded((v) => !v)} className={cn("flex-1 truncate text-left text-[11px] font-medium text-espresso dark:text-cream", hasConfig && "cursor-pointer")}>
+        <meta.icon className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+        <button onClick={() => hasConfig && setExpanded((v) => !v)} className={cn("flex-1 truncate text-left text-[13px] font-semibold text-espresso dark:text-cream", hasConfig && "cursor-pointer")}>
           {meta.label}
-          {block.type === "heading" && block.text && `: ${block.text}`}
         </button>
         <button onClick={() => onMove(-1)} disabled={index === 0} className="text-espresso-muted transition hover:text-espresso disabled:opacity-30 dark:text-cream/40">
-          <ChevronUp className="h-3.5 w-3.5" />
+          <ChevronUp className="h-4 w-4" />
         </button>
         <button onClick={() => onMove(1)} disabled={index === total - 1} className="text-espresso-muted transition hover:text-espresso disabled:opacity-30 dark:text-cream/40">
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-4 w-4" />
         </button>
         <button onClick={onRemove} className="text-espresso-muted transition hover:text-rose-600 dark:text-cream/40">
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
 
@@ -338,7 +374,7 @@ function BlockEditor({
           value={block.text}
           onChange={(e) => onChange({ text: e.target.value } as Partial<LocalBlock>)}
           placeholder="Başlık metni"
-          className="mt-2 w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-[11px] text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          className="mt-2.5 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
         />
       )}
 
@@ -347,37 +383,43 @@ function BlockEditor({
           value={block.text}
           onChange={(e) => onChange({ text: e.target.value } as Partial<LocalBlock>)}
           placeholder="Serbest metin..."
-          rows={3}
-          className="mt-2 w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-[11px] text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          rows={4}
+          className="mt-2.5 w-full rounded-lg border border-hairline bg-white px-3 py-2 text-[13px] text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
         />
       )}
 
       {expanded && (block.type === "trend" || block.type === "history") && (
-        <div className="mt-2 flex gap-1.5">
-          <input
-            type="date"
-            value={block.from ?? ""}
-            onChange={(e) => onChange({ from: e.target.value || null } as Partial<LocalBlock>)}
-            className="flex-1 rounded-lg border border-hairline bg-white px-2 py-1.5 text-[10px] text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-          />
-          <input
-            type="date"
-            value={block.to ?? ""}
-            onChange={(e) => onChange({ to: e.target.value || null } as Partial<LocalBlock>)}
-            className="flex-1 rounded-lg border border-hairline bg-white px-2 py-1.5 text-[10px] text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-          />
+        <div className="mt-2.5 flex gap-2">
+          <div className="flex-1">
+            <label className="mb-1 block text-[10px] text-espresso-muted dark:text-cream/40">Başlangıç</label>
+            <input
+              type="date"
+              value={block.from ?? ""}
+              onChange={(e) => onChange({ from: e.target.value || null } as Partial<LocalBlock>)}
+              className="w-full rounded-lg border border-hairline bg-white px-2.5 py-2 text-xs text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-[10px] text-espresso-muted dark:text-cream/40">Bitiş</label>
+            <input
+              type="date"
+              value={block.to ?? ""}
+              onChange={(e) => onChange({ to: e.target.value || null } as Partial<LocalBlock>)}
+              className="w-full rounded-lg border border-hairline bg-white px-2.5 py-2 text-xs text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+            />
+          </div>
         </div>
       )}
 
       {expanded && (block.type === "subtopicScan" || block.type === "history") && (
-        <div className="mt-2 max-h-32 space-y-1 overflow-y-auto rounded-lg border border-hairline bg-white/50 p-1.5 dark:border-white/10 dark:bg-white/5">
-          <label className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-espresso dark:text-cream">
+        <div className="mt-2.5 max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-hairline bg-white/50 p-2 dark:border-white/10 dark:bg-white/5">
+          <label className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12px] font-medium text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5">
             <input type="checkbox" checked={block.subtopicIds === null} onChange={(e) => onChange({ subtopicIds: e.target.checked ? null : [] } as Partial<LocalBlock>)} />
             Tüm konular
           </label>
           {block.subtopicIds !== null &&
             subtopicOptions.map((opt) => (
-              <label key={opt.subtopicId} className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-espresso dark:text-cream">
+              <label key={opt.subtopicId} className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-[12px] text-espresso hover:bg-cream-card dark:text-cream dark:hover:bg-white/5">
                 <input
                   type="checkbox"
                   checked={block.subtopicIds!.includes(opt.subtopicId)}
