@@ -69,7 +69,7 @@ export function XrayAssignmentTabs({
                   <span className={cn("absolute inset-x-2 bottom-0 h-[2px] rounded-full", tab.underline)} />
                 </motion.span>
               )}
-              <span className={cn("relative z-10 flex items-center gap-1.5", isActive ? tab.tone : "text-espresso-muted/70 dark:text-cream/30")}>
+              <span className={cn("relative z-10 flex items-center gap-1.5", tab.tone)}>
                 <tab.icon className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{tab.label}</span>
               </span>

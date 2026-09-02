@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ClipboardList, Send, Loader2, Lock, Check, Flag, Clock, ChevronDown, X } from "lucide-react";
+import { ClipboardList, ListFilter, Loader2, Lock, Check, Flag, Clock, ChevronDown, X } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
-import { XrayAssignmentTargetPicker, type AssignmentTarget, type RosterForTargeting } from "@/components/xray/xray-assignment-target-picker";
+import { type RosterForTargeting } from "@/components/xray/xray-assignment-target-picker";
+import { XrayComprehensionPickerModal } from "@/components/xray/xray-comprehension-picker-modal";
 import { XrayInfoButton } from "@/components/xray/xray-info-button";
 import { MathText } from "@/components/ui/math-text";
 import { Modal } from "@/components/ui/modal";
@@ -15,7 +16,6 @@ const PREVIEW_COUNT = 3;
 const COMPREHENSION_INFO_TEXT =
   "Seçilen konudaki kilitli/çok seçenekli sorulardan oluşur (soru sayısı konuya göre değişir). Kurumumuzun özel soru bankasından gelir, öğrenci teste başladıktan sonra sekme değiştirme/pencere kaybı gibi hareketler tespit edilip işaretlenir — bu yüzden \"kilitli\" test olarak adlandırılır. Her yanlış şık, o kavramda neyin karıştırıldığını gösteren ayrı bir açıklamayla değerlendirilir.";
 
-type Topic = { subtopicId: string; name: string; questionCount: number };
 type Assignment = {
   id: string;
   subtopicId: string;
@@ -63,57 +63,30 @@ export function XrayAssignmentSection({
   subject: string;
   roster: RosterForTargeting[];
 }) {
-  const { showError, showToast } = useToast();
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState("");
+  const { showError } = useToast();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [assigning, setAssigning] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [results, setResults] = useState<ResultItem[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
-  const [target, setTarget] = useState<AssignmentTarget>({ type: "student", studentId });
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  useEffect(() => {
-    fetch(`/api/xray/comprehension-topics?subject=${encodeURIComponent(subject)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setTopics(data.subtopics ?? []);
-        setSelectedTopic((current) => current || data.subtopics?.[0]?.subtopicId || "");
-      })
-      .catch(() => showError("Konu listesi yüklenemedi."));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subject]);
-
-  useEffect(() => {
-    setTarget({ type: "student", studentId });
-    fetch(`/api/xray/comprehension-assignments?studentId=${encodeURIComponent(studentId)}`)
+  function loadAssignments() {
+    return fetch(`/api/xray/comprehension-assignments?studentId=${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data) => setAssignments(data.assignments ?? []))
       .catch(() => showError("Atama geçmişi yüklenemedi."));
+  }
+
+  useEffect(() => {
+    loadAssignments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
-  async function assign() {
-    if (!selectedTopic) return;
-    setAssigning(true);
-    try {
-      const res = await fetch("/api/xray/comprehension-assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, subtopicId: selectedTopic, target }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Atanamadı.");
-      showToast("success", data.created > 1 ? `Test ${data.created} öğrenciye atandı.` : "Test atandı — öğrencinin panelinde görünecek.");
-      const refreshed = await fetch(`/api/xray/comprehension-assignments?studentId=${encodeURIComponent(studentId)}`).then((r) => r.json());
-      setAssignments(refreshed.assignments ?? []);
-    } catch (error) {
-      showError(error instanceof Error ? error.message : "Atanamadı.");
-    } finally {
-      setAssigning(false);
-    }
-  }
+  // Kullanıcı geri bildirimi — bu öğrenciye daha önce atanmış konular
+  // picker'da işaretli görünsün (bkz. XrayPracticeAssignmentSection'daki
+  // AYNI desen).
+  const assignedSubtopicIds = useMemo(() => new Set(assignments.map((a) => a.subtopicId)), [assignments]);
 
   async function toggleExpand(assignment: Assignment) {
     if (assignment.status === "ASSIGNED" || assignment.status === "IN_PROGRESS") return;
@@ -146,43 +119,26 @@ export function XrayAssignmentSection({
         <XrayInfoButton text={COMPREHENSION_INFO_TEXT} />
       </h3>
 
-      {topics.length === 0 ? (
-        <p className="text-xs text-espresso-muted dark:text-cream/40">Bu ders için soru havuzunda henüz içerik yok.</p>
-      ) : (
-        <div className="mb-4">
-          <XrayAssignmentTargetPicker
-            studentId={studentId}
-            studentName={studentName}
-            branchId={branchId}
-            branchName={branchName}
-            grade={grade}
-            roster={roster}
-            value={target}
-            onChange={setTarget}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={selectedTopic}
-              onChange={(event) => setSelectedTopic(event.target.value)}
-              className="flex-1 rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-sky-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-            >
-              {topics.map((t) => (
-                <option key={t.subtopicId} value={t.subtopicId}>
-                  {t.name} ({t.questionCount} soru)
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={assign}
-              disabled={assigning}
-              className="flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-60"
-            >
-              {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Ata
-            </button>
-          </div>
-        </div>
-      )}
+      <button
+        onClick={() => setIsPickerOpen(true)}
+        className="mb-4 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white transition hover:bg-sky-500"
+      >
+        <ListFilter className="h-4 w-4" /> Test Seç ve Ata
+      </button>
+
+      <XrayComprehensionPickerModal
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        studentId={studentId}
+        studentName={studentName}
+        branchId={branchId}
+        branchName={branchName}
+        grade={grade}
+        subject={subject}
+        roster={roster}
+        assignedSubtopicIds={assignedSubtopicIds}
+        onAssigned={loadAssignments}
+      />
 
       {assignments.length > 0 && (
         <div className="space-y-1.5">
