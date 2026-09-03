@@ -28,25 +28,38 @@ const ROUTE_ROLE: Record<string, string> = {
 // header'daki 'nonce-...' değerini KENDİ enjekte ettiği hydration/RSC inline
 // script'lerine otomatik uygular; app/layout.tsx'teki elle yazılmış iki
 // script ise nonce'ı headers()'tan okuyup kendisi uygular (bkz. orada).
+// Video Ders Merkezi — kullanıcı kararı (2026-09-03): videolar Cloudflare
+// R2'de. İki farklı R2 ucu var: 1) tarayıcı video dosyasını DOĞRUDAN
+// (bizim sunucumuzdan geçmeden) R2'nin S3-uyumlu yükleme adresine PUT eder
+// — bu bir connect-src izni gerektirir; 2) oynatıcı (<video>) dosyayı
+// R2'nin HERKESE AÇIK adresinden okur — bu bir media-src izni gerektirir.
+// İkisi de env değişkenlerinden TÜRETİLİYOR (hardcode YOK) — R2 ayarları
+// yapılmadan hiçbir dış R2 domaini CSP'ye eklenmiyor (varsayılan güvenli).
+const r2PublicOrigin = (() => {
+  try {
+    return process.env.R2_PUBLIC_URL ? new URL(process.env.R2_PUBLIC_URL).origin : null;
+  } catch {
+    return null;
+  }
+})();
+const r2UploadOrigin = process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : null;
+
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
-    // img.youtube.com — Video Ders Merkezi'nin YouTube küçük resim
-    // önizlemeleri (bkz. lib/client/youtube.ts) için.
-    "img-src 'self' data: blob: https://img.youtube.com",
+    "img-src 'self' data: blob:",
+    `media-src 'self'${r2PublicOrigin ? ` ${r2PublicOrigin}` : ""}`,
     "font-src 'self' data:",
-    "connect-src 'self'",
+    `connect-src 'self'${r2UploadOrigin ? ` ${r2UploadOrigin}` : ""}`,
     "worker-src 'self' blob:",
     // Özel PDF Oluşturucu'nun canlı önizlemesi (xray-custom-report-builder.tsx)
     // /api/xray/custom-report'tan dönen PDF blob'unu bir <iframe>'de gösteriyor
     // — frame-src AÇIKÇA belirtilmezse default-src'ye ('self') düşer ve
     // 'self' blob: URL'lerini KAPSAMAZ (img-src/worker-src'deki AYNI kural,
     // burada da tekrarlanmalı) — tarayıcı iframe'i sessizce engelliyordu.
-    // youtube-nocookie.com — Video Ders Merkezi'nin gömülü video oynatıcısı
-    // (bkz. components/video-portal/youtube-embed.tsx).
-    "frame-src 'self' blob: https://www.youtube-nocookie.com",
+    "frame-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -21,6 +21,7 @@ import {
   FileText,
   UserCog,
   Trophy,
+  Clapperboard,
 } from "lucide-react";
 import { type NavTab } from "@/components/principal/floating-nav";
 import { DualFloatingNav } from "@/components/principal/dual-floating-nav";
@@ -45,6 +46,7 @@ import { KelebekTab } from "@/components/student/tabs/kelebek";
 import { ReportCardTab } from "@/components/student/tabs/report-card";
 import { MentorshipTab } from "@/components/student/tabs/mentorship";
 import { ProfileTab } from "@/components/student/tabs/profile";
+import { VideoLibraryTab } from "@/components/student/tabs/videos";
 import { useSessionName } from "@/lib/institution-scope";
 
 const TABS = [
@@ -54,6 +56,7 @@ const TABS = [
   { id: "net-tracker", label: "Net & Derece Takipçisi", icon: TrendingUp, Component: NetTrackerTab, side: "left" },
   { id: "xray", label: "Röntgen Karnesi & Isı Haritası", icon: Scan, Component: XrayTab, side: "left" },
   { id: "gap-closing", label: "Eksik Kapatma & Soru Bankası", icon: Puzzle, Component: GapClosingTab, side: "left" },
+  { id: "videos", label: "Video Derslerim", icon: Clapperboard, Component: VideoLibraryTab, side: "left" },
   { id: "weekly-schedule", label: "Haftalık Program & Müfredat", icon: CalendarDays, Component: WeeklyScheduleTab, side: "left" },
   { id: "tercih-robotu", label: "Tercih Robotu", icon: Compass, Component: TercihRobotuTab, side: "left" },
   { id: "etut", label: "Birebir Etüt & Randevu", icon: CalendarCheck, Component: EtutTab, side: "right" },

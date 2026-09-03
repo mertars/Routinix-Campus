@@ -99,35 +99,36 @@ model PlatformOwner {
 }
 
 model Institution {
-  id                      String                   @id @default(cuid())
-  name                    String
-  slug                    String                   @unique
-  isActive                Boolean                  @default(true)
+  id                          String                       @id @default(cuid())
+  name                        String
+  slug                        String                       @unique
+  isActive                    Boolean                      @default(true)
   // Kampüs V2 — çoklu modül (K12/ERP, Röntgen, Ölçme) platformuna geçiş:
   // kurumun kendi logosu (karne/PDF/üst bar gibi markalı yüzeylerde), SMS
   // gönderim kredisi bakiyesi ve kurumun kendi SMS sağlayıcı anahtarı
   // (dolarsa lib/server/sms/provider-factory.ts platform varsayılanı yerine
   // bunu kullanabilir — bkz. FAZ sonrası entegrasyon).
-  logoUrl                 String?
-  smsCredits              Int                      @default(0)
-  smsProviderKey          String?
-  branches                Branch[]
-  students                Student[]
-  teachers                Teacher[]
-  admins                  Admin[]
-  parents                 Parent[]
-  exams                   Exam[]
-  announcements           Announcement[]
-  notificationBatches     NotificationBatch[]
-  auditLogs               AuditLog[]
-  classrooms              Classroom[]
-  scheduleSlots           ScheduleSlotDefinition[]
-  etutSetting             EtutSetting?
-  settings                InstitutionSettings?
-  institutionSmsTemplates InstitutionSmsTemplate[]
+  logoUrl                     String?
+  smsCredits                  Int                          @default(0)
+  smsProviderKey              String?
+  branches                    Branch[]
+  students                    Student[]
+  teachers                    Teacher[]
+  admins                      Admin[]
+  parents                     Parent[]
+  exams                       Exam[]
+  announcements               Announcement[]
+  notificationBatches         NotificationBatch[]
+  auditLogs                   AuditLog[]
+  classrooms                  Classroom[]
+  scheduleSlots               ScheduleSlotDefinition[]
+  etutSetting                 EtutSetting?
+  settings                    InstitutionSettings?
+  institutionSmsTemplates     InstitutionSmsTemplate[]
   xrayMonthlyScreeningConfigs XrayMonthlyScreeningConfig[]
-  createdAt               DateTime                 @default(now())
-  updatedAt               DateTime                 @updatedAt
+  videos                      Video[]
+  createdAt                   DateTime                     @default(now())
+  updatedAt                   DateTime                     @updatedAt
 }
 
 // Kurum geneli, tek-satırlık genel ayarlar — EtutSetting'in (sadece etüt
@@ -247,6 +248,7 @@ model Student {
   announcementReads            AnnouncementRead[]
   seatAssignments              ExamSeatAssignment[]
   preferences                  StudentPreference[]
+  videoAssignments             VideoAssignment[]
   guidancePrograms             GuidanceProgram[]
   remediationTasks             RemediationTask[]
   alumniProfile                AlumniProfile?
@@ -392,6 +394,7 @@ model Admin {
   xrayComprehensionAssignments XrayComprehensionAssignment[]
   xrayPracticeAttempts         XrayPracticeAttempt[]
   xrayMonthlyScreeningConfigs  XrayMonthlyScreeningConfig[]
+  videos                       Video[]
 
   @@index([institutionId])
 }
@@ -1436,15 +1439,15 @@ model TopicMasteryHistory {
 // route'taki yorum). createdByRole SADECE gösterim/etiketleme içindir
 // ("Öğretmenin koyduğu hedef" gibi) — yetki kontrolü ayrı, route'ta yapılır.
 model XrayMasteryGoal {
-  id             String    @id @default(cuid())
-  studentId      String
-  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject        String
-  subtopicId     String
-  targetScore    Int
-  createdByRole  String // "STUDENT" | "TEACHER" | "ADMIN" — sadece etiket
-  createdAt      DateTime  @default(now())
-  achievedAt     DateTime?
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject       String
+  subtopicId    String
+  targetScore   Int
+  createdByRole String // "STUDENT" | "TEACHER" | "ADMIN" — sadece etiket
+  createdAt     DateTime  @default(now())
+  achievedAt    DateTime?
 
   @@index([studentId, achievedAt])
 }
@@ -1461,19 +1464,19 @@ model XrayMasteryGoal {
 // taşır (o alan required — "sistem" diye ayrı bir kavram YOK, otomatik
 // atama, ayarı açan yöneticinin adına yapılmış sayılır).
 model XrayMonthlyScreeningConfig {
-  id             String   @id @default(cuid())
+  id             String      @id @default(cuid())
   institutionId  String
   institution    Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   grade          Int
-  enabled        Boolean  @default(false)
+  enabled        Boolean     @default(false)
   subject        String
   subtopicId     String
-  intervalDays   Int      @default(30)
+  intervalDays   Int         @default(30)
   nextRunAt      DateTime
   configuredById String
-  configuredBy   Admin    @relation(fields: [configuredById], references: [id], onDelete: Cascade)
-  updatedAt      DateTime @updatedAt
-  createdAt      DateTime @default(now())
+  configuredBy   Admin       @relation(fields: [configuredById], references: [id], onDelete: Cascade)
+  updatedAt      DateTime    @updatedAt
+  createdAt      DateTime    @default(now())
 
   @@unique([institutionId, grade])
   @@index([enabled, nextRunAt])
@@ -1599,16 +1602,16 @@ model XrayPoolGenerationRound {
 // kalıplarını GERÇEK VERİYLE analiz edip prompt'ları buna göre
 // güncellemek mümkün olur (elle konsol okumaya bağımlı kalmadan).
 model XrayPoolQaIssueLog {
-  id         String   @id @default(cuid())
-  subject    String
-  variant    String
-  unitId     String
+  id          String   @id @default(cuid())
+  subject     String
+  variant     String
+  unitId      String
   roundNumber Int
-  soruNo     Int
-  source     String // "deterministic" | "ai-verify" | "ai-recheck"
-  reason     String
-  resolved   Boolean // bu spesifik tespitten SONRA o soru başarıyla düzeltildi mi
-  createdAt  DateTime @default(now())
+  soruNo      Int
+  source      String // "deterministic" | "ai-verify" | "ai-recheck"
+  reason      String
+  resolved    Boolean // bu spesifik tespitten SONRA o soru başarıyla düzeltildi mi
+  createdAt   DateTime @default(now())
 
   @@index([subject, variant, unitId])
   @@index([source])
@@ -1872,4 +1875,53 @@ model XrayComprehensionAnswer {
 
   @@unique([assignmentId, questionId])
   @@index([assignmentId])
+}
+
+// ----------------------------------------------------------------------------
+// Video Ders Merkezi (Hub'daki 4. modül) — Faz 1
+// ----------------------------------------------------------------------------
+
+// Kullanıcı kararı (2026-09-03) — video dosyaları Cloudflare R2'de tutulur
+// (bkz. lib/server/r2.ts): tarayıcıdan DOĞRUDAN (bizim sunucumuzdan
+// geçmeden) bir presigned URL ile yüklenir, sonra bu tablo SADECE metadata +
+// r2Key'i tutar. Trafik/izlenme R2'de ücretsiz — maliyet sadece depolanan
+// GB ile artar, öğrenci sayısıyla DEĞİL (bkz. kullanıcıyla yapılan maliyet
+// analizi). "grade/subject/topic" — Röntgen'in CURRICULUM_TREE'sinin
+// AKSİNE serbest metin: video merkezi TÜM sınıf seviyelerini (1-12) ve TÜM
+// dersleri kapsıyor, Röntgen'in Matematik-özel/9-12 kısıtı burada YOK.
+model Video {
+  id              String            @id @default(cuid())
+  institutionId   String
+  institution     Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  grade           Int
+  subject         String
+  topic           String
+  r2Key           String // R2 bucket içindeki nesne anahtarı — herkese açık URL lib/server/r2.ts > r2PublicUrl(key) ile türetilir
+  durationSeconds Int?
+  createdById     String?
+  createdBy       Admin?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime          @default(now())
+  assignments     VideoAssignment[]
+
+  @@index([institutionId, grade, subject])
+}
+
+// Bir videonun hangi öğrencilere atandığını tutar — kullanıcı isteği
+// "istediği zaman istediği öğrencinin paneline tek tuşla atayacak". Toplu
+// atama (şube/sınıf) API katmanında (route.ts) N tane satıra açılır — Xray
+// atama modellerindeki (TopicMasteryAssessment vb.) AYNI desen, ayrı bir
+// "hedef" tablosu YOK, doğrudan öğrenci bazlı satırlar.
+model VideoAssignment {
+  id         String    @id @default(cuid())
+  videoId    String
+  video      Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  studentId  String
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignedAt DateTime  @default(now())
+  watchedAt  DateTime?
+
+  @@unique([videoId, studentId])
+  @@index([studentId])
 }

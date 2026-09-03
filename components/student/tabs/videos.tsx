@@ -1,0 +1,133 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Clapperboard, PlayCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { Modal } from "@/components/ui/modal";
+import { VideoPlayer } from "@/components/video-portal/video-player";
+import { subjectTone } from "@/lib/video-subjects";
+import { useToast } from "@/lib/toast-context";
+import { cn } from "@/lib/utils";
+
+type AssignedVideo = {
+  assignmentId: string;
+  id: string;
+  title: string;
+  description: string | null;
+  grade: number;
+  subject: string;
+  topic: string;
+  url: string;
+  assignedAt: string;
+  watchedAt: string | null;
+};
+
+// Video Ders Merkezi — öğrenci tarafı ("Video Derslerim"). Yöneticinin
+// kütüphanesinden (/videos/principal) atanan videolar burada çıkar — bkz.
+// /api/videos/assigned (SADECE bu öğrenciye atananlar, tüm kütüphane
+// DEĞİL). Video ilk oynatılınca /watched ile "izlendi" olarak işaretlenir
+// (bkz. video-player.tsx'in onFirstPlay callback'i).
+export function VideoLibraryTab() {
+  const { showError } = useToast();
+  const [videos, setVideos] = useState<AssignedVideo[] | null>(null);
+  const [active, setActive] = useState<AssignedVideo | null>(null);
+
+  useEffect(() => {
+    fetch("/api/videos/assigned")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data) => setVideos(data.assignments ?? []))
+      .catch(() => showError("Videolar yüklenemedi."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, AssignedVideo[]>();
+    for (const v of videos ?? []) {
+      const list = map.get(v.subject) ?? [];
+      list.push(v);
+      map.set(v.subject, list);
+    }
+    return [...map.entries()];
+  }, [videos]);
+
+  async function markWatched(video: AssignedVideo) {
+    if (video.watchedAt) return;
+    try {
+      await fetch(`/api/videos/assigned/${encodeURIComponent(video.assignmentId)}/watched`, { method: "POST" });
+      setVideos((prev) => (prev ?? []).map((v) => (v.assignmentId === video.assignmentId ? { ...v, watchedAt: new Date().toISOString() } : v)));
+    } catch {
+      // sessizce yut — izlenme işareti önemsiz bir UX detayı, kritik değil
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50"
+      >
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+          <Clapperboard className="h-4 w-4 text-violet-600 dark:text-violet-400" /> Video Derslerim
+        </h2>
+
+        {videos === null ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+          </div>
+        ) : videos.length === 0 ? (
+          <p className="rounded-2xl bg-cream-card px-4 py-8 text-center text-xs text-espresso-muted dark:bg-white/5 dark:text-cream/40">
+            Henüz sana atanmış bir video yok.
+          </p>
+        ) : (
+          <div className="space-y-5">
+            {grouped.map(([subject, subjectVideos]) => {
+              const tone = subjectTone(subject);
+              return (
+                <div key={subject}>
+                  <p className={cn("mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide", tone.text)}>
+                    <span className={cn("h-1.5 w-1.5 rounded-full", tone.dot)} /> {subject}
+                  </p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {subjectVideos.map((video) => (
+                      <button
+                        key={video.assignmentId}
+                        onClick={() => setActive(video)}
+                        className="group overflow-hidden rounded-2xl border border-hairline bg-white/60 text-left shadow-sm transition hover:border-violet-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/40"
+                      >
+                        <div className="relative aspect-video w-full overflow-hidden bg-espresso dark:bg-black">
+                          <video src={video.url} className="h-full w-full object-cover" preload="metadata" muted />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition group-hover:bg-black/40">
+                            <PlayCircle className="h-8 w-8 text-white drop-shadow-lg" />
+                          </div>
+                          {video.watchedAt && (
+                            <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-emerald-600/90 px-2 py-0.5 text-[9.5px] font-semibold text-white">
+                              <CheckCircle2 className="h-2.5 w-2.5" /> İzlendi
+                            </span>
+                          )}
+                        </div>
+                        <div className="p-2.5">
+                          <p className="line-clamp-2 text-[11px] font-semibold text-espresso dark:text-cream">{video.title}</p>
+                          <p className="mt-0.5 text-[10px] text-espresso-muted dark:text-cream/40">{video.topic}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+
+      {active && (
+        <Modal isOpen={Boolean(active)} onClose={() => setActive(null)} title={active.title} variant="center" widthClassName="max-w-2xl">
+          <div className="space-y-3">
+            <VideoPlayer src={active.url} onFirstPlay={() => markWatched(active)} />
+            {active.description && <p className="text-xs leading-relaxed text-espresso-muted dark:text-cream/50">{active.description}</p>}
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}

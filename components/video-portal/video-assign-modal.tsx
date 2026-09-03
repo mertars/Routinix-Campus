@@ -9,14 +9,14 @@ import type { VideoLesson } from "@/components/video-portal/video-portal-panel";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchId: string; branchName: string; grade: number };
 
-// "Ata" — TASARIM AŞAMASI: gerçek öğrenci listesini (mevcut directory
-// ucundan) çeker, ama atama işlemi henüz kalıcı DEĞİL (backend/Video
-// modeli sonraki adım) — "Ata" butonu bir başarı bildirimiyle SİMÜLE
-// edilir. Kullanıcı isteği: "istediği zaman istediği öğrencinin paneline
-// tek tuşla atayacak" — o yüzden hedef seçimi TEK TIKLA da yapılabilsin
-// diye şube/sınıf hızlı seçenekleri var (xray-assignment-target-picker.tsx
-// ile AYNI ilke, ama burada tekil bir "seçili öğrenci" bağlamı olmadığı
-// için çoklu-seçim/checkbox tabanlı ayrı bir tasarım).
+// "Ata" — gerçek öğrenci listesini çeker, seçilenleri POST
+// /api/videos/[id]/assign'a gönderir (VideoAssignment satırları olarak
+// KALICI kaydedilir). Kullanıcı isteği: "istediği zaman istediği
+// öğrencinin paneline tek tuşla atayacak" — o yüzden hedef seçimi TEK
+// TIKLA da yapılabilsin diye şube/sınıf hızlı seçenekleri var
+// (xray-assignment-target-picker.tsx ile AYNI ilke, ama burada tekil bir
+// "seçili öğrenci" bağlamı olmadığı için çoklu-seçim/checkbox tabanlı
+// ayrı bir tasarım).
 export function VideoAssignModal({ isOpen, onClose, video }: { isOpen: boolean; onClose: () => void; video: VideoLesson | null }) {
   const { showToast, showError } = useToast();
   const [roster, setRoster] = useState<RosterStudent[] | null>(null);
@@ -73,12 +73,21 @@ export function VideoAssignModal({ isOpen, onClose, video }: { isOpen: boolean; 
   async function handleSend() {
     if (selected.size === 0 || !video) return;
     setSending(true);
-    // TASARIM AŞAMASI — gerçek atama ucu henüz yok, kısa bir gecikmeyle
-    // simüle edilip başarı bildirimi gösteriliyor.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    showToast("success", `"${video.title}" ${selected.size} öğrenciye atandı.`);
-    setSending(false);
-    onClose();
+    try {
+      const res = await fetch(`/api/videos/${encodeURIComponent(video.id)}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentIds: [...selected] }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      showToast("success", `"${video.title}" ${data.assignedCount} öğrenciye atandı.`);
+      onClose();
+    } catch {
+      showError("Atama yapılamadı.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -145,7 +154,7 @@ export function VideoAssignModal({ isOpen, onClose, video }: { isOpen: boolean; 
           {selected.size > 0 ? `${selected.size} Öğrenciye Ata` : "Öğrenci Seç"}
         </button>
         <p className="flex items-center gap-1.5 text-[10px] text-espresso-muted dark:text-cream/40">
-          <Users className="h-3 w-3" /> Tasarım aşaması — atama şu an kalıcı kaydedilmiyor, sadece akış önizlemesi.
+          <Users className="h-3 w-3" /> Öğrenci daha önce bu videoyu almışsa atlanır, yeniden atanmaz.
         </p>
       </div>
     </Modal>

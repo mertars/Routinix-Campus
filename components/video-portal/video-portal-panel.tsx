@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Plus, Send, PlayCircle, Clapperboard } from "lucide-react";
+import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2 } from "lucide-react";
 import { VIDEO_SUBJECTS, subjectTone } from "@/lib/video-subjects";
-import { youtubeThumbnailUrl } from "@/lib/client/youtube";
+import { useToast } from "@/lib/toast-context";
 import { VideoUploadModal } from "@/components/video-portal/video-upload-modal";
 import { VideoAssignModal } from "@/components/video-portal/video-assign-modal";
 import { VideoPreviewModal } from "@/components/video-portal/video-preview-modal";
@@ -13,46 +13,50 @@ import { cn } from "@/lib/utils";
 export type VideoLesson = {
   id: string;
   title: string;
-  description?: string;
-  youtubeId: string;
+  description?: string | null;
+  url: string;
   grade: number;
   subject: string;
   topic: string;
-  addedAt: string;
+  durationSeconds: number | null;
+  createdAt: string;
 };
 
-const SEED_VIDEOS: VideoLesson[] = [
-  { id: "v1", title: "Türev — Zincir Kuralı Anlatımı", youtubeId: "jNQXAC9IVRw", grade: 12, subject: "Matematik", topic: "Türev", addedAt: "2026-08-20T10:00:00.000Z" },
-  { id: "v2", title: "Türev — Fonksiyonun Grafiği Üzerinden Yorumlama", youtubeId: "jNQXAC9IVRw", grade: 12, subject: "Matematik", topic: "Türev", addedAt: "2026-08-22T10:00:00.000Z" },
-  { id: "v3", title: "İntegral — Belirsiz İntegral Temelleri", youtubeId: "jNQXAC9IVRw", grade: 12, subject: "Matematik", topic: "İntegral", addedAt: "2026-08-18T10:00:00.000Z" },
-  { id: "v4", title: "Newton'un Hareket Yasaları", youtubeId: "jNQXAC9IVRw", grade: 9, subject: "Fizik", topic: "Kuvvet ve Hareket", addedAt: "2026-08-15T10:00:00.000Z" },
-  { id: "v5", title: "Mol Kavramı ve Kimyasal Hesaplamalar", youtubeId: "jNQXAC9IVRw", grade: 10, subject: "Kimya", topic: "Mol Kavramı", addedAt: "2026-08-25T10:00:00.000Z" },
-  { id: "v6", title: "Hücre Zarından Madde Geçişi", youtubeId: "jNQXAC9IVRw", grade: 9, subject: "Biyoloji", topic: "Hücre", addedAt: "2026-08-19T10:00:00.000Z" },
-  { id: "v7", title: "Osmanlı Kuruluş Dönemi Özeti", youtubeId: "jNQXAC9IVRw", grade: 10, subject: "Tarih", topic: "Osmanlı Kuruluş Dönemi", addedAt: "2026-08-21T10:00:00.000Z" },
-];
-
-// Video Ders Merkezi — TASARIM AŞAMASI (kullanıcı: "şimdilik bunu dizayn
-// et, gelişmeleri devamında yaparız"). Veri bellekte (useState, seed'lenmiş
-// örnek videolarla) — henüz bir Video Prisma modeli/API'si YOK, bilerek.
-// Gruplama üç katmanlı: Sınıf (chip) → Ders (chip) → Konu (bölüm başlığı)
-// — kullanıcının "kaçıncı sınıf hangi ders hangi konu" isteğiyle birebir
-// eşleşiyor. "Ata" akışı gerçek öğrenci listesini çeker ama kayıt henüz
-// kalıcı değil (bkz. video-assign-modal.tsx).
+// Video Ders Merkezi — R2 tabanlı gerçek sürüm (kullanıcı kararı,
+// 2026-09-03: "herşeyi kur, r2yi bağla"). Kütüphane artık /api/videos'tan
+// geliyor, "Video Ekle" gerçekten R2'ye yükleyip DB'ye kaydediyor, "Ata"
+// gerçekten VideoAssignment satırları oluşturuyor — hiçbiri mock DEĞİL.
+// Gruplama üç katmanlı (kullanıcı isteği): Sınıf (chip) → Ders (chip) →
+// Konu (bölüm başlığı) → video kartları.
 export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
-  const [videos, setVideos] = useState<VideoLesson[]>(SEED_VIDEOS);
+  const { showError, showToast } = useToast();
+  const [videos, setVideos] = useState<VideoLesson[] | null>(null);
   const [query, setQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState<number | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<VideoLesson | null>(null);
   const [assignVideo, setAssignVideo] = useState<VideoLesson | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const availableGrades = useMemo(() => [...new Set(videos.map((v) => v.grade))].sort((a, b) => a - b), [videos]);
-  const availableSubjects = useMemo(() => VIDEO_SUBJECTS.filter((s) => videos.some((v) => v.subject === s)), [videos]);
+  function loadVideos() {
+    return fetch("/api/videos")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data) => setVideos(data.videos ?? []))
+      .catch(() => showError("Video kütüphanesi yüklenemedi."));
+  }
+
+  useEffect(() => {
+    loadVideos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const availableGrades = useMemo(() => [...new Set((videos ?? []).map((v) => v.grade))].sort((a, b) => a - b), [videos]);
+  const availableSubjects = useMemo(() => VIDEO_SUBJECTS.filter((s) => (videos ?? []).some((v) => v.subject === s)), [videos]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("tr-TR");
-    return videos.filter((v) => {
+    return (videos ?? []).filter((v) => {
       if (gradeFilter !== null && v.grade !== gradeFilter) return false;
       if (subjectFilter !== null && v.subject !== subjectFilter) return false;
       if (q && !`${v.title} ${v.topic}`.toLocaleLowerCase("tr-TR").includes(q)) return false;
@@ -70,10 +74,24 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], "tr-TR"));
   }, [filtered]);
 
-  const existingTopics = useMemo(() => [...new Set(videos.filter((v) => v.grade === gradeFilter && v.subject === subjectFilter).map((v) => v.topic))], [videos, gradeFilter, subjectFilter]);
+  const existingTopics = useMemo(
+    () => [...new Set((videos ?? []).filter((v) => v.grade === gradeFilter && v.subject === subjectFilter).map((v) => v.topic))],
+    [videos, gradeFilter, subjectFilter]
+  );
 
-  function addVideo(video: Omit<VideoLesson, "id" | "addedAt">) {
-    setVideos((prev) => [{ ...video, id: `v${Date.now()}`, addedAt: new Date().toISOString() }, ...prev]);
+  async function handleDelete(video: VideoLesson) {
+    if (!confirm(`"${video.title}" videosunu silmek istediğine emin misin? Bu işlem geri alınamaz.`)) return;
+    setDeletingId(video.id);
+    try {
+      const res = await fetch(`/api/videos/${encodeURIComponent(video.id)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setVideos((prev) => (prev ?? []).filter((v) => v.id !== video.id));
+      showToast("success", "Video silindi.");
+    } catch {
+      showError("Video silinemedi.");
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -83,7 +101,7 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
           <h1 className="flex items-center gap-2 text-lg font-bold text-espresso dark:text-cream">
             <Clapperboard className="h-5 w-5 text-violet-600 dark:text-violet-400" /> Video Ders Merkezi
           </h1>
-          <p className="mt-0.5 text-xs text-espresso-muted dark:text-cream/40">{videos.length} video · sınıf, ders ve konuya göre gruplanmış</p>
+          <p className="mt-0.5 text-xs text-espresso-muted dark:text-cream/40">{videos?.length ?? 0} video · sınıf, ders ve konuya göre gruplanmış</p>
         </div>
         {canManage && (
           <button
@@ -122,10 +140,14 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
         </div>
       </div>
 
-      {groupedByTopic.length === 0 ? (
+      {videos === null ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
+        </div>
+      ) : groupedByTopic.length === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-16 text-center dark:border-white/10 dark:bg-white/5">
           <Clapperboard className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
-          <p className="text-xs text-espresso-muted dark:text-cream/40">Eşleşen video bulunamadı.</p>
+          <p className="text-xs text-espresso-muted dark:text-cream/40">{videos.length === 0 ? "Henüz video eklenmedi." : "Eşleşen video bulunamadı."}</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -138,7 +160,16 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
               </h2>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {topicVideos.map((video, index) => (
-                  <VideoCard key={video.id} video={video} index={index} canManage={canManage} onPreview={() => setPreviewVideo(video)} onAssign={() => setAssignVideo(video)} />
+                  <VideoCard
+                    key={video.id}
+                    video={video}
+                    index={index}
+                    canManage={canManage}
+                    deleting={deletingId === video.id}
+                    onPreview={() => setPreviewVideo(video)}
+                    onAssign={() => setAssignVideo(video)}
+                    onDelete={() => handleDelete(video)}
+                  />
                 ))}
               </div>
             </div>
@@ -150,7 +181,9 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
         <VideoUploadModal
           isOpen={uploadOpen}
           onClose={() => setUploadOpen(false)}
-          onAdd={addVideo}
+          onAdded={(video) => {
+            setVideos((prev) => [video, ...(prev ?? [])]);
+          }}
           existingTopics={existingTopics}
         />
       )}
@@ -189,14 +222,18 @@ function VideoCard({
   video,
   index,
   canManage,
+  deleting,
   onPreview,
   onAssign,
+  onDelete,
 }: {
   video: VideoLesson;
   index: number;
   canManage: boolean;
+  deleting: boolean;
   onPreview: () => void;
   onAssign: () => void;
+  onDelete: () => void;
 }) {
   return (
     <motion.div
@@ -205,11 +242,10 @@ function VideoCard({
       transition={{ delay: Math.min(index, 8) * 0.03 }}
       className="group overflow-hidden rounded-2xl border border-hairline bg-white/70 shadow-sm backdrop-blur-sm transition hover:border-violet-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/50"
     >
-      <button onClick={onPreview} className="relative block aspect-video w-full overflow-hidden bg-black">
-        {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
-        <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/30">
-          <PlayCircle className="h-9 w-9 text-white opacity-0 drop-shadow-lg transition group-hover:opacity-100" />
+      <button onClick={onPreview} className="group/thumb relative block aspect-video w-full overflow-hidden bg-espresso dark:bg-black">
+        <video src={video.url} className="h-full w-full object-cover" preload="metadata" muted />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition group-hover/thumb:bg-black/40">
+          <PlayCircle className="h-9 w-9 text-white drop-shadow-lg" />
         </div>
         <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">{video.grade}. Sınıf</span>
       </button>
@@ -217,12 +253,22 @@ function VideoCard({
         <p className="line-clamp-2 text-xs font-semibold text-espresso dark:text-cream">{video.title}</p>
         <p className="mt-1 text-[10.5px] text-espresso-muted dark:text-cream/40">{video.subject}</p>
         {canManage && (
-          <button
-            onClick={onAssign}
-            className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg bg-violet-500/10 py-1.5 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-500/20 dark:text-violet-300"
-          >
-            <Send className="h-3 w-3" /> Öğrenciye Ata
-          </button>
+          <div className="mt-2.5 flex items-center gap-1.5">
+            <button
+              onClick={onAssign}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-violet-500/10 py-1.5 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-500/20 dark:text-violet-300"
+            >
+              <Send className="h-3 w-3" /> Ata
+            </button>
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              aria-label="Videoyu sil"
+              className="flex h-[27px] w-[27px] shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 transition hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+            >
+              {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            </button>
+          </div>
         )}
       </div>
     </motion.div>
