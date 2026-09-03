@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2, GraduationCap, BookOpen, AlertTriangle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2, ChevronRight, ChevronLeft, FolderOpen, AlertTriangle } from "lucide-react";
 import { VIDEO_SUBJECTS, subjectTone } from "@/lib/video-subjects";
 import { youtubeThumbnailUrl } from "@/lib/client/youtube";
 import { useToast } from "@/lib/toast-context";
@@ -29,16 +29,19 @@ function normalizeTopicKey(topic: string): string {
 
 // Video Ders Merkezi — YouTube tabanlı sürüm (bkz. prisma/schema.prisma >
 // Video modelinin üstündeki gerekçe — R2 denendi, yavaş/tutarsız çıktı).
-// Düzen sol sabit filtre paneli + sağ geniş içerik (xray-results-panel.tsx
-// ile AYNI ilke) — genişlik doğal olarak kullanılıyor. Konu grupları
-// büyük/küçük harfe DUYARSIZ (normalize edilmiş anahtar) — "türev" ile
-// "Türev" tek grupta birleşiyor.
+// Kullanıcı talebi (2026-09-04) — "menü tasarımı berbat, kalıpların dışına
+// çık": klasik sabit sidebar filtre listesi TAMAMEN kaldırıldı, yerine
+// Drive/Finder esintili "klasör kartları" geldi — her DERS büyük renkli bir
+// klasör kartı, tıklayınca içine giriliyor (bkz. FolderCard + openSubject
+// state'i), içeride sınıf seviyesi bir çip şeridiyle daraltılıyor. Konu
+// grupları büyük/küçük harfe DUYARSIZ (normalize edilmiş anahtar) —
+// "türev" ile "Türev" tek grupta birleşiyor.
 export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
   const { showError, showToast } = useToast();
   const [videos, setVideos] = useState<VideoLesson[] | null>(null);
   const [query, setQuery] = useState("");
+  const [openSubject, setOpenSubject] = useState<string | null>(null);
   const [gradeFilter, setGradeFilter] = useState<number | null>(null);
-  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<VideoLesson | null>(null);
   const [assignVideo, setAssignVideo] = useState<VideoLesson | null>(null);
@@ -68,18 +71,36 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videos]);
 
-  const availableGrades = useMemo(() => [...new Set((videos ?? []).map((v) => v.grade))].sort((a, b) => a - b), [videos]);
-  const availableSubjects = useMemo(() => VIDEO_SUBJECTS.filter((s) => (videos ?? []).some((v) => v.subject === s)), [videos]);
+  // Klasör kartları — her ders için video listesi + sınıf dağılımı
+  // (kartın altındaki mini çubuk grafiğe besleniyor).
+  const subjectFolders = useMemo(() => {
+    const map = new Map<string, VideoLesson[]>();
+    for (const v of videos ?? []) {
+      if (!map.has(v.subject)) map.set(v.subject, []);
+      map.get(v.subject)!.push(v);
+    }
+    return VIDEO_SUBJECTS.filter((s) => map.has(s)).map((subject) => {
+      const subjectVideos = map.get(subject)!;
+      const gradeCounts = [...new Set(subjectVideos.map((v) => v.grade))]
+        .sort((a, b) => a - b)
+        .map((grade) => ({ grade, count: subjectVideos.filter((v) => v.grade === grade).length }));
+      return { subject, count: subjectVideos.length, gradeCounts };
+    });
+  }, [videos]);
+
+  const scopeVideos = useMemo(() => (openSubject ? (videos ?? []).filter((v) => v.subject === openSubject) : (videos ?? [])), [videos, openSubject]);
+  const subjectGrades = useMemo(() => [...new Set(scopeVideos.map((v) => v.grade))].sort((a, b) => a - b), [scopeVideos]);
+
+  const browsing = openSubject !== null || query.trim() !== "";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("tr-TR");
-    return (videos ?? []).filter((v) => {
-      if (gradeFilter !== null && v.grade !== gradeFilter) return false;
-      if (subjectFilter !== null && v.subject !== subjectFilter) return false;
+    return scopeVideos.filter((v) => {
+      if (openSubject && gradeFilter !== null && v.grade !== gradeFilter) return false;
       if (q && !`${v.title} ${v.topic}`.toLocaleLowerCase("tr-TR").includes(q)) return false;
       return true;
     });
-  }, [videos, gradeFilter, subjectFilter, query]);
+  }, [scopeVideos, gradeFilter, query, openSubject]);
 
   const groupedByTopic = useMemo(() => {
     const map = new Map<string, { label: string; videos: VideoLesson[] }>();
@@ -126,98 +147,108 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
         )}
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[260px_1fr]">
-        {/* SOL — arama + filtreler (xray-results-panel.tsx'teki AYNI sabit
-            sidebar ilkesi, genişlik böylece doğal olarak kullanılıyor). */}
-        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Video veya konu ara..."
-              className="w-full rounded-lg border border-hairline bg-white py-2 pl-8 pr-3 text-sm text-espresso outline-none focus:border-violet-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-            />
-          </div>
+      {/* Arama — her zaman görünür, yazılınca klasör görünümünü atlayıp
+          düz (kapsamlı) sonuç ızgarasına geçiyor (bkz. `browsing`). */}
+      <div className="relative mb-5 max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={openSubject ? `${openSubject} içinde ara...` : "Tüm derslerde video veya konu ara..."}
+          className="w-full rounded-xl border border-hairline bg-white py-2.5 pl-9 pr-3 text-sm text-espresso outline-none focus:border-violet-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+        />
+      </div>
 
-          <div className="rounded-2xl border border-hairline bg-white/70 p-3 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
-            <p className="mb-2 flex items-center gap-1.5 px-1 text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
-              <GraduationCap className="h-3 w-3" /> Sınıf
-            </p>
-            <div className="space-y-0.5">
-              <SidebarFilterRow label="Tüm Sınıflar" active={gradeFilter === null} count={videos?.length ?? 0} onClick={() => setGradeFilter(null)} />
-              {availableGrades.map((g) => (
-                <SidebarFilterRow
-                  key={g}
-                  label={`${g}. Sınıf`}
-                  active={gradeFilter === g}
-                  count={(videos ?? []).filter((v) => v.grade === g).length}
-                  onClick={() => setGradeFilter(g)}
-                />
+      {videos === null ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
+        </div>
+      ) : videos.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-16 text-center dark:border-white/10 dark:bg-white/5">
+          <Clapperboard className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
+          <p className="text-xs text-espresso-muted dark:text-cream/40">Henüz video eklenmedi.</p>
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          {!browsing ? (
+            // KLASÖR GÖRÜNÜMÜ — her ders, Drive/Finder esintili bir klasör
+            // kartı; tıklayınca "içine giriliyor" (bkz. FolderCard altı).
+            <motion.div
+              key="folders"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4"
+            >
+              {subjectFolders.map((folder, index) => (
+                <FolderCard key={folder.subject} folder={folder} index={index} onOpen={() => setOpenSubject(folder.subject)} />
               ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-hairline bg-white/70 p-3 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
-            <p className="mb-2 flex items-center gap-1.5 px-1 text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
-              <BookOpen className="h-3 w-3" /> Ders
-            </p>
-            <div className="space-y-0.5">
-              <SidebarFilterRow label="Tüm Dersler" active={subjectFilter === null} count={videos?.length ?? 0} onClick={() => setSubjectFilter(null)} />
-              {availableSubjects.map((s) => (
-                <SidebarFilterRow
-                  key={s}
-                  label={s}
-                  active={subjectFilter === s}
-                  count={(videos ?? []).filter((v) => v.subject === s).length}
-                  onClick={() => setSubjectFilter(s)}
-                  dot={subjectTone(s).dot}
-                />
-              ))}
-            </div>
-          </div>
-        </aside>
-
-        {/* SAĞ — konuya göre gruplanmış video ızgarası */}
-        <main className="min-w-0">
-          {videos === null ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
-            </div>
-          ) : groupedByTopic.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-16 text-center dark:border-white/10 dark:bg-white/5">
-              <Clapperboard className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
-              <p className="text-xs text-espresso-muted dark:text-cream/40">{videos.length === 0 ? "Henüz video eklenmedi." : "Eşleşen video bulunamadı."}</p>
-            </div>
+            </motion.div>
           ) : (
-            <div className="space-y-6">
-              {groupedByTopic.map(([key, group]) => (
-                <div key={key}>
-                  <h2 className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
-                    <span className={cn("h-1.5 w-1.5 rounded-full", subjectTone(group.videos[0].subject).dot)} />
-                    {group.label}
-                    <span className="text-[10px] font-normal text-espresso-muted dark:text-cream/40">({group.videos.length})</span>
-                  </h2>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {group.videos.map((video, index) => (
-                      <VideoCard
-                        key={video.id}
-                        video={video}
-                        index={index}
-                        canManage={canManage}
-                        deleting={deletingId === video.id}
-                        onPreview={() => setPreviewVideo(video)}
-                        onAssign={() => setAssignVideo(video)}
-                        onDelete={() => handleDelete(video)}
-                      />
+            <motion.div key="contents" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
+              {/* Ekmek kırıntısı + (yalnızca bir ders açıkken) sınıf çipleri */}
+              <div className="mb-4 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => {
+                    setOpenSubject(null);
+                    setGradeFilter(null);
+                  }}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-espresso-muted transition hover:bg-cream-card hover:text-espresso dark:text-cream/50 dark:hover:bg-white/5 dark:hover:text-cream"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Tüm Dersler
+                </button>
+                {openSubject && (
+                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", subjectTone(openSubject).bg, subjectTone(openSubject).text)}>
+                    {openSubject}
+                  </span>
+                )}
+                {openSubject && subjectGrades.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <GradeChip label="Tümü" active={gradeFilter === null} onClick={() => setGradeFilter(null)} />
+                    {subjectGrades.map((g) => (
+                      <GradeChip key={g} label={`${g}. Sınıf`} active={gradeFilter === g} onClick={() => setGradeFilter(g)} />
                     ))}
                   </div>
+                )}
+              </div>
+
+              {groupedByTopic.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-16 text-center dark:border-white/10 dark:bg-white/5">
+                  <Clapperboard className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
+                  <p className="text-xs text-espresso-muted dark:text-cream/40">Eşleşen video bulunamadı.</p>
                 </div>
-              ))}
-            </div>
+              ) : (
+                <div className="space-y-6">
+                  {groupedByTopic.map(([key, group]) => (
+                    <div key={key}>
+                      <h2 className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
+                        <span className={cn("h-1.5 w-1.5 rounded-full", subjectTone(group.videos[0].subject).dot)} />
+                        {group.label}
+                        <span className="text-[10px] font-normal text-espresso-muted dark:text-cream/40">({group.videos.length})</span>
+                      </h2>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                        {group.videos.map((video, index) => (
+                          <VideoCard
+                            key={video.id}
+                            video={video}
+                            index={index}
+                            canManage={canManage}
+                            deleting={deletingId === video.id}
+                            onPreview={() => setPreviewVideo(video)}
+                            onAssign={() => setAssignVideo(video)}
+                            onDelete={() => handleDelete(video)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
           )}
-        </main>
-      </div>
+        </AnimatePresence>
+      )}
 
       {canManage && (
         <VideoUploadModal
@@ -242,19 +273,77 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
   );
 }
 
-function SidebarFilterRow({ label, active, count, onClick, dot }: { label: string; active: boolean; count: number; onClick: () => void; dot?: string }) {
+// Klasör kartı — Drive/Finder esintili: küçük bir "kulak" (tab) kartın sol
+// üstünden dışarı taşıyor, gerçek bir klasörün silüetini taklit ediyor.
+// Alttaki mini çubuk grafik, dersin sınıflara göre video dağılımını (kaç
+// videosu hangi sınıfta) tek bakışta gösteriyor.
+function FolderCard({
+  folder,
+  index,
+  onOpen,
+}: {
+  folder: { subject: string; count: number; gradeCounts: { grade: number; count: number }[] };
+  index: number;
+  onOpen: () => void;
+}) {
+  const tone = subjectTone(folder.subject);
+  const maxCount = Math.max(1, ...folder.gradeCounts.map((g) => g.count));
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 10, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: Math.min(index, 8) * 0.04, type: "spring", stiffness: 300, damping: 26 }}
+      whileHover={{ y: -3 }}
+      onClick={onOpen}
+      className="group relative pt-2 text-left"
+    >
+      <div className={cn("absolute left-4 top-0 h-3 w-14 rounded-t-lg opacity-80 transition-opacity group-hover:opacity-100", tone.dot)} />
+      <div
+        className={cn(
+          "relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-hairline p-4 shadow-sm backdrop-blur-sm transition-all group-hover:shadow-lg dark:border-white/10",
+          tone.bg
+        )}
+      >
+        <div className="flex items-start justify-between">
+          <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm", tone.dot)}>
+            <FolderOpen className="h-4.5 w-4.5" />
+          </span>
+          <ChevronRight className="h-4 w-4 text-espresso-muted/50 transition group-hover:translate-x-0.5 group-hover:text-espresso dark:text-cream/30 dark:group-hover:text-cream" />
+        </div>
+
+        <div>
+          <p className={cn("truncate text-sm font-bold", tone.text)}>{folder.subject}</p>
+          <p className="mt-0.5 text-[10.5px] text-espresso-muted dark:text-cream/40">{folder.count} video</p>
+        </div>
+
+        <div className="flex h-5 items-end gap-1">
+          {folder.gradeCounts.map(({ grade, count }) => (
+            <div
+              key={grade}
+              title={`${grade}. Sınıf · ${count} video`}
+              className={cn("w-1.5 rounded-full opacity-70", tone.dot)}
+              style={{ height: `${Math.max(25, (count / maxCount) * 100)}%` }}
+            />
+          ))}
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+function GradeChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      disabled={count === 0 && !active}
       className={cn(
-        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] font-medium transition disabled:opacity-40",
-        active ? "bg-violet-500/10 text-violet-700 dark:text-violet-300" : "text-espresso-muted hover:bg-cream-card hover:text-espresso dark:text-cream/50 dark:hover:bg-white/5 dark:hover:text-cream"
+        "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition",
+        active
+          ? "border-violet-500 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+          : "border-hairline text-espresso-muted hover:bg-cream-card hover:text-espresso dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5 dark:hover:text-cream"
       )}
     >
-      {dot && <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dot)} />}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      <span className="shrink-0 text-[10px] tabular-nums text-espresso-muted/70 dark:text-cream/30">{count}</span>
+      {label}
     </button>
   );
 }
