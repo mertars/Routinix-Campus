@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Clapperboard, PlayCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { Clapperboard, PlayCircle, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { YoutubeEmbed } from "@/components/video-portal/youtube-embed";
 import { youtubeThumbnailUrl } from "@/lib/client/youtube";
@@ -19,6 +19,7 @@ type AssignedVideo = {
   subject: string;
   topic: string;
   youtubeId: string;
+  status: "PROCESSING" | "READY" | "FAILED";
   assignedAt: string;
   watchedAt: string | null;
 };
@@ -92,21 +93,41 @@ export function VideoLibraryTab() {
                     <span className={cn("h-1.5 w-1.5 rounded-full", tone.dot)} /> {subject}
                   </p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {subjectVideos.map((video) => (
+                    {subjectVideos.map((video) => {
+                      const notReady = video.status !== "READY";
+                      return (
                       <button
                         key={video.assignmentId}
                         onClick={() => {
+                          if (notReady) return;
                           setActive(video);
                           markWatched(video);
                         }}
-                        className="group overflow-hidden rounded-2xl border border-hairline bg-white/60 text-left shadow-sm transition hover:border-violet-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/40"
+                        disabled={notReady}
+                        className={cn(
+                          "group overflow-hidden rounded-2xl border border-hairline bg-white/60 text-left shadow-sm transition hover:border-violet-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/40",
+                          notReady && "cursor-wait"
+                        )}
                       >
                         <div className="relative aspect-video w-full overflow-hidden bg-espresso dark:bg-black">
                           {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
-                          <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className="h-full w-full object-cover" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition group-hover:bg-black/40">
-                            <PlayCircle className="h-8 w-8 text-white drop-shadow-lg" />
-                          </div>
+                          <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className={cn("h-full w-full object-cover", notReady && "opacity-40")} />
+                          {video.status === "PROCESSING" && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50">
+                              <Loader2 className="h-5 w-5 animate-spin text-white" />
+                              <span className="text-[9.5px] font-semibold text-white">Hazırlanıyor...</span>
+                            </div>
+                          )}
+                          {video.status === "FAILED" && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-rose-950/60">
+                              <AlertTriangle className="h-5 w-5 text-rose-300" />
+                            </div>
+                          )}
+                          {!notReady && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition group-hover:bg-black/40">
+                              <PlayCircle className="h-8 w-8 text-white drop-shadow-lg" />
+                            </div>
+                          )}
                           {video.watchedAt && (
                             <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-emerald-600/90 px-2 py-0.5 text-[9.5px] font-semibold text-white">
                               <CheckCircle2 className="h-2.5 w-2.5" /> İzlendi
@@ -118,7 +139,8 @@ export function VideoLibraryTab() {
                           <p className="mt-0.5 text-[10px] text-espresso-muted dark:text-cream/40">{video.topic}</p>
                         </div>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );

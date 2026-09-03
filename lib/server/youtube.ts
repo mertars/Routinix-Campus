@@ -78,3 +78,27 @@ export async function uploadToYoutube(params: {
   const created = (await uploadRes.json()) as { id: string };
   return created.id;
 }
+
+// Kullanıcı geri bildirimi (2026-09-04) — YouTube'un video BAYTLARINI
+// ALMASI ile videonun GERÇEKTEN oynatılabilir olması AYRI şeyler; bayt
+// alımı bitince YouTube kendi tarafında ayrı bir "işleme" adımı yapar
+// (saniyeler-dakikalar sürebilir). Bu, o adımın bitip bitmediğini kontrol
+// eder — Video.status alanı bu bitene kadar "PROCESSING" kalır (bkz.
+// app/api/videos/route.ts > handleGet, kart bu bitmeden kilitli tutulur).
+export async function checkYoutubeProcessingStatus(youtubeId: string): Promise<"PROCESSING" | "READY" | "FAILED"> {
+  const accessToken = await getAccessToken();
+  const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,processingDetails&id=${encodeURIComponent(youtubeId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return "PROCESSING";
+  const data = (await res.json()) as {
+    items?: { status?: { uploadStatus?: string }; processingDetails?: { processingStatus?: string } }[];
+  };
+  const item = data.items?.[0];
+  if (!item) return "PROCESSING";
+  const uploadStatus = item.status?.uploadStatus;
+  const processingStatus = item.processingDetails?.processingStatus;
+  if (uploadStatus === "failed" || uploadStatus === "rejected" || processingStatus === "failed" || processingStatus === "terminated") return "FAILED";
+  if (uploadStatus === "processed" || processingStatus === "succeeded" || (uploadStatus === "uploaded" && !processingStatus)) return "READY";
+  return "PROCESSING";
+}

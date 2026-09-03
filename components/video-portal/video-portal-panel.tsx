@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2, GraduationCap, BookOpen } from "lucide-react";
+import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2, GraduationCap, BookOpen, AlertTriangle } from "lucide-react";
 import { VIDEO_SUBJECTS, subjectTone } from "@/lib/video-subjects";
 import { youtubeThumbnailUrl } from "@/lib/client/youtube";
 import { useToast } from "@/lib/toast-context";
@@ -16,6 +16,7 @@ export type VideoLesson = {
   title: string;
   description?: string | null;
   youtubeId: string;
+  status: "PROCESSING" | "READY" | "FAILED";
   grade: number;
   subject: string;
   topic: string;
@@ -54,6 +55,18 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
     loadVideos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Kullanıcı geri bildirimi (2026-09-04) — YouTube video baytlarını
+  // ALMASI ile videonun GERÇEKTEN oynatılabilir olması ayrı şeyler; hâlâ
+  // "işleniyor" olan video varken kütüphaneyi birkaç saniyede bir tazeler
+  // (GET /api/videos zaten YouTube'dan durumu kontrol edip günceliyor,
+  // bkz. route.ts) — hiçbiri işlenmeden kalmayınca kendiliğinden durur.
+  useEffect(() => {
+    if (!videos?.some((v) => v.status === "PROCESSING")) return;
+    const timer = setInterval(loadVideos, 6000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videos]);
 
   const availableGrades = useMemo(() => [...new Set((videos ?? []).map((v) => v.grade))].sort((a, b) => a - b), [videos]);
   const availableSubjects = useMemo(() => VIDEO_SUBJECTS.filter((s) => (videos ?? []).some((v) => v.subject === s)), [videos]);
@@ -263,6 +276,8 @@ function VideoCard({
   onAssign: () => void;
   onDelete: () => void;
 }) {
+  const notReady = video.status !== "READY";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -270,12 +285,30 @@ function VideoCard({
       transition={{ delay: Math.min(index, 8) * 0.03 }}
       className="group overflow-hidden rounded-2xl border border-hairline bg-white/70 shadow-sm backdrop-blur-sm transition hover:border-violet-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/50"
     >
-      <button onClick={onPreview} className="group/thumb relative block aspect-video w-full overflow-hidden bg-espresso dark:bg-black">
+      <button
+        onClick={onPreview}
+        disabled={notReady}
+        className={cn("group/thumb relative block aspect-video w-full overflow-hidden bg-espresso dark:bg-black", notReady && "cursor-wait")}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
-        <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className="h-full w-full object-cover" />
-        <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition group-hover/thumb:bg-black/40">
-          <PlayCircle className="h-9 w-9 text-white drop-shadow-lg" />
-        </div>
+        <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className={cn("h-full w-full object-cover", notReady && "opacity-40")} />
+        {video.status === "PROCESSING" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/50">
+            <Loader2 className="h-6 w-6 animate-spin text-white" />
+            <span className="text-[10px] font-semibold text-white">Yayına hazırlanıyor...</span>
+          </div>
+        )}
+        {video.status === "FAILED" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-rose-950/60">
+            <AlertTriangle className="h-6 w-6 text-rose-300" />
+            <span className="text-[10px] font-semibold text-rose-200">Yükleme başarısız</span>
+          </div>
+        )}
+        {!notReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition group-hover/thumb:bg-black/40">
+            <PlayCircle className="h-9 w-9 text-white drop-shadow-lg" />
+          </div>
+        )}
         <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">{video.grade}. Sınıf</span>
       </button>
       <div className="p-3">
@@ -285,7 +318,8 @@ function VideoCard({
           <div className="mt-2.5 flex items-center gap-1.5">
             <button
               onClick={onAssign}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-violet-500/10 py-1.5 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-500/20 dark:text-violet-300"
+              disabled={notReady}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-violet-500/10 py-1.5 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-500/20 disabled:cursor-wait disabled:opacity-40 dark:text-violet-300"
             >
               <Send className="h-3 w-3" /> Ata
             </button>

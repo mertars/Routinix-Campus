@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { getObjectStream, deleteObject } from "@/lib/server/r2";
-import { uploadToYoutube } from "@/lib/server/youtube";
+import { uploadToYoutube, checkYoutubeProcessingStatus } from "@/lib/server/youtube";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -24,8 +24,33 @@ async function handleGet(request: NextRequest) {
     const videos = await prisma.video.findMany({
       where: { institutionId: session.institutionId },
       orderBy: { createdAt: "desc" },
-      select: { id: true, title: true, description: true, grade: true, subject: true, topic: true, youtubeId: true, createdAt: true },
+      select: { id: true, title: true, description: true, grade: true, subject: true, topic: true, youtubeId: true, status: true, createdAt: true },
     });
+
+    // Kullanıcı geri bildirimi (2026-09-04) — YouTube video baytlarını
+    // alması ile videonun GERÇEKTEN oynatılabilir olması ayrı şeyler. Hâlâ
+    // "PROCESSING" görünen videoları her listelemede YouTube'dan taze
+    // kontrol edip DB'yi güncelliyoruz — ayrı bir arka plan işi/cron
+    // GEREKMİYOR, zaten kütüphaneyi açık tutan yönetici birkaç saniyede
+    // bir bu ucu çağırıyor (bkz. video-portal-panel.tsx'teki polling).
+    const stillProcessing = videos.filter((v) => v.status === "PROCESSING");
+    if (stillProcessing.length > 0) {
+      const updates = await Promise.all(
+        stillProcessing.map(async (v) => {
+          const status = await checkYoutubeProcessingStatus(v.youtubeId).catch(() => "PROCESSING" as const);
+          return { id: v.id, status };
+        })
+      );
+      const changed = updates.filter((u) => u.status !== "PROCESSING");
+      if (changed.length > 0) {
+        await Promise.all(changed.map((u) => prisma.video.update({ where: { id: u.id }, data: { status: u.status } }).catch(() => {})));
+        const statusById = new Map(changed.map((u) => [u.id, u.status]));
+        for (const v of videos) {
+          const next = statusById.get(v.id);
+          if (next) v.status = next;
+        }
+      }
+    }
 
     return NextResponse.json({ videos });
   } catch (error) {

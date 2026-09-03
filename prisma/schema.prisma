@@ -1891,6 +1891,19 @@ model XrayComprehensionAnswer {
 // "grade/subject/topic" — Röntgen'in CURRICULUM_TREE'sinin AKSİNE serbest
 // metin: video merkezi TÜM sınıf seviyelerini (1-12) ve TÜM dersleri
 // kapsıyor, Röntgen'in Matematik-özel/9-12 kısıtı burada YOK.
+// Kullanıcı geri bildirimi (2026-09-04) — YouTube video baytlarını ALMASI
+// ile videonun GERÇEKTEN oynatılabilir olması AYRI şeyler: bayt alımı
+// bitince (bkz. uploadToYoutube) YouTube kendi tarafında ayrıca bir
+// "işleme" adımı yapıyor (saniyeler-dakikalar sürebilir) — bu bitmeden
+// embed player'da video açılmıyor/hata veriyordu. Bu yüzden kart bu
+// alanla "hazır olana kadar" kilitli/tıklanamaz tutuluyor (bkz.
+// video-portal-panel.tsx > VideoCard).
+enum VideoStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
 model Video {
   id            String            @id @default(cuid())
   institutionId String
@@ -1901,6 +1914,7 @@ model Video {
   subject       String
   topic         String
   youtubeId     String // YouTube video ID'si (11 karakter) — embed/thumbnail URL'leri lib/client/youtube.ts'te türetilir
+  status        VideoStatus       @default(PROCESSING)
   createdById   String?
   createdBy     Admin?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt     DateTime          @default(now())
