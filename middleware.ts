@@ -33,7 +33,9 @@ function buildCsp(nonce: string): string {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // img.youtube.com — Video Ders Merkezi'nin YouTube küçük resim
+    // önizlemeleri (bkz. lib/client/youtube.ts) için.
+    "img-src 'self' data: blob: https://img.youtube.com",
     "font-src 'self' data:",
     "connect-src 'self'",
     "worker-src 'self' blob:",
@@ -42,7 +44,9 @@ function buildCsp(nonce: string): string {
     // — frame-src AÇIKÇA belirtilmezse default-src'ye ('self') düşer ve
     // 'self' blob: URL'lerini KAPSAMAZ (img-src/worker-src'deki AYNI kural,
     // burada da tekrarlanmalı) — tarayıcı iframe'i sessizce engelliyordu.
-    "frame-src 'self' blob:",
+    // youtube-nocookie.com — Video Ders Merkezi'nin gömülü video oynatıcısı
+    // (bkz. components/video-portal/youtube-embed.tsx).
+    "frame-src 'self' blob: https://www.youtube-nocookie.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

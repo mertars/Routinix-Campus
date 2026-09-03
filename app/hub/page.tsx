@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Building2, Scan, FileBarChart, LogOut, type LucideIcon } from "lucide-react";
+import { Building2, Scan, FileBarChart, Clapperboard, Wallet, LogOut, type LucideIcon } from "lucide-react";
 import { AuroraOrbs, GlowLogo, spaceGrotesk, AURORA_GRID_STYLE } from "@/components/ui/aurora-brand";
 import { useLogout } from "@/lib/role-context";
 import { useToast } from "@/lib/toast-context";
@@ -41,6 +41,20 @@ const MODULES: ModuleDef[] = [
     label: "Ölçme Değerlendirme",
     description: "Kurum geneli sınav ve ölçme-değerlendirme merkezi.",
     icon: FileBarChart,
+    active: false,
+  },
+  {
+    id: "video",
+    label: "Video Ders Merkezi",
+    description: "Konu anlatım videolarını yükle, sınıf/ders/konuya göre grupla, öğrenciye tek tuşla ata.",
+    icon: Clapperboard,
+    active: true,
+  },
+  {
+    id: "payments",
+    label: "Ödeme Takip",
+    description: "Ödeme ve tahsilat takibi merkezi.",
+    icon: Wallet,
     active: false,
   },
 ];
@@ -121,6 +135,7 @@ export default function HubPage() {
     }
     const isTeacher = session.roleId === "teacher";
     if (mod.id === "xray") router.push(isTeacher ? "/xray/teacher" : "/xray/principal");
+    else if (mod.id === "video") router.push(isTeacher ? "/videos/teacher" : "/videos/principal");
     else router.push(isTeacher ? "/teacher" : "/principal");
   }
 
