@@ -23,6 +23,12 @@ function getR2Client(): S3Client {
   cachedClient = new S3Client({
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    // R2 kova adını alt-domain olarak öne eklemeyi (virtual-hosted-style,
+    // "routinix.<accountId>.r2.cloudflarestorage.com") DESTEKLEMİYOR — SDK
+    // varsayılanı bu, ve hem CSP allowlist'iyle (sadece <accountId>.r2...
+    // izinli) uyuşmuyordu hem de Cloudflare'in kendisi R2 için path-style
+    // ("<accountId>.r2...cloudflarestorage.com/<kova>/...") öneriyor.
+    forcePathStyle: true,
     credentials: {
       accessKeyId: requireEnv("R2_ACCESS_KEY_ID"),
       secretAccessKey: requireEnv("R2_SECRET_ACCESS_KEY"),
