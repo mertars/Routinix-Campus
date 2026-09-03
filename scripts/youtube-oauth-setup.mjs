@@ -22,7 +22,12 @@ const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
 authUrl.searchParams.set("client_id", CLIENT_ID);
 authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
 authUrl.searchParams.set("response_type", "code");
-authUrl.searchParams.set("scope", "https://www.googleapis.com/auth/youtube.upload");
+// youtube.upload — video yükleme. youtube.readonly — video DURUMUNU
+// (işlendi mi/başarısız mı) okumak için AYRI bir kapsam, sadece upload
+// yeterli değil (bkz. lib/server/youtube.ts > checkYoutubeProcessingStatus
+// üstündeki not — bu eksiklik "yayına hazırlanıyor" durumunun sonsuza
+// kadar takılı kalmasına sebep olmuştu).
+authUrl.searchParams.set("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly");
 // access_type=offline + prompt=consent — refresh_token SADECE bu ikisi
 // birlikteyken dönüyor (aksi halde sadece kısa ömürlü access_token gelir).
 authUrl.searchParams.set("access_type", "offline");

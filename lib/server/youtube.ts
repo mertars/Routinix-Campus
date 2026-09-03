@@ -90,7 +90,16 @@ export async function checkYoutubeProcessingStatus(youtubeId: string): Promise<"
   const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,processingDetails&id=${encodeURIComponent(youtubeId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!res.ok) return "PROCESSING";
+  if (!res.ok) {
+    // Kullanıcı geri bildirimi (2026-09-04) — bu hata daha önce SESSİZCE
+    // yutuluyordu, "PROCESSING" sonsuza dek takılı kalıyordu ("yayına
+    // hazırlanıyor imleci gitmiyor"). Gerçek sebep: OAuth kapsamımız
+    // (youtube.upload) sadece YÜKLEMEYE izin veriyor, video DURUMUNU
+    // OKUMAYA değil — youtube.readonly da gerekiyordu (bkz.
+    // scripts/youtube-oauth-setup.mjs). En azından artık loglanıyor.
+    console.error("YouTube durum kontrolü başarısız:", res.status, await res.text().catch(() => ""));
+    return "PROCESSING";
+  }
   const data = (await res.json()) as {
     items?: { status?: { uploadStatus?: string }; processingDetails?: { processingStatus?: string } }[];
   };
