@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Volume2, Volume1, VolumeX, Maximize, Minimize, RotateCw, Loader2, Settings, ChevronLeft, ChevronRight, Check, Captions } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Play, Pause, Volume2, Volume1, VolumeX, Maximize, Minimize, RotateCw, Loader2, Settings, X, Gauge, MonitorPlay, Captions, type LucideIcon } from "lucide-react";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +94,30 @@ const QUALITY_LABELS: Record<string, string> = {
 
 const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
-type SettingsPanel = null | "main" | "speed" | "quality";
+// Kullanıcı talebi (2026-09-04) — "kalıpların dışına çık, hareketli":
+// klasik dikey açılır liste yerine, dişli düğmesinin etrafında YAY
+// üzerinde fırlayan bir radyal menü. İki katman: "main" (Altyazı/Kalite/
+// Hız ikonları, dar yayda) → birine dokununca "speed"/"quality" (o
+// ayarın DEĞERLERİ, daha geniş bir yayda küçük kapsüller olarak açılır).
+// Geometri notu: açı 0°=yukarı, negatif=sola doğru dönüyor; -90..0
+// aralığında kalmak y bileşenini hep negatif (yukarı) tutuyor — bu yüzden
+// hiçbir düğüm kontrol çubuğunun ALTINA taşmıyor.
+type RadialLevel = "closed" | "main" | "speed" | "quality";
+
+function arcPoint(angleDeg: number, radius: number): { x: number; y: number } {
+  const rad = (angleDeg * Math.PI) / 180;
+  return { x: radius * Math.sin(rad), y: -radius * Math.cos(rad) };
+}
+
+function spreadAngles(count: number, from: number, to: number): number[] {
+  if (count <= 1) return [(from + to) / 2];
+  const step = (to - from) / (count - 1);
+  return Array.from({ length: count }, (_, i) => from + step * i);
+}
+
+const MAIN_NODE = 36;
+const VALUE_NODE_W = 46;
+const VALUE_NODE_H = 26;
 
 export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: string; onFirstPlay?: () => void; className?: string }) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -111,7 +135,7 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
   const [showControls, setShowControls] = useState(true);
   const [scrubHoverRatio, setScrubHoverRatio] = useState<number | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
-  const [settingsPanel, setSettingsPanel] = useState<SettingsPanel>(null);
+  const [radialLevel, setRadialLevel] = useState<RadialLevel>("closed");
   const [playbackRate, setPlaybackRateState] = useState(1);
   const [availableRates, setAvailableRates] = useState<number[]>([1]);
   const [quality, setQuality] = useState("auto");
@@ -269,26 +293,48 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
   function selectRate(rate: number) {
     playerRef.current?.setPlaybackRate(rate);
     setPlaybackRateState(rate);
-    setSettingsPanel(null);
+    setRadialLevel("closed");
   }
 
   function selectQuality(q: string) {
     playerRef.current?.setPlaybackQuality(q);
     setQuality(q);
-    setSettingsPanel(null);
+    setRadialLevel("closed");
   }
 
   function scheduleHide() {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => {
       setShowControls(false);
-      setSettingsPanel(null);
+      setRadialLevel("closed");
     }, 2800);
   }
 
   const progressRatio = duration > 0 ? currentTime / duration : 0;
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
-  const controlsVisible = showControls || !playing || settingsPanel !== null;
+  const controlsVisible = showControls || !playing || radialLevel !== "closed";
+
+  type MainItem = { key: string; icon: LucideIcon; active: boolean; onClick: () => void };
+  const mainItems: MainItem[] = [
+    { key: "cc", icon: Captions, active: ccEnabled, onClick: () => { toggleCaptions(); setRadialLevel("closed"); } },
+    ...(availableQualities.length > 0
+      ? [{ key: "quality", icon: MonitorPlay, active: quality !== "auto", onClick: () => setRadialLevel("quality") }]
+      : []),
+    { key: "speed", icon: Gauge, active: playbackRate !== 1, onClick: () => setRadialLevel("speed") },
+  ];
+
+  type ValueItem = { key: string; label: string; active: boolean; onClick: () => void };
+  const speedItems: ValueItem[] = SPEED_OPTIONS.filter((r) => availableRates.includes(r) || r === 1).map((rate) => ({
+    key: String(rate),
+    label: rate === 1 ? "1x" : `${rate}x`,
+    active: rate === playbackRate,
+    onClick: () => selectRate(rate),
+  }));
+  const qualityItems: ValueItem[] = [
+    { key: "auto", label: "Oto", active: quality === "auto", onClick: () => selectQuality("auto") },
+    ...availableQualities.map((q) => ({ key: q, label: QUALITY_LABELS[q] ?? q, active: q === quality, onClick: () => selectQuality(q) })),
+  ];
+  const valueItems = radialLevel === "speed" ? speedItems : radialLevel === "quality" ? qualityItems : [];
 
   return (
     <div
@@ -298,7 +344,7 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
         setShowControls(true);
         scheduleHide();
       }}
-      onMouseLeave={() => playing && settingsPanel === null && setShowControls(false)}
+      onMouseLeave={() => playing && radialLevel === "closed" && setShowControls(false)}
     >
       <div ref={mountRef} className="pointer-events-none absolute inset-0 h-full w-full" />
 
@@ -397,104 +443,83 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
 
             <div className="flex-1" />
 
-            {/* Altyazı — YouTube'un kendi captions modülünü aç/kapat. */}
-            <button
-              onClick={toggleCaptions}
-              aria-label="Altyazı"
-              className={cn("rounded px-0.5 transition hover:scale-110", ccEnabled ? "text-violet-400" : "text-white")}
-            >
-              <Captions className="h-4 w-4" />
-            </button>
-
-            {/* Ayarlar — hız + kalite, YouTube'un kendi ana menü/alt menü
-                (geri okuyla) desenini taklit ediyor. */}
+            {/* Radyal ayarlar menüsü — Altyazı/Kalite/Hız düğmesinin
+                etrafında yay üzerinde fırlıyor (bkz. RadialLevel notu). */}
             <div className="relative">
-              <button
-                onClick={() => setSettingsPanel((v) => (v ? null : "main"))}
-                aria-label="Ayarlar"
-                className={cn("transition hover:rotate-45", settingsPanel && "text-violet-400")}
-              >
-                <Settings className="h-4 w-4" />
-              </button>
-              {settingsPanel && (
-                <div className="absolute bottom-full right-0 z-10 mb-3 w-48 overflow-hidden rounded-2xl border border-white/15 bg-midnight-card/95 py-1 shadow-2xl backdrop-blur-2xl">
-                  {settingsPanel === "main" && (
-                    <>
-                      <button
-                        onClick={() => setSettingsPanel("speed")}
-                        className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-[12.5px] font-medium text-cream transition hover:bg-white/10"
-                      >
-                        Oynatma Hızı
-                        <span className="flex items-center gap-1 text-cream/50">
-                          {playbackRate === 1 ? "Normal" : `${playbackRate}x`} <ChevronRight className="h-3.5 w-3.5" />
-                        </span>
-                      </button>
-                      {availableQualities.length > 0 && (
-                        <button
-                          onClick={() => setSettingsPanel("quality")}
-                          className="flex w-full items-center justify-between px-3.5 py-2.5 text-left text-[12.5px] font-medium text-cream transition hover:bg-white/10"
-                        >
-                          Kalite
-                          <span className="flex items-center gap-1 text-cream/50">
-                            {QUALITY_LABELS[quality] ?? quality} <ChevronRight className="h-3.5 w-3.5" />
-                          </span>
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {settingsPanel === "speed" && (
-                    <>
-                      <button
-                        onClick={() => setSettingsPanel("main")}
-                        className="flex w-full items-center gap-1.5 border-b border-white/10 px-3.5 py-2 text-left text-[12px] font-semibold text-cream/70 transition hover:text-cream"
-                      >
-                        <ChevronLeft className="h-3.5 w-3.5" /> Oynatma Hızı
-                      </button>
-                      <div className="max-h-52 overflow-y-auto py-1">
-                        {SPEED_OPTIONS.filter((r) => availableRates.includes(r) || r === 1).map((rate) => (
-                          <button
-                            key={rate}
-                            onClick={() => selectRate(rate)}
-                            className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-[12.5px] font-medium text-cream transition hover:bg-white/10"
-                          >
-                            <Check className={cn("h-3.5 w-3.5 shrink-0", rate === playbackRate ? "opacity-100" : "opacity-0")} />
-                            {rate === 1 ? "Normal" : `${rate}x`}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  {settingsPanel === "quality" && (
-                    <>
-                      <button
-                        onClick={() => setSettingsPanel("main")}
-                        className="flex w-full items-center gap-1.5 border-b border-white/10 px-3.5 py-2 text-left text-[12px] font-semibold text-cream/70 transition hover:text-cream"
-                      >
-                        <ChevronLeft className="h-3.5 w-3.5" /> Kalite
-                      </button>
-                      <div className="max-h-52 overflow-y-auto py-1">
-                        <button
-                          onClick={() => selectQuality("auto")}
-                          className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-[12.5px] font-medium text-cream transition hover:bg-white/10"
-                        >
-                          <Check className={cn("h-3.5 w-3.5 shrink-0", quality === "auto" ? "opacity-100" : "opacity-0")} />
-                          Otomatik
-                        </button>
-                        {availableQualities.map((q) => (
-                          <button
-                            key={q}
-                            onClick={() => selectQuality(q)}
-                            className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-[12.5px] font-medium text-cream transition hover:bg-white/10"
-                          >
-                            <Check className={cn("h-3.5 w-3.5 shrink-0", q === quality ? "opacity-100" : "opacity-0")} />
-                            {QUALITY_LABELS[q] ?? q}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
+              {radialLevel !== "closed" && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.4 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.4 }}
+                  className="pointer-events-none absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/25 blur-2xl"
+                />
               )}
+
+              <button
+                onClick={() => setRadialLevel((v) => (v === "closed" ? "main" : "closed"))}
+                aria-label="Ayarlar"
+                className={cn(
+                  "relative z-10 flex h-6 w-6 items-center justify-center rounded-full transition-all duration-300",
+                  radialLevel !== "closed" ? "rotate-90 bg-violet-500/90 text-white" : "hover:rotate-45"
+                )}
+              >
+                {radialLevel !== "closed" ? <X className="h-3.5 w-3.5" /> : <Settings className="h-4 w-4" />}
+              </button>
+
+              <div className="pointer-events-none absolute left-1/2 top-1/2 h-0 w-0">
+                <AnimatePresence>
+                  {radialLevel === "main" &&
+                    mainItems.map((item, i) => {
+                      const angle = spreadAngles(mainItems.length, -82, -8)[i];
+                      const { x, y } = arcPoint(angle, 58);
+                      const Icon = item.icon;
+                      return (
+                        <motion.button
+                          key={item.key}
+                          onClick={item.onClick}
+                          aria-label={item.key}
+                          initial={{ x: -MAIN_NODE / 2, y: -MAIN_NODE / 2, scale: 0, opacity: 0 }}
+                          animate={{ x: x - MAIN_NODE / 2, y: y - MAIN_NODE / 2, scale: 1, opacity: 1 }}
+                          exit={{ x: -MAIN_NODE / 2, y: -MAIN_NODE / 2, scale: 0, opacity: 0 }}
+                          transition={{ type: "spring", stiffness: 340, damping: 22, delay: i * 0.035 }}
+                          style={{ width: MAIN_NODE, height: MAIN_NODE }}
+                          className={cn(
+                            "pointer-events-auto absolute left-0 top-0 flex items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition-colors",
+                            item.active
+                              ? "border-violet-400 bg-violet-500/90 text-white"
+                              : "border-white/15 bg-midnight-card/95 text-cream hover:border-violet-400/60 hover:text-violet-300"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </motion.button>
+                      );
+                    })}
+
+                  {valueItems.map((item, i) => {
+                    const angle = spreadAngles(valueItems.length, -87, -3)[i];
+                    const { x, y } = arcPoint(angle, 94);
+                    return (
+                      <motion.button
+                        key={item.key}
+                        onClick={item.onClick}
+                        initial={{ x: -VALUE_NODE_W / 2, y: -VALUE_NODE_H / 2, scale: 0, opacity: 0 }}
+                        animate={{ x: x - VALUE_NODE_W / 2, y: y - VALUE_NODE_H / 2, scale: 1, opacity: 1 }}
+                        exit={{ x: -VALUE_NODE_W / 2, y: -VALUE_NODE_H / 2, scale: 0, opacity: 0 }}
+                        transition={{ type: "spring", stiffness: 340, damping: 22, delay: i * 0.02 }}
+                        style={{ width: VALUE_NODE_W, height: VALUE_NODE_H }}
+                        className={cn(
+                          "pointer-events-auto absolute left-0 top-0 flex items-center justify-center rounded-full border text-[10px] font-semibold tabular-nums shadow-lg backdrop-blur-md transition-colors",
+                          item.active
+                            ? "border-violet-400 bg-violet-500/90 text-white"
+                            : "border-white/15 bg-midnight-card/95 text-cream/85 hover:border-violet-400/60 hover:text-violet-300"
+                        )}
+                      >
+                        {item.label}
+                      </motion.button>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
             </div>
 
             <button onClick={toggleFullscreen} aria-label="Tam ekran" className="transition hover:scale-110">
