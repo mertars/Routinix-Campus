@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Clapperboard, PlayCircle, CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { YoutubeEmbed } from "@/components/video-portal/youtube-embed";
+import { YoutubePlayer } from "@/components/video-portal/youtube-player";
 import { youtubeThumbnailUrl } from "@/lib/client/youtube";
 import { subjectTone } from "@/lib/video-subjects";
 import { useToast } from "@/lib/toast-context";
@@ -27,10 +27,9 @@ type AssignedVideo = {
 // Video Ders Merkezi — öğrenci tarafı ("Video Derslerim"). Yöneticinin
 // kütüphanesinden (/videos/principal) atanan videolar burada çıkar — bkz.
 // /api/videos/assigned (SADECE bu öğrenciye atananlar, tüm kütüphane
-// DEĞİL). YouTube embed'i basit bir iframe olduğu için ("oynat" olayını
-// JS'ten yakalayamıyoruz, bkz. YoutubeEmbed) "izlendi" işareti videoyu
-// AÇTIĞINDA konuyor (tam oynatmayı beklemek IFrame Player API gerektirir
-// — burada gereksiz karmaşıklık).
+// DEĞİL). "İzlendi" işareti artık GERÇEK oynatma olayında konuyor (bkz.
+// youtube-player.tsx > onFirstPlay — IFrame Player API'nin postMessage
+// tabanlı olay dinleyicisi), sadece modalı açmakla DEĞİL.
 export function VideoLibraryTab() {
   const { showError } = useToast();
   const [videos, setVideos] = useState<AssignedVideo[] | null>(null);
@@ -101,7 +100,6 @@ export function VideoLibraryTab() {
                         onClick={() => {
                           if (notReady) return;
                           setActive(video);
-                          markWatched(video);
                         }}
                         disabled={notReady}
                         className={cn(
@@ -152,7 +150,7 @@ export function VideoLibraryTab() {
       {active && (
         <Modal isOpen={Boolean(active)} onClose={() => setActive(null)} title={active.title} variant="center" widthClassName="max-w-2xl">
           <div className="space-y-3">
-            <YoutubeEmbed videoId={active.youtubeId} />
+            <YoutubePlayer videoId={active.youtubeId} onFirstPlay={() => markWatched(active)} />
             {active.description && <p className="text-xs leading-relaxed text-espresso-muted dark:text-cream/50">{active.description}</p>}
           </div>
         </Modal>

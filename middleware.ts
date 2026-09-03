@@ -38,7 +38,12 @@ const r2UploadOrigin = process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACC
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
+    // https://www.youtube.com — Video Ders Merkezi'nin kendi kontrol
+    // çubuğunu çizebilmesi için YouTube IFrame Player API'sini yüklüyoruz
+    // (bkz. components/video-portal/youtube-player.tsx) — bu script bir
+    // <script> etiketiyle DOM'a manuel ekleniyor (nonce'suz), o yüzden
+    // origin'i doğrudan izin listesine eklemek gerekiyor.
+    `script-src 'self' 'nonce-${nonce}' https://www.youtube.com${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
     // img.youtube.com — Video Ders Merkezi'nin YouTube küçük resim
     // önizlemeleri (bkz. lib/client/youtube.ts) için.

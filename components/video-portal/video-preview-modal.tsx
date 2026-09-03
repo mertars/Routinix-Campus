@@ -2,7 +2,7 @@
 
 import { Send, GraduationCap, BookOpen, Layers } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { YoutubeEmbed } from "@/components/video-portal/youtube-embed";
+import { YoutubePlayer } from "@/components/video-portal/youtube-player";
 import { subjectTone } from "@/lib/video-subjects";
 import { cn } from "@/lib/utils";
 import type { VideoLesson } from "@/components/video-portal/video-portal-panel";
@@ -14,7 +14,7 @@ export function VideoPreviewModal({ video, onClose, onAssign }: { video: VideoLe
   return (
     <Modal isOpen={Boolean(video)} onClose={onClose} title={video.title} variant="center" widthClassName="max-w-2xl">
       <div className="space-y-3">
-        <YoutubeEmbed videoId={video.youtubeId} />
+        <YoutubePlayer videoId={video.youtubeId} />
         <div className="flex flex-wrap items-center gap-1.5">
           <span className={cn("flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold", tone.bg, tone.text)}>
             <BookOpen className="h-3 w-3" /> {video.subject}
