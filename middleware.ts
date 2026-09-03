@@ -28,6 +28,13 @@ const ROUTE_ROLE: Record<string, string> = {
 // header'daki 'nonce-...' değerini KENDİ enjekte ettiği hydration/RSC inline
 // script'lerine otomatik uygular; app/layout.tsx'teki elle yazılmış iki
 // script ise nonce'ı headers()'tan okuyup kendisi uygular (bkz. orada).
+// Video Ders Merkezi (ikinci geçiş) — tarayıcı büyük video dosyasını
+// DOĞRUDAN (bizim sunucumuzdan geçmeden) R2'nin geçici yükleme tamponuna
+// PUT ediyor (bkz. lib/server/r2.ts'teki "SADECE aktarım tamponu" notu) —
+// bu bir connect-src izni gerektirir. R2_ACCOUNT_ID env değişkeninden
+// TÜRETİLİYOR (hardcode YOK) — R2 ayarlanmadan CSP'ye eklenmiyor.
+const r2UploadOrigin = process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : null;
+
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
@@ -37,7 +44,7 @@ function buildCsp(nonce: string): string {
     // önizlemeleri (bkz. lib/client/youtube.ts) için.
     "img-src 'self' data: blob: https://img.youtube.com",
     "font-src 'self' data:",
-    "connect-src 'self'",
+    `connect-src 'self'${r2UploadOrigin ? ` ${r2UploadOrigin}` : ""}`,
     "worker-src 'self' blob:",
     // Özel PDF Oluşturucu'nun canlı önizlemesi (xray-custom-report-builder.tsx)
     // /api/xray/custom-report'tan dönen PDF blob'unu bir <iframe>'de gösteriyor
