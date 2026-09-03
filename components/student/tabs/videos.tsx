@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Clapperboard, PlayCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
-import { VideoPlayer } from "@/components/video-portal/video-player";
+import { YoutubeEmbed } from "@/components/video-portal/youtube-embed";
+import { youtubeThumbnailUrl } from "@/lib/client/youtube";
 import { subjectTone } from "@/lib/video-subjects";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -17,7 +18,7 @@ type AssignedVideo = {
   grade: number;
   subject: string;
   topic: string;
-  url: string;
+  youtubeId: string;
   assignedAt: string;
   watchedAt: string | null;
 };
@@ -25,8 +26,10 @@ type AssignedVideo = {
 // Video Ders Merkezi — öğrenci tarafı ("Video Derslerim"). Yöneticinin
 // kütüphanesinden (/videos/principal) atanan videolar burada çıkar — bkz.
 // /api/videos/assigned (SADECE bu öğrenciye atananlar, tüm kütüphane
-// DEĞİL). Video ilk oynatılınca /watched ile "izlendi" olarak işaretlenir
-// (bkz. video-player.tsx'in onFirstPlay callback'i).
+// DEĞİL). YouTube embed'i basit bir iframe olduğu için ("oynat" olayını
+// JS'ten yakalayamıyoruz, bkz. YoutubeEmbed) "izlendi" işareti videoyu
+// AÇTIĞINDA konuyor (tam oynatmayı beklemek IFrame Player API gerektirir
+// — burada gereksiz karmaşıklık).
 export function VideoLibraryTab() {
   const { showError } = useToast();
   const [videos, setVideos] = useState<AssignedVideo[] | null>(null);
@@ -92,11 +95,15 @@ export function VideoLibraryTab() {
                     {subjectVideos.map((video) => (
                       <button
                         key={video.assignmentId}
-                        onClick={() => setActive(video)}
+                        onClick={() => {
+                          setActive(video);
+                          markWatched(video);
+                        }}
                         className="group overflow-hidden rounded-2xl border border-hairline bg-white/60 text-left shadow-sm transition hover:border-violet-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/40"
                       >
                         <div className="relative aspect-video w-full overflow-hidden bg-espresso dark:bg-black">
-                          <video src={video.url} className="h-full w-full object-cover" preload="metadata" muted />
+                          {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
+                          <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className="h-full w-full object-cover" />
                           <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition group-hover:bg-black/40">
                             <PlayCircle className="h-8 w-8 text-white drop-shadow-lg" />
                           </div>
@@ -123,7 +130,7 @@ export function VideoLibraryTab() {
       {active && (
         <Modal isOpen={Boolean(active)} onClose={() => setActive(null)} title={active.title} variant="center" widthClassName="max-w-2xl">
           <div className="space-y-3">
-            <VideoPlayer src={active.url} onFirstPlay={() => markWatched(active)} />
+            <YoutubeEmbed videoId={active.youtubeId} />
             {active.description && <p className="text-xs leading-relaxed text-espresso-muted dark:text-cream/50">{active.description}</p>}
           </div>
         </Modal>

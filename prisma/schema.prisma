@@ -1881,29 +1881,30 @@ model XrayComprehensionAnswer {
 // Video Ders Merkezi (Hub'daki 4. modül) — Faz 1
 // ----------------------------------------------------------------------------
 
-// Kullanıcı kararı (2026-09-03) — video dosyaları Cloudflare R2'de tutulur
-// (bkz. lib/server/r2.ts): tarayıcıdan DOĞRUDAN (bizim sunucumuzdan
-// geçmeden) bir presigned URL ile yüklenir, sonra bu tablo SADECE metadata +
-// r2Key'i tutar. Trafik/izlenme R2'de ücretsiz — maliyet sadece depolanan
-// GB ile artar, öğrenci sayısıyla DEĞİL (bkz. kullanıcıyla yapılan maliyet
-// analizi). "grade/subject/topic" — Röntgen'in CURRICULUM_TREE'sinin
-// AKSİNE serbest metin: video merkezi TÜM sınıf seviyelerini (1-12) ve TÜM
-// dersleri kapsıyor, Röntgen'in Matematik-özel/9-12 kısıtı burada YOK.
+// Kullanıcı kararı (2026-09-03) — ÖNCE Cloudflare R2 (kendi depomuz +
+// tarayıcı-içi ffmpeg.wasm dönüştürücü) denendi, ama gerçek kullanımda
+// yavaş/tutarsız çıktı ("kafasına göre çalışıyor") — YouTube'a (gizli
+// link) DÖNÜLDÜ: yönetici videoyu YouTube'a yükler, biz SADECE video ID'yi
+// saklayıp kendi arayüzümüzde embed ediyoruz (bkz. lib/client/youtube.ts).
+// Depolama/dönüştürme/CDN sorunlarının hiçbiri bizim sorunumuz değil artık
+// — bedeli küçük bir YouTube logosu (bkz. kullanıcıyla yapılan tartışma).
+// "grade/subject/topic" — Röntgen'in CURRICULUM_TREE'sinin AKSİNE serbest
+// metin: video merkezi TÜM sınıf seviyelerini (1-12) ve TÜM dersleri
+// kapsıyor, Röntgen'in Matematik-özel/9-12 kısıtı burada YOK.
 model Video {
-  id              String            @id @default(cuid())
-  institutionId   String
-  institution     Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  title           String
-  description     String?
-  grade           Int
-  subject         String
-  topic           String
-  r2Key           String // R2 bucket içindeki nesne anahtarı — herkese açık URL lib/server/r2.ts > r2PublicUrl(key) ile türetilir
-  durationSeconds Int?
-  createdById     String?
-  createdBy       Admin?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt       DateTime          @default(now())
-  assignments     VideoAssignment[]
+  id            String            @id @default(cuid())
+  institutionId String
+  institution   Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  grade         Int
+  subject       String
+  topic         String
+  youtubeId     String // YouTube video ID'si (11 karakter) — embed/thumbnail URL'leri lib/client/youtube.ts'te türetilir
+  createdById   String?
+  createdBy     Admin?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+  assignments   VideoAssignment[]
 
   @@index([institutionId, grade, subject])
 }

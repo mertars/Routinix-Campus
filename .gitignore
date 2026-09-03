@@ -6,9 +6,6 @@ node_modules
 .DS_Store
 *.log
 public/uploads
-# ffmpeg.wasm çekirdeği (~32MB) — postinstall'de node_modules'tan kopyalanır
-# (bkz. scripts/copy-ffmpeg-core.mjs), git'e commit ETMEYE gerek yok.
-public/ffmpeg
 *.tsbuildinfo
 /test-results
 /playwright-report

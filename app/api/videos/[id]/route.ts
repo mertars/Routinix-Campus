@@ -1,28 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { deleteObject } from "@/lib/server/r2";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-// DELETE /api/videos/[id] — hem R2'deki dosyayı hem veritabanı kaydını
-// (ve VideoAssignment'ları, onDelete: Cascade) siler. R2'den ÖNCE DB
-// kaydını değil, TERSİNİ yapıyoruz: önce R2 nesnesi silinir, sonra DB
-// satırı — R2 silme başarısız olursa DB kaydı (ve dolayısıyla oynatma
-// linki) hâlâ tutarlı kalır, yarım bir "kayıt var ama dosya yok" durumu
-// oluşmaz.
+// DELETE /api/videos/[id] — sadece kütüphaneden/atamalardan (onDelete:
+// Cascade) kaldırır. YouTube'daki videonun kendisine DOKUNMAZ — o video
+// ayrı bir kanalda (bizim kontrolümüz dışında bir hesapta olabilir),
+// silme kararı burada değil YouTube tarafında verilir.
 async function handleDelete(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
 
-    const video = await prisma.video.findUnique({ where: { id: params.id }, select: { institutionId: true, r2Key: true } });
+    const video = await prisma.video.findUnique({ where: { id: params.id }, select: { institutionId: true } });
     if (!video) return NextResponse.json({ error: "Video bulunamadı." }, { status: 404 });
     requireInstitution(session, video.institutionId);
 
-    await deleteObject(video.r2Key);
     await prisma.video.delete({ where: { id: params.id } });
 
     return NextResponse.json({ success: true });

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2, GraduationCap, BookOpen } from "lucide-react";
 import { VIDEO_SUBJECTS, subjectTone } from "@/lib/video-subjects";
+import { youtubeThumbnailUrl } from "@/lib/client/youtube";
 import { useToast } from "@/lib/toast-context";
 import { VideoUploadModal } from "@/components/video-portal/video-upload-modal";
 import { VideoAssignModal } from "@/components/video-portal/video-assign-modal";
@@ -14,11 +15,10 @@ export type VideoLesson = {
   id: string;
   title: string;
   description?: string | null;
-  url: string;
+  youtubeId: string;
   grade: number;
   subject: string;
   topic: string;
-  durationSeconds: number | null;
   createdAt: string;
 };
 
@@ -26,18 +26,12 @@ function normalizeTopicKey(topic: string): string {
   return topic.trim().toLocaleLowerCase("tr-TR");
 }
 
-// Video Ders Merkezi — R2 tabanlı gerçek sürüm. Kullanıcı geri bildirimi
-// (2026-09-03) — üç düzeltme:
-// 1) Düzen tek dar sütunda sıkışıyordu ("sağa doldurmuşsun") — sol sabit
-//    filtre paneli + sağ geniş içerik ikilisine çevrildi (xray-results-
-//    panel.tsx'teki AYNI ilke), genişlik doğal olarak kullanılıyor.
-// 2) Konu grupları büyük/küçük harfe DUYARLIYDI ("türev" ile "Türev" ayrı
-//    gruplara düşüyordu) — gruplama artık normalize edilmiş (kırpılmış +
-//    küçük harfli) bir anahtarla yapılıyor.
-// 3) "Video Ekle" formundaki konu otomatik tamamlama HİÇBİR ZAMAN öneri
-//    göstermiyordu (yanlışlıkla panelin filtre state'ine bakıyordu, o da
-//    varsayılan olarak "Tümü" = null'du) — artık modalın KENDİ sınıf/ders
-//    seçimine göre canlı hesaplanıyor (bkz. video-upload-modal.tsx).
+// Video Ders Merkezi — YouTube tabanlı sürüm (bkz. prisma/schema.prisma >
+// Video modelinin üstündeki gerekçe — R2 denendi, yavaş/tutarsız çıktı).
+// Düzen sol sabit filtre paneli + sağ geniş içerik (xray-results-panel.tsx
+// ile AYNI ilke) — genişlik doğal olarak kullanılıyor. Konu grupları
+// büyük/küçük harfe DUYARSIZ (normalize edilmiş anahtar) — "türev" ile
+// "Türev" tek grupta birleşiyor.
 export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
   const { showError, showToast } = useToast();
   const [videos, setVideos] = useState<VideoLesson[] | null>(null);
@@ -277,7 +271,8 @@ function VideoCard({
       className="group overflow-hidden rounded-2xl border border-hairline bg-white/70 shadow-sm backdrop-blur-sm transition hover:border-violet-400/40 hover:shadow-md dark:border-white/10 dark:bg-midnight-card/50"
     >
       <button onClick={onPreview} className="group/thumb relative block aspect-video w-full overflow-hidden bg-espresso dark:bg-black">
-        <video src={video.url} className="h-full w-full object-cover" preload="metadata" muted />
+        {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
+        <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className="h-full w-full object-cover" />
         <div className="absolute inset-0 flex items-center justify-center bg-black/20 transition group-hover/thumb:bg-black/40">
           <PlayCircle className="h-9 w-9 text-white drop-shadow-lg" />
         </div>

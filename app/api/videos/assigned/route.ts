@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { r2PublicUrl } from "@/lib/server/r2";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -22,7 +21,7 @@ async function handleGet() {
         id: true,
         assignedAt: true,
         watchedAt: true,
-        video: { select: { id: true, title: true, description: true, grade: true, subject: true, topic: true, r2Key: true, durationSeconds: true } },
+        video: { select: { id: true, title: true, description: true, grade: true, subject: true, topic: true, youtubeId: true } },
       },
     });
 
@@ -32,7 +31,6 @@ async function handleGet() {
         assignedAt: a.assignedAt,
         watchedAt: a.watchedAt,
         ...a.video,
-        url: r2PublicUrl(a.video.r2Key),
       })),
     });
   } catch (error) {
