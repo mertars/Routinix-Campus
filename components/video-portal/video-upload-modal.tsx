@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Clapperboard, Film, Loader2, CheckCircle2, Wand2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
@@ -49,12 +49,12 @@ export function VideoUploadModal({
   isOpen,
   onClose,
   onAdded,
-  existingTopics,
+  videos,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onAdded: (video: VideoLesson) => void;
-  existingTopics: string[];
+  videos: VideoLesson[];
 }) {
   const { showError } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +66,21 @@ export function VideoUploadModal({
   const [topic, setTopic] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
   const [stage, setStage] = useState<"idle" | "checking" | "transcoding" | "uploading" | "saving" | "done">("idle");
+
+  // Kullanıcı geri bildirimi (2026-09-03) — bu öneriler eskiden panelin
+  // "Tümü" filtresine bakıyordu (hep boştu). Artık modalın KENDİ seçili
+  // sınıf/ders'ine göre CANLI hesaplanıyor + büyük/küçük harf farkı olan
+  // aynı konu tekrar ETMİYOR (bkz. video-portal-panel.tsx'teki AYNI
+  // normalizeTopicKey ilkesi).
+  const existingTopics = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const v of videos) {
+      if (v.grade !== grade || v.subject !== subject) continue;
+      const key = v.topic.trim().toLocaleLowerCase("tr-TR");
+      if (!seen.has(key)) seen.set(key, v.topic.trim());
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b, "tr-TR"));
+  }, [videos, grade, subject]);
 
   const canSave = Boolean(file) && title.trim().length > 0 && topic.trim().length > 0 && stage === "idle";
 
