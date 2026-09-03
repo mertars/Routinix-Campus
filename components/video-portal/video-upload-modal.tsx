@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Clapperboard, Film, Loader2, CheckCircle2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Clapperboard, Film, Loader2, CheckCircle2, Wand2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { VIDEO_SUBJECTS } from "@/lib/video-subjects";
+import { canPlayNatively, transcodeToMp4 } from "@/lib/client/transcode";
 import type { VideoLesson } from "@/components/video-portal/video-portal-panel";
 
 const GRADES = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -64,7 +65,7 @@ export function VideoUploadModal({
   const [subject, setSubject] = useState<string>(VIDEO_SUBJECTS[0]);
   const [topic, setTopic] = useState("");
   const [progress, setProgress] = useState<number | null>(null);
-  const [stage, setStage] = useState<"idle" | "uploading" | "saving" | "done">("idle");
+  const [stage, setStage] = useState<"idle" | "checking" | "transcoding" | "uploading" | "saving" | "done">("idle");
 
   const canSave = Boolean(file) && title.trim().length > 0 && topic.trim().length > 0 && stage === "idle";
 
@@ -89,19 +90,34 @@ export function VideoUploadModal({
 
   async function handleSave() {
     if (!file || !canSave) return;
-    setStage("uploading");
-    setProgress(0);
+    setStage("checking");
+    setProgress(null);
     try {
-      const [durationSeconds, presignRes] = await Promise.all([
-        readVideoDuration(file),
-        fetch("/api/videos/presign", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ fileName: file.name, contentType: file.type }),
-        }).then((res) => (res.ok ? res.json() : Promise.reject(new Error()))),
-      ]);
+      // Kullanıcı geri bildirimi (2026-09-03) — iPhone'un varsayılan HEVC
+      // (.mov) kaydı çoğu tarayıcıda oynatılamıyordu ("0:00" kalıp
+      // oynamıyordu). Önce dosyanın TARAYICIDA native oynatılıp
+      // oynatılamadığını sessizce test ediyoruz — oynatılabiliyorsa
+      // dönüştürmeye hiç GEREK yok (zaman kaybetmeyelim); oynatılamıyorsa
+      // ffmpeg.wasm ile TARAYICIDA (sunucu/üçüncü taraf servis OLMADAN)
+      // standart H.264 MP4'e çeviriyoruz (bkz. lib/client/transcode.ts).
+      let uploadFile = file;
+      const playable = await canPlayNatively(file);
+      if (!playable) {
+        setStage("transcoding");
+        setProgress(0);
+        uploadFile = await transcodeToMp4(file, (ratio) => setProgress(Math.round(ratio * 100)));
+      }
 
-      await uploadWithProgress(presignRes.uploadUrl, file, setProgress);
+      setStage("uploading");
+      setProgress(0);
+      const durationSeconds = await readVideoDuration(uploadFile);
+      const presignRes = await fetch("/api/videos/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: uploadFile.name, contentType: uploadFile.type }),
+      }).then((res) => (res.ok ? res.json() : Promise.reject(new Error())));
+
+      await uploadWithProgress(presignRes.uploadUrl, uploadFile, setProgress);
 
       setStage("saving");
       const saveRes = await fetch("/api/videos", {
@@ -154,11 +170,30 @@ export function VideoUploadModal({
             className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-hairline bg-cream-card px-3.5 py-3 text-left transition hover:border-violet-400/50 disabled:opacity-60 dark:border-white/10 dark:bg-white/5"
           >
             <Film className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
-            <span className="min-w-0 flex-1 truncate text-xs font-medium text-espresso dark:text-cream">{file ? file.name : "MP4/WebM/MOV dosyası seç..."}</span>
+            <span className="min-w-0 flex-1 truncate text-xs font-medium text-espresso dark:text-cream">{file ? file.name : "Herhangi bir video dosyası seç..."}</span>
           </button>
-          <input ref={fileInputRef} type="file" accept="video/mp4,video/webm,video/quicktime" onChange={handleFileChange} className="hidden" />
+          <input ref={fileInputRef} type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
+          <p className="mt-1 text-[10px] text-espresso-muted dark:text-cream/40">Tarayıcının oynatamadığı formatlar (ör. iPhone HEVC) otomatik olarak dönüştürülür.</p>
         </div>
 
+        {stage === "checking" && (
+          <p className="flex items-center gap-1.5 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Video formatı kontrol ediliyor...
+          </p>
+        )}
+        {stage === "transcoding" && progress !== null && (
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-espresso-muted dark:text-cream/40">
+              <span className="flex items-center gap-1.5">
+                <Wand2 className="h-3 w-3" /> Uyumlu formata dönüştürülüyor (bu biraz sürebilir)...
+              </span>
+              <span>%{progress}</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
+              <div className="h-full rounded-full bg-violet-500 transition-all" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        )}
         {stage === "uploading" && progress !== null && (
           <div>
             <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-espresso-muted dark:text-cream/40">
@@ -260,7 +295,7 @@ export function VideoUploadModal({
           className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-violet-600 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clapperboard className="h-4 w-4" />}
-          {busy ? "Yükleniyor..." : "Kütüphaneye Ekle"}
+          {stage === "transcoding" ? "Dönüştürülüyor..." : busy ? "Yükleniyor..." : "Kütüphaneye Ekle"}
         </button>
       </div>
     </Modal>

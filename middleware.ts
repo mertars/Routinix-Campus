@@ -47,12 +47,18 @@ const r2UploadOrigin = process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACC
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
+    // 'wasm-unsafe-eval' — Video Ders Merkezi'nin tarayıcı-içi dönüştürücüsü
+    // (ffmpeg.wasm, bkz. lib/client/transcode.ts) WebAssembly ÇALIŞTIRIYOR.
+    // 'unsafe-eval'in aksine SADECE WASM derlemesine izin verir, rastgele JS
+    // eval'ine İZİN VERMEZ — güvenlik açısından çok daha dar kapsamlı.
+    `script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     `media-src 'self'${r2PublicOrigin ? ` ${r2PublicOrigin}` : ""}`,
     "font-src 'self' data:",
-    `connect-src 'self'${r2UploadOrigin ? ` ${r2UploadOrigin}` : ""}`,
+    // blob: — ffmpeg.wasm'ın Worker'ı çekirdek dosyaları blob: URL'lerinden
+    // fetch ediyor (bkz. lib/client/transcode.ts > toBlobURL kullanımı).
+    `connect-src 'self' blob:${r2UploadOrigin ? ` ${r2UploadOrigin}` : ""}`,
     "worker-src 'self' blob:",
     // Özel PDF Oluşturucu'nun canlı önizlemesi (xray-custom-report-builder.tsx)
     // /api/xray/custom-report'tan dönen PDF blob'unu bir <iframe>'de gösteriyor
