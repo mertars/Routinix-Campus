@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Volume2, VolumeX, Maximize, RotateCw, Loader2 } from "lucide-react";
+import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { cn } from "@/lib/utils";
 
 // YouTube IFrame Player API'sinin tip tanımlarını burada elle YAZMIYORUZ
@@ -186,6 +187,17 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
       onMouseLeave={() => playing && setShowControls(false)}
     >
       <div ref={mountRef} className="pointer-events-none absolute inset-0 h-full w-full" />
+
+      {/* Kullanıcı isteği (2026-09-04) — kurumun kendi logosu köşede
+          görünsün. Aynı zamanda YouTube'un kendi (kaldırılamayan, bkz.
+          dosya başındaki not) köşe filigranının ÜSTÜNE biniyor — YouTube'un
+          çıktısını DEĞİŞTİRMİYOR, sadece kendi arayüzümüzden bir öğeyi
+          onun üstüne koyuyoruz (controls'tan bağımsız, HER ZAMAN görünür). */}
+      {ready && (
+        <div className="pointer-events-none absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-black/55 shadow-md backdrop-blur-sm">
+          <InstitutionBadgeIcon className="h-4 w-4 text-white" />
+        </div>
+      )}
 
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center bg-black">
