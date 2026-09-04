@@ -31,8 +31,15 @@ export type VideoLesson = {
   id: string;
   title: string;
   description?: string | null;
-  youtubeId: string;
+  // Sağlamlaştırma (2026-09-05) — DB kaydı artık YouTube aktarımı
+  // BAŞLAMADAN ÖNCE oluşturuluyor (bkz. POST /api/videos), bu yüzden
+  // aktarım bitene/başarısız olana kadar null olabilir. status==="READY"
+  // olması youtubeId'nin dolu olduğunu GARANTİ eder (bkz. GET
+  // /api/videos'taki durum makinesi) — ama tip düzeyinde bunu varsaymak
+  // yerine her tüketici null'ı ele alıyor.
+  youtubeId: string | null;
   status: "PROCESSING" | "READY" | "FAILED";
+  failureReason?: string | null;
   grade: number;
   subject: string;
   topic: string;
@@ -103,8 +110,14 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
         body: JSON.stringify({ studentIds: [pair.studentId] }),
       });
       if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({ assignedCount: 1 }));
       setRecommendationPairs((prev) => (prev ?? []).filter((p) => p.studentId !== pair.studentId));
-      showToast("success", `"${pair.videoTitle}" ${pair.studentName} adlı öğrenciye atandı.`);
+      // Denetim bulgusu (2026-09-05) — iki yönetici aynı öneriyi neredeyse
+      // eş zamanlı "Ata" derse, ikinci istek skipDuplicates sayesinde 200
+      // döner ama assignedCount 0'dır (zaten atanmış) — bunu "atandı" diye
+      // göstermek yanıltıcıydı.
+      if (data.assignedCount > 0) showToast("success", `"${pair.videoTitle}" ${pair.studentName} adlı öğrenciye atandı.`);
+      else showToast("info", `"${pair.videoTitle}" zaten ${pair.studentName} adlı öğrenciye atanmış.`);
     } catch {
       showError("Atama yapılamadı.");
     }
@@ -189,7 +202,7 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
         label: group.label,
         count: group.videos.length,
         grades: [...new Set(group.videos.map((v) => v.grade))].sort((a, b) => a - b),
-        previewVideo: group.videos[0],
+        previewVideo: group.videos.find((v) => v.youtubeId) ?? group.videos[0],
       })),
     [groupedByTopic]
   );
@@ -482,7 +495,7 @@ function RecommendationsMenu({ pairs, onAssign }: { pairs: RecommendationPair[] 
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ type: "spring", stiffness: 340, damping: 28 }}
-            className="absolute right-0 top-full z-30 mt-2 w-[22rem] overflow-hidden rounded-2xl border border-hairline bg-white shadow-2xl dark:border-white/10 dark:bg-midnight-card"
+            className="absolute right-0 top-full z-30 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-hairline bg-white shadow-2xl dark:border-white/10 dark:bg-midnight-card"
           >
             <p className="border-b border-hairline px-3.5 py-2.5 text-[11px] text-espresso-muted dark:border-white/10 dark:text-cream/40">
               Öğrencinin zayıf olduğu konuyla eşleşen video — tek tıkla atanır.
@@ -601,12 +614,14 @@ function TopicCard({
       className="group overflow-hidden rounded-2xl border border-hairline bg-white/70 text-left shadow-sm backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-midnight-card/50"
     >
       <div className="relative aspect-[2/1] w-full overflow-hidden bg-espresso dark:bg-black">
-        {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
-        <img
-          src={youtubeThumbnailUrl(topic.previewVideo.youtubeId)}
-          alt=""
-          className="h-full w-full object-cover opacity-60 transition group-hover:scale-105 group-hover:opacity-80"
-        />
+        {topic.previewVideo.youtubeId && (
+          // eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail
+          <img
+            src={youtubeThumbnailUrl(topic.previewVideo.youtubeId)}
+            alt=""
+            className="h-full w-full object-cover opacity-60 transition group-hover:scale-105 group-hover:opacity-80"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
         <span className={cn("absolute left-2.5 top-2.5 h-2 w-2 rounded-full shadow", tone.dot)} />
         <ChevronRight className="absolute right-2.5 top-2.5 h-4 w-4 text-white/80 transition group-hover:translate-x-0.5" />
@@ -668,8 +683,12 @@ function VideoCard({
         disabled={notReady}
         className={cn("group/thumb relative block aspect-video w-full overflow-hidden bg-espresso dark:bg-black", notReady && "cursor-wait")}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
-        <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className={cn("h-full w-full object-cover", notReady && "opacity-40")} />
+        {video.youtubeId ? (
+          // eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail
+          <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className={cn("h-full w-full object-cover", notReady && "opacity-40")} />
+        ) : (
+          <div className="h-full w-full bg-espresso dark:bg-black" />
+        )}
         {video.status === "PROCESSING" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/50">
             <Loader2 className="h-6 w-6 animate-spin text-white" />
@@ -677,9 +696,10 @@ function VideoCard({
           </div>
         )}
         {video.status === "FAILED" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-rose-950/60">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-rose-950/60 px-2 text-center">
             <AlertTriangle className="h-6 w-6 text-rose-300" />
             <span className="text-[10px] font-semibold text-rose-200">Yükleme başarısız</span>
+            {video.failureReason && <span className="line-clamp-2 text-[9.5px] text-rose-300/80">{video.failureReason}</span>}
           </div>
         )}
         {!notReady && (
@@ -705,7 +725,7 @@ function VideoCard({
               onClick={onDelete}
               disabled={deleting}
               aria-label="Videoyu sil"
-              className="flex h-[27px] w-[27px] shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 transition hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 transition hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
             >
               {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
             </button>

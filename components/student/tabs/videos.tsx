@@ -18,7 +18,7 @@ type AssignedVideo = {
   grade: number;
   subject: string;
   topic: string;
-  youtubeId: string;
+  youtubeId: string | null;
   status: "PROCESSING" | "READY" | "FAILED";
   assignedAt: string;
   watchedAt: string | null;
@@ -35,13 +35,30 @@ export function VideoLibraryTab() {
   const [videos, setVideos] = useState<AssignedVideo[] | null>(null);
   const [active, setActive] = useState<AssignedVideo | null>(null);
 
-  useEffect(() => {
-    fetch("/api/videos/assigned")
+  function loadVideos() {
+    return fetch("/api/videos/assigned")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
       .then((data) => setVideos(data.assignments ?? []))
       .catch(() => showError("Videolar yüklenemedi."));
+  }
+
+  useEffect(() => {
+    loadVideos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Denetim bulgusu (2026-09-05) — yönetici paneli PROCESSING videoları
+  // periyodik tazeliyordu (bkz. video-portal-panel.tsx), öğrenci tarafı
+  // TEK seferlik fetch yapıyordu: bir video izlenirken/atanmışken hazır
+  // hale gelse bile öğrenci sayfayı yenilemeden bunu göremiyordu. Aynı
+  // "sadece işleniyor varken tazele, hiçbiri kalmayınca kendiliğinden dur"
+  // deseni burada da uygulanıyor.
+  useEffect(() => {
+    if (!videos?.some((v) => v.status === "PROCESSING")) return;
+    const timer = setInterval(loadVideos, 6000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videos]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, AssignedVideo[]>();
@@ -108,8 +125,10 @@ export function VideoLibraryTab() {
                         )}
                       >
                         <div className="relative aspect-video w-full overflow-hidden bg-espresso dark:bg-black">
-                          {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
-                          <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className={cn("h-full w-full object-cover", notReady && "opacity-40")} />
+                          {video.youtubeId && (
+                            // eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail
+                            <img src={youtubeThumbnailUrl(video.youtubeId)} alt="" className={cn("h-full w-full object-cover", notReady && "opacity-40")} />
+                          )}
                           {video.status === "PROCESSING" && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50">
                               <Loader2 className="h-5 w-5 animate-spin text-white" />
@@ -147,7 +166,7 @@ export function VideoLibraryTab() {
         )}
       </motion.div>
 
-      {active && (
+      {active && active.youtubeId && (
         <Modal isOpen={Boolean(active)} onClose={() => setActive(null)} title={active.title} variant="center" widthClassName="max-w-2xl">
           <div className="space-y-3">
             <YoutubePlayer videoId={active.youtubeId} onFirstPlay={() => markWatched(active)} />

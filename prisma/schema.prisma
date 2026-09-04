@@ -1913,8 +1913,22 @@ model Video {
   grade         Int
   subject       String
   topic         String
-  youtubeId     String // YouTube video ID'si (11 karakter) — embed/thumbnail URL'leri lib/client/youtube.ts'te türetilir
+  // Faz (2026-09-05, sağlamlaştırma) — DB satırı artık R2→YouTube aktarımı
+  // BAŞLAMADAN ÖNCE oluşturuluyor (bkz. app/api/videos/route.ts > handlePost),
+  // bu yüzden youtubeId aktarım bitene kadar NULL olabilir — sunucusuz
+  // fonksiyon aktarım sırasında (ör. Vercel'in süre sınırı) öldürülürse
+  // artık en azından KAYIP OLMAYAN, yeniden denenebilir bir satır kalıyor
+  // (eskiden create() aktarım BİTTİKTEN sonra çağrılıyordu, yarıda kesilen
+  // bir aktarım DB'de hiçbir iz bırakmıyordu — sessizce kayboluyordu).
+  youtubeId     String? // YouTube video ID'si (11 karakter) — embed/thumbnail URL'leri lib/client/youtube.ts'te türetilir
   status        VideoStatus       @default(PROCESSING)
+  // Sadece status=FAILED iken dolu — YouTube'un rejectionReason/
+  // processingFailureReason alanı ya da bizim "zaman aşımı" tespitimiz
+  // (bkz. checkYoutubeProcessingStatus, GET /api/videos). Amaç: "başarısız"
+  // her zaman AYNI genel mesajı göstermek yerine yöneticiye GERÇEK sebebi
+  // (kota doldu mu, dosya reddedildi mi, kontrol zaman aşımına mı uğradı)
+  // gösterebilmek.
+  failureReason String?
   createdById   String?
   createdBy     Admin?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt     DateTime          @default(now())

@@ -20,6 +20,13 @@ const ROUTE_ROLE: Record<string, string> = {
   // GÖRMEMELİ, bu yüzden /principal'ın altına değil kendi prefix'ine konur.
   "/xray/principal": "principal",
   "/xray/teacher": "teacher",
+  // Video Ders Merkezi (Hub'daki 4. modül) — Röntgen'le AYNI ilke, kendi
+  // prefix'i. Denetim bulgusu (2026-09-05): bu iki satır unutulmuştu — sayfa
+  // API çağrıları zaten institutionId/role ile korunuyordu (veri sızıntısı
+  // YOKTU) ama sayfa KABUĞU yanlış rolle bile render oluyordu; her modülün
+  // uyduğu "yanlış rol middleware'de yönlendirilir" ilkesi burada da geçerli.
+  "/videos/principal": "principal",
+  "/videos/teacher": "teacher",
 };
 
 // CSP nonce'ı burada, HER sayfa isteğinde yeniden üretilir (statik bir değer
@@ -57,7 +64,7 @@ function buildCsp(nonce: string): string {
     // 'self' blob: URL'lerini KAPSAMAZ (img-src/worker-src'deki AYNI kural,
     // burada da tekrarlanmalı) — tarayıcı iframe'i sessizce engelliyordu.
     // youtube-nocookie.com — Video Ders Merkezi'nin gömülü video oynatıcısı
-    // (bkz. components/video-portal/youtube-embed.tsx).
+    // (bkz. components/video-portal/youtube-player.tsx > host parametresi).
     "frame-src 'self' blob: https://www.youtube-nocookie.com",
     "object-src 'none'",
     "base-uri 'self'",

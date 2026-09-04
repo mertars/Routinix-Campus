@@ -1,8 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, Volume2, Volume1, VolumeX, Maximize, Minimize, RotateCw, Loader2, Settings, X, Gauge, MonitorPlay, Captions, type LucideIcon } from "lucide-react";
+import {
+  Play,
+  Pause,
+  Volume2,
+  Volume1,
+  VolumeX,
+  Maximize,
+  Minimize,
+  RotateCw,
+  RotateCcw,
+  Loader2,
+  Settings,
+  X,
+  Gauge,
+  MonitorPlay,
+  Captions,
+  AlertTriangle,
+  type LucideIcon,
+} from "lucide-react";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +61,7 @@ type YTPlayerInstance = {
 };
 
 let apiPromise: Promise<void> | null = null;
+const YOUTUBE_API_LOAD_TIMEOUT_MS = 10_000;
 
 // Kullanıcı isteği (2026-09-04) — "kişiselleştirebilir miyiz" + "altyazı/
 // kalite/hız gibi YouTube özelliklerini getir, ince işçilik istiyorum":
@@ -52,21 +72,41 @@ let apiPromise: Promise<void> | null = null;
 // kendi ayarlar menüsüyle AYNI iki katmanlı deseni (ana menü → alt menü)
 // taklit ediyor, ama tamamen bizim tasarımımız. TEK kalıcı iz: köşedeki
 // küçük YouTube logosu (kaldırılamıyor) — üstüne kurum rozeti biniyor.
+// Denetim bulgusu (2026-09-05) — bu script'in yüklenmesi başarısız olursa
+// (ağ hatası, reklam/izleyici engelleyici, kurumsal güvenlik duvarı —
+// youtube.com'u engelleyen ortamlar nadir değil) `apiPromise` NE ÇÖZÜLÜYOR
+// NE DE REDDEDİLİYORDU — oynatıcı sonsuza dek yükleniyor spinner'ında
+// kalıyordu. DAHA KÖTÜSÜ: `apiPromise` modül seviyesinde bir singleton —
+// bir kez "zehirlenince" (hiç resolve/reject olmadan asılı kalınca) o
+// sayfa yüklemesinde AÇILAN HER YoutubePlayer (yönetici önizleme, öğrenci
+// izleme modalı) aynı ölü promise'e bağlanıp aynı şekilde asılı kalıyordu.
+// Artık: (1) script.onerror reddediyor, (2) bir zaman aşımı reddediyor,
+// (3) reddedilirse apiPromise SIFIRLANIYOR ki bir sonraki mount yeniden
+// denesin.
 function loadYoutubeApi(): Promise<void> {
   if (apiPromise) return apiPromise;
-  apiPromise = new Promise((resolve) => {
+  apiPromise = new Promise<void>((resolve, reject) => {
     if (window.YT?.Player) {
       resolve();
       return;
     }
+    const timeout = setTimeout(() => reject(new Error("YouTube oynatıcı zaman aşımına uğradı.")), YOUTUBE_API_LOAD_TIMEOUT_MS);
     const previous = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
+      clearTimeout(timeout);
       previous?.();
       resolve();
     };
     const script = document.createElement("script");
     script.src = "https://www.youtube.com/iframe_api";
+    script.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error("YouTube oynatıcı betiği yüklenemedi."));
+    };
     document.head.appendChild(script);
+  }).catch((error) => {
+    apiPromise = null;
+    throw error;
   });
   return apiPromise;
 }
@@ -131,7 +171,15 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
   const [buffered, setBuffered] = useState(0);
   const [volume, setVolume] = useState(100);
   const [muted, setMuted] = useState(false);
+  const [volumeExpanded, setVolumeExpanded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  // bkz. components/ui/modal.tsx'teki AYNI not — bu oynatıcı neredeyse
+  // HER YERDE bir Modal'ın (framer-motion transform'lu) içinde render
+  // ediliyor; `pseudoFullscreen` sırasında "fixed inset-0" o transformlu
+  // atanın içine SIKIŞIR, gerçek viewport'u kaplamaz — bu yüzden alttaki
+  // return, pseudoFullscreen açıkken TÜM ağacı document.body'ye portallıyor
+  // (Modal'ın kendisinin de neden aynısını yaptığına bkz.).
+  const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [scrubHoverRatio, setScrubHoverRatio] = useState<number | null>(null);
   const [scrubbing, setScrubbing] = useState(false);
@@ -141,6 +189,8 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
   const [quality, setQuality] = useState("auto");
   const [availableQualities, setAvailableQualities] = useState<string[]>([]);
   const [ccEnabled, setCcEnabled] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const hasFiredFirstPlay = useRef(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -148,44 +198,49 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
   useEffect(() => {
     let destroyed = false;
     setReady(false);
-    loadYoutubeApi().then(() => {
-      if (destroyed || !mountRef.current || !window.YT) return;
-      playerRef.current = new window.YT.Player(mountRef.current, {
-        videoId,
-        host: "https://www.youtube-nocookie.com",
-        playerVars: { controls: 0, rel: 0, modestbranding: 1, disablekb: 1, fs: 0, playsinline: 1, cc_load_policy: 0 },
-        events: {
-          onReady: (event: { target: YTPlayerInstance }) => {
-            if (destroyed) return;
-            const p = event.target;
-            setDuration(p.getDuration());
-            setVolume(p.getVolume());
-            setAvailableRates(p.getAvailablePlaybackRates?.() ?? [1]);
-            setAvailableQualities((p.getAvailableQualityLevels?.() ?? []).filter((q) => q !== "auto"));
-            setReady(true);
-          },
-          onStateChange: (event: { data: number }) => {
-            if (!window.YT) return;
-            if (event.data === window.YT.PlayerState.PLAYING) {
-              setPlaying(true);
-              if (!hasFiredFirstPlay.current) {
-                hasFiredFirstPlay.current = true;
-                onFirstPlay?.();
+    setLoadError(false);
+    loadYoutubeApi()
+      .then(() => {
+        if (destroyed || !mountRef.current || !window.YT) return;
+        playerRef.current = new window.YT.Player(mountRef.current, {
+          videoId,
+          host: "https://www.youtube-nocookie.com",
+          playerVars: { controls: 0, rel: 0, modestbranding: 1, disablekb: 1, fs: 0, playsinline: 1, cc_load_policy: 0 },
+          events: {
+            onReady: (event: { target: YTPlayerInstance }) => {
+              if (destroyed) return;
+              const p = event.target;
+              setDuration(p.getDuration());
+              setVolume(p.getVolume());
+              setAvailableRates(p.getAvailablePlaybackRates?.() ?? [1]);
+              setAvailableQualities((p.getAvailableQualityLevels?.() ?? []).filter((q) => q !== "auto"));
+              setReady(true);
+            },
+            onStateChange: (event: { data: number }) => {
+              if (!window.YT) return;
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                setPlaying(true);
+                if (!hasFiredFirstPlay.current) {
+                  hasFiredFirstPlay.current = true;
+                  onFirstPlay?.();
+                }
+              } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
+                setPlaying(false);
               }
-            } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
-              setPlaying(false);
-            }
+            },
           },
-        },
+        });
+      })
+      .catch(() => {
+        if (!destroyed) setLoadError(true);
       });
-    });
     return () => {
       destroyed = true;
       playerRef.current?.destroy?.();
       playerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId]);
+  }, [videoId, retryKey]);
 
   useEffect(() => {
     if (!playing) return;
@@ -206,6 +261,23 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
+
+  // Kullanıcı geri bildirimi (2026-09-05) — "telefonda öğrenci panelinde
+  // video tam ekran olmuyor": iOS Safari (ve bazı eski Android WebView'lar)
+  // Fullscreen API'yi rastgele elementlerde (bizim durumumuzda oynatıcının
+  // dış div'i) desteklemiyor/reddediyor — sadece <video> etiketinde çalışır,
+  // biz ise özel kontrol çubuğu için bir <div> sarmalıyoruz. Bu yüzden
+  // gövde kilitlenmiş (scroll'suz) CSS tabanlı bir "sahte tam ekran"a
+  // (fixed+inset-0) düşülüyor — hangi tarayıcı olursa olsun her zaman
+  // çalışır.
+  useEffect(() => {
+    if (!pseudoFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [pseudoFullscreen]);
 
   useEffect(
     () => () => {
@@ -244,9 +316,29 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
     }
   }
 
-  function toggleFullscreen() {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else containerRef.current?.requestFullscreen();
+  async function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => {});
+      return;
+    }
+    if (pseudoFullscreen) {
+      setPseudoFullscreen(false);
+      return;
+    }
+    if (containerRef.current?.requestFullscreen) {
+      try {
+        await containerRef.current.requestFullscreen();
+        // Mobilde yatay konumda izlemek daha doğal — destekleniyorsa dene,
+        // desteklenmiyorsa (ör. iOS Safari) sessizce yut.
+        const orientation = (screen as unknown as { orientation?: { lock?: (o: string) => Promise<void> } }).orientation;
+        orientation?.lock?.("landscape").catch(() => {});
+        return;
+      } catch {
+        // requestFullscreen VAR ama reddedildi (iOS Safari'nin arbitrary
+        // elementler için tipik davranışı) — aşağıdaki sahte tam ekrana düş.
+      }
+    }
+    setPseudoFullscreen(true);
   }
 
   function skip(delta: number) {
@@ -336,15 +428,23 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
   ];
   const valueItems = radialLevel === "speed" ? speedItems : radialLevel === "quality" ? qualityItems : [];
 
-  return (
+  const player = (
     <div
       ref={containerRef}
-      className={cn("group relative aspect-video w-full select-none overflow-hidden rounded-2xl bg-black", className)}
+      className={cn(
+        "group relative select-none overflow-hidden bg-black",
+        pseudoFullscreen ? "fixed inset-0 z-[999] h-screen w-screen" : "aspect-video w-full rounded-2xl",
+        className
+      )}
       onMouseMove={() => {
         setShowControls(true);
         scheduleHide();
       }}
       onMouseLeave={() => playing && radialLevel === "closed" && setShowControls(false)}
+      onTouchStart={() => {
+        setShowControls(true);
+        scheduleHide();
+      }}
     >
       <div ref={mountRef} className="pointer-events-none absolute inset-0 h-full w-full" />
 
@@ -357,7 +457,22 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
         </div>
       )}
 
-      {!ready && (
+      {!ready && loadError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black px-4 text-center">
+          <AlertTriangle className="h-6 w-6 text-rose-400" />
+          <p className="text-xs text-white/70">Oynatıcı yüklenemedi. İnternet bağlantını kontrol et.</p>
+          <button
+            onClick={() => {
+              setLoadError(false);
+              setRetryKey((k) => k + 1);
+            }}
+            className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/20"
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> Tekrar dene
+          </button>
+        </div>
+      )}
+      {!ready && !loadError && (
         <div className="absolute inset-0 flex items-center justify-center bg-black">
           <Loader2 className="h-6 w-6 animate-spin text-white/50" />
         </div>
@@ -421,9 +536,11 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
               <RotateCw className="h-4 w-4" />
             </button>
 
-            {/* Ses — hoparlör ikonuna gelince yanında bir seviye
-                kaydırıcısı açılıyor (YouTube'un kendi deseni). */}
-            <div className="group/volume flex items-center gap-1.5">
+            {/* Ses — hoparlör ikonuna gelince (masaüstü) YA DA dokununca
+                (dokunmatik cihazlarda ":hover" hiç tetiklenmediği için
+                — bkz. denetim bulgusu 2026-09-05) yanında bir seviye
+                kaydırıcısı açılıyor. */}
+            <div className="group/volume flex items-center gap-1.5" onTouchStart={() => setVolumeExpanded((v) => !v)}>
               <button onClick={toggleMute} aria-label={muted ? "Sesi aç" : "Sesi kapat"} className="transition hover:scale-110">
                 <VolumeIcon className="h-4 w-4" />
               </button>
@@ -433,7 +550,10 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
                 max={100}
                 value={muted ? 0 : volume}
                 onChange={handleVolumeChange}
-                className="h-1 w-0 cursor-pointer appearance-none overflow-hidden rounded-full bg-white/25 opacity-0 accent-violet-500 transition-all duration-200 group-hover/volume:w-16 group-hover/volume:opacity-100"
+                className={cn(
+                  "h-1 cursor-pointer appearance-none overflow-hidden rounded-full bg-white/25 accent-violet-500 transition-all duration-200 group-hover/volume:w-16 group-hover/volume:opacity-100",
+                  volumeExpanded ? "w-16 opacity-100" : "w-0 opacity-0"
+                )}
               />
             </div>
 
@@ -523,11 +643,14 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
             </div>
 
             <button onClick={toggleFullscreen} aria-label="Tam ekran" className="transition hover:scale-110">
-              {fullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              {fullscreen || pseudoFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </button>
           </div>
         </div>
       )}
     </div>
   );
+
+  if (pseudoFullscreen && typeof document !== "undefined") return createPortal(player, document.body);
+  return player;
 }

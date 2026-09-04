@@ -8,7 +8,11 @@ import { cn } from "@/lib/utils";
 import type { VideoLesson } from "@/components/video-portal/video-portal-panel";
 
 export function VideoPreviewModal({ video, onClose, onAssign }: { video: VideoLesson | null; onClose: () => void; onAssign: (video: VideoLesson) => void }) {
-  if (!video) return null;
+  // youtubeId'nin dolu olması status==="READY" tarafından garanti edilir
+  // (bkz. VideoLesson tipi üstündeki not) — bu önizleme yalnızca hazır
+  // videolarda açıldığı için pratikte hep dolu, ama tip düzeyinde varsayım
+  // yapmak yerine burada da savunmacı bir kontrol var.
+  if (!video || !video.youtubeId) return null;
   const tone = subjectTone(video.subject);
 
   return (

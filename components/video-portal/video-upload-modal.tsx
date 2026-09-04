@@ -116,14 +116,21 @@ export function VideoUploadModal({
           r2Key: presignRes.key,
         }),
       });
-      if (!saveRes.ok) throw new Error();
-      const data = await saveRes.json();
+      const data = await saveRes.json().catch(() => null);
+      if (!saveRes.ok) {
+        // Sağlamlaştırma (2026-09-05) — DB kaydı artık YouTube aktarımı
+        // BAŞARISIZ olsa bile oluşturulmuş oluyor (bkz. POST /api/videos'un
+        // gerekçesi) — yönetici en azından bunu "başarısız" olarak
+        // kütüphanesinde görsün diye, varsa `data.video`'yu da ekliyoruz.
+        if (data?.video) onAdded(data.video);
+        throw new Error(typeof data?.error === "string" ? data.error : "Video eklenemedi.");
+      }
 
       onAdded(data.video);
       reset();
       onClose();
-    } catch {
-      showError("Video eklenemedi. Lütfen tekrar dene.");
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Video eklenemedi. Lütfen tekrar dene.");
       setStage("idle");
       setProgress(null);
     }

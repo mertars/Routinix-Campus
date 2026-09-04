@@ -79,35 +79,46 @@ export async function uploadToYoutube(params: {
   return created.id;
 }
 
+export type YoutubeStatusCheck = { status: "PROCESSING" | "READY" | "FAILED"; reason?: string };
+
 // Kullanıcı geri bildirimi (2026-09-04) — YouTube'un video BAYTLARINI
 // ALMASI ile videonun GERÇEKTEN oynatılabilir olması AYRI şeyler; bayt
 // alımı bitince YouTube kendi tarafında ayrı bir "işleme" adımı yapar
 // (saniyeler-dakikalar sürebilir). Bu, o adımın bitip bitmediğini kontrol
 // eder — Video.status alanı bu bitene kadar "PROCESSING" kalır (bkz.
 // app/api/videos/route.ts > handleGet, kart bu bitmeden kilitli tutulur).
-export async function checkYoutubeProcessingStatus(youtubeId: string): Promise<"PROCESSING" | "READY" | "FAILED"> {
+//
+// Faz (2026-09-05, sağlamlaştırma) — daha önce bu fonksiyon HER hata
+// durumunda (kota doldu, refresh token iptal oldu, geçici ağ hatası)
+// sessizce "PROCESSING" döndürüyordu; bir video bu şekilde SONSUZA KADAR
+// takılı kalabiliyordu (sadece bir console.error ile, hiçbir yönetici bunu
+// göremezdi). Artık her durumda bir `reason` metni de taşınıyor —
+// çağıran taraf (route.ts) belli bir süre sonra hâlâ PROCESSING ise bu
+// reason'ı `failureReason` olarak yazıp durumu FAILED'e çeviriyor, böylece
+// hiçbir video sonsuza dek "hazırlanıyor" görünmüyor.
+export async function checkYoutubeProcessingStatus(youtubeId: string): Promise<YoutubeStatusCheck> {
   const accessToken = await getAccessToken();
   const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=status,processingDetails&id=${encodeURIComponent(youtubeId)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) {
-    // Kullanıcı geri bildirimi (2026-09-04) — bu hata daha önce SESSİZCE
-    // yutuluyordu, "PROCESSING" sonsuza dek takılı kalıyordu ("yayına
-    // hazırlanıyor imleci gitmiyor"). Gerçek sebep: OAuth kapsamımız
-    // (youtube.upload) sadece YÜKLEMEYE izin veriyor, video DURUMUNU
-    // OKUMAYA değil — youtube.readonly da gerekiyordu (bkz.
-    // scripts/youtube-oauth-setup.mjs). En azından artık loglanıyor.
-    console.error("YouTube durum kontrolü başarısız:", res.status, await res.text().catch(() => ""));
-    return "PROCESSING";
+    const body = await res.text().catch(() => "");
+    console.error("YouTube durum kontrolü başarısız:", res.status, body);
+    return { status: "PROCESSING", reason: `Durum kontrolü başarısız (HTTP ${res.status})` };
   }
   const data = (await res.json()) as {
-    items?: { status?: { uploadStatus?: string }; processingDetails?: { processingStatus?: string } }[];
+    items?: {
+      status?: { uploadStatus?: string; rejectionReason?: string };
+      processingDetails?: { processingStatus?: string; processingFailureReason?: string };
+    }[];
   };
   const item = data.items?.[0];
-  if (!item) return "PROCESSING";
+  if (!item) return { status: "PROCESSING", reason: "YouTube'da video bulunamadı" };
   const uploadStatus = item.status?.uploadStatus;
   const processingStatus = item.processingDetails?.processingStatus;
-  if (uploadStatus === "failed" || uploadStatus === "rejected" || processingStatus === "failed" || processingStatus === "terminated") return "FAILED";
-  if (uploadStatus === "processed" || processingStatus === "succeeded" || (uploadStatus === "uploaded" && !processingStatus)) return "READY";
-  return "PROCESSING";
+  if (uploadStatus === "failed" || uploadStatus === "rejected" || processingStatus === "failed" || processingStatus === "terminated") {
+    return { status: "FAILED", reason: item.status?.rejectionReason || item.processingDetails?.processingFailureReason || "YouTube işleme başarısız" };
+  }
+  if (uploadStatus === "processed" || processingStatus === "succeeded" || (uploadStatus === "uploaded" && !processingStatus)) return { status: "READY" };
+  return { status: "PROCESSING" };
 }
