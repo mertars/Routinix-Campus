@@ -4,92 +4,86 @@ import { matchSubtopicsForVideoTopic } from "./video-topic-match";
 const RED_ZONE_THRESHOLD = 30;
 const XRAY_VIDEO_SUBJECTS = ["Matematik", "Fizik"] as const;
 
-export type VideoRecommendationOverviewItem = {
+// Kullanıcı talebi (2026-09-04) — "ata dendiğinde hangi video gidiyor
+// görmüyor, bunu görmeli": önceki sürüm VİDEO bazlı sıralanmış bir özet
+// döndürüyordu ("bu videoyu 10 öğrenci bekliyor"), ama tek bir öğrenciye
+// tıklandığında HANGİ videonun gideceği belirsizdi. Bu fonksiyon artık
+// doğrudan ÖĞRENCİ↔VİDEO eşleşmiş çiftler döndürüyor — her satır tek bir
+// öğrenci + tek bir (o öğrencinin EN ZAYIF, kütüphanede karşılığı olan
+// konusuna karşılık gelen) video, tek tıkla belirsizlik olmadan atanabilir.
+export type VideoRecommendationPair = {
+  studentId: string;
+  studentName: string;
+  branchName: string;
+  grade: number;
+  subtopicName: string;
+  masteryScore: number;
   videoId: string;
-  studentCount: number;
-  topSubtopicName: string;
-  sampleNames: string[];
+  videoTitle: string;
+  videoSubject: string;
+  videoTopic: string;
 };
 
-// Kullanıcı talebi (2026-09-04) — "ben ata menüsüne değil direkt video
-// panelinde bir öneri bekliyorum": /api/videos/[id]/recommendations TEK
-// bir videoyu açtığında kimin zayıf olduğunu söylüyordu (bkz. o dosya),
-// ama admin panele girer girmez "hangi videoyu kime atamalıyım" sorusuna
-// cevap vermiyordu. Bu fonksiyon soruyu TERSİNE çeviriyor: kurumun TÜM
-// kırmızı bölge satırlarını ve TÜM Matematik/Fizik videolarını TEK seferde
-// çekip (video kartı başına ayrı sorgu YOK — N+1'den bilerek kaçınıldı),
-// hangi videonun kaç "zayıf ve henüz atanmamış" öğrenciyle eşleştiğini
-// hesaplayıp en çok öğrenciyi ilgilendiren videoları sıralar. Video panel
-// açılışında BİR KEZ çağrılıyor, sonucu client tarafında zaten yüklü olan
-// `videos` state'iyle birleştirip kart olarak gösteriyor (bkz.
-// video-portal-panel.tsx).
-export async function getVideoRecommendationsOverview(institutionId: string, limit = 8): Promise<VideoRecommendationOverviewItem[]> {
+export async function getVideoRecommendationPairs(institutionId: string, limit = 20): Promise<VideoRecommendationPair[]> {
   const videos = await prisma.video.findMany({
     where: { institutionId, status: "READY", subject: { in: [...XRAY_VIDEO_SUBJECTS] } },
-    select: { id: true, subject: true, topic: true },
+    select: { id: true, title: true, subject: true, topic: true },
   });
   if (videos.length === 0) return [];
 
+  // subtopicId -> bu konuyu kapsayan videolar (birden fazla video aynı alt
+  // konuyu kapsayabilir — her biri aday, öğrenci başına İLKİ seçilir) +
+  // subtopic adı (masteryScore'un yanında "hangi konudan" gerekçesi için).
+  const videosBySubtopic = new Map<string, { videoId: string; videoTitle: string; videoSubject: string; videoTopic: string }[]>();
+  const subtopicNameById = new Map<string, string>();
+  for (const video of videos) {
+    for (const m of matchSubtopicsForVideoTopic(video.subject, video.topic)) {
+      subtopicNameById.set(m.subtopicId, m.name);
+      const list = videosBySubtopic.get(m.subtopicId) ?? [];
+      list.push({ videoId: video.id, videoTitle: video.title, videoSubject: video.subject, videoTopic: video.topic });
+      videosBySubtopic.set(m.subtopicId, list);
+    }
+  }
+  if (videosBySubtopic.size === 0) return [];
+
   const [redZoneRows, institutionStudents, assignments] = await Promise.all([
     prisma.topicMasteryAssessment.findMany({
-      where: { subject: { in: [...XRAY_VIDEO_SUBJECTS] }, masteryScore: { lt: RED_ZONE_THRESHOLD } },
-      select: { studentId: true, subject: true, subtopicId: true, masteryScore: true },
+      where: { subject: { in: [...XRAY_VIDEO_SUBJECTS] }, subtopicId: { in: [...videosBySubtopic.keys()] }, masteryScore: { lt: RED_ZONE_THRESHOLD } },
+      select: { studentId: true, subtopicId: true, masteryScore: true },
     }),
-    prisma.student.findMany({ where: { institutionId, isActive: true }, select: { id: true } }),
+    prisma.student.findMany({ where: { institutionId, isActive: true }, select: { id: true, firstName: true, lastName: true, branch: { select: { name: true, grade: true } } } }),
     prisma.videoAssignment.findMany({ where: { videoId: { in: videos.map((v) => v.id) } }, select: { videoId: true, studentId: true } }),
   ]);
 
-  const institutionStudentIds = new Set(institutionStudents.map((s) => s.id));
-  const scopedRedZone = redZoneRows.filter((r) => institutionStudentIds.has(r.studentId));
+  const studentById = new Map(institutionStudents.map((s) => [s.id, s]));
+  const assignedPairKey = new Set(assignments.map((a) => `${a.studentId}:${a.videoId}`));
 
-  const assignedByVideo = new Map<string, Set<string>>();
-  for (const a of assignments) {
-    if (!assignedByVideo.has(a.videoId)) assignedByVideo.set(a.videoId, new Set());
-    assignedByVideo.get(a.videoId)!.add(a.studentId);
+  type Candidate = VideoRecommendationPair;
+  const bestByStudent = new Map<string, Candidate>();
+
+  for (const row of redZoneRows) {
+    const student = studentById.get(row.studentId);
+    if (!student) continue; // farklı kurumdan / pasif öğrenci
+    const candidates = videosBySubtopic.get(row.subtopicId) ?? [];
+    const video = candidates.find((c) => !assignedPairKey.has(`${row.studentId}:${c.videoId}`));
+    if (!video) continue; // bu konudaki tüm eşleşen videolar zaten atanmış
+
+    const current = bestByStudent.get(row.studentId);
+    if (current && current.masteryScore <= row.masteryScore) continue; // öğrencinin zaten daha acil bir önerisi var
+
+    bestByStudent.set(row.studentId, {
+      studentId: row.studentId,
+      studentName: `${student.firstName} ${student.lastName}`,
+      branchName: student.branch?.name ?? "",
+      grade: student.branch?.grade ?? 0,
+      subtopicName: subtopicNameById.get(row.subtopicId) ?? "",
+      masteryScore: row.masteryScore,
+      videoId: video.videoId,
+      videoTitle: video.videoTitle,
+      videoSubject: video.videoSubject,
+      videoTopic: video.videoTopic,
+    });
   }
 
-  type Candidate = { videoId: string; worstByStudent: Map<string, { subtopicId: string; masteryScore: number }>; nameBySubtopicId: Map<string, string> };
-  const candidates: Candidate[] = [];
-
-  for (const video of videos) {
-    const matched = matchSubtopicsForVideoTopic(video.subject, video.topic);
-    if (matched.length === 0) continue;
-    const matchedIds = new Set(matched.map((m) => m.subtopicId));
-    const nameBySubtopicId = new Map(matched.map((m) => [m.subtopicId, m.name]));
-    const assigned = assignedByVideo.get(video.id) ?? new Set<string>();
-
-    const worstByStudent = new Map<string, { subtopicId: string; masteryScore: number }>();
-    for (const row of scopedRedZone) {
-      if (row.subject !== video.subject || !matchedIds.has(row.subtopicId) || assigned.has(row.studentId)) continue;
-      const current = worstByStudent.get(row.studentId);
-      if (!current || row.masteryScore < current.masteryScore) worstByStudent.set(row.studentId, row);
-    }
-    if (worstByStudent.size === 0) continue;
-    candidates.push({ videoId: video.id, worstByStudent, nameBySubtopicId });
-  }
-
-  const ranked = candidates.sort((a, b) => b.worstByStudent.size - a.worstByStudent.size).slice(0, limit);
-
-  // Örnek isimler için TEK toplu sorgu (her aday için en fazla 3 öğrenci id'si).
-  const sampleIdsByVideo = new Map<string, string[]>();
-  const allSampleIds = new Set<string>();
-  for (const c of ranked) {
-    const ids = [...c.worstByStudent.entries()].sort((a, b) => a[1].masteryScore - b[1].masteryScore).slice(0, 3).map(([id]) => id);
-    sampleIdsByVideo.set(c.videoId, ids);
-    for (const id of ids) allSampleIds.add(id);
-  }
-  const sampleStudents = await prisma.student.findMany({ where: { id: { in: [...allSampleIds] } }, select: { id: true, firstName: true } });
-  const firstNameById = new Map(sampleStudents.map((s) => [s.id, s.firstName]));
-
-  return ranked.map((c) => {
-    const subtopicCounts = new Map<string, number>();
-    for (const { subtopicId } of c.worstByStudent.values()) subtopicCounts.set(subtopicId, (subtopicCounts.get(subtopicId) ?? 0) + 1);
-    const topSubtopicId = [...subtopicCounts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-    return {
-      videoId: c.videoId,
-      studentCount: c.worstByStudent.size,
-      topSubtopicName: c.nameBySubtopicId.get(topSubtopicId) ?? "",
-      sampleNames: (sampleIdsByVideo.get(c.videoId) ?? []).map((id) => firstNameById.get(id) ?? "").filter(Boolean),
-    };
-  });
+  return [...bestByStudent.values()].sort((a, b) => a.masteryScore - b.masteryScore).slice(0, limit);
 }

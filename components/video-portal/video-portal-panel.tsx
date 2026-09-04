@@ -1,14 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2, ChevronRight, ChevronLeft, FolderOpen, AlertTriangle, Target } from "lucide-react";
+import {
+  Search,
+  Plus,
+  Send,
+  PlayCircle,
+  Clapperboard,
+  Loader2,
+  Trash2,
+  ChevronRight,
+  ChevronLeft,
+  FolderOpen,
+  AlertTriangle,
+  Target,
+  History,
+  CheckCircle2,
+} from "lucide-react";
 import { VIDEO_SUBJECTS, subjectTone } from "@/lib/video-subjects";
 import { youtubeThumbnailUrl } from "@/lib/client/youtube";
 import { useToast } from "@/lib/toast-context";
 import { VideoUploadModal } from "@/components/video-portal/video-upload-modal";
 import { VideoAssignModal } from "@/components/video-portal/video-assign-modal";
 import { VideoPreviewModal } from "@/components/video-portal/video-preview-modal";
+import { VideoHistoryModal } from "@/components/video-portal/video-history-modal";
 import { cn } from "@/lib/utils";
 
 export type VideoLesson = {
@@ -28,10 +44,24 @@ function normalizeTopicKey(topic: string): string {
 }
 
 // Röntgen entegrasyonu (2026-09-04) — kullanıcı talebi: öneri tek tek
-// videoyu açmadan DOĞRUDAN panelde görünmeli. /api/videos/recommendations-
-// overview'dan gelir (bkz. o dosyadaki gerekçe — kurum geneli TEK sorgu
-// turu, kart başına ayrı istek YOK).
-type RecommendationItem = { videoId: string; studentCount: number; topSubtopicName: string; sampleNames: string[] };
+// videoyu açmadan DOĞRUDAN panelde görünmeli VE "ata" dendiğinde hangi
+// videonun gideceği NET olmalı. /api/videos/recommendations-overview her
+// satırda TEK bir öğrenci + TEK bir video döndürür (bkz. o dosyadaki
+// gerekçe — kurum geneli TEK sorgu turu, kart başına ayrı istek YOK),
+// böylece "Ata" tek tıkla, hangi videonun gittiği belirsizlik olmadan
+// çalışabiliyor.
+type RecommendationPair = {
+  studentId: string;
+  studentName: string;
+  branchName: string;
+  grade: number;
+  subtopicName: string;
+  masteryScore: number;
+  videoId: string;
+  videoTitle: string;
+  videoSubject: string;
+  videoTopic: string;
+};
 
 // Video Ders Merkezi — YouTube tabanlı sürüm (bkz. prisma/schema.prisma >
 // Video modelinin üstündeki gerekçe — R2 denendi, yavaş/tutarsız çıktı).
@@ -52,25 +82,32 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
   const [previewVideo, setPreviewVideo] = useState<VideoLesson | null>(null);
   const [assignVideo, setAssignVideo] = useState<VideoLesson | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [recommendations, setRecommendations] = useState<RecommendationItem[] | null>(null);
+  const [recommendationPairs, setRecommendationPairs] = useState<RecommendationPair[] | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (!canManage) return;
     fetch("/api/videos/recommendations-overview")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
-      .then((data) => setRecommendations(data.items ?? []))
-      .catch(() => setRecommendations([]));
+      .then((data) => setRecommendationPairs(data.pairs ?? []))
+      .catch(() => setRecommendationPairs([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const recommendedVideos = useMemo(() => {
-    if (!recommendations || !videos) return [];
-    const byId = new Map(videos.map((v) => [v.id, v]));
-    return recommendations
-      .map((r) => ({ ...r, video: byId.get(r.videoId) }))
-      .filter((r): r is RecommendationItem & { video: VideoLesson } => Boolean(r.video))
-      .filter((r) => !openSubject || r.video.subject === openSubject);
-  }, [recommendations, videos, openSubject]);
+  async function handleQuickAssign(pair: RecommendationPair) {
+    try {
+      const res = await fetch(`/api/videos/${encodeURIComponent(pair.videoId)}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentIds: [pair.studentId] }),
+      });
+      if (!res.ok) throw new Error();
+      setRecommendationPairs((prev) => (prev ?? []).filter((p) => p.studentId !== pair.studentId));
+      showToast("success", `"${pair.videoTitle}" ${pair.studentName} adlı öğrenciye atandı.`);
+    } catch {
+      showError("Atama yapılamadı.");
+    }
+  }
 
   function loadVideos() {
     return fetch("/api/videos")
@@ -162,46 +199,40 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
           </h1>
           <p className="mt-0.5 text-xs text-espresso-muted dark:text-cream/40">{videos?.length ?? 0} video · sınıf, ders ve konuya göre gruplanmış</p>
         </div>
-        {canManage && (
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="flex h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-500"
-          >
-            <Plus className="h-4 w-4" /> Video Ekle
-          </button>
-        )}
-      </div>
 
-      {/* Arama — her zaman görünür, yazılınca klasör görünümünü atlayıp
-          düz (kapsamlı) sonuç ızgarasına geçiyor (bkz. `browsing`). */}
-      <div className="relative mb-5 max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={openSubject ? `${openSubject} içinde ara...` : "Tüm derslerde video veya konu ara..."}
-          className="w-full rounded-xl border border-hairline bg-white py-2.5 pl-9 pr-3 text-sm text-espresso outline-none focus:border-violet-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-        />
-      </div>
-
-      {/* Röntgen Önerileri — hiçbir videoyu tek tek açmadan, panele girer
-          girmez "hangi videoyu kime atamalıyım" sorusuna cevap veren
-          kurum geneli özet. Eşleşme yoksa bölüm SESSİZCE gizlenir. */}
-      {recommendedVideos.length > 0 && (
-        <div className="mb-6">
-          <p className="mb-2.5 flex flex-wrap items-baseline gap-x-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
-            <span className="flex items-center gap-1.5">
-              <Target className="h-3.5 w-3.5" /> Röntgen Önerileri
-            </span>
-            <span className="font-normal text-espresso-muted dark:text-cream/40">öğrencilerin zayıf olduğu konularla eşleşen videolar</span>
-          </p>
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {recommendedVideos.map((item) => (
-              <RecommendationCard key={item.videoId} item={item} onAssign={() => setAssignVideo(item.video)} />
-            ))}
+        {/* Arama, Röntgen Önerileri ve Geçmiş/Ekle tuşları TEK sırada,
+            sağda — kullanıcı talebi: "röntgen kısmını arama çubuğuyla
+            video ekleme tuşunun arasına koyalım". Öneri ve geçmiş sadece
+            atama yapabilen (canManage) rolde anlamlı, o yüzden aynı şart. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={openSubject ? `${openSubject} içinde ara...` : "Video veya konu ara..."}
+              className="w-48 rounded-xl border border-hairline bg-white py-2.5 pl-9 pr-3 text-sm text-espresso outline-none focus:w-64 focus:border-violet-500 sm:w-56 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+            />
           </div>
+          {canManage && <RecommendationsMenu pairs={recommendationPairs} onAssign={handleQuickAssign} />}
+          {canManage && (
+            <button
+              onClick={() => setHistoryOpen(true)}
+              className="flex h-10 items-center gap-1.5 rounded-xl border border-hairline px-3 text-xs font-semibold text-espresso-muted transition hover:bg-cream-card hover:text-espresso dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5 dark:hover:text-cream"
+            >
+              <History className="h-3.5 w-3.5" /> Geçmiş
+            </button>
+          )}
+          {canManage && (
+            <button
+              onClick={() => setUploadOpen(true)}
+              className="flex h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-500"
+            >
+              <Plus className="h-4 w-4" /> Video Ekle
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       {videos === null ? (
         <div className="flex justify-center py-16">
@@ -313,37 +344,93 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
         }}
       />
       <VideoAssignModal isOpen={assignVideo !== null} onClose={() => setAssignVideo(null)} video={assignVideo} />
+      {canManage && <VideoHistoryModal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />}
     </div>
   );
 }
 
-function RecommendationCard({ item, onAssign }: { item: RecommendationItem & { video: VideoLesson }; onAssign: () => void }) {
-  const tone = subjectTone(item.video.subject);
+// Röntgen Önerileri — tetikleyici + açılır liste (bkz. dosya başındaki
+// RecommendationPair notu). Her satır TEK bir öğrenci↔video eşleşmesi,
+// "Ata" doğrudan tek tıkla atıyor — hangi videonun gideceği HER satırda
+// açıkça yazıyor, VideoAssignModal'ı açmaya gerek yok.
+function RecommendationsMenu({ pairs, onAssign }: { pairs: RecommendationPair[] | null; onAssign: (pair: RecommendationPair) => void }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  if (!pairs || pairs.length === 0) return null;
+
+  async function handleAssign(pair: RecommendationPair) {
+    setAssigningId(pair.studentId);
+    await onAssign(pair);
+    setAssigningId(null);
+  }
+
   return (
-    <button
-      onClick={onAssign}
-      className="flex w-56 shrink-0 flex-col gap-2 rounded-2xl border border-rose-400/25 bg-rose-500/5 p-3 text-left shadow-sm backdrop-blur-sm transition hover:border-rose-400/50 hover:shadow-md dark:border-rose-400/20 dark:bg-rose-500/10"
-    >
-      <div className="flex items-center gap-1.5">
-        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone.dot)} />
-        <span className="truncate text-[10.5px] font-semibold text-espresso-muted dark:text-cream/50">
-          {item.video.subject} · {item.video.grade}. Sınıf
-        </span>
-      </div>
-      <p className="line-clamp-2 text-xs font-semibold text-espresso dark:text-cream">{item.video.title}</p>
-      <div className="mt-auto flex items-center gap-2">
-        <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-[11px] font-bold tabular-nums text-rose-700 dark:text-rose-300">
-          {item.studentCount} öğrenci
-        </span>
-        <span className="truncate text-[10px] text-espresso-muted dark:text-cream/40">{item.topSubtopicName}</span>
-      </div>
-      {item.sampleNames.length > 0 && (
-        <p className="truncate text-[10px] text-espresso-muted/70 dark:text-cream/30">
-          {item.sampleNames.join(", ")}
-          {item.studentCount > item.sampleNames.length ? ` +${item.studentCount - item.sampleNames.length}` : ""}
-        </p>
-      )}
-    </button>
+    <div ref={containerRef} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition",
+          open
+            ? "border-rose-400/50 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+            : "border-rose-400/25 bg-rose-500/5 text-rose-700 hover:border-rose-400/50 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-300"
+        )}
+      >
+        <Target className="h-3.5 w-3.5" /> Röntgen Önerileri
+        <span className="rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold text-white tabular-nums">{pairs.length}</span>
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 340, damping: 28 }}
+            className="absolute right-0 top-full z-30 mt-2 w-[22rem] overflow-hidden rounded-2xl border border-hairline bg-white shadow-2xl dark:border-white/10 dark:bg-midnight-card"
+          >
+            <p className="border-b border-hairline px-3.5 py-2.5 text-[11px] text-espresso-muted dark:border-white/10 dark:text-cream/40">
+              Öğrencinin zayıf olduğu konuyla eşleşen video — tek tıkla atanır.
+            </p>
+            <div className="max-h-96 overflow-y-auto p-1.5">
+              {pairs.map((pair) => (
+                <div key={pair.studentId} className="flex items-center gap-2 rounded-xl px-2 py-2 transition hover:bg-cream-card dark:hover:bg-white/5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-espresso dark:text-cream">
+                      {pair.studentName} <span className="font-normal text-espresso-muted dark:text-cream/40">· {pair.branchName}</span>
+                    </p>
+                    <p className="mt-0.5 truncate text-[10.5px] text-rose-700 dark:text-rose-300">
+                      {pair.subtopicName} · %{pair.masteryScore}
+                    </p>
+                    <p className="mt-0.5 flex items-center gap-1 truncate text-[10.5px] text-espresso-muted dark:text-cream/40">
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", subjectTone(pair.videoSubject).dot)} />
+                      {pair.videoTitle}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleAssign(pair)}
+                    disabled={assigningId === pair.studentId}
+                    className="flex h-8 shrink-0 items-center gap-1 rounded-lg bg-violet-600 px-2.5 text-[11px] font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+                  >
+                    {assigningId === pair.studentId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
+                    Ata
+                  </button>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
