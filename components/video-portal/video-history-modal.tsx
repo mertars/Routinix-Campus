@@ -11,6 +11,7 @@ type HistoryRow = {
   id: string;
   assignedAt: string;
   watchedAt: string | null;
+  watchedPercent: number | null;
   videoId: string;
   videoTitle: string;
   videoSubject: string;
@@ -95,7 +96,7 @@ export function VideoHistoryModal({ isOpen, onClose }: { isOpen: boolean; onClos
                 >
                   {r.watchedAt ? (
                     <>
-                      <CheckCircle2 className="h-3 w-3" /> İzlendi
+                      <CheckCircle2 className="h-3 w-3" /> {r.watchedPercent !== null ? `İzlendi · %${r.watchedPercent}` : "İzlendi"}
                     </>
                   ) : (
                     <>

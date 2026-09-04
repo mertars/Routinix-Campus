@@ -12,15 +12,28 @@ export const dynamic = "force-dynamic";
 // üzerine YAZILMAZ — @@unique zaten yok ama burada bilerek sadece watchedAt
 // null İSE güncelleniyor, "en son ne zaman izledi" değil "ilk ne zaman
 // izledi" anlamlı olsun diye).
-async function handlePost(_request: Request, { params }: { params: { assignmentId: string } }) {
+async function handlePost(request: Request, { params }: { params: { assignmentId: string } }) {
   try {
     const session = await requireSession();
     requireRole(session, "student");
 
-    const assignment = await prisma.videoAssignment.findUnique({ where: { id: params.assignmentId }, select: { studentId: true, watchedAt: true } });
+    const assignment = await prisma.videoAssignment.findUnique({
+      where: { id: params.assignmentId },
+      select: { studentId: true, watchedAt: true, video: { select: { id: true, durationSeconds: true } } },
+    });
     if (!assignment || assignment.studentId !== session.sub) return NextResponse.json({ error: "Atama bulunamadı." }, { status: 404 });
     if (!assignment.watchedAt) {
       await prisma.videoAssignment.update({ where: { id: params.assignmentId }, data: { watchedAt: new Date() } });
+    }
+
+    // "Kaldığı yerden devam" özelliği için video süresini bir kere
+    // kaydediyoruz — tarayıcı zaten biliyor (YouTube IFrame Player API'den),
+    // ayrı bir YouTube API çağrısına gerek yok (bkz. Video.durationSeconds
+    // üstündeki not).
+    const body = await request.json().catch(() => null);
+    const durationSeconds = Number(body?.durationSeconds);
+    if (assignment.video.durationSeconds === null && Number.isFinite(durationSeconds) && durationSeconds > 0) {
+      await prisma.video.update({ where: { id: assignment.video.id }, data: { durationSeconds: Math.round(durationSeconds) } });
     }
 
     return NextResponse.json({ success: true });

@@ -21,7 +21,10 @@ async function handleGet() {
         id: true,
         assignedAt: true,
         watchedAt: true,
-        video: { select: { id: true, title: true, description: true, grade: true, subject: true, topic: true, youtubeId: true, status: true } },
+        lastPositionSeconds: true,
+        video: {
+          select: { id: true, title: true, description: true, grade: true, subject: true, topic: true, youtubeId: true, status: true, durationSeconds: true },
+        },
       },
     });
 
@@ -30,6 +33,7 @@ async function handleGet() {
         assignmentId: a.id,
         assignedAt: a.assignedAt,
         watchedAt: a.watchedAt,
+        lastPositionSeconds: a.lastPositionSeconds,
         ...a.video,
       })),
     });

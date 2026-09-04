@@ -1929,6 +1929,11 @@ model Video {
   // (kota doldu mu, dosya reddedildi mi, kontrol zaman aşımına mı uğradı)
   // gösterebilmek.
   failureReason String?
+  // "Kaldığı yerden devam" özelliği için — YouTube API'sine ayrı bir
+  // sorgu atmak yerine, bir öğrenci videoyu İLK kez oynattığında tarayıcı
+  // tarafında zaten bilinen süre buraya bir kere yazılır (bkz. POST
+  // /api/videos/assigned/[id]/watched > durationSeconds).
+  durationSeconds Int?
   createdById   String?
   createdBy     Admin?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt     DateTime          @default(now())
@@ -1950,6 +1955,13 @@ model VideoAssignment {
   student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   assignedAt DateTime  @default(now())
   watchedAt  DateTime?
+  // "Kaldığı yerden devam" (2026-09-05) — öğrenci oynatırken periyodik
+  // olarak (bkz. POST /api/videos/assigned/[id]/progress) güncellenir;
+  // bir sonraki açılışta YoutubePlayer bu saniyeden itibaren başlar (bkz.
+  // youtube-player.tsx > initialPositionSeconds). Video.durationSeconds
+  // ile birlikte yönetici tarafında "% kaç izlendi" hesaplanabiliyor (bkz.
+  // assignment-history route'u).
+  lastPositionSeconds Int?
 
   @@unique([videoId, studentId])
   @@index([studentId])

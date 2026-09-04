@@ -159,7 +159,35 @@ const MAIN_NODE = 36;
 const VALUE_NODE_W = 46;
 const VALUE_NODE_H = 26;
 
-export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: string; onFirstPlay?: () => void; className?: string }) {
+// Kaldığı yerden devam (2026-09-05) — `initialPositionSeconds` sağlanırsa
+// (öğrencinin bu videoda en son bıraktığı yer, bkz. VideoAssignment.
+// lastPositionSeconds) hazır olur olmaz oraya atlanır; birkaç saniyeden
+// az/videonun sonuna çok yakınsa atlanmaz (baştan izlemek daha doğal).
+// `onFirstPlay` artık videonun süresini de taşıyor — video zaten bilinen
+// süresini ayrıca YouTube'a sormaya gerek kalmasın diye (bkz.
+// Video.durationSeconds); ayrı bir "onDuration" callback'i EKLEMEDİK
+// çünkü `onReady` ilk oynatmadan ÖNCE de tetiklenebilir — o an "izlendi"
+// işaretlemek YANLIŞ olurdu, süre bilgisini de aynı, TEK doğru an olan
+// ilk oynatmayla birlikte taşımak daha güvenli. `onProgress` oynatılırken
+// ~10 saniyede bir VE duraklat/bitir anında çağrılır — çağıran taraf bunu
+// periyodik olarak sunucuya yazar (bkz. videos.tsx > reportProgress).
+const RESUME_MIN_SECONDS = 5;
+const RESUME_END_BUFFER_SECONDS = 15;
+const PROGRESS_REPORT_INTERVAL_SECONDS = 10;
+
+export function YoutubePlayer({
+  videoId,
+  onFirstPlay,
+  initialPositionSeconds,
+  onProgress,
+  className,
+}: {
+  videoId: string;
+  onFirstPlay?: (durationSeconds: number) => void;
+  initialPositionSeconds?: number;
+  onProgress?: (seconds: number) => void;
+  className?: string;
+}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const seekBarRef = useRef<HTMLDivElement>(null);
@@ -194,6 +222,7 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
   const hasFiredFirstPlay = useRef(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastReportedRef = useRef(0);
 
   useEffect(() => {
     let destroyed = false;
@@ -210,22 +239,33 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
             onReady: (event: { target: YTPlayerInstance }) => {
               if (destroyed) return;
               const p = event.target;
-              setDuration(p.getDuration());
+              const videoDuration = p.getDuration();
+              setDuration(videoDuration);
               setVolume(p.getVolume());
               setAvailableRates(p.getAvailablePlaybackRates?.() ?? [1]);
               setAvailableQualities((p.getAvailableQualityLevels?.() ?? []).filter((q) => q !== "auto"));
+              if (
+                initialPositionSeconds &&
+                initialPositionSeconds > RESUME_MIN_SECONDS &&
+                initialPositionSeconds < videoDuration - RESUME_END_BUFFER_SECONDS
+              ) {
+                p.seekTo(initialPositionSeconds, true);
+                setCurrentTime(initialPositionSeconds);
+                lastReportedRef.current = initialPositionSeconds;
+              }
               setReady(true);
             },
-            onStateChange: (event: { data: number }) => {
+            onStateChange: (event: { data: number; target: YTPlayerInstance }) => {
               if (!window.YT) return;
               if (event.data === window.YT.PlayerState.PLAYING) {
                 setPlaying(true);
                 if (!hasFiredFirstPlay.current) {
                   hasFiredFirstPlay.current = true;
-                  onFirstPlay?.();
+                  onFirstPlay?.(event.target.getDuration());
                 }
               } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
                 setPlaying(false);
+                onProgress?.(event.target.getCurrentTime());
               }
             },
           },
@@ -246,12 +286,18 @@ export function YoutubePlayer({ videoId, onFirstPlay, className }: { videoId: st
     if (!playing) return;
     pollTimer.current = setInterval(() => {
       if (!playerRef.current || scrubbing) return;
-      setCurrentTime(playerRef.current.getCurrentTime());
+      const t = playerRef.current.getCurrentTime();
+      setCurrentTime(t);
       setBuffered(playerRef.current.getVideoLoadedFraction());
+      if (onProgress && t - lastReportedRef.current >= PROGRESS_REPORT_INTERVAL_SECONDS) {
+        lastReportedRef.current = t;
+        onProgress(t);
+      }
     }, 250);
     return () => {
       if (pollTimer.current) clearInterval(pollTimer.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, scrubbing]);
 
   useEffect(() => {

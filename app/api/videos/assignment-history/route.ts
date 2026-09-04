@@ -22,7 +22,8 @@ async function handleGet(_request: NextRequest) {
         id: true,
         assignedAt: true,
         watchedAt: true,
-        video: { select: { id: true, title: true, subject: true, topic: true, grade: true } },
+        lastPositionSeconds: true,
+        video: { select: { id: true, title: true, subject: true, topic: true, grade: true, durationSeconds: true } },
         student: { select: { id: true, firstName: true, lastName: true, branch: { select: { name: true } } } },
       },
       orderBy: { assignedAt: "desc" },
@@ -32,6 +33,11 @@ async function handleGet(_request: NextRequest) {
       id: a.id,
       assignedAt: a.assignedAt,
       watchedAt: a.watchedAt,
+      // "Kaldığı yerden devam" özelliğinin yan ürünü — yönetici artık
+      // sadece izlendi/izlenmedi değil, GERÇEKTEN NE KADAR izlendiğini
+      // görebiliyor (bkz. video-history-modal.tsx).
+      watchedPercent:
+        a.lastPositionSeconds && a.video.durationSeconds ? Math.min(100, Math.round((a.lastPositionSeconds / a.video.durationSeconds) * 100)) : null,
       videoId: a.video.id,
       videoTitle: a.video.title,
       videoSubject: a.video.subject,

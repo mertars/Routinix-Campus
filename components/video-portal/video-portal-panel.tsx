@@ -17,6 +17,7 @@ import {
   Target,
   History,
   CheckCircle2,
+  Pencil,
 } from "lucide-react";
 import { VIDEO_SUBJECTS, subjectTone } from "@/lib/video-subjects";
 import { youtubeThumbnailUrl } from "@/lib/client/youtube";
@@ -25,6 +26,8 @@ import { VideoUploadModal } from "@/components/video-portal/video-upload-modal";
 import { VideoAssignModal } from "@/components/video-portal/video-assign-modal";
 import { VideoPreviewModal } from "@/components/video-portal/video-preview-modal";
 import { VideoHistoryModal } from "@/components/video-portal/video-history-modal";
+import { VideoEditModal } from "@/components/video-portal/video-edit-modal";
+import { TopicBulkAssignModal, type BulkAssignTarget } from "@/components/video-portal/topic-bulk-assign-modal";
 import { cn } from "@/lib/utils";
 
 export type VideoLesson = {
@@ -89,6 +92,8 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<VideoLesson | null>(null);
   const [assignVideo, setAssignVideo] = useState<VideoLesson | null>(null);
+  const [editVideo, setEditVideo] = useState<VideoLesson | null>(null);
+  const [bulkAssignTarget, setBulkAssignTarget] = useState<BulkAssignTarget | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [recommendationPairs, setRecommendationPairs] = useState<RecommendationPair[] | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -334,6 +339,21 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
                     <span className="text-xs font-semibold text-espresso dark:text-cream">{openTopicGroup.label}</span>
                   </>
                 )}
+                {canManage && openTopic && openTopicGroup && query.trim() === "" && openTopicGroup.videos.length > 1 && (
+                  <button
+                    onClick={() => {
+                      const topicGrades = [...new Set(openTopicGroup.videos.map((v) => v.grade))];
+                      setBulkAssignTarget({
+                        videoIds: openTopicGroup.videos.map((v) => v.id),
+                        label: openTopicGroup.label,
+                        grade: topicGrades.length === 1 ? topicGrades[0] : undefined,
+                      });
+                    }}
+                    className="flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/5 px-2.5 py-1 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-500/10 dark:border-violet-400/20 dark:text-violet-300"
+                  >
+                    <Send className="h-3 w-3" /> Toplu Ata ({openTopicGroup.videos.length})
+                  </button>
+                )}
                 {openSubject && subjectGrades.length > 1 && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <GradeChip label="Tümü" active={gradeFilter === null} onClick={() => setGradeFilter(null)} />
@@ -364,6 +384,7 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
                         deleting={deletingId === video.id}
                         onPreview={() => setPreviewVideo(video)}
                         onAssign={() => setAssignVideo(video)}
+                        onEdit={() => setEditVideo(video)}
                         onDelete={() => handleDelete(video)}
                       />
                     ))}
@@ -397,6 +418,7 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
                               deleting={deletingId === video.id}
                               onPreview={() => setPreviewVideo(video)}
                               onAssign={() => setAssignVideo(video)}
+                              onEdit={() => setEditVideo(video)}
                               onDelete={() => handleDelete(video)}
                             />
                           ))}
@@ -444,6 +466,18 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
       />
       <VideoAssignModal isOpen={assignVideo !== null} onClose={() => setAssignVideo(null)} video={assignVideo} />
       {canManage && <VideoHistoryModal isOpen={historyOpen} onClose={() => setHistoryOpen(false)} />}
+      {canManage && (
+        <VideoEditModal
+          video={editVideo}
+          onClose={() => setEditVideo(null)}
+          onUpdated={(updated) => {
+            setVideos((prev) => (prev ?? []).map((v) => (v.id === updated.id ? updated : v)));
+          }}
+        />
+      )}
+      {canManage && (
+        <TopicBulkAssignModal isOpen={bulkAssignTarget !== null} onClose={() => setBulkAssignTarget(null)} target={bulkAssignTarget} />
+      )}
     </div>
   );
 }
@@ -659,6 +693,7 @@ function VideoCard({
   deleting,
   onPreview,
   onAssign,
+  onEdit,
   onDelete,
 }: {
   video: VideoLesson;
@@ -667,6 +702,7 @@ function VideoCard({
   deleting: boolean;
   onPreview: () => void;
   onAssign: () => void;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const notReady = video.status !== "READY";
@@ -720,6 +756,13 @@ function VideoCard({
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-violet-500/10 py-1.5 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-500/20 disabled:cursor-wait disabled:opacity-40 dark:text-violet-300"
             >
               <Send className="h-3 w-3" /> Ata
+            </button>
+            <button
+              onClick={onEdit}
+              aria-label="Videoyu düzenle"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cream-muted text-espresso-muted transition hover:bg-cream-card hover:text-espresso dark:bg-white/10 dark:text-cream/50 dark:hover:bg-white/15 dark:hover:text-cream"
+            >
+              <Pencil className="h-3 w-3" />
             </button>
             <button
               onClick={onDelete}

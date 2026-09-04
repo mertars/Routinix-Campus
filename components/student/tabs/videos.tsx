@@ -22,6 +22,8 @@ type AssignedVideo = {
   status: "PROCESSING" | "READY" | "FAILED";
   assignedAt: string;
   watchedAt: string | null;
+  lastPositionSeconds: number | null;
+  durationSeconds: number | null;
 };
 
 // Video Ders Merkezi — öğrenci tarafı ("Video Derslerim"). Yöneticinin
@@ -70,14 +72,29 @@ export function VideoLibraryTab() {
     return [...map.entries()];
   }, [videos]);
 
-  async function markWatched(video: AssignedVideo) {
+  async function markWatched(video: AssignedVideo, durationSeconds: number) {
     if (video.watchedAt) return;
     try {
-      await fetch(`/api/videos/assigned/${encodeURIComponent(video.assignmentId)}/watched`, { method: "POST" });
+      await fetch(`/api/videos/assigned/${encodeURIComponent(video.assignmentId)}/watched`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ durationSeconds }),
+      });
       setVideos((prev) => (prev ?? []).map((v) => (v.assignmentId === video.assignmentId ? { ...v, watchedAt: new Date().toISOString() } : v)));
     } catch {
       // sessizce yut — izlenme işareti önemsiz bir UX detayı, kritik değil
     }
+  }
+
+  // "Kaldığı yerden devam" (2026-09-05) — oynatıcı periyodik (~10sn) ve
+  // duraklat/bitir anında çağırır; sessizce yutuluyor (izlemeyi asla
+  // ENGELLEMEMESİ gerekiyor, bkz. progress endpoint'inin kendi yorumu).
+  function reportProgress(assignmentId: string, positionSeconds: number) {
+    fetch(`/api/videos/assigned/${encodeURIComponent(assignmentId)}/progress`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ positionSeconds }),
+    }).catch(() => {});
   }
 
   return (
@@ -150,6 +167,16 @@ export function VideoLibraryTab() {
                               <CheckCircle2 className="h-2.5 w-2.5" /> İzlendi
                             </span>
                           )}
+                          {/* Kaldığı yerden devam göstergesi — videonun neredeyse
+                              tamamı izlenmişse (son %5) artık anlamsız, gösterilmiyor. */}
+                          {video.lastPositionSeconds && video.durationSeconds && video.lastPositionSeconds < video.durationSeconds * 0.95 && (
+                            <div className="absolute inset-x-0 bottom-0 h-1 bg-black/40">
+                              <div
+                                className="h-full bg-violet-400"
+                                style={{ width: `${Math.min(100, (video.lastPositionSeconds / video.durationSeconds) * 100)}%` }}
+                              />
+                            </div>
+                          )}
                         </div>
                         <div className="p-2.5">
                           <p className="line-clamp-2 text-[11px] font-semibold text-espresso dark:text-cream">{video.title}</p>
@@ -169,7 +196,12 @@ export function VideoLibraryTab() {
       {active && active.youtubeId && (
         <Modal isOpen={Boolean(active)} onClose={() => setActive(null)} title={active.title} variant="center" widthClassName="max-w-2xl">
           <div className="space-y-3">
-            <YoutubePlayer videoId={active.youtubeId} onFirstPlay={() => markWatched(active)} />
+            <YoutubePlayer
+              videoId={active.youtubeId}
+              initialPositionSeconds={active.lastPositionSeconds ?? undefined}
+              onFirstPlay={(durationSeconds) => markWatched(active, durationSeconds)}
+              onProgress={(seconds) => reportProgress(active.assignmentId, seconds)}
+            />
             {active.description && <p className="text-xs leading-relaxed text-espresso-muted dark:text-cream/50">{active.description}</p>}
           </div>
         </Modal>
