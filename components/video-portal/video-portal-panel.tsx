@@ -77,6 +77,7 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
   const [videos, setVideos] = useState<VideoLesson[] | null>(null);
   const [query, setQuery] = useState("");
   const [openSubject, setOpenSubject] = useState<string | null>(null);
+  const [openTopic, setOpenTopic] = useState<string | null>(null);
   const [gradeFilter, setGradeFilter] = useState<number | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [previewVideo, setPreviewVideo] = useState<VideoLesson | null>(null);
@@ -175,6 +176,25 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
     return [...map.entries()].sort((a, b) => a[1].label.localeCompare(b[1].label, "tr-TR"));
   }, [filtered]);
 
+  // Kullanıcı talebi (2026-09-04) — "ders seçince tüm videolar
+  // listelenmesin, ders kategorileri gibi konularda da kategori olsun":
+  // Ders (klasör) > Konu (klasör) > Videolar (yan yana ızgara) — bir konu
+  // dosyanın İÇİNE girilmeden önce sadece konu kartları görünür (bkz.
+  // TopicCard), tıklayınca o TEK konunun videoları geniş bir ızgarada
+  // açılır (bkz. openTopic).
+  const topicFolders = useMemo(
+    () =>
+      groupedByTopic.map(([key, group]) => ({
+        key,
+        label: group.label,
+        count: group.videos.length,
+        grades: [...new Set(group.videos.map((v) => v.grade))].sort((a, b) => a - b),
+        previewVideo: group.videos[0],
+      })),
+    [groupedByTopic]
+  );
+  const openTopicGroup = useMemo(() => groupedByTopic.find(([key]) => key === openTopic)?.[1] ?? null, [groupedByTopic, openTopic]);
+
   async function handleDelete(video: VideoLesson) {
     if (!confirm(`"${video.title}" videosunu silmek istediğine emin misin? Bu işlem geri alınamaz.`)) return;
     setDeletingId(video.id);
@@ -257,7 +277,15 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
               className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4"
             >
               {subjectFolders.map((folder, index) => (
-                <FolderCard key={folder.subject} folder={folder} index={index} onOpen={() => setOpenSubject(folder.subject)} />
+                <FolderCard
+                  key={folder.subject}
+                  folder={folder}
+                  index={index}
+                  onOpen={() => {
+                    setOpenSubject(folder.subject);
+                    setOpenTopic(null);
+                  }}
+                />
               ))}
             </motion.div>
           ) : (
@@ -267,6 +295,7 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
                 <button
                   onClick={() => {
                     setOpenSubject(null);
+                    setOpenTopic(null);
                     setGradeFilter(null);
                   }}
                   className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-espresso-muted transition hover:bg-cream-card hover:text-espresso dark:text-cream/50 dark:hover:bg-white/5 dark:hover:text-cream"
@@ -274,9 +303,23 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
                   <ChevronLeft className="h-3.5 w-3.5" /> Tüm Dersler
                 </button>
                 {openSubject && (
-                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", subjectTone(openSubject).bg, subjectTone(openSubject).text)}>
+                  <button
+                    onClick={() => setOpenTopic(null)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-xs font-semibold transition",
+                      subjectTone(openSubject).bg,
+                      subjectTone(openSubject).text,
+                      openTopic && "hover:opacity-70"
+                    )}
+                  >
                     {openSubject}
-                  </span>
+                  </button>
+                )}
+                {openTopic && openTopicGroup && query.trim() === "" && (
+                  <>
+                    <ChevronRight className="h-3 w-3 shrink-0 text-espresso-muted/50 dark:text-cream/30" />
+                    <span className="text-xs font-semibold text-espresso dark:text-cream">{openTopicGroup.label}</span>
+                  </>
                 )}
                 {openSubject && subjectGrades.length > 1 && (
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -288,35 +331,78 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
                 )}
               </div>
 
-              {groupedByTopic.length === 0 ? (
+              {openTopic && query.trim() === "" ? (
+                // TEK KONU — o konunun videoları, ekranı dolduran geniş bir
+                // ızgarada (kullanıcı talebi: "videolar alt alta değil yan
+                // yana ekranı doldursun").
+                !openTopicGroup || openTopicGroup.videos.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-16 text-center dark:border-white/10 dark:bg-white/5">
+                    <Clapperboard className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
+                    <p className="text-xs text-espresso-muted dark:text-cream/40">Eşleşen video bulunamadı.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                    {openTopicGroup.videos.map((video, index) => (
+                      <VideoCard
+                        key={video.id}
+                        video={video}
+                        index={index}
+                        canManage={canManage}
+                        deleting={deletingId === video.id}
+                        onPreview={() => setPreviewVideo(video)}
+                        onAssign={() => setAssignVideo(video)}
+                        onDelete={() => handleDelete(video)}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : query.trim() !== "" ? (
+                // ARAMA SONUÇLARI — konu sınırı olmadan, eşleşen her konu
+                // kendi başlığıyla (mevcut davranış, konu kartlarına
+                // "girmeden" hızlıca tarama yapabilmek için korunuyor).
+                groupedByTopic.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-16 text-center dark:border-white/10 dark:bg-white/5">
+                    <Clapperboard className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
+                    <p className="text-xs text-espresso-muted dark:text-cream/40">Eşleşen video bulunamadı.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {groupedByTopic.map(([key, group]) => (
+                      <div key={key}>
+                        <h2 className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
+                          <span className={cn("h-1.5 w-1.5 rounded-full", subjectTone(group.videos[0].subject).dot)} />
+                          {group.label}
+                          <span className="text-[10px] font-normal text-espresso-muted dark:text-cream/40">({group.videos.length})</span>
+                        </h2>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                          {group.videos.map((video, index) => (
+                            <VideoCard
+                              key={video.id}
+                              video={video}
+                              index={index}
+                              canManage={canManage}
+                              deleting={deletingId === video.id}
+                              onPreview={() => setPreviewVideo(video)}
+                              onAssign={() => setAssignVideo(video)}
+                              onDelete={() => handleDelete(video)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : topicFolders.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-16 text-center dark:border-white/10 dark:bg-white/5">
                   <Clapperboard className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
                   <p className="text-xs text-espresso-muted dark:text-cream/40">Eşleşen video bulunamadı.</p>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {groupedByTopic.map(([key, group]) => (
-                    <div key={key}>
-                      <h2 className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
-                        <span className={cn("h-1.5 w-1.5 rounded-full", subjectTone(group.videos[0].subject).dot)} />
-                        {group.label}
-                        <span className="text-[10px] font-normal text-espresso-muted dark:text-cream/40">({group.videos.length})</span>
-                      </h2>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                        {group.videos.map((video, index) => (
-                          <VideoCard
-                            key={video.id}
-                            video={video}
-                            index={index}
-                            canManage={canManage}
-                            deleting={deletingId === video.id}
-                            onPreview={() => setPreviewVideo(video)}
-                            onAssign={() => setAssignVideo(video)}
-                            onDelete={() => handleDelete(video)}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                // KONU KARTLARI — dersin İÇİ, alt kategori olarak (bkz.
+                // TopicCard); tıklanınca yukarıdaki tek-konu ızgarası açılır.
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {topicFolders.map((topic) => (
+                    <TopicCard key={topic.key} topic={topic} subject={openSubject ?? ""} onOpen={() => setOpenTopic(topic.key)} />
                   ))}
                 </div>
               )}
@@ -490,6 +576,48 @@ function FolderCard({
         </div>
       </div>
     </motion.button>
+  );
+}
+
+// Konu kartı — bir dersin İÇİNDEKİ alt kategori (Ders > Konu > Videolar).
+// Klasör kartından bilerek FARKLI görünüyor (sekme/kulak yok, gerçek bir
+// video küçük resmiyle "içeri bakış" veriyor) — iki iç içe seviyenin
+// birbirine karışmaması için.
+function TopicCard({
+  topic,
+  subject,
+  onOpen,
+}: {
+  topic: { key: string; label: string; count: number; grades: number[]; previewVideo: VideoLesson };
+  subject: string;
+  onOpen: () => void;
+}) {
+  const tone = subjectTone(subject);
+  const gradeLabel = topic.grades.length > 1 ? `${topic.grades[0]}-${topic.grades[topic.grades.length - 1]}. Sınıf` : `${topic.grades[0]}. Sınıf`;
+
+  return (
+    <button
+      onClick={onOpen}
+      className="group overflow-hidden rounded-2xl border border-hairline bg-white/70 text-left shadow-sm backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-white/10 dark:bg-midnight-card/50"
+    >
+      <div className="relative aspect-[2/1] w-full overflow-hidden bg-espresso dark:bg-black">
+        {/* eslint-disable-next-line @next/next/no-img-element -- dış (YouTube) kaynaklı thumbnail */}
+        <img
+          src={youtubeThumbnailUrl(topic.previewVideo.youtubeId)}
+          alt=""
+          className="h-full w-full object-cover opacity-60 transition group-hover:scale-105 group-hover:opacity-80"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+        <span className={cn("absolute left-2.5 top-2.5 h-2 w-2 rounded-full shadow", tone.dot)} />
+        <ChevronRight className="absolute right-2.5 top-2.5 h-4 w-4 text-white/80 transition group-hover:translate-x-0.5" />
+      </div>
+      <div className="p-3">
+        <p className="truncate text-xs font-semibold text-espresso dark:text-cream">{topic.label}</p>
+        <p className="mt-0.5 text-[10.5px] text-espresso-muted dark:text-cream/40">
+          {topic.count} video · {gradeLabel}
+        </p>
+      </div>
+    </button>
   );
 }
 
