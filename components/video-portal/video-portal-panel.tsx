@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2, ChevronRight, ChevronLeft, FolderOpen, AlertTriangle } from "lucide-react";
+import { Search, Plus, Send, PlayCircle, Clapperboard, Loader2, Trash2, ChevronRight, ChevronLeft, FolderOpen, AlertTriangle, Target } from "lucide-react";
 import { VIDEO_SUBJECTS, subjectTone } from "@/lib/video-subjects";
 import { youtubeThumbnailUrl } from "@/lib/client/youtube";
 import { useToast } from "@/lib/toast-context";
@@ -27,6 +27,12 @@ function normalizeTopicKey(topic: string): string {
   return topic.trim().toLocaleLowerCase("tr-TR");
 }
 
+// Röntgen entegrasyonu (2026-09-04) — kullanıcı talebi: öneri tek tek
+// videoyu açmadan DOĞRUDAN panelde görünmeli. /api/videos/recommendations-
+// overview'dan gelir (bkz. o dosyadaki gerekçe — kurum geneli TEK sorgu
+// turu, kart başına ayrı istek YOK).
+type RecommendationItem = { videoId: string; studentCount: number; topSubtopicName: string; sampleNames: string[] };
+
 // Video Ders Merkezi — YouTube tabanlı sürüm (bkz. prisma/schema.prisma >
 // Video modelinin üstündeki gerekçe — R2 denendi, yavaş/tutarsız çıktı).
 // Kullanıcı talebi (2026-09-04) — "menü tasarımı berbat, kalıpların dışına
@@ -46,6 +52,25 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
   const [previewVideo, setPreviewVideo] = useState<VideoLesson | null>(null);
   const [assignVideo, setAssignVideo] = useState<VideoLesson | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendationItem[] | null>(null);
+
+  useEffect(() => {
+    if (!canManage) return;
+    fetch("/api/videos/recommendations-overview")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data) => setRecommendations(data.items ?? []))
+      .catch(() => setRecommendations([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const recommendedVideos = useMemo(() => {
+    if (!recommendations || !videos) return [];
+    const byId = new Map(videos.map((v) => [v.id, v]));
+    return recommendations
+      .map((r) => ({ ...r, video: byId.get(r.videoId) }))
+      .filter((r): r is RecommendationItem & { video: VideoLesson } => Boolean(r.video))
+      .filter((r) => !openSubject || r.video.subject === openSubject);
+  }, [recommendations, videos, openSubject]);
 
   function loadVideos() {
     return fetch("/api/videos")
@@ -159,6 +184,25 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
         />
       </div>
 
+      {/* Röntgen Önerileri — hiçbir videoyu tek tek açmadan, panele girer
+          girmez "hangi videoyu kime atamalıyım" sorusuna cevap veren
+          kurum geneli özet. Eşleşme yoksa bölüm SESSİZCE gizlenir. */}
+      {recommendedVideos.length > 0 && (
+        <div className="mb-6">
+          <p className="mb-2.5 flex flex-wrap items-baseline gap-x-2 text-xs font-semibold text-rose-700 dark:text-rose-300">
+            <span className="flex items-center gap-1.5">
+              <Target className="h-3.5 w-3.5" /> Röntgen Önerileri
+            </span>
+            <span className="font-normal text-espresso-muted dark:text-cream/40">öğrencilerin zayıf olduğu konularla eşleşen videolar</span>
+          </p>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {recommendedVideos.map((item) => (
+              <RecommendationCard key={item.videoId} item={item} onAssign={() => setAssignVideo(item.video)} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {videos === null ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
@@ -270,6 +314,36 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
       />
       <VideoAssignModal isOpen={assignVideo !== null} onClose={() => setAssignVideo(null)} video={assignVideo} />
     </div>
+  );
+}
+
+function RecommendationCard({ item, onAssign }: { item: RecommendationItem & { video: VideoLesson }; onAssign: () => void }) {
+  const tone = subjectTone(item.video.subject);
+  return (
+    <button
+      onClick={onAssign}
+      className="flex w-56 shrink-0 flex-col gap-2 rounded-2xl border border-rose-400/25 bg-rose-500/5 p-3 text-left shadow-sm backdrop-blur-sm transition hover:border-rose-400/50 hover:shadow-md dark:border-rose-400/20 dark:bg-rose-500/10"
+    >
+      <div className="flex items-center gap-1.5">
+        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", tone.dot)} />
+        <span className="truncate text-[10.5px] font-semibold text-espresso-muted dark:text-cream/50">
+          {item.video.subject} · {item.video.grade}. Sınıf
+        </span>
+      </div>
+      <p className="line-clamp-2 text-xs font-semibold text-espresso dark:text-cream">{item.video.title}</p>
+      <div className="mt-auto flex items-center gap-2">
+        <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-0.5 text-[11px] font-bold tabular-nums text-rose-700 dark:text-rose-300">
+          {item.studentCount} öğrenci
+        </span>
+        <span className="truncate text-[10px] text-espresso-muted dark:text-cream/40">{item.topSubtopicName}</span>
+      </div>
+      {item.sampleNames.length > 0 && (
+        <p className="truncate text-[10px] text-espresso-muted/70 dark:text-cream/30">
+          {item.sampleNames.join(", ")}
+          {item.studentCount > item.sampleNames.length ? ` +${item.studentCount - item.sampleNames.length}` : ""}
+        </p>
+      )}
+    </button>
   );
 }
 
