@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -190,6 +190,28 @@ export function YoutubePlayer({
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const placeholderRef = useRef<HTMLDivElement>(null);
+  // Düzeltme (2026-09-05, 2. geçiş) — İLK deneme "pseudoFullscreen açıkken
+  // TÜM ağacı createPortal'a sar" şeklindeydi. Bu YANLIŞTI: React, aynı
+  // ağaç konumunda düz bir element ile portal arasında geçiş yapınca bunu
+  // FARKLI bir "tip" sayıp TÜM ALT AĞACI SÖKÜP YENİDEN KURUYOR — mountRef'e
+  // bağlı canlı YouTube iframe'i (eski, artık koparılmış DOM node'una
+  // bağlıydı) yok oluyordu. Sonuç: tam ekrana geçiyor (siyah arkaplan
+  // görünüyor) ama video hiç görünmüyordu (bkz. kullanıcı geri bildirimi
+  // "tam ekran geçiyor ekran simsiyah kalıyor").
+  //
+  // Doğru çözüm: createPortal'a HER ZAMAN AYNI (referans olarak sabit) bir
+  // DOM node veriliyor — `portalRootRef.current`, bileşenin ömrü boyunca
+  // bir kez oluşturulur, asla değişmez. React bu yüzden portalı ASLA
+  // yeniden bağlamıyor, içindeki iframe/YT.Player canlı kalıyor. Bu sabit
+  // node'un FİZİKSEL olarak NEREYE TAKILI olduğunu (placeholder'ın içi mi,
+  // yoksa document.body mi) React'ın dışında, düz DOM appendChild'ıyla BİZ
+  // değiştiriyoruz — appendChild zaten DOM'da olan bir node'u SÖKMEDEN
+  // TAŞIR, bu yüzden iframe hiç kesintiye uğramıyor.
+  const portalRootRef = useRef<HTMLDivElement | null>(null);
+  if (!portalRootRef.current && typeof document !== "undefined") {
+    portalRootRef.current = document.createElement("div");
+  }
   const seekBarRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YTPlayerInstance | null>(null);
   const [ready, setReady] = useState(false);
@@ -204,9 +226,9 @@ export function YoutubePlayer({
   // bkz. components/ui/modal.tsx'teki AYNI not — bu oynatıcı neredeyse
   // HER YERDE bir Modal'ın (framer-motion transform'lu) içinde render
   // ediliyor; `pseudoFullscreen` sırasında "fixed inset-0" o transformlu
-  // atanın içine SIKIŞIR, gerçek viewport'u kaplamaz — bu yüzden alttaki
-  // return, pseudoFullscreen açıkken TÜM ağacı document.body'ye portallıyor
-  // (Modal'ın kendisinin de neden aynısını yaptığına bkz.).
+  // atanın içine SIKIŞIR, gerçek viewport'u kaplamaz — bu yüzden içerik
+  // pseudoFullscreen açıkken document.body'ye taşınıyor (bkz.
+  // portalRootRef üstündeki not — TAŞIMA, yeniden bağlama DEĞİL).
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [scrubHoverRatio, setScrubHoverRatio] = useState<number | null>(null);
@@ -324,6 +346,37 @@ export function YoutubePlayer({
       document.body.style.overflow = previousOverflow;
     };
   }, [pseudoFullscreen]);
+
+  // portalRootRef'in (bkz. yukarıdaki not) FİZİKSEL DOM konumunu değiştirir
+  // — appendChild zaten bağlı bir node'u SÖKMEDEN taşır, bu yüzden içindeki
+  // canlı YouTube iframe'i kesintiye uğramaz. useLayoutEffect (useEffect
+  // değil) kullanılıyor ki taşıma boyaTAN ÖNCE olsun, bir kare bile
+  // "içeriksiz" görünmesin.
+  useLayoutEffect(() => {
+    const portalRoot = portalRootRef.current;
+    if (!portalRoot) return;
+    if (pseudoFullscreen) {
+      portalRoot.style.position = "fixed";
+      portalRoot.style.inset = "0";
+      portalRoot.style.zIndex = "999";
+      document.body.appendChild(portalRoot);
+    } else if (placeholderRef.current) {
+      portalRoot.style.position = "absolute";
+      portalRoot.style.inset = "0";
+      portalRoot.style.zIndex = "auto";
+      placeholderRef.current.appendChild(portalRoot);
+    }
+  }, [pseudoFullscreen]);
+
+  // Bileşen kaldırılınca portalRoot'u DOM'dan temizle (React'ın kendi
+  // portal temizliği bu, React AĞACININ dışına elle eklediğimiz için
+  // gerekli — normal bir portal hedefinde bu adıma gerek olmazdı).
+  useEffect(() => {
+    const portalRoot = portalRootRef.current;
+    return () => {
+      portalRoot?.remove();
+    };
+  }, []);
 
   useEffect(
     () => () => {
@@ -477,11 +530,7 @@ export function YoutubePlayer({
   const player = (
     <div
       ref={containerRef}
-      className={cn(
-        "group relative select-none overflow-hidden bg-black",
-        pseudoFullscreen ? "fixed inset-0 z-[999] h-screen w-screen" : "aspect-video w-full rounded-2xl",
-        className
-      )}
+      className={cn("group absolute inset-0 select-none overflow-hidden bg-black", !pseudoFullscreen && "rounded-2xl")}
       onMouseMove={() => {
         setShowControls(true);
         scheduleHide();
@@ -697,6 +746,15 @@ export function YoutubePlayer({
     </div>
   );
 
-  if (pseudoFullscreen && typeof document !== "undefined") return createPortal(player, document.body);
-  return player;
+  return (
+    <>
+      {/* Layout'ta yer tutan, görünmez "yuva" — gerçek içerik (bkz.
+          portalRootRef) buraya (normalde) ya da document.body'ye (tam
+          ekranda) TAŞINIR; bu div'in KENDİSİ hiçbir zaman portallanmıyor,
+          bu yüzden aşağıdaki portal HER ZAMAN aynı hedefe (portalRootRef.
+          current) sahip olup React'ın onu yeniden bağlamasını engelliyor. */}
+      <div ref={placeholderRef} className={cn("relative aspect-video w-full overflow-hidden rounded-2xl", className)} />
+      {portalRootRef.current && createPortal(player, portalRootRef.current)}
+    </>
+  );
 }
