@@ -7,10 +7,11 @@ import { useToast } from "@/lib/toast-context";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import type { RosterStudent } from "@/lib/exam-import/types";
+import { OpticalUploadSection } from "./optical-upload-section";
 
 type Exam = { id: string; name: string; examDate: string };
 type SubjectRow = { subject: string; supportsRoentgenBridge: boolean; hasAnswerKey: boolean };
-type AnswerKeyRow = { questionNumber: number; subtopicId: string | null; subtopicLabel: string };
+type AnswerKeyRow = { questionNumber: number; subtopicId: string | null; subtopicLabel: string; correctAnswer: string | null };
 type Template = { examId: string; examName: string; examDate: string };
 type SummaryRow = { subtopicId: string | null; subtopicLabel: string; averagePercent: number; studentCount: number };
 
@@ -123,7 +124,7 @@ export function OlcmePanel() {
   function ensureAnswerKeyLength(count: number) {
     setAnswerKey((prev) => {
       const byNumber = new Map(prev.map((r) => [r.questionNumber, r]));
-      return Array.from({ length: count }, (_, i) => byNumber.get(i + 1) ?? { questionNumber: i + 1, subtopicId: null, subtopicLabel: "" });
+      return Array.from({ length: count }, (_, i) => byNumber.get(i + 1) ?? { questionNumber: i + 1, subtopicId: null, subtopicLabel: "", correctAnswer: null });
     });
   }
 
@@ -410,6 +411,17 @@ export function OlcmePanel() {
                                   className="flex-1 rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-[11px] text-espresso outline-none focus:border-emerald-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
                                 />
                               )}
+                              <input
+                                value={row.correctAnswer ?? ""}
+                                onChange={(e) => {
+                                  const v = e.target.value.trim().toUpperCase().slice(-1);
+                                  updateAnswerKeyRow(row.questionNumber, { correctAnswer: /^[A-E]$/.test(v) ? v : null });
+                                }}
+                                placeholder="D.C."
+                                maxLength={1}
+                                title="Doğru cevap (A-E) — optik okuma için gerekli"
+                                className="w-11 shrink-0 rounded-lg border border-hairline bg-white px-1.5 py-1.5 text-center text-[11px] font-semibold uppercase text-espresso outline-none focus:border-emerald-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+                              />
                             </div>
                           ))}
                         </div>
@@ -481,6 +493,9 @@ export function OlcmePanel() {
                         Kazanım Kırılımını Hesapla ve Kaydet
                       </button>
                     </div>
+
+                    {/* Optik (OMR tarayıcı) yükleme */}
+                    <OpticalUploadSection examId={examId} subject={subject} roster={roster} onSaved={loadSummary} />
                   </div>
 
                   {/* SAĞ — canlı kazanım özeti */}

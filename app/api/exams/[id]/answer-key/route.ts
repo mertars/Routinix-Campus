@@ -23,7 +23,7 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
 
     const questions = await prisma.examQuestion.findMany({
       where: { examId: params.id, subject },
-      select: { questionNumber: true, subtopicId: true, subtopicLabel: true },
+      select: { questionNumber: true, subtopicId: true, subtopicLabel: true, correctAnswer: true },
       orderBy: { questionNumber: "asc" },
     });
 
@@ -58,13 +58,15 @@ async function handlePut(request: NextRequest, { params }: { params: { id: strin
 
     const validSubtopicIds = new Set((CURRICULUM_TREE[subject] ?? []).flatMap((topic) => topic.subtopics.map((s) => s.id)));
 
-    const data: { examId: string; subject: string; questionNumber: number; subtopicId: string | null; subtopicLabel: string }[] = [];
+    const data: { examId: string; subject: string; questionNumber: number; subtopicId: string | null; subtopicLabel: string; correctAnswer: string | null }[] = [];
     for (const q of rawQuestions) {
       const questionNumber = Number(q?.questionNumber);
       const subtopicLabel = typeof q?.subtopicLabel === "string" ? q.subtopicLabel.trim() : "";
       if (!Number.isInteger(questionNumber) || questionNumber < 1 || !subtopicLabel) continue;
       const subtopicId = typeof q?.subtopicId === "string" && validSubtopicIds.has(q.subtopicId) ? q.subtopicId : null;
-      data.push({ examId: params.id, subject, questionNumber, subtopicId, subtopicLabel });
+      const rawAnswer = typeof q?.correctAnswer === "string" ? q.correctAnswer.trim().toUpperCase() : "";
+      const correctAnswer = /^[A-E]$/.test(rawAnswer) ? rawAnswer : null;
+      data.push({ examId: params.id, subject, questionNumber, subtopicId, subtopicLabel, correctAnswer });
     }
     if (data.length === 0) return NextResponse.json({ error: "Geçerli hiçbir soru satırı yok." }, { status: 400 });
 

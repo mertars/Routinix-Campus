@@ -59,7 +59,7 @@ export async function bulkUpsertExamNetResults(input: {
   institutionId: string;
   actorId: string;
   actorRole: string;
-  source: "pdf-import" | "manual-grid";
+  source: "pdf-import" | "manual-grid" | "optical-import";
   rows: NetResultRow[];
 }): Promise<{ results: NetResultRowOutcome[]; successCount: number; failedCount: number }> {
   const studentIds = [...new Set(input.rows.map((r) => r.studentId))];

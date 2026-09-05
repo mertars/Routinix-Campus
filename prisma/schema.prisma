@@ -127,6 +127,7 @@ model Institution {
   institutionSmsTemplates     InstitutionSmsTemplate[]
   xrayMonthlyScreeningConfigs XrayMonthlyScreeningConfig[]
   videos                      Video[]
+  opticalFormats              OpticalFormat[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -456,9 +457,63 @@ model ExamQuestion {
   questionNumber Int
   subtopicId     String? // CURRICULUM_TREE içindeki subtopic.id (varsa)
   subtopicLabel  String // her zaman dolu — gösterim için (subtopicId varsa CURRICULUM_TREE'deki adıyla AYNI tutulmalı)
+  // Optik okuma köprüsü (2026-09-05) — bu sorunun doğru şıkkı (A-E). Elle
+  // girilen sınavlarda boş kalabilir (o zaman sadece kazanım analizi
+  // çalışır, optik yükleme çalışmaz); optik dosyası yüklemek için ZORUNLU
+  // (bkz. lib/server/exams/optical-import.ts > scoreOpticalAnswers).
+  correctAnswer  String?
 
   @@unique([examId, subject, questionNumber])
   @@index([examId, subject])
+}
+
+// Optik (OMR tarayıcı) sabit-genişlikli metin dosyası formatı tanımı —
+// gerçek piyasa optik tarayıcıları BİR GÖRÜNTÜ değil, her satırı bir
+// öğrenci olan sabit-genişlikli bir .txt üretir (T.C./ad-soyad/şube sabit
+// karakter aralıklarında, sonra ders başına işaretlenen şıkların (A-E)
+// tek harflik dizisi). Farklı tarayıcı/kurum farklı sütun düzeni
+// kullanabildiği için bu düzen kurum bazında YAPILANDIRILABİLİR (bkz.
+// components/olcme/optical-format-manager.tsx) — tek bir sınava değil,
+// kuruma ait, birden çok sınavda tekrar kullanılır.
+model OpticalFormat {
+  id              String                @id @default(cuid())
+  institutionId   String
+  institution     Institution           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name            String
+  // Kimlik alanları — hepsi opsiyonel (bazı formatlarda olmayabilir) DIŞINDA
+  // adı soyadı (eşleştirme için en az biri: T.C. ya da ad-soyad ZORUNLU,
+  // uygulama katmanında doğrulanır).
+  tcNoStart       Int?
+  tcNoLength      Int?
+  studentNoStart  Int?
+  studentNoLength Int?
+  bookletStart    Int?
+  bookletLength   Int?
+  gradeStart      Int?
+  gradeLength     Int?
+  branchStart     Int?
+  branchLength    Int?
+  nameStart       Int?
+  nameLength      Int?
+  subjectBlocks   OpticalSubjectBlock[]
+  createdAt       DateTime              @default(now())
+
+  @@unique([institutionId, name])
+  @@index([institutionId])
+}
+
+// Bir optik formatının HER dersi kendi sabit sütun aralığında taşır (satırın
+// o aralığındaki her karakter = o dersin bir sorusunun işaretlenen şıkkı,
+// bu yüzden length = o dersteki soru sayısı).
+model OpticalSubjectBlock {
+  id       String        @id @default(cuid())
+  formatId String
+  format   OpticalFormat @relation(fields: [formatId], references: [id], onDelete: Cascade)
+  subject  String
+  start    Int
+  length   Int
+
+  @@unique([formatId, subject])
 }
 
 // Kampüs V2 Part 4 — Gelişmiş Yoklama Matrisi: bir satır artık bir GÜNÜ
