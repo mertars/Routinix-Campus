@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Save, Copy, Search, CheckCircle2, Sparkles, Target, FileBarChart, ChevronRight, BarChart3, Plus, X, PencilLine } from "lucide-react";
+import { Loader2, Save, Copy, Search, CheckCircle2, Sparkles, Target, FileBarChart, ChevronRight, BarChart3, Plus, X, PencilLine, ScanLine } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import type { RosterStudent } from "@/lib/exam-import/types";
 import { OpticalUploadSection } from "./optical-upload-section";
 import { NewExamWizard } from "./new-exam-wizard";
+import { type OpticalFormat } from "./optical-format-manager";
 
 type Exam = { id: string; name: string; examDate: string; opticalFormatId: string | null };
 type SubjectRow = { subject: string; supportsRoentgenBridge: boolean; hasAnswerKey: boolean; hasResults: boolean };
@@ -55,12 +56,21 @@ function scoreTone(percent: number) {
 // SINAVA özeldir, şablona (OpticalFormat) DEĞİL — şablon sadece ders/
 // sütun YAPISINI taşır, sorular/cevaplar her denemede değişir (bkz.
 // new-exam-wizard.tsx'teki açıklama metni). Sağda canlı "en zayıf
-// kazanımlar" özeti değişmedi.
-export function OlcmePanel() {
+// kazanımlar" özeti değişmedi. 2026-09-05 üçüncü düzeltmesi: kullanıcı
+// "solda sadece hazırlanan şablonlar bulunsun, geçmiş denemeleri kaldır"
+// dedi — sol panel artık düz bir sınav listesi DEĞİL, ŞABLON listesi
+// (her şablon tıklanınca KENDİ denemelerini altına açan bir akordeon).
+// Tek tek geçmiş denemelerin TAMAMINA (hangi şablonla ilişkili olduğuna
+// bakmadan) erişim artık üst bardaki "Geçmiş Denemeler" butonunda (bkz.
+// olcme-top-bar.tsx) — bu yüzden examId/onSelectExam artık SAYFA
+// düzeyinde tutulup buraya prop olarak geliyor (bkz. app/olcme/*/page.tsx),
+// iki bileşen kardeş olduğu için state'i paylaşabilsinler diye.
+export function OlcmePanel({ examId, onSelectExam }: { examId: string; onSelectExam: (examId: string) => void }) {
   const { showError, showSuccess } = useToast();
 
   const [exams, setExams] = useState<Exam[] | null>(null);
-  const [examId, setExamId] = useState("");
+  const [formats, setFormats] = useState<OpticalFormat[] | null>(null);
+  const [expandedFormatId, setExpandedFormatId] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [subject, setSubject] = useState("");
   const [loadingSubjects, setLoadingSubjects] = useState(false);
@@ -95,15 +105,30 @@ export function OlcmePanel() {
       .catch(() => showError("Sınav listesi yüklenemedi."));
   }
 
+  function loadFormats() {
+    return fetch("/api/optical-formats")
+      .then((res) => res.json())
+      .then((data) => setFormats(data.formats ?? []))
+      .catch(() => showError("Şablonlar yüklenemedi."));
+  }
+
   useEffect(() => {
     loadExams();
+    loadFormats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Dışarıdan (üst bardaki "Geçmiş Denemeler" seçici gibi) bir examId
+  // geldiğinde, o denemenin ait olduğu şablonu akordeon'da otomatik aç —
+  // admin nerede olduğunu görsün.
+  useEffect(() => {
+    if (selectedExam?.opticalFormatId) setExpandedFormatId(selectedExam.opticalFormatId);
+  }, [selectedExam?.opticalFormatId]);
+
   async function handleWizardFinished(newExamId: string) {
     setWizardOpen(false);
-    await loadExams();
-    setExamId(newExamId);
+    await Promise.all([loadExams(), loadFormats()]);
+    onSelectExam(newExamId);
   }
 
   function loadSubjects() {
@@ -315,10 +340,10 @@ export function OlcmePanel() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-        {/* SOL — sınav listesi */}
+        {/* SOL — şablon listesi (her şablon KENDİ denemelerini akordeonda açar) */}
         <aside className="space-y-1.5 lg:sticky lg:top-20 lg:self-start">
           <div className="mb-1 flex items-center justify-between px-1">
-            <p className="text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">1. Sınavlar</p>
+            <p className="text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">1. Şablonlar</p>
           </div>
           <button
             onClick={() => setWizardOpen(true)}
@@ -326,33 +351,66 @@ export function OlcmePanel() {
           >
             <Plus className="h-3.5 w-3.5" /> Yeni Deneme Oluştur
           </button>
-          {exams === null ? (
+          {formats === null || exams === null ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
             </div>
-          ) : exams.length === 0 ? (
+          ) : formats.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-hairline bg-white/40 px-3 py-6 text-center text-[11px] text-espresso-muted dark:border-white/10 dark:bg-white/5 dark:text-cream/40">
-              Henüz sınav yok — ERP &gt; Sınav &amp; Optik Yükleme&apos;den oluştur.
+              Henüz şablon yok — &quot;Yeni Deneme Oluştur&quot;dan başlat.
             </p>
           ) : (
-            exams.map((exam) => (
-              <button
-                key={exam.id}
-                onClick={() => setExamId(exam.id)}
-                className={cn(
-                  "flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition",
-                  examId === exam.id
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                    : "border-hairline bg-white/60 text-espresso hover:border-emerald-400/30 hover:bg-emerald-500/5 dark:border-white/10 dark:bg-white/5 dark:text-cream"
-                )}
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-xs font-semibold">{exam.name}</span>
-                  <span className="block text-[10px] text-espresso-muted dark:text-cream/40">{new Date(exam.examDate).toLocaleDateString("tr-TR")}</span>
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-50" />
-              </button>
-            ))
+            formats.map((format) => {
+              const formatExams = exams.filter((e) => e.opticalFormatId === format.id);
+              const isExpanded = expandedFormatId === format.id;
+              return (
+                <div key={format.id}>
+                  <button
+                    onClick={() => setExpandedFormatId(isExpanded ? null : format.id)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition",
+                      isExpanded
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                        : "border-hairline bg-white/60 text-espresso hover:border-emerald-400/30 hover:bg-emerald-500/5 dark:border-white/10 dark:bg-white/5 dark:text-cream"
+                    )}
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <ScanLine className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-semibold">{format.name}</span>
+                        <span className="block text-[10px] text-espresso-muted dark:text-cream/40">{formatExams.length} deneme</span>
+                      </span>
+                    </span>
+                    <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 opacity-50 transition-transform", isExpanded && "rotate-90")} />
+                  </button>
+                  {isExpanded && (
+                    <div className="ml-3 mt-1 space-y-1 border-l border-hairline pl-2.5 dark:border-white/10">
+                      {formatExams.length === 0 ? (
+                        <p className="py-2 text-[10.5px] text-espresso-muted dark:text-cream/40">Bu şablonla henüz deneme oluşturulmadı.</p>
+                      ) : (
+                        formatExams.map((exam) => (
+                          <button
+                            key={exam.id}
+                            onClick={() => onSelectExam(exam.id)}
+                            className={cn(
+                              "flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition",
+                              examId === exam.id
+                                ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                                : "text-espresso-muted hover:bg-cream-card dark:text-cream/50 dark:hover:bg-white/5"
+                            )}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-[11px] font-semibold">{exam.name}</span>
+                              <span className="block text-[10px] opacity-70">{new Date(exam.examDate).toLocaleDateString("tr-TR")}</span>
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </aside>
 
@@ -361,7 +419,9 @@ export function OlcmePanel() {
           {!examId ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-20 text-center dark:border-white/10 dark:bg-white/5">
               <Target className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
-              <p className="text-xs text-espresso-muted dark:text-cream/40">Soldan bir sınav seç.</p>
+              <p className="text-xs text-espresso-muted dark:text-cream/40">
+                Soldan bir şablon açıp bir deneme seç, üstteki &quot;Geçmiş Denemeler&quot;den ara ya da yeni bir deneme oluştur.
+              </p>
             </div>
           ) : (
             <>
