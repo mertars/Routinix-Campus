@@ -37,6 +37,7 @@ const styles = StyleSheet.create({
   nameLine: { flexDirection: "row", justifyContent: "space-between", marginTop: 14, marginBottom: 16, borderBottomWidth: 1.5, borderBottomColor: COLORS.text, paddingBottom: 10 },
   nameLineField: { fontSize: 9, color: COLORS.textMuted },
 
+  sectionLabel: { fontSize: 10, fontWeight: "bold", color: COLORS.accentDark, marginTop: 10, marginBottom: 6 },
   questionCard: { backgroundColor: COLORS.cardBg, borderRadius: 12, padding: 12, marginBottom: 12 },
   questionHeader: { flexDirection: "row", marginBottom: 8 },
   questionNumber: { width: 22, height: 22, borderRadius: 11, backgroundColor: COLORS.accent, color: "#FFFFFF", fontSize: 9, fontWeight: "bold", textAlign: "center", paddingTop: 5 },
@@ -48,7 +49,10 @@ const styles = StyleSheet.create({
   footer: { position: "absolute", bottom: 24, left: 40, right: 40, textAlign: "center", fontSize: 7, color: COLORS.textMuted },
 });
 
-export type PdfPracticeWorksheetQuestion = { order: number; prompt: string };
+// `sectionLabel` isteğe bağlı — Hata Karnesi (bkz. app/api/exams/[id]/
+// hata-karnesi) sorulari kazanıma göre GRUPLU gösterir; sıradan bir
+// çalışma yaprağı (tek konu) bunu hiç kullanmaz (davranış AYNEN korunur).
+export type PdfPracticeWorksheetQuestion = { order: number; prompt: string; sectionLabel?: string };
 
 export type PdfPracticeWorksheetProps = {
   institutionName: string;
@@ -88,15 +92,18 @@ export function PdfPracticeWorksheet({ institutionName, logoUrl, testName, subje
           <Text style={styles.nameLineField}>{t("Tarih: ___/___/______")}</Text>
         </View>
 
-        {questions.map((q) => (
-          <View key={q.order} style={styles.questionCard} wrap={false}>
-            <View style={styles.questionHeader}>
-              <Text style={styles.questionNumber}>{String(q.order)}</Text>
-              <Text style={styles.questionPrompt}>{t(q.prompt)}</Text>
-            </View>
-            <View style={styles.answerLines}>
-              <View style={styles.answerLine} />
-              <View style={styles.answerLine} />
+        {questions.map((q, i) => (
+          <View key={q.order} wrap={false}>
+            {q.sectionLabel && q.sectionLabel !== questions[i - 1]?.sectionLabel && <Text style={styles.sectionLabel}>{t(q.sectionLabel)}</Text>}
+            <View style={styles.questionCard}>
+              <View style={styles.questionHeader}>
+                <Text style={styles.questionNumber}>{String(q.order)}</Text>
+                <Text style={styles.questionPrompt}>{t(q.prompt)}</Text>
+              </View>
+              <View style={styles.answerLines}>
+                <View style={styles.answerLine} />
+                <View style={styles.answerLine} />
+              </View>
             </View>
           </View>
         ))}
