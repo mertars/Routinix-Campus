@@ -8,8 +8,9 @@ import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import type { RosterStudent } from "@/lib/exam-import/types";
 import { OpticalUploadSection } from "./optical-upload-section";
+import { NewExamWizard } from "./new-exam-wizard";
 
-type Exam = { id: string; name: string; examDate: string };
+type Exam = { id: string; name: string; examDate: string; opticalFormatId: string | null };
 type SubjectRow = { subject: string; supportsRoentgenBridge: boolean; hasAnswerKey: boolean; hasResults: boolean };
 type AnswerKeyRow = { questionNumber: number; subtopicId: string | null; subtopicLabel: string; correctAnswer: string | null };
 type Template = { examId: string; examName: string; examDate: string };
@@ -76,17 +77,28 @@ export function OlcmePanel() {
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   const [newSubjectName, setNewSubjectName] = useState("");
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const supportsRoentgenBridge = subject in CURRICULUM_TREE;
   const selectedExam = exams?.find((e) => e.id === examId) ?? null;
 
-  useEffect(() => {
-    fetch("/api/exams")
+  function loadExams() {
+    return fetch("/api/exams")
       .then((res) => res.json())
       .then((data) => setExams(data.exams ?? []))
       .catch(() => showError("Sınav listesi yüklenemedi."));
+  }
+
+  useEffect(() => {
+    loadExams();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleWizardFinished(newExamId: string) {
+    setWizardOpen(false);
+    await loadExams();
+    setExamId(newExamId);
+  }
 
   function loadSubjects() {
     if (!examId) return;
@@ -289,7 +301,15 @@ export function OlcmePanel() {
       <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
         {/* SOL — sınav listesi */}
         <aside className="space-y-1.5 lg:sticky lg:top-20 lg:self-start">
-          <p className="mb-1 px-1 text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">1. Sınavlar</p>
+          <div className="mb-1 flex items-center justify-between px-1">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">1. Sınavlar</p>
+          </div>
+          <button
+            onClick={() => setWizardOpen(true)}
+            className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 py-2 text-[11.5px] font-semibold text-emerald-700 transition hover:bg-emerald-500/10 dark:text-emerald-300"
+          >
+            <Plus className="h-3.5 w-3.5" /> Yeni Deneme Oluştur
+          </button>
           {exams === null ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
@@ -597,7 +617,14 @@ export function OlcmePanel() {
                       </div>
 
                       {resultMode === "optical" ? (
-                        <OpticalUploadSection examId={examId} subject={subject} roster={roster} onSaved={loadSummary} bare />
+                        <OpticalUploadSection
+                          examId={examId}
+                          subject={subject}
+                          roster={roster}
+                          onSaved={loadSummary}
+                          preferredFormatId={selectedExam?.opticalFormatId ?? null}
+                          bare
+                        />
                       ) : (
                         <div>
                           <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
@@ -701,6 +728,8 @@ export function OlcmePanel() {
           )}
         </main>
       </div>
+
+      <NewExamWizard isOpen={wizardOpen} onClose={() => setWizardOpen(false)} onFinished={handleWizardFinished} />
     </div>
   );
 }

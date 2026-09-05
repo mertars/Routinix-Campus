@@ -39,12 +39,17 @@ export function OpticalUploadSection({
   subject,
   roster,
   onSaved,
+  preferredFormatId = null,
   bare = false,
 }: {
   examId: string;
   subject: string;
   roster: RosterStudent[] | null;
   onSaved: () => void;
+  // Bu sınav OLUŞTURULURKEN bir şablona bağlandıysa (bkz. new-exam-wizard.tsx
+  // > Exam.opticalFormatId) o formatı otomatik seçili getirir — yönetici
+  // her seferinde aynı dropdown'dan tekrar seçmek zorunda kalmaz.
+  preferredFormatId?: string | null;
   // true: çağıran taraf (bkz. olcme-panel.tsx > "Sonuçları Gir" sekmesi)
   // zaten kendi kartını/başlığını çiziyor — burada dış kart+başlık TEKRAR
   // çizilmez, sadece iç içerik render edilir.
@@ -66,7 +71,11 @@ export function OpticalUploadSection({
       .then((data) => {
         const list: OpticalFormat[] = data.formats ?? [];
         setFormats(list);
-        setFormatId((prev) => (prev && list.some((f) => f.id === prev) ? prev : (list[0]?.id ?? "")));
+        setFormatId((prev) => {
+          if (prev && list.some((f) => f.id === prev)) return prev;
+          if (preferredFormatId && list.some((f) => f.id === preferredFormatId)) return preferredFormatId;
+          return list[0]?.id ?? "";
+        });
       })
       .catch(() => showError("Optik formatlar yüklenemedi."));
   }

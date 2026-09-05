@@ -18,17 +18,45 @@ async function handleGet() {
   }
 }
 
+// POST /api/exams — { name, examDate, opticalFormatId? }. opticalFormatId
+// verilirse (bkz. "Yeni Deneme Oluştur" sihirbazı, components/olcme/
+// new-exam-wizard.tsx) sınav o optik ŞABLONA bağlanır VE şablonun ders
+// bloklarının TAMAMI otomatik ExamSubject olarak eklenir — yönetici ayrıca
+// "hangi dersler var" adımını tekrar yapmak zorunda kalmaz.
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
-    requireRole(session, "principal");
+    requireRole(session, "teacher", "principal");
 
     const body = await request.json();
-    const { name, examDate } = body as { name?: string; examDate?: string };
+    const { name, examDate, opticalFormatId } = body as { name?: string; examDate?: string; opticalFormatId?: string };
     if (!name?.trim()) return NextResponse.json({ error: "name zorunludur." }, { status: 400 });
+
+    let formatSubjects: string[] = [];
+    if (opticalFormatId) {
+      const format = await prisma.opticalFormat.findUnique({
+        where: { id: opticalFormatId },
+        select: { institutionId: true, subjectBlocks: { select: { subject: true } } },
+      });
+      if (!format || format.institutionId !== session.institutionId) {
+        return NextResponse.json({ error: "Optik şablon bulunamadı." }, { status: 404 });
+      }
+      formatSubjects = format.subjectBlocks.map((b) => b.subject);
+    }
+
     const exam = await prisma.exam.create({
-      data: { institutionId: session.institutionId, name: name.trim(), examDate: examDate ? new Date(examDate) : new Date() },
+      data: {
+        institutionId: session.institutionId,
+        name: name.trim(),
+        examDate: examDate ? new Date(examDate) : new Date(),
+        opticalFormatId: opticalFormatId ?? null,
+      },
     });
+
+    if (formatSubjects.length > 0) {
+      await prisma.examSubject.createMany({ data: formatSubjects.map((subject) => ({ examId: exam.id, subject })), skipDuplicates: true });
+    }
+
     return NextResponse.json({ exam }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

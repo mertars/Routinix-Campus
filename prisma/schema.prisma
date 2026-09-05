@@ -414,6 +414,13 @@ model Exam {
   seatAssignments ExamSeatAssignment[]
   questions       ExamQuestion[]
   examSubjects    ExamSubject[]
+  // "Yeni Deneme Oluştur" sihirbazı (2026-09-05) — bir sınav oluşturulurken
+  // bir optik ŞABLONA (TYT/AYT Sayısal/… ya da "Farklı") bağlanabilir. Bağlıysa:
+  // (a) o şablonun ders blokları OTOMATİK ExamSubject olarak eklenir,
+  // (b) Optik Okuma adımında format seçimi ATLANIR (bu sınavınki hazır gelir).
+  // SetNull: şablon silinirse geçmiş sınav etkilenmez, sadece bağı kopar.
+  opticalFormatId String?
+  opticalFormat   OpticalFormat?       @relation(fields: [opticalFormatId], references: [id], onDelete: SetNull)
   createdAt       DateTime             @default(now())
 
   @@index([institutionId])
@@ -515,6 +522,7 @@ model OpticalFormat {
   nameStart       Int?
   nameLength      Int?
   subjectBlocks   OpticalSubjectBlock[]
+  exams           Exam[]
   createdAt       DateTime              @default(now())
 
   @@unique([institutionId, name])
@@ -523,12 +531,15 @@ model OpticalFormat {
 
 // Bir optik formatının HER dersi kendi sabit sütun aralığında taşır (satırın
 // o aralığındaki her karakter = o dersin bir sorusunun işaretlenen şıkkı,
-// bu yüzden length = o dersteki soru sayısı).
+// bu yüzden length = o dersteki soru sayısı). `order`: gerçek dosyadaki
+// FİZİKSEL sırası (2026-09-05 sihirbazı bunu hem gösterim hem "bir
+// sonraki dersin başlangıcı otomatik önerilsin" hesaplaması için kullanır).
 model OpticalSubjectBlock {
   id       String        @id @default(cuid())
   formatId String
   format   OpticalFormat @relation(fields: [formatId], references: [id], onDelete: Cascade)
   subject  String
+  order    Int           @default(0)
   start    Int
   length   Int
 

@@ -37,13 +37,13 @@ async function handlePut(request: NextRequest, { params }: { params: { id: strin
 
     const subjectBlocksRaw = Array.isArray(body?.subjectBlocks) ? body.subjectBlocks : [];
     const subjectBlocks = subjectBlocksRaw
-      .map((b: unknown) => {
+      .map((b: unknown, i: number) => {
         const subject = typeof (b as Record<string, unknown>)?.subject === "string" ? ((b as Record<string, unknown>).subject as string).trim() : "";
         const field = parseField(b);
         if (!subject || !field) return null;
-        return { subject, start: field.start, length: field.length };
+        return { subject, start: field.start, length: field.length, order: i };
       })
-      .filter((b: unknown): b is { subject: string; start: number; length: number } => b !== null);
+      .filter((b: unknown): b is { subject: string; start: number; length: number; order: number } => b !== null);
 
     const studentNo = parseField(body?.studentNo);
     const booklet = parseField(body?.booklet);
@@ -70,7 +70,7 @@ async function handlePut(request: NextRequest, { params }: { params: { id: strin
           nameLength: nameField?.length ?? null,
           subjectBlocks: { createMany: { data: subjectBlocks } },
         },
-        include: { subjectBlocks: true },
+        include: { subjectBlocks: { orderBy: { order: "asc" } } },
       });
     });
 

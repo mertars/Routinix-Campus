@@ -17,7 +17,7 @@ async function handleGet() {
 
     const formats = await prisma.opticalFormat.findMany({
       where: { institutionId: session.institutionId },
-      include: { subjectBlocks: { orderBy: { subject: "asc" } } },
+      include: { subjectBlocks: { orderBy: { order: "asc" } } },
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json({ formats });
@@ -59,13 +59,13 @@ async function handlePost(request: NextRequest) {
 
     const subjectBlocksRaw = Array.isArray(body?.subjectBlocks) ? body.subjectBlocks : [];
     const subjectBlocks = subjectBlocksRaw
-      .map((b: unknown) => {
+      .map((b: unknown, i: number) => {
         const subject = typeof (b as Record<string, unknown>)?.subject === "string" ? ((b as Record<string, unknown>).subject as string).trim() : "";
         const field = parseField(b);
         if (!subject || !field) return null;
-        return { subject, start: field.start, length: field.length };
+        return { subject, start: field.start, length: field.length, order: i };
       })
-      .filter((b: unknown): b is { subject: string; start: number; length: number } => b !== null);
+      .filter((b: unknown): b is { subject: string; start: number; length: number; order: number } => b !== null);
 
     const format = await prisma.opticalFormat.create({
       data: {
@@ -85,7 +85,7 @@ async function handlePost(request: NextRequest) {
         nameLength: nameField?.length ?? null,
         subjectBlocks: { createMany: { data: subjectBlocks } },
       },
-      include: { subjectBlocks: true },
+      include: { subjectBlocks: { orderBy: { order: "asc" } } },
     });
 
     return NextResponse.json({ format });
