@@ -152,21 +152,28 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videos]);
 
-  // Klasör kartları — her ders için video listesi + sınıf dağılımı
-  // (kartın altındaki mini çubuk grafiğe besleniyor).
+  // Klasör kartları — her ders için video listesi + sınıf dağılımı (kartın
+  // altındaki mini çubuk grafiğe besleniyor). Kullanıcı talebi (2026-09-05)
+  // — "bütün dersler eklensin, 0 video olanlar topluca dursun": önceden
+  // sadece videosu OLAN dersler görünüyordu, artık VIDEO_SUBJECTS'teki
+  // TÜM dersler kart olarak duruyor — videosu olanlar ÖNCE, boş olanlar
+  // (0 video) SONRA, kendi aralarında bir grup halinde.
   const subjectFolders = useMemo(() => {
     const map = new Map<string, VideoLesson[]>();
     for (const v of videos ?? []) {
       if (!map.has(v.subject)) map.set(v.subject, []);
       map.get(v.subject)!.push(v);
     }
-    return VIDEO_SUBJECTS.filter((s) => map.has(s)).map((subject) => {
-      const subjectVideos = map.get(subject)!;
+    const toFolder = (subject: string) => {
+      const subjectVideos = map.get(subject) ?? [];
       const gradeCounts = [...new Set(subjectVideos.map((v) => v.grade))]
         .sort((a, b) => a - b)
         .map((grade) => ({ grade, count: subjectVideos.filter((v) => v.grade === grade).length }));
       return { subject, count: subjectVideos.length, gradeCounts };
-    });
+    };
+    const withVideos = VIDEO_SUBJECTS.filter((s) => map.has(s)).map(toFolder);
+    const empty = VIDEO_SUBJECTS.filter((s) => !map.has(s)).map(toFolder);
+    return [...withVideos, ...empty];
   }, [videos]);
 
   const scopeVideos = useMemo(() => (openSubject ? (videos ?? []).filter((v) => v.subject === openSubject) : (videos ?? [])), [videos, openSubject]);
@@ -275,11 +282,6 @@ export function VideoPortalPanel({ canManage }: { canManage: boolean }) {
       {videos === null ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-violet-600" />
-        </div>
-      ) : videos.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-16 text-center dark:border-white/10 dark:bg-white/5">
-          <Clapperboard className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
-          <p className="text-xs text-espresso-muted dark:text-cream/40">Henüz video eklenmedi.</p>
         </div>
       ) : (
         <AnimatePresence mode="wait">
@@ -581,46 +583,56 @@ function FolderCard({
   onOpen: () => void;
 }) {
   const tone = subjectTone(folder.subject);
+  const isEmpty = folder.count === 0;
   const maxCount = Math.max(1, ...folder.gradeCounts.map((g) => g.count));
 
   return (
     <motion.button
       initial={{ opacity: 0, y: 10, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      animate={{ opacity: isEmpty ? 0.6 : 1, y: 0, scale: 1 }}
+      whileHover={{ y: -3, opacity: 1 }}
       transition={{ delay: Math.min(index, 8) * 0.04, type: "spring", stiffness: 300, damping: 26 }}
-      whileHover={{ y: -3 }}
       onClick={onOpen}
       className="group relative pt-2 text-left"
     >
-      <div className={cn("absolute left-4 top-0 h-3 w-14 rounded-t-lg opacity-80 transition-opacity group-hover:opacity-100", tone.dot)} />
+      <div className={cn("absolute left-4 top-0 h-3 w-14 rounded-t-lg transition-opacity group-hover:opacity-100", tone.dot, isEmpty ? "opacity-30" : "opacity-80")} />
       <div
         className={cn(
-          "relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-hairline p-4 shadow-sm backdrop-blur-sm transition-all group-hover:shadow-lg dark:border-white/10",
-          tone.bg
+          "relative flex flex-col gap-3 overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-sm transition-all group-hover:shadow-lg",
+          isEmpty ? "border-dashed border-hairline bg-white/40 dark:border-white/10 dark:bg-white/5" : cn("border-hairline dark:border-white/10", tone.bg)
         )}
       >
         <div className="flex items-start justify-between">
-          <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-sm", tone.dot)}>
+          <span
+            className={cn(
+              "flex h-9 w-9 items-center justify-center rounded-xl shadow-sm",
+              isEmpty ? "bg-cream-muted text-espresso-muted dark:bg-white/10 dark:text-cream/40" : cn(tone.dot, "text-white")
+            )}
+          >
             <FolderOpen className="h-4.5 w-4.5" />
           </span>
           <ChevronRight className="h-4 w-4 text-espresso-muted/50 transition group-hover:translate-x-0.5 group-hover:text-espresso dark:text-cream/30 dark:group-hover:text-cream" />
         </div>
 
         <div>
-          <p className={cn("truncate text-sm font-bold", tone.text)}>{folder.subject}</p>
-          <p className="mt-0.5 text-[10.5px] text-espresso-muted dark:text-cream/40">{folder.count} video</p>
+          <p className={cn("truncate text-sm font-bold", isEmpty ? "text-espresso-muted dark:text-cream/50" : tone.text)}>{folder.subject}</p>
+          <p className="mt-0.5 text-[10.5px] text-espresso-muted dark:text-cream/40">{isEmpty ? "Henüz video yok" : `${folder.count} video`}</p>
         </div>
 
-        <div className="flex h-5 items-end gap-1">
-          {folder.gradeCounts.map(({ grade, count }) => (
-            <div
-              key={grade}
-              title={`${grade}. Sınıf · ${count} video`}
-              className={cn("w-1.5 rounded-full opacity-70", tone.dot)}
-              style={{ height: `${Math.max(25, (count / maxCount) * 100)}%` }}
-            />
-          ))}
-        </div>
+        {isEmpty ? (
+          <div className="h-5 border-b border-dashed border-hairline dark:border-white/10" />
+        ) : (
+          <div className="flex h-5 items-end gap-1">
+            {folder.gradeCounts.map(({ grade, count }) => (
+              <div
+                key={grade}
+                title={`${grade}. Sınıf · ${count} video`}
+                className={cn("w-1.5 rounded-full opacity-70", tone.dot)}
+                style={{ height: `${Math.max(25, (count / maxCount) * 100)}%` }}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </motion.button>
   );
