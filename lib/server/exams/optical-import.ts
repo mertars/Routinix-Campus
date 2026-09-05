@@ -26,8 +26,18 @@ export type ParsedOpticalRow = {
   grade: string | null;
   branch: string | null;
   name: string | null;
-  rawAnswers: string;
+  // DERSLERİN TAMAMI — 2026-09-05 düzeltmesi: kullanıcı haklı olarak
+  // "sınavı ders ders değil hepsini tek seferde kontrol etmesi lazım"
+  // dedi. Gerçek bir optik dosyası zaten TEK satırda TÜM derslerin
+  // cevaplarını taşıyor (bkz. örnek dosya) — önceden bu fonksiyon TEK
+  // bir ders bloğu alıp aynı dosyayı ders başına ayrı ayrı yükletiyordu,
+  // bu gereksiz tekrar ve kafa karışıklığı yaratıyordu. Artık bir satır
+  // BİR KEZ ayrıştırılır, formatın TÜM ders bloklarının ham cevap
+  // dizileri aynı anda çıkarılır.
+  answersBySubject: Record<string, string>;
 };
+
+export type OpticalSubjectFieldDef = { subject: string; start: number; length: number };
 
 // Kullanıcının ekran görüntüsündeki "Başlangıç" alanı 1-tabanlıdır (ilk
 // karakter = 1) — edesis'in kendi ekranıyla AYNI kural, kafa karışıklığı
@@ -38,11 +48,15 @@ function sliceField(line: string, field?: OpticalFieldDef | null): string | null
   return value.length > 0 ? value : null;
 }
 
-export function parseOpticalText(rawText: string, format: OpticalFormatDef, subjectField: OpticalFieldDef): ParsedOpticalRow[] {
+export function parseOpticalText(rawText: string, format: OpticalFormatDef, subjectFields: OpticalSubjectFieldDef[]): ParsedOpticalRow[] {
   const lines = rawText.split(/\r?\n/);
   const rows: ParsedOpticalRow[] = [];
   lines.forEach((line, i) => {
     if (line.trim().length === 0) return;
+    const answersBySubject: Record<string, string> = {};
+    for (const field of subjectFields) {
+      answersBySubject[field.subject] = line.slice(field.start - 1, field.start - 1 + field.length);
+    }
     rows.push({
       lineNumber: i + 1,
       tcNo: sliceField(line, format.tcNo),
@@ -51,7 +65,7 @@ export function parseOpticalText(rawText: string, format: OpticalFormatDef, subj
       grade: sliceField(line, format.grade),
       branch: sliceField(line, format.branch),
       name: sliceField(line, format.name),
-      rawAnswers: line.slice(subjectField.start - 1, subjectField.start - 1 + subjectField.length),
+      answersBySubject,
     });
   });
   return rows;

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, UploadCloud, Settings2, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
+import { Loader2, UploadCloud, Settings2, CheckCircle2, AlertTriangle, XCircle, ScanLine } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import type { RosterStudent } from "@/lib/exam-import/types";
 import { OpticalFormatManager, type OpticalFormat } from "./optical-format-manager";
+
+type PreviewSubjectResult = { subject: string; net: number; correctCount: number; wrongQuestionNumbers: number[]; blankQuestionNumbers: number[] };
 
 type PreviewRow = {
   lineNumber: number;
@@ -15,10 +17,7 @@ type PreviewRow = {
   matchedStudentId: string | null;
   matchStatus: "matched" | "ambiguous" | "unmatched";
   candidates: { id: string; firstName: string; lastName: string }[];
-  net: number;
-  correctCount: number;
-  wrongQuestionNumbers: number[];
-  blankQuestionNumbers: number[];
+  subjects: PreviewSubjectResult[];
 };
 
 const STATUS_STYLE: Record<PreviewRow["matchStatus"], { icon: typeof CheckCircle2; className: string; label: string }> = {
@@ -27,33 +26,26 @@ const STATUS_STYLE: Record<PreviewRow["matchStatus"], { icon: typeof CheckCircle
   unmatched: { icon: XCircle, className: "text-rose-500", label: "Eşleşmedi" },
 };
 
-// Optik (OMR tarayıcı) yükleme — sabit-genişlikli .txt dosyasını (bkz.
-// lib/server/exams/optical-import.ts) tanımlı bir OpticalFormat'a göre
-// ayrıştırır, cevap anahtarındaki (ExamQuestion.correctAnswer) doğru
-// cevaplarla karşılaştırıp önizler; admin eşleşmeleri gözden geçirip
-// onaylayınca AYNI toplu yazma yolundan (bulkUpsertExamNetResults, bkz.
-// confirm route) kaydeder — PDF sihirbazıyla AYNI "önce önizle, sonra
-// kaydet" felsefesi.
+// Optik (OMR tarayıcı) yükleme — SINAV DÜZEYİNDE, TEK seferde TÜM
+// dersleri birden işler (2026-09-05 düzeltmesi — kullanıcı haklı olarak
+// "ders ders değil hepsini tek seferde kontrol etmesi lazım" dedi: gerçek
+// bir optik dosyası zaten TEK satırda tüm derslerin cevaplarını taşıyor,
+// önceden aynı dosyayı ders başına ayrı ayrı yükletmek anlamsız bir
+// tekrardı). Dosya bir kez yüklenir, cevap anahtarı girilmiş HER ders
+// aynı geçişte puanlanır; admin eşleşmeleri gözden geçirip onaylayınca
+// TEK istekte, TEK transaction'da kaydedilir.
 export function OpticalUploadSection({
   examId,
-  subject,
   roster,
   onSaved,
   preferredFormatId = null,
-  bare = false,
 }: {
   examId: string;
-  subject: string;
   roster: RosterStudent[] | null;
   onSaved: () => void;
   // Bu sınav OLUŞTURULURKEN bir şablona bağlandıysa (bkz. new-exam-wizard.tsx
-  // > Exam.opticalFormatId) o formatı otomatik seçili getirir — yönetici
-  // her seferinde aynı dropdown'dan tekrar seçmek zorunda kalmaz.
+  // > Exam.opticalFormatId) o formatı otomatik seçili getirir.
   preferredFormatId?: string | null;
-  // true: çağıran taraf (bkz. olcme-panel.tsx > "Sonuçları Gir" sekmesi)
-  // zaten kendi kartını/başlığını çiziyor — burada dış kart+başlık TEKRAR
-  // çizilmez, sadece iç içerik render edilir.
-  bare?: boolean;
 }) {
   const { showError, showSuccess } = useToast();
   const [formats, setFormats] = useState<OpticalFormat[] | null>(null);
@@ -61,6 +53,8 @@ export function OpticalUploadSection({
   const [rawText, setRawText] = useState("");
   const [previewing, setPreviewing] = useState(false);
   const [rows, setRows] = useState<PreviewRow[] | null>(null);
+  const [subjectsScored, setSubjectsScored] = useState<string[]>([]);
+  const [subjectsSkipped, setSubjectsSkipped] = useState<string[]>([]);
   const [overrides, setOverrides] = useState<Record<number, string>>({});
   const [managerOpen, setManagerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -86,7 +80,6 @@ export function OpticalUploadSection({
   }, []);
 
   const activeFormat = formats?.find((f) => f.id === formatId) ?? null;
-  const formatSupportsSubject = activeFormat?.subjectBlocks.some((b) => b.subject === subject) ?? false;
 
   async function handleFile(file: File) {
     const text = await file.text();
@@ -103,12 +96,14 @@ export function OpticalUploadSection({
       const res = await fetch(`/api/exams/${examId}/optical-upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ formatId, subject, rawText }),
+        body: JSON.stringify({ formatId, rawText }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Önizleme oluşturulamadı.");
       setRows(data.rows ?? []);
-      showSuccess(`${data.totalLines} satır okundu, ${data.matchedCount} öğrenci otomatik eşleşti.`);
+      setSubjectsScored(data.subjectsScored ?? []);
+      setSubjectsSkipped(data.subjectsSkipped ?? []);
+      showSuccess(`${data.totalLines} satır okundu, ${data.matchedCount} öğrenci otomatik eşleşti — ${data.subjectsScored.length} ders puanlandı.`);
     } catch (error) {
       showError(error instanceof Error ? error.message : "Önizleme oluşturulamadı.");
     } finally {
@@ -123,19 +118,19 @@ export function OpticalUploadSection({
   async function confirm() {
     if (!rows) return;
     const payload = rows
-      .map((r) => ({ studentId: resolvedStudentId(r), net: r.net, wrongQuestionNumbers: r.wrongQuestionNumbers, blankQuestionNumbers: r.blankQuestionNumbers }))
-      .filter((r): r is { studentId: string; net: number; wrongQuestionNumbers: number[]; blankQuestionNumbers: number[] } => !!r.studentId);
+      .map((r) => ({ studentId: resolvedStudentId(r), subjects: r.subjects.map((s) => ({ subject: s.subject, net: s.net, wrongQuestionNumbers: s.wrongQuestionNumbers, blankQuestionNumbers: s.blankQuestionNumbers })) }))
+      .filter((r): r is { studentId: string; subjects: PreviewSubjectResult[] } => !!r.studentId);
     if (payload.length === 0) return showError("Kaydedilecek eşleşmiş satır yok — önce eşleşmeyen öğrencileri elle seç.");
     setSaving(true);
     try {
       const res = await fetch(`/api/exams/${examId}/optical-upload/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, rows: payload }),
+        body: JSON.stringify({ rows: payload }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Kaydedilemedi.");
-      showSuccess(`${data.successCount} öğrencinin optik sonucu kaydedildi.`);
+      showSuccess(`${payload.length} öğrenci × ${subjectsScored.length} ders kaydedildi.`);
       setRows(null);
       setRawText("");
       onSaved();
@@ -147,19 +142,21 @@ export function OpticalUploadSection({
   }
 
   return (
-    <div className={bare ? "" : "rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50"}>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        {!bare && <p className="text-xs font-semibold text-espresso dark:text-cream">Optik Okuma — Tarayıcı Dosyasını Yükle</p>}
-        <p className={cn("text-[11px] text-espresso-muted dark:text-cream/40", !bare && "hidden")}>
-          Tarayıcının ürettiği .txt dosyasını yükle, sistem otomatik puanlasın.
+    <div className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
+          <ScanLine className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Toplu Optik Okuma
         </p>
         <button
           onClick={() => setManagerOpen(true)}
-          className="ml-auto flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1 text-[11px] font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+          className="flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1 text-[11px] font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
         >
           <Settings2 className="h-3 w-3" /> Formatları Yönet
         </button>
       </div>
+      <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
+        Tarayıcının ürettiği .txt dosyasını BİR KEZ yükle — cevap anahtarı girilmiş TÜM dersler aynı anda puanlanır.
+      </p>
 
       {formats === null ? (
         <div className="flex justify-center py-6">
@@ -178,14 +175,14 @@ export function OpticalUploadSection({
           >
             {formats.map((f) => (
               <option key={f.id} value={f.id}>
-                {f.name}
+                {f.name} ({f.subjectBlocks.map((b) => b.subject).join(", ")})
               </option>
             ))}
           </select>
 
-          {activeFormat && !formatSupportsSubject && (
-            <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-300">
-              &quot;{activeFormat.name}&quot; formatında &quot;{subject}&quot; dersinin sütun aralığı tanımlı değil — Formatları Yönet&apos;ten ekle.
+          {activeFormat && (
+            <p className="text-[10.5px] text-espresso-muted dark:text-cream/40">
+              Bu formattaki dersler: {activeFormat.subjectBlocks.map((b) => b.subject).join(", ")} — cevap anahtarı girilmemiş olanlar yükleme sırasında atlanır.
             </p>
           )}
 
@@ -204,11 +201,11 @@ export function OpticalUploadSection({
             </label>
             <button
               onClick={preview}
-              disabled={previewing || !formatSupportsSubject}
+              disabled={previewing}
               className="ml-auto flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
             >
               {previewing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-              Önizle
+              Önizle (Tüm Dersler)
             </button>
           </div>
         </div>
@@ -216,15 +213,23 @@ export function OpticalUploadSection({
 
       {rows && (
         <div className="mt-4 space-y-2">
-          <div className="max-h-80 overflow-y-auto rounded-xl border border-hairline dark:border-white/10">
+          {subjectsSkipped.length > 0 && (
+            <p className="flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Cevap anahtarı olmadığı için atlandı: {subjectsSkipped.join(", ")}
+            </p>
+          )}
+          <div className="max-h-80 overflow-x-auto overflow-y-auto rounded-xl border border-hairline dark:border-white/10">
             <table className="w-full text-[11px]">
               <thead className="sticky top-0 bg-cream-card text-left text-[10px] uppercase tracking-wide text-espresso-muted dark:bg-white/5 dark:text-cream/40">
                 <tr>
                   <th className="px-2 py-1.5">Satır</th>
                   <th className="px-2 py-1.5">Ad Soyad / T.C.</th>
                   <th className="px-2 py-1.5">Eşleşme</th>
-                  <th className="px-2 py-1.5">Net</th>
-                  <th className="px-2 py-1.5">D/Y/B</th>
+                  {subjectsScored.map((s) => (
+                    <th key={s} className="whitespace-nowrap px-2 py-1.5">
+                      {s}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -262,10 +267,14 @@ export function OpticalUploadSection({
                           </select>
                         )}
                       </td>
-                      <td className="px-2 py-1.5 font-semibold tabular-nums text-espresso dark:text-cream">{row.net}</td>
-                      <td className="px-2 py-1.5 tabular-nums text-espresso-muted dark:text-cream/40">
-                        {row.correctCount}/{row.wrongQuestionNumbers.length}/{row.blankQuestionNumbers.length}
-                      </td>
+                      {row.subjects.map((s) => (
+                        <td key={s.subject} className="whitespace-nowrap px-2 py-1.5 tabular-nums">
+                          <span className="font-semibold text-espresso dark:text-cream">{s.net}</span>{" "}
+                          <span className="text-espresso-muted dark:text-cream/40">
+                            ({s.correctCount}/{s.wrongQuestionNumbers.length}/{s.blankQuestionNumbers.length})
+                          </span>
+                        </td>
+                      ))}
                     </tr>
                   );
                 })}
@@ -278,7 +287,7 @@ export function OpticalUploadSection({
             className="flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-            Onayla ve Kaydet
+            Tüm Dersleri Onayla ve Kaydet
           </button>
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Save, Copy, Search, CheckCircle2, Sparkles, Target, FileBarChart, ChevronRight, BarChart3, Plus, X, ScanLine, PencilLine } from "lucide-react";
+import { Loader2, Save, Copy, Search, CheckCircle2, Sparkles, Target, FileBarChart, ChevronRight, BarChart3, Plus, X, PencilLine } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -44,10 +44,18 @@ function scoreTone(percent: number) {
 // kullanıcı "sistemi çözemiyorum" dedi — kök neden, "ders" kavramının
 // örtük olması (sadece veri girilince var sayılıyordu) ve tek ekranda
 // çok fazla eşdeğer görünen kutunun art arda dizilmesiydi. Şimdi akış
-// AÇIKÇA 3 adım: (1) Sınav seç, (2) Bu sınavda hangi ders(ler) var —
-// hazır paket ya da tek tek ekle/sil (bkz. ExamSubject, kalıcı), (3) o
-// ders için Cevap Anahtarı (opsiyonel) + Sonuçları Gir (Optik/Elle sekmeli
-// TEK bölüm). Sağda canlı "en zayıf kazanımlar" özeti değişmedi.
+// AÇIKÇA: (1) Sınav seç/oluştur, (2) Bu sınavda hangi ders(ler) var —
+// hazır paket ya da tek tek ekle/sil (bkz. ExamSubject, kalıcı), (3)
+// Toplu Optik Okuma — SINAV düzeyinde, TÜM dersleri TEK dosya yüklemesiyle
+// puanlar (2026-09-05 ikinci düzeltmesi: kullanıcı "ders ders değil
+// hepsini tekte kontrol etmesi lazım" dedi — gerçek bir optik dosyası
+// zaten tüm dersleri aynı satırda taşıyor, ders başına ayrı ayrı
+// yükletmek anlamsız tekrardı), (4) bir ders seçilince o derse özel Cevap
+// Anahtarı (opsiyonel) + Elle Gir/Düzelt. ÖNEMLİ: cevap anahtarı HER
+// SINAVA özeldir, şablona (OpticalFormat) DEĞİL — şablon sadece ders/
+// sütun YAPISINI taşır, sorular/cevaplar her denemede değişir (bkz.
+// new-exam-wizard.tsx'teki açıklama metni). Sağda canlı "en zayıf
+// kazanımlar" özeti değişmedi.
 export function OlcmePanel() {
   const { showError, showSuccess } = useToast();
 
@@ -70,8 +78,6 @@ export function OlcmePanel() {
   const [blankInputs, setBlankInputs] = useState<Record<string, string>>({});
   const [savingDetail, setSavingDetail] = useState(false);
   const [detailResult, setDetailResult] = useState<{ successCount: number; skippedCount: number } | null>(null);
-
-  const [resultMode, setResultMode] = useState<"optical" | "manual">("optical");
 
   const [summary, setSummary] = useState<SummaryRow[] | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -127,6 +133,19 @@ export function OlcmePanel() {
       .finally(() => setLoadingSummary(false));
   }
 
+  // Kadro (roster) artık SINAV düzeyinde lazım (Toplu Optik Okuma, ders
+  // seçilmeden de görünür) — bu yüzden [examId, subject] yerine sadece
+  // [examId]'ye bağlı, ayrı bir efekt.
+  useEffect(() => {
+    setRoster(null);
+    if (!examId) return;
+    fetch(`/api/exams/${examId}/roster`)
+      .then((res) => res.json())
+      .then((data) => setRoster(data.students ?? []))
+      .catch(() => showError("Öğrenci listesi yüklenemedi."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examId]);
+
   useEffect(() => {
     setAnswerKey([]);
     setDetailResult(null);
@@ -134,7 +153,6 @@ export function OlcmePanel() {
     setBlankInputs({});
     setSummary(null);
     setKeyOpen(false);
-    setResultMode("optical");
     if (!examId || !subject) return;
     setLoadingKey(true);
     fetch(`/api/exams/${examId}/answer-key?subject=${encodeURIComponent(subject)}`)
@@ -147,10 +165,6 @@ export function OlcmePanel() {
       })
       .catch(() => showError("Cevap anahtarı yüklenemedi."))
       .finally(() => setLoadingKey(false));
-    fetch(`/api/exams/${examId}/roster`)
-      .then((res) => res.json())
-      .then((data) => setRoster(data.students ?? []))
-      .catch(() => showError("Öğrenci listesi yüklenemedi."));
     loadSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examId, subject]);
@@ -290,11 +304,13 @@ export function OlcmePanel() {
           Deneme sonuçlarını kazanım bazlı analiz et — Matematik/Fizik&apos;te bu, Akademik Röntgen&apos;i ve Video Ders Merkezi&apos;nin önerilerini otomatik besler.
         </p>
         <div className="mt-3 flex flex-wrap gap-3 rounded-xl border border-hairline bg-white/50 px-4 py-2.5 text-[11px] text-espresso-muted dark:border-white/10 dark:bg-white/5 dark:text-cream/40">
-          <span><b className="text-espresso dark:text-cream">1)</b> Sınavı seç</span>
+          <span><b className="text-espresso dark:text-cream">1)</b> Sınavı seç/oluştur</span>
           <span className="opacity-30">→</span>
           <span><b className="text-espresso dark:text-cream">2)</b> Ders(ler)i ekle</span>
           <span className="opacity-30">→</span>
-          <span><b className="text-espresso dark:text-cream">3)</b> Cevap anahtarı (opsiyonel) + sonuçları gir</span>
+          <span><b className="text-espresso dark:text-cream">3)</b> Optik dosyayı tek seferde yükle (tüm dersler)</span>
+          <span className="opacity-30">→</span>
+          <span><b className="text-espresso dark:text-cream">4)</b> Ders bazlı kazanım/cevap anahtarı ve düzeltme</span>
         </div>
       </div>
 
@@ -426,9 +442,16 @@ export function OlcmePanel() {
                 </div>
               </div>
 
+              {/* 3. Toplu Optik Okuma — SINAV düzeyinde, TÜM dersler tek seferde (kazanım/cevap anahtarı ders bazlı, aşağıda) */}
+              {subjects.length > 0 && (
+                <div className="mb-5">
+                  <OpticalUploadSection examId={examId} roster={roster} onSaved={loadSummary} preferredFormatId={selectedExam?.opticalFormatId ?? null} />
+                </div>
+              )}
+
               {!subject ? (
                 <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-20 text-center dark:border-white/10 dark:bg-white/5">
-                  <p className="text-xs text-espresso-muted dark:text-cream/40">Yukarıdan çalışmak istediğin dersi seç.</p>
+                  <p className="text-xs text-espresso-muted dark:text-cream/40">Kazanım analizi ya da elle düzeltme için yukarıdan bir ders seç.</p>
                 </div>
               ) : (
                 <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
@@ -592,98 +615,66 @@ export function OlcmePanel() {
                       )}
                     </div>
 
-                    {/* Sonuçları Gir — Optik / Elle sekmeli TEK bölüm */}
+                    {/* Sonuçları Elle Gir — Toplu Optik Okuma artık YUKARIDA, sınav düzeyinde (bkz. tüm dersleri tek seferde işleyen bölüm) */}
                     <div className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
-                      <p className="mb-3 text-xs font-semibold text-espresso dark:text-cream">Sonuçları Gir</p>
-                      <div className="mb-4 flex gap-1.5 rounded-xl bg-cream-card p-1 dark:bg-white/5">
-                        <button
-                          onClick={() => setResultMode("optical")}
-                          className={cn(
-                            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[11.5px] font-semibold transition",
-                            resultMode === "optical" ? "bg-white text-emerald-700 shadow-sm dark:bg-midnight-card dark:text-emerald-300" : "text-espresso-muted dark:text-cream/40"
-                          )}
-                        >
-                          <ScanLine className="h-3.5 w-3.5" /> Optik Dosya Yükle
-                        </button>
-                        <button
-                          onClick={() => setResultMode("manual")}
-                          className={cn(
-                            "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-[11.5px] font-semibold transition",
-                            resultMode === "manual" ? "bg-white text-emerald-700 shadow-sm dark:bg-midnight-card dark:text-emerald-300" : "text-espresso-muted dark:text-cream/40"
-                          )}
-                        >
-                          <PencilLine className="h-3.5 w-3.5" /> Elle Gir
-                        </button>
-                      </div>
-
-                      {resultMode === "optical" ? (
-                        <OpticalUploadSection
-                          examId={examId}
-                          subject={subject}
-                          roster={roster}
-                          onSaved={loadSummary}
-                          preferredFormatId={selectedExam?.opticalFormatId ?? null}
-                          bare
+                      <p className="mb-1 flex items-center gap-2 text-xs font-semibold text-espresso dark:text-cream">
+                        <PencilLine className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Sonuçları Elle Gir / Düzelt
+                      </p>
+                      <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
+                        Optik okumadan gelmeyen ya da tek tek düzeltmen gereken öğrenciler için — yanlış yaptığı ve boş bıraktığı soru numaralarını virgülle ayırarak gir.
+                      </p>
+                      <div className="relative mb-3">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
+                        <input
+                          value={rosterQuery}
+                          onChange={(e) => setRosterQuery(e.target.value)}
+                          placeholder="Öğrenci veya şube ara..."
+                          className="w-full rounded-lg border border-hairline bg-white py-2 pl-8 pr-3 text-xs text-espresso outline-none focus:border-emerald-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
                         />
+                      </div>
+                      {!roster ? (
+                        <div className="flex justify-center py-8">
+                          <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                        </div>
                       ) : (
-                        <div>
-                          <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
-                            Her öğrenci için yanlış yaptığı ve boş bıraktığı soru numaralarını virgülle ayırarak gir — net ve kazanım kırılımı otomatik hesaplanır.
-                          </p>
-                          <div className="relative mb-3">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
-                            <input
-                              value={rosterQuery}
-                              onChange={(e) => setRosterQuery(e.target.value)}
-                              placeholder="Öğrenci veya şube ara..."
-                              className="w-full rounded-lg border border-hairline bg-white py-2 pl-8 pr-3 text-xs text-espresso outline-none focus:border-emerald-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
-                            />
-                          </div>
-                          {!roster ? (
-                            <div className="flex justify-center py-8">
-                              <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                        <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
+                          {filteredRoster.map((s) => (
+                            <div key={s.id} className="flex items-center gap-2 rounded-lg bg-cream-card px-2.5 py-1.5 dark:bg-white/5">
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-espresso dark:text-cream">
+                                {s.firstName} {s.lastName} <span className="font-normal text-espresso-muted dark:text-cream/40">· {s.branchName}</span>
+                              </span>
+                              <input
+                                value={wrongInputs[s.id] ?? ""}
+                                onChange={(e) => setWrongInputs((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                                placeholder="Yanlışlar: 3,7,12"
+                                className="w-32 shrink-0 rounded-lg border border-rose-400/25 bg-white px-2 py-1 text-[10.5px] text-espresso outline-none focus:border-rose-500 dark:border-rose-400/20 dark:bg-midnight dark:text-cream"
+                              />
+                              <input
+                                value={blankInputs[s.id] ?? ""}
+                                onChange={(e) => setBlankInputs((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                                placeholder="Boşlar: 5,9"
+                                className="w-28 shrink-0 rounded-lg border border-hairline bg-white px-2 py-1 text-[10.5px] text-espresso outline-none focus:border-emerald-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+                              />
                             </div>
-                          ) : (
-                            <div className="max-h-80 space-y-1.5 overflow-y-auto pr-1">
-                              {filteredRoster.map((s) => (
-                                <div key={s.id} className="flex items-center gap-2 rounded-lg bg-cream-card px-2.5 py-1.5 dark:bg-white/5">
-                                  <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-espresso dark:text-cream">
-                                    {s.firstName} {s.lastName} <span className="font-normal text-espresso-muted dark:text-cream/40">· {s.branchName}</span>
-                                  </span>
-                                  <input
-                                    value={wrongInputs[s.id] ?? ""}
-                                    onChange={(e) => setWrongInputs((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                                    placeholder="Yanlışlar: 3,7,12"
-                                    className="w-32 shrink-0 rounded-lg border border-rose-400/25 bg-white px-2 py-1 text-[10.5px] text-espresso outline-none focus:border-rose-500 dark:border-rose-400/20 dark:bg-midnight dark:text-cream"
-                                  />
-                                  <input
-                                    value={blankInputs[s.id] ?? ""}
-                                    onChange={(e) => setBlankInputs((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                                    placeholder="Boşlar: 5,9"
-                                    className="w-28 shrink-0 rounded-lg border border-hairline bg-white px-2 py-1 text-[10.5px] text-espresso outline-none focus:border-emerald-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {detailResult && (
-                            <p className="mt-2 flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-300">
-                              <CheckCircle2 className="h-3.5 w-3.5" /> {detailResult.successCount} öğrenci hesaplandı
-                              {detailResult.skippedCount > 0 ? `, ${detailResult.skippedCount} öğrenci atlandı (net girilmemiş).` : "."}
-                            </p>
-                          )}
-
-                          <button
-                            onClick={saveStudentDetails}
-                            disabled={savingDetail || !roster}
-                            className="mt-3 flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
-                          >
-                            {savingDetail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                            Kazanım Kırılımını Hesapla ve Kaydet
-                          </button>
+                          ))}
                         </div>
                       )}
+
+                      {detailResult && (
+                        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-300">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> {detailResult.successCount} öğrenci hesaplandı
+                          {detailResult.skippedCount > 0 ? `, ${detailResult.skippedCount} öğrenci atlandı (net girilmemiş).` : "."}
+                        </p>
+                      )}
+
+                      <button
+                        onClick={saveStudentDetails}
+                        disabled={savingDetail || !roster}
+                        className="mt-3 flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                      >
+                        {savingDetail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Kazanım Kırılımını Hesapla ve Kaydet
+                      </button>
                     </div>
                   </div>
 

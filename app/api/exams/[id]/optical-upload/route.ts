@@ -8,6 +8,14 @@ import { parseOpticalText, scoreOpticalAnswers, matchOpticalRow, type OpticalFor
 
 export const dynamic = "force-dynamic";
 
+export type OpticalPreviewSubjectResult = {
+  subject: string;
+  net: number;
+  correctCount: number;
+  wrongQuestionNumbers: number[];
+  blankQuestionNumbers: number[];
+};
+
 export type OpticalPreviewRow = {
   lineNumber: number;
   name: string | null;
@@ -16,18 +24,19 @@ export type OpticalPreviewRow = {
   matchedStudentId: string | null;
   matchStatus: "matched" | "ambiguous" | "unmatched";
   candidates: { id: string; firstName: string; lastName: string }[];
-  net: number;
-  correctCount: number;
-  wrongQuestionNumbers: number[];
-  blankQuestionNumbers: number[];
+  subjects: OpticalPreviewSubjectResult[];
 };
 
-// POST /api/exams/[id]/optical-upload — { formatId, subject, rawText }.
-// Optik .txt dosyasını (bkz. lib/server/exams/optical-import.ts) tanımlı
-// bir OpticalFormat + o ders için önceden girilmiş cevap anahtarına
-// (ExamQuestion.correctAnswer, bkz. answer-key route) göre ayrıştırıp
-// puanlar. HİÇBİR ŞEY KAYDETMEZ — sadece önizleme döner (PDF sihirbazıyla
-// AYNI felsefe: kaydetmeden önce admin eşleşmeleri gözden geçirebilsin).
+// POST /api/exams/[id]/optical-upload — { formatId, rawText }. 2026-09-05
+// düzeltmesi: kullanıcı haklı olarak "ders ders değil hepsini tek
+// seferde kontrol etmesi lazım" dedi — gerçek bir optik dosyası zaten TÜM
+// derslerin cevaplarını AYNI satırda taşıyor, önceden bu uç `subject`
+// parametresi alıp aynı dosyayı ders başına ayrı ayrı yükletiyordu (aynı
+// metni N kere yapıştırmak gibi anlamsız bir tekrar). Artık dosya BİR KEZ
+// yüklenir, formatın TANIMLI OLDUĞU her ders (VE o dersin cevap anahtarı
+// girilmişse) aynı geçişte puanlanır. Cevap anahtarı girilmemiş dersler
+// sessizce atlanır ama `subjectsSkipped` ile bildirilir. HİÇBİR ŞEY
+// KAYDETMEZ — sadece önizleme döner (bkz. confirm route).
 async function handlePost(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
@@ -38,28 +47,34 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
 
     const body = await request.json().catch(() => null);
     const formatId = typeof body?.formatId === "string" ? body.formatId : "";
-    const subject = typeof body?.subject === "string" ? body.subject.trim() : "";
     const rawText = typeof body?.rawText === "string" ? body.rawText : "";
-    if (!formatId || !subject || !rawText.trim()) {
-      return NextResponse.json({ error: "formatId, subject ve rawText zorunludur." }, { status: 400 });
+    if (!formatId || !rawText.trim()) {
+      return NextResponse.json({ error: "formatId ve rawText zorunludur." }, { status: 400 });
     }
 
-    const format = await prisma.opticalFormat.findUnique({ where: { id: formatId }, include: { subjectBlocks: true } });
+    const format = await prisma.opticalFormat.findUnique({
+      where: { id: formatId },
+      include: { subjectBlocks: { orderBy: { order: "asc" } } },
+    });
     if (!format || format.institutionId !== session.institutionId) return NextResponse.json({ error: "Optik format bulunamadı." }, { status: 404 });
+    if (format.subjectBlocks.length === 0) return NextResponse.json({ error: "Bu formatta hiç ders bloğu tanımlı değil." }, { status: 400 });
 
-    const subjectBlock = format.subjectBlocks.find((b) => b.subject === subject);
-    if (!subjectBlock) return NextResponse.json({ error: `Bu format için "${subject}" dersinin sütun aralığı tanımlı değil.` }, { status: 400 });
-
-    const questions = await prisma.examQuestion.findMany({
-      where: { examId: params.id, subject },
-      select: { questionNumber: true, correctAnswer: true },
+    const allQuestions = await prisma.examQuestion.findMany({
+      where: { examId: params.id, subject: { in: format.subjectBlocks.map((b) => b.subject) } },
+      select: { subject: true, questionNumber: true, correctAnswer: true },
       orderBy: { questionNumber: "asc" },
     });
-    if (questions.length === 0) {
-      return NextResponse.json({ error: "Bu ders için önce cevap anahtarı (doğru cevaplar) girilmeli." }, { status: 400 });
+    const questionsBySubject = new Map<string, { questionNumber: number; correctAnswer: string | null }[]>();
+    for (const q of allQuestions) {
+      const list = questionsBySubject.get(q.subject) ?? [];
+      list.push({ questionNumber: q.questionNumber, correctAnswer: q.correctAnswer });
+      questionsBySubject.set(q.subject, list);
     }
-    if (questions.every((q) => !q.correctAnswer)) {
-      return NextResponse.json({ error: "Bu dersin cevap anahtarında hiçbir soru için doğru cevap (A-E) girilmemiş." }, { status: 400 });
+
+    const subjectsToScore = format.subjectBlocks.filter((b) => (questionsBySubject.get(b.subject)?.length ?? 0) > 0);
+    const subjectsSkipped = format.subjectBlocks.filter((b) => !(questionsBySubject.get(b.subject)?.length ?? 0)).map((b) => b.subject);
+    if (subjectsToScore.length === 0) {
+      return NextResponse.json({ error: "Hiçbir ders için cevap anahtarı girilmemiş — önce en az bir dersin cevap anahtarını gir." }, { status: 400 });
     }
 
     const formatDef: OpticalFormatDef = {
@@ -71,14 +86,21 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       name: format.nameStart && format.nameLength ? { start: format.nameStart, length: format.nameLength } : null,
     };
 
-    const parsedRows = parseOpticalText(rawText, formatDef, { start: subjectBlock.start, length: subjectBlock.length });
+    const parsedRows = parseOpticalText(
+      rawText,
+      formatDef,
+      subjectsToScore.map((b) => ({ subject: b.subject, start: b.start, length: b.length }))
+    );
     if (parsedRows.length === 0) return NextResponse.json({ error: "Dosyada okunabilir satır bulunamadı." }, { status: 400 });
 
     const roster = await listStudentRosterForMatching(session.institutionId);
 
     const preview: OpticalPreviewRow[] = parsedRows.map((row) => {
       const match = matchOpticalRow(row, roster);
-      const score = scoreOpticalAnswers(row.rawAnswers, questions);
+      const subjects: OpticalPreviewSubjectResult[] = subjectsToScore.map((block) => {
+        const score = scoreOpticalAnswers(row.answersBySubject[block.subject] ?? "", questionsBySubject.get(block.subject) ?? []);
+        return { subject: block.subject, ...score };
+      });
       return {
         lineNumber: row.lineNumber,
         name: row.name,
@@ -87,15 +109,18 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
         matchedStudentId: match.studentId,
         matchStatus: match.status,
         candidates: match.candidates.map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName })),
-        net: score.net,
-        correctCount: score.correctCount,
-        wrongQuestionNumbers: score.wrongQuestionNumbers,
-        blankQuestionNumbers: score.blankQuestionNumbers,
+        subjects,
       };
     });
 
     const matchedCount = preview.filter((r) => r.matchStatus === "matched").length;
-    return NextResponse.json({ rows: preview, totalLines: preview.length, matchedCount, questionCount: questions.length });
+    return NextResponse.json({
+      rows: preview,
+      totalLines: preview.length,
+      matchedCount,
+      subjectsScored: subjectsToScore.map((b) => b.subject),
+      subjectsSkipped,
+    });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("optical_upload_preview_failed", { examId: params.id, error: error instanceof Error ? error.message : String(error) });

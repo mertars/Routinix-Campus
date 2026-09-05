@@ -7,13 +7,14 @@ import { bulkUpsertExamNetResults, type NetResultRow } from "@/lib/server/admin/
 
 export const dynamic = "force-dynamic";
 
-// POST /api/exams/[id]/optical-upload/confirm — { subject, rows: [{
-// studentId, net, wrongQuestionNumbers, blankQuestionNumbers }] }. Önizleme
-// ekranında admin eşleşmeleri gözden geçirip (eşleşmeyen satırları elle
-// düzeltip/atlayarak) onayladıktan SONRA çağrılır — bkz. optical-upload/
-// route.ts (o uç hiçbir şey kaydetmez, bu uç kaydeder). Kaydetme, PDF
-// sihirbazıyla AYNI toplu yazma yolunu (bulkUpsertExamNetResults)
-// kullanır — bu da Röntgen köprüsünü otomatik tetikler.
+// POST /api/exams/[id]/optical-upload/confirm — { rows: [{ studentId,
+// subjects: [{ subject, net, wrongQuestionNumbers, blankQuestionNumbers }]
+// }] }. 2026-09-05: artık TÜM derslerin sonucu TEK istekte, TEK
+// transaction'da kaydediliyor (bkz. optical-upload/route.ts — aynı
+// düzeltme, dosya bir kez yüklenip her ders için ayrı ayrı önizleme+onay
+// istemek yerine tek seferde bitiyor). Kaydetme PDF sihirbazıyla AYNI
+// toplu yazma yolunu (bulkUpsertExamNetResults) kullanır — Röntgen
+// köprüsü her uygun ders için otomatik tetiklenir.
 async function handlePost(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
@@ -23,18 +24,22 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     if (!exam || exam.institutionId !== session.institutionId) return NextResponse.json({ error: "Sınav bulunamadı." }, { status: 404 });
 
     const body = await request.json().catch(() => null);
-    const subject = typeof body?.subject === "string" ? body.subject.trim() : "";
     const rawRows = Array.isArray(body?.rows) ? body.rows : [];
-    if (!subject || rawRows.length === 0) return NextResponse.json({ error: "subject ve rows zorunludur." }, { status: 400 });
+    if (rawRows.length === 0) return NextResponse.json({ error: "rows zorunludur." }, { status: 400 });
 
     const rows: NetResultRow[] = [];
     for (const r of rawRows) {
       const studentId = typeof r?.studentId === "string" ? r.studentId : "";
-      const net = Number(r?.net);
-      if (!studentId || !Number.isFinite(net)) continue;
-      const wrongQuestionNumbers = Array.isArray(r?.wrongQuestionNumbers) ? r.wrongQuestionNumbers.filter((n: unknown) => Number.isInteger(n)) : [];
-      const blankQuestionNumbers = Array.isArray(r?.blankQuestionNumbers) ? r.blankQuestionNumbers.filter((n: unknown) => Number.isInteger(n)) : [];
-      rows.push({ studentId, subject, net, wrongQuestionNumbers, blankQuestionNumbers });
+      if (!studentId) continue;
+      const subjectRows = Array.isArray(r?.subjects) ? r.subjects : [];
+      for (const s of subjectRows) {
+        const subject = typeof s?.subject === "string" ? s.subject.trim() : "";
+        const net = Number(s?.net);
+        if (!subject || !Number.isFinite(net)) continue;
+        const wrongQuestionNumbers = Array.isArray(s?.wrongQuestionNumbers) ? s.wrongQuestionNumbers.filter((n: unknown) => Number.isInteger(n)) : [];
+        const blankQuestionNumbers = Array.isArray(s?.blankQuestionNumbers) ? s.blankQuestionNumbers.filter((n: unknown) => Number.isInteger(n)) : [];
+        rows.push({ studentId, subject, net, wrongQuestionNumbers, blankQuestionNumbers });
+      }
     }
     if (rows.length === 0) return NextResponse.json({ error: "Kaydedilecek eşleşmiş satır yok." }, { status: 400 });
 

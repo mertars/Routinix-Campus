@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, CheckCircle2, ChevronRight, ChevronLeft, ScanLine, Sparkles, PartyPopper } from "lucide-react";
+import { Loader2, CheckCircle2, ChevronRight, ChevronLeft, ScanLine, Sparkles, PartyPopper, AlertCircle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -282,6 +282,12 @@ export function NewExamWizard({ isOpen, onClose, onFinished }: { isOpen: boolean
 
       {step === "answer-keys" && createdExamId && (
         <div className="space-y-4">
+          <p className="flex items-start gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Bu cevap anahtarı SADECE &quot;{examName}&quot; denemesi için geçerli — şablon (&quot;{selectedFormat?.name}&quot;) sadece ders/sütun
+            YAPISINI taşır, cevap anahtarını DEĞİL. Aynı türden yeni bir deneme oluşturduğunda bu adımı yeniden yapacaksın, çünkü sorular ve doğru
+            cevaplar her denemede değişir.
+          </p>
           <p className="text-[11px] text-espresso-muted dark:text-cream/40">
             Her ders için doğru cevap harflerini SIRAYLA yapıştır (örn. &quot;ABCDEABCDE…&quot;) — soru sayısı metnin uzunluğundan otomatik anlaşılır.
             İstersen bazılarını şimdi atlayıp panelden sonra da girebilirsin.
