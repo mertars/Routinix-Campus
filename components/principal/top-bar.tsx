@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Menu, LogOut } from "lucide-react";
+import { Menu, LogOut, ArrowLeft } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -12,7 +13,12 @@ import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
 
+// Denetim/kullanıcı bulgusu (2026-09-05) — ERP tek başına Hub'a dönüş
+// tuşu OLMAYAN modüldü (Röntgen/Video/Ölçme Değerlendirme'nin hepsinde
+// sol üstte var, bkz. video-top-bar.tsx'teki AYNI buton) — burada da
+// aynı yere, aynı görünümle eklendi.
 export function TopBar() {
+  const router = useRouter();
   const logout = useLogout();
   const institutionName = useInstitutionName();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -26,8 +32,15 @@ export function TopBar() {
       className="sticky top-0 z-40 border-b border-hairline bg-cream/80 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md dark:border-white/10 dark:bg-midnight/80 md:px-32"
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
-        {/* Mobil düzen: sol logo, sağda (küçülebilen) kurum rozeti + hamburger */}
+        {/* Mobil düzen: sol geri tuşu + logo, sağda (küçülebilen) kurum rozeti + hamburger */}
         <div className="flex w-full items-center gap-2 md:hidden">
+          <button
+            onClick={() => router.push("/hub")}
+            aria-label="Hub'a dön"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
           <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "whitespace-nowrap text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>
@@ -48,8 +61,15 @@ export function TopBar() {
           </div>
         </div>
 
-        {/* Masaüstü düzen: değişmedi */}
+        {/* Masaüstü düzen: sol geri tuşu eklendi, gerisi değişmedi */}
         <div className="hidden items-center justify-start gap-3 md:flex">
+          <button
+            onClick={() => router.push("/hub")}
+            aria-label="Hub'a dön"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
           <div className="flex items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>

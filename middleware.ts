@@ -27,6 +27,9 @@ const ROUTE_ROLE: Record<string, string> = {
   // uyduğu "yanlış rol middleware'de yönlendirilir" ilkesi burada da geçerli.
   "/videos/principal": "principal",
   "/videos/teacher": "teacher",
+  // Ölçme Değerlendirme (Hub'daki 3. modül) — AYNI ilke.
+  "/olcme/principal": "principal",
+  "/olcme/teacher": "teacher",
 };
 
 // CSP nonce'ı burada, HER sayfa isteğinde yeniden üretilir (statik bir değer

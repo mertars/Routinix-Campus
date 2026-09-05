@@ -39,9 +39,9 @@ const MODULES: ModuleDef[] = [
   {
     id: "measurement",
     label: "Ölçme Değerlendirme",
-    description: "Kurum geneli sınav ve ölçme-değerlendirme merkezi.",
+    description: "Deneme sonuçlarını kazanım bazlı analiz et, Akademik Röntgen'i otomatik besle.",
     icon: FileBarChart,
-    active: false,
+    active: true,
   },
   {
     id: "video",
@@ -136,6 +136,7 @@ export default function HubPage() {
     const isTeacher = session.roleId === "teacher";
     if (mod.id === "xray") router.push(isTeacher ? "/xray/teacher" : "/xray/principal");
     else if (mod.id === "video") router.push(isTeacher ? "/videos/teacher" : "/videos/principal");
+    else if (mod.id === "measurement") router.push(isTeacher ? "/olcme/teacher" : "/olcme/principal");
     else router.push(isTeacher ? "/teacher" : "/principal");
   }
 

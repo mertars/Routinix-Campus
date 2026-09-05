@@ -57,6 +57,53 @@ export async function computeExamSubtopicBreakdown(examId: string, studentId: st
     .sort((a, b) => a.percent - b.percent);
 }
 
+export type ClassSubtopicSummaryRow = { subtopicId: string | null; subtopicLabel: string; averagePercent: number; studentCount: number };
+
+// Ölçme Değerlendirme modülü — sınıf/kurum geneli "en zayıf kazanımlar"
+// özeti (bkz. components/olcme/olcme-panel.tsx). Sadece kazanım verisi
+// GİRİLMİŞ öğrencileri sayar — wrongQuestionNumbers/blankQuestionNumbers
+// ikisi de boşsa "henüz girilmemiş" kabul edilir (nadir bir kenar durum:
+// bir öğrenci GERÇEKTEN hepsini doğru yaptıysa da aynı şekilde görünür,
+// bu sadece özet gösterimini etkiler — Röntgen'e yazma mantığı bundan
+// BAĞIMSIZ, her öğrenci ayrı ayrı computeExamSubtopicBreakdown ile işlenir).
+export async function computeExamClassSubtopicSummary(examId: string, subject: string): Promise<ClassSubtopicSummaryRow[]> {
+  const [questions, results] = await Promise.all([
+    prisma.examQuestion.findMany({ where: { examId, subject }, select: { questionNumber: true, subtopicId: true, subtopicLabel: true } }),
+    prisma.examNetResult.findMany({ where: { examId, subject }, select: { wrongQuestionNumbers: true, blankQuestionNumbers: true } }),
+  ]);
+  if (questions.length === 0) return [];
+  const entered = results.filter((r) => r.wrongQuestionNumbers.length > 0 || r.blankQuestionNumbers.length > 0);
+  if (entered.length === 0) return [];
+
+  const groups = new Map<string, { subtopicId: string | null; subtopicLabel: string; questionNumbers: number[] }>();
+  for (const q of questions) {
+    const key = q.subtopicId ?? `label:${q.subtopicLabel}`;
+    const g = groups.get(key) ?? { subtopicId: q.subtopicId, subtopicLabel: q.subtopicLabel, questionNumbers: [] };
+    g.questionNumbers.push(q.questionNumber);
+    groups.set(key, g);
+  }
+
+  return [...groups.values()]
+    .map((g) => {
+      let sumPercent = 0;
+      for (const r of entered) {
+        const wrongSet = new Set(r.wrongQuestionNumbers);
+        const blankSet = new Set(r.blankQuestionNumbers);
+        const wrong = g.questionNumbers.filter((n) => wrongSet.has(n)).length;
+        const blank = g.questionNumbers.filter((n) => blankSet.has(n)).length;
+        const correct = Math.max(0, g.questionNumbers.length - wrong - blank);
+        sumPercent += (correct / g.questionNumbers.length) * 100;
+      }
+      return {
+        subtopicId: g.subtopicId,
+        subtopicLabel: g.subtopicLabel,
+        averagePercent: Math.round(sumPercent / entered.length),
+        studentCount: entered.length,
+      };
+    })
+    .sort((a, b) => a.averagePercent - b.averagePercent);
+}
+
 // Röntgen köprüsü — kullanıcı talebi: "hepsi birbirini besleyen modüller
 // zinciri olacak". Gerçek bir kağıt denemenin kazanım kırılımını
 // TopicMasteryAssessment'a (source=PAPER_EXAM) yazar — bundan sonra hem
