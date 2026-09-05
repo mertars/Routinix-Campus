@@ -128,6 +128,8 @@ model Institution {
   xrayMonthlyScreeningConfigs XrayMonthlyScreeningConfig[]
   videos                      Video[]
   opticalFormats              OpticalFormat[]
+  examCategories              ExamCategory[]
+  examGroups                  ExamGroup[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -143,6 +145,10 @@ model InstitutionSettings {
   institutionId      String      @unique
   institution        Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   isEtutAdminManaged Boolean     @default(true)
+  // Deneme klasörlerinin varsayılan seti bu kuruma bir kez kuruldu mu?
+  // Bayrak olmadan, kurum TÜM kategorileri bilerek silerse sistem onları
+  // her istekte yeniden yaratırdı (bkz. ensureDefaultCategories).
+  examCategoriesSeeded Boolean  @default(false)
   updatedAt          DateTime    @updatedAt
 }
 
@@ -411,12 +417,18 @@ model Exam {
   name            String
   examDate        DateTime
   // Klasör/kategori (2026-09-06) — denemeler düz bir liste olarak
-  // birikince aranamaz hale geliyordu. Kurumun kendi düzenine göre
-  // gruplanır: "TYT", "AYT", "8. Sınıf", "9. Sınıf"… Serbest metin
-  // (sabit enum DEĞİL) çünkü her kurumun sınıflandırması farklı;
-  // arayüz yaygın olanları hazır sunar ama kuruma özel klasör de
-  // açılabilir. null = "Kategorisiz" klasöründe toplanır.
-  category        String?
+  // birikince aranamaz hale geliyordu. Artık serbest metin DEĞİL, kuruma
+  // ait yönetilebilir bir kayıt (bkz. ExamCategory): platform varsayılan
+  // seti kurar (5-12. Sınıf, TYT, AYT, LGS, YKS), kurum yenisini ekleyip
+  // istemediğini kaldırabilir. SetNull — kategori silinince denemeler
+  // ASLA silinmez, "Kategorisiz"e düşer.
+  categoryId      String?
+  category        ExamCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  // YKS eşleştirmesi — bir YKS denemesi aslında İKİ oturumdur (TYT + AYT).
+  // İkisi aynı ExamGroup'a bağlanınca YKS sekmesinde tek bir deneme gibi
+  // ele alınır, toplam net ikisinin toplamıdır (bkz. ExamGroup).
+  groupId         String?
+  group           ExamGroup?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
   results         ExamNetResult[]
   seatAssignments ExamSeatAssignment[]
   questions       ExamQuestion[]
@@ -431,7 +443,53 @@ model Exam {
   createdAt       DateTime             @default(now())
 
   @@index([institutionId])
-  @@index([institutionId, category])
+  @@index([institutionId, categoryId])
+  @@index([groupId])
+}
+
+// Deneme klasörü. Platform her kuruma varsayılan seti bir kez kurar
+// (bkz. lib/server/exams/categories.ts > ensureDefaultCategories); kurum
+// sonrasında kendi kategorisini ekleyebilir ya da istemediğini
+// kaldırabilir. Silme, içindeki denemeleri ETKİLEMEZ (Exam.categoryId
+// SetNull) — sadece klasörden çıkarlar.
+model ExamCategory {
+  id            String           @id @default(cuid())
+  institutionId String
+  institution   Institution      @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  // Listede görünme sırası — sınıf seviyeleri ve sınav türleri anlamlı
+  // bir sırada dursun diye (alfabetik sıralama "10. Sınıf"ı "5. Sınıf"ın
+  // ÖNÜNE koyardı).
+  sortOrder     Int              @default(0)
+  kind          ExamCategoryKind @default(STANDARD)
+  exams         Exam[]
+  createdAt     DateTime         @default(now())
+
+  @@unique([institutionId, name])
+  @@index([institutionId])
+}
+
+// YKS_PAIR: bu klasör tekil denemeleri DEĞİL, TYT+AYT eşleşmelerini
+// (ExamGroup) listeler — arayüz buna göre farklı render eder. Ada göre
+// ("YKS" dizesi) ayırt etmek kırılgan olurdu (kurum adı değiştirebilir).
+enum ExamCategoryKind {
+  STANDARD
+  YKS_PAIR
+}
+
+// Bir YKS denemesi = aynı organizasyonun TYT ve AYT oturumları. Optik
+// dosyaları ayrı geldiği için ayrı Exam kayıtları olarak durur; bu grup
+// onları tek bir "deneme" gibi ele almayı sağlar (toplam net = TYT + AYT).
+model ExamGroup {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String
+  examDate      DateTime
+  exams         Exam[]
+  createdAt     DateTime    @default(now())
+
+  @@index([institutionId])
 }
 
 // Bu sınavda hangi derslerin ele alınacağının AÇIK listesi (2026-09-05

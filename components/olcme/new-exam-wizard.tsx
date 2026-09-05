@@ -7,7 +7,7 @@ import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { OpticalFormatForm } from "./optical-format-form";
 import type { OpticalFormat } from "./optical-format-manager";
-import { CATEGORY_PRESETS } from "./types";
+import type { ExamCategory } from "./types";
 
 type TemplatePreset = { label: string; suggestedSubjects: string[] };
 
@@ -38,14 +38,14 @@ export function NewExamWizard({
   isOpen,
   onClose,
   onCreated,
-  defaultCategory,
+  defaultCategoryId,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onCreated: (examId: string) => void;
   // Bir klasörün içindeyken "Yeni Deneme"ye basılmışsa o klasör önceden
   // seçili gelir — yönetici aynı kararı tekrar vermesin.
-  defaultCategory?: string;
+  defaultCategoryId?: string;
 }) {
   const { showError, showSuccess } = useToast();
   const [step, setStep] = useState<Step>("template");
@@ -54,7 +54,8 @@ export function NewExamWizard({
   const [selectedFormat, setSelectedFormat] = useState<OpticalFormat | null>(null);
   const [examName, setExamName] = useState("");
   const [examDate, setExamDate] = useState(todayIso());
-  const [category, setCategory] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<ExamCategory[]>([]);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -64,11 +65,17 @@ export function NewExamWizard({
     setSelectedFormat(null);
     setExamName("");
     setExamDate(todayIso());
-    setCategory(defaultCategory ?? "");
+    setCategoryId(defaultCategoryId ?? "");
     fetch("/api/optical-formats")
       .then((res) => res.json())
       .then((data) => setFormats(data.formats ?? []))
       .catch(() => showError("Şablonlar yüklenemedi."));
+    fetch("/api/exam-categories")
+      .then((res) => res.json())
+      // YKS klasörü tekil deneme TUTMAZ (TYT+AYT eşleşmeleri listeler),
+      // bu yüzden seçeneklerden çıkarılır.
+      .then((data) => setCategories((data.categories ?? []).filter((c: ExamCategory) => c.kind !== "YKS_PAIR")))
+      .catch(() => showError("Klasörler yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
@@ -83,11 +90,16 @@ export function NewExamWizard({
   function chooseFormat(format: OpticalFormat) {
     setSelectedFormat(format);
     setExamName(`${format.name} — ${new Date().toLocaleDateString("tr-TR")}`);
-    // Klasörü şablon adından tahmin et ("AYT Sayısal" → "AYT") — yönetici
-    // istemezse değiştirir; çoğu zaman doğru olur ve bir karar eksilir.
-    if (!defaultCategory) {
-      const guessed = CATEGORY_PRESETS.find((p) => format.name.toLocaleUpperCase("tr").startsWith(p.toLocaleUpperCase("tr")));
-      setCategory(guessed ?? "");
+    // Klasörü şablon adından tahmin et ("AYT Sayısal" → AYT klasörü) —
+    // yönetici istemezse değiştirir; çoğu zaman doğru olur ve bir karar
+    // eksilir. En UZUN eşleşme kazanır ki "AYT" varken "A" gibi kısa bir
+    // klasör adı yanlışlıkla öne geçmesin.
+    if (!defaultCategoryId) {
+      const upper = format.name.toLocaleUpperCase("tr");
+      const guessed = categories
+        .filter((c) => upper.startsWith(c.name.toLocaleUpperCase("tr")))
+        .sort((a, b) => b.name.length - a.name.length)[0];
+      setCategoryId(guessed?.id ?? "");
     }
     setStep("info");
   }
@@ -107,7 +119,7 @@ export function NewExamWizard({
       const res = await fetch("/api/exams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: examName.trim(), examDate, opticalFormatId: selectedFormat.id, category: category.trim() || null }),
+        body: JSON.stringify({ name: examName.trim(), examDate, opticalFormatId: selectedFormat.id, categoryId: categoryId || null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Deneme oluşturulamadı.");
@@ -261,28 +273,25 @@ export function NewExamWizard({
             <label className="mb-1.5 block text-[11px] font-medium text-espresso-muted dark:text-cream/40">
               Klasör <span className="font-normal opacity-70">— listede hangi grupta görünsün</span>
             </label>
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {CATEGORY_PRESETS.map((preset) => (
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((c) => (
                 <button
-                  key={preset}
-                  onClick={() => setCategory(category === preset ? "" : preset)}
+                  key={c.id}
+                  onClick={() => setCategoryId(categoryId === c.id ? "" : c.id)}
                   className={cn(
                     "rounded-full border px-2.5 py-1 text-[10.5px] font-medium transition",
-                    category === preset
+                    categoryId === c.id
                       ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                       : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
                   )}
                 >
-                  {preset}
+                  {c.name}
                 </button>
               ))}
             </div>
-            <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="veya kendi klasör adını yaz (boş bırakılabilir)"
-              className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-xs text-espresso outline-none transition focus:border-emerald-500 dark:border-white/10 dark:bg-midnight dark:text-cream"
-            />
+            {categories.length === 0 && (
+              <p className="text-[10.5px] text-espresso-muted dark:text-cream/40">Klasör yok — deneme &quot;Kategorisiz&quot; olarak oluşturulacak.</p>
+            )}
           </div>
 
           <button

@@ -9,7 +9,7 @@ import { AnswerKeyPanel } from "./answer-key-panel";
 import { ResultsUploadPanel } from "./results-upload-panel";
 import { ResultsTable } from "./results-table";
 import { KazanimPanel } from "./kazanim-panel";
-import { type ExamOverview, formatExamDate, CATEGORY_PRESETS } from "./types";
+import { type ExamOverview, type ExamCategory, formatExamDate } from "./types";
 
 type StepId = "answer-key" | "upload" | "report" | "kazanim";
 
@@ -29,7 +29,15 @@ export function ExamDetailView({ examId, onBack }: { examId: string; onBack: () 
   const [overview, setOverview] = useState<ExamOverview | null>(null);
   const [step, setStep] = useState<StepId | null>(null);
   const [categoryOpen, setCategoryOpen] = useState(false);
-  const [customCategory, setCustomCategory] = useState("");
+  const [categories, setCategories] = useState<ExamCategory[]>([]);
+
+  useEffect(() => {
+    fetch("/api/exam-categories")
+      .then((r) => r.json())
+      // YKS klasörü tekil deneme tutmaz (TYT+AYT eşleşmesi listeler).
+      .then((d) => setCategories((d.categories ?? []).filter((c: ExamCategory) => c.kind !== "YKS_PAIR")))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/exams/${examId}/overview`).catch(() => null);
@@ -58,11 +66,10 @@ export function ExamDetailView({ examId, onBack }: { examId: string; onBack: () 
     const res = await fetch(`/api/exams/${examId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ category: next }),
+      body: JSON.stringify({ categoryId: next }),
     }).catch(() => null);
     if (!res?.ok) return showError("Klasör değiştirilemedi.");
     setCategoryOpen(false);
-    setCustomCategory("");
     load();
   }
 
@@ -107,37 +114,30 @@ export function ExamDetailView({ examId, onBack }: { examId: string; onBack: () 
               onClick={() => setCategoryOpen((v) => !v)}
               className="flex items-center gap-1.5 rounded-full border border-hairline bg-white/60 px-2 py-0.5 transition hover:border-emerald-400/40 hover:text-espresso dark:border-white/10 dark:bg-white/5 dark:hover:text-cream"
             >
-              <Folder className="h-3 w-3" /> {overview.exam.category ?? "Kategorisiz"}
+              <Folder className="h-3 w-3" /> {overview.exam.categoryName ?? "Kategorisiz"}
             </button>
             {categoryOpen && (
               <div className="absolute left-0 top-full z-30 mt-1.5 w-56 rounded-xl border border-hairline bg-white p-2 shadow-xl dark:border-white/10 dark:bg-midnight-card">
                 <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">Klasöre taşı</p>
-                <div className="mb-2 flex flex-wrap gap-1">
-                  {CATEGORY_PRESETS.map((preset) => (
+                <div className="mb-1.5 flex max-h-48 flex-wrap gap-1 overflow-y-auto">
+                  {categories.map((c) => (
                     <button
-                      key={preset}
-                      onClick={() => changeCategory(preset)}
+                      key={c.id}
+                      onClick={() => changeCategory(c.id)}
                       className={cn(
                         "rounded-full border px-2 py-0.5 text-[10px] font-medium transition",
-                        overview.exam.category === preset
+                        overview.exam.categoryId === c.id
                           ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                           : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
                       )}
                     >
-                      {preset}
+                      {c.name}
                     </button>
                   ))}
                 </div>
-                <input
-                  value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && customCategory.trim() && changeCategory(customCategory.trim())}
-                  placeholder="Yeni klasör adı + Enter"
-                  className="w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-[11px] text-espresso outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-midnight dark:text-cream"
-                />
                 <button
                   onClick={() => changeCategory(null)}
-                  className="mt-1.5 w-full rounded-lg px-2 py-1 text-[10.5px] text-espresso-muted transition hover:bg-cream-card dark:text-cream/40 dark:hover:bg-white/5"
+                  className="w-full rounded-lg px-2 py-1 text-[10.5px] text-espresso-muted transition hover:bg-cream-card dark:text-cream/40 dark:hover:bg-white/5"
                 >
                   Kategorisiz yap
                 </button>

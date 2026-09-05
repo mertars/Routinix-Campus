@@ -2,22 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Loader2,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  Users,
-  ClipboardList,
-  Search,
-  BarChart3,
-  Layers,
-  Target,
-  LineChart,
-} from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Minus, Users, ClipboardList, Search, BarChart3, Layers, Target, LineChart, X, GraduationCap } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
-import { type OlcmeAnalytics, type AnalyticsTrendPoint, UNCATEGORIZED } from "./types";
+import { StudentAnalyticsModal } from "./student-analytics-modal";
+import { type OlcmeAnalytics, type AnalyticsTrendPoint, gradeLabel } from "./types";
 
 type SortKey = "average" | "latest" | "rising" | "falling";
 
@@ -37,8 +26,7 @@ function deltaTone(delta: number | null) {
 
 // Kurum geneli net trendi — grafik kütüphanesi YOK (bkz. package.json),
 // projedeki diğer grafikler gibi elle SVG çiziliyor (aynı desen:
-// components/xray/mastery-trend-charts.tsx). Alan dolgusu + çizgi +
-// noktalar; y ekseni veriye göre otomatik ölçekleniyor.
+// components/xray/mastery-trend-charts.tsx).
 function TrendChart({ points }: { points: AnalyticsTrendPoint[] }) {
   const W = 800;
   const H = 200;
@@ -100,22 +88,22 @@ function TrendChart({ points }: { points: AnalyticsTrendPoint[] }) {
       )}
 
       {coords.map((c) => (
-        <g key={c.point.examId}>
+        <g key={c.point.sessionId}>
           <circle cx={c.x} cy={c.y} r={4} fill="#10B981" />
           <circle cx={c.x} cy={c.y} r={7} fill="#10B981" opacity={0.18} />
-          <title>{`${c.point.examName}: ${c.point.averageNet} net (${c.point.studentCount} öğrenci)`}</title>
+          <title>{`${c.point.name}: ${c.point.averageNet} net (${c.point.studentCount} öğrenci)`}</title>
         </g>
       ))}
 
       {coords.map((c, i) => (
         <text
-          key={`${c.point.examId}-label`}
+          key={`${c.point.sessionId}-label`}
           x={c.x}
           y={H - 8}
           textAnchor={i === 0 ? "start" : i === coords.length - 1 ? "end" : "middle"}
           className="fill-current text-[9px] text-espresso-muted dark:text-cream/40"
         >
-          {new Date(c.point.examDate).toLocaleDateString("tr-TR", { day: "2-digit", month: "short" })}
+          {new Date(c.point.date).toLocaleDateString("tr-TR", { day: "2-digit", month: "short" })}
         </text>
       ))}
     </svg>
@@ -139,25 +127,33 @@ function Sparkline({ values }: { values: number[] }) {
   );
 }
 
-// Deneme Analizi — Röntgen'in kurum panelinin deneme karşılığı (kullanıcı
-// talebi: "röntgendeki gibi bir panel ama burada deneme sonuçlarını
-// analiz edeceğiz"). Tek uçtan beslenir: /api/olcme/analytics.
+// Deneme Analizi — Röntgen'in kurum panelinin deneme karşılığı. Üç
+// boyutta daralt: klasör (TYT/AYT/YKS/sınıf seviyesi), SINIF SEVİYESİ ve
+// ŞUBE; öğrenciye tıklayınca kişisel panel açılır. YKS klasöründe bir
+// "deneme" TYT+AYT eşleşmesidir (bkz. /api/olcme/analytics > Session).
 export function OlcmeAnalyticsPanel() {
   const { showError } = useToast();
-  const [category, setCategory] = useState<string | null>(null);
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [grade, setGrade] = useState<number | null>(null);
+  const [branchId, setBranchId] = useState<string | null>(null);
   const [data, setData] = useState<OlcmeAnalytics | null>(null);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("average");
+  const [openStudentId, setOpenStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     setData(null);
-    const qs = category === null ? "" : `?category=${encodeURIComponent(category)}`;
-    fetch(`/api/olcme/analytics${qs}`)
+    const params = new URLSearchParams();
+    if (categoryId) params.set("categoryId", categoryId);
+    if (grade !== null) params.set("grade", String(grade));
+    if (branchId) params.set("branchId", branchId);
+    const qs = params.toString();
+    fetch(`/api/olcme/analytics${qs ? `?${qs}` : ""}`)
       .then((res) => res.json())
       .then((d) => setData(d))
       .catch(() => showError("Analiz yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]);
+  }, [categoryId, grade, branchId]);
 
   const students = useMemo(() => {
     if (!data) return [];
@@ -179,8 +175,18 @@ export function OlcmeAnalyticsPanel() {
     );
   }
 
+  const activeBranch = branchId ? data.branches.find((b) => b.branchId === branchId) ?? null : null;
   const maxSubjectNet = Math.max(...data.subjectAverages.map((s) => s.averageNet), 1);
   const maxBranchNet = Math.max(...data.branches.map((b) => b.averageNet), 1);
+  const maxGradeNet = Math.max(...data.gradeBreakdown.map((g) => g.averageNet), 1);
+
+  const pill = (active: boolean) =>
+    cn(
+      "rounded-full border px-3 py-1.5 text-[11.5px] font-semibold transition",
+      active
+        ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+        : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
+    );
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-8 lg:px-10">
@@ -189,87 +195,91 @@ export function OlcmeAnalyticsPanel() {
           <LineChart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" /> Deneme Analizi
         </h1>
         <p className="mt-1 text-xs text-espresso-muted dark:text-cream/40">
-          Son {data.summary.examCount} denemenin kurum geneli gelişimi, ders ve şube karşılaştırması, öğrenci bazlı trendler.
+          Klasör, sınıf seviyesi ve şube bazında gelişim; öğrenciye tıklayarak kişisel panele in.
         </p>
       </div>
 
       {/* Klasör filtresi */}
-      {(data.categories.length > 0 || data.hasUncategorized) && (
-        <div className="mb-5 flex flex-wrap gap-1.5">
+      <div className="mb-2.5 flex flex-wrap gap-1.5">
+        <button onClick={() => setCategoryId(null)} className={pill(categoryId === null)}>
+          Tüm klasörler
+        </button>
+        {data.categories.map((c) => (
+          <button key={c.id} onClick={() => setCategoryId(c.id)} className={pill(categoryId === c.id)}>
+            {c.name}
+            {c.kind === "YKS_PAIR" && <span className="ml-1 text-[9px] opacity-60">TYT+AYT</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Sınıf seviyesi filtresi */}
+      {data.grades.length > 0 && (
+        <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+          <span className="flex items-center gap-1 text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+            <GraduationCap className="h-3 w-3" /> Seviye
+          </span>
           <button
-            onClick={() => setCategory(null)}
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-[11.5px] font-semibold transition",
-              category === null
-                ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
-            )}
+            onClick={() => {
+              setGrade(null);
+              setBranchId(null);
+            }}
+            className={pill(grade === null)}
           >
             Tümü
           </button>
-          {data.categories.map((c) => (
+          {data.grades.map((g) => (
             <button
-              key={c}
-              onClick={() => setCategory(c)}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-[11.5px] font-semibold transition",
-                category === c
-                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                  : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
-              )}
+              key={g}
+              onClick={() => {
+                setGrade(g);
+                setBranchId(null);
+              }}
+              className={pill(grade === g)}
             >
-              {c}
+              {gradeLabel(g)}
             </button>
           ))}
-          {data.hasUncategorized && (
-            <button
-              onClick={() => setCategory(UNCATEGORIZED)}
-              className={cn(
-                "rounded-full border border-dashed px-3 py-1.5 text-[11.5px] font-semibold transition",
-                category === UNCATEGORIZED
-                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                  : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/15 dark:text-cream/50 dark:hover:bg-white/5"
-              )}
-            >
-              Kategorisiz
-            </button>
-          )}
         </div>
       )}
 
-      {data.summary.examCount === 0 ? (
+      {activeBranch && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="flex items-center gap-1.5 rounded-full border border-emerald-500 bg-emerald-500/10 px-3 py-1.5 text-[11.5px] font-semibold text-emerald-700 dark:text-emerald-300">
+            Şube: {activeBranch.branchName}
+            <button onClick={() => setBranchId(null)} className="rounded-full transition hover:text-emerald-900 dark:hover:text-emerald-100">
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      )}
+
+      {data.summary.sessionCount === 0 ? (
         <div className="flex flex-col items-center gap-2 rounded-3xl border border-dashed border-hairline bg-white/40 py-24 text-center dark:border-white/10 dark:bg-white/5">
           <Target className="h-6 w-6 text-espresso-muted dark:text-cream/30" />
           <p className="text-sm font-semibold text-espresso dark:text-cream">Analiz için yeterli veri yok</p>
           <p className="max-w-xs text-xs leading-relaxed text-espresso-muted dark:text-cream/40">
-            Bu klasörde sonuçlanmış deneme bulunmuyor. Bir denemenin optik dosyasını yükledikten sonra burada gelişim grafiği oluşur.
+            Bu seçimde sonuçlanmış deneme bulunmuyor. Bir denemenin optik dosyasını yükledikten sonra burada gelişim grafiği oluşur.
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {/* Özet */}
           <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-            <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
-              <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-espresso-muted dark:text-cream/40">
-                <ClipboardList className="h-3 w-3" /> Deneme
-              </p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-espresso dark:text-cream">{data.summary.examCount}</p>
-            </div>
-            <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
-              <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-espresso-muted dark:text-cream/40">
-                <Users className="h-3 w-3" /> Öğrenci
-              </p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-espresso dark:text-cream">{data.summary.studentCount}</p>
-            </div>
-            <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
-              <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-espresso-muted dark:text-cream/40">
-                <BarChart3 className="h-3 w-3" /> Kurum ortalaması
-              </p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-espresso dark:text-cream">
-                {data.summary.averageNet}
-                <span className="ml-1 text-[10.5px] font-medium text-espresso-muted dark:text-cream/40">net</span>
-              </p>
-            </div>
+            {[
+              { icon: ClipboardList, label: "Deneme", value: data.summary.sessionCount, suffix: "" },
+              { icon: Users, label: "Öğrenci", value: data.summary.studentCount, suffix: "" },
+              { icon: BarChart3, label: "Ortalama", value: data.summary.averageNet, suffix: "net" },
+            ].map((s) => (
+              <div key={s.label} className="rounded-2xl border border-hairline bg-white/70 p-3.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
+                <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+                  <s.icon className="h-3 w-3" /> {s.label}
+                </p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-espresso dark:text-cream">
+                  {s.value}
+                  {s.suffix && <span className="ml-1 text-[10.5px] font-medium text-espresso-muted dark:text-cream/40">{s.suffix}</span>}
+                </p>
+              </div>
+            ))}
             <div className="rounded-2xl border border-hairline bg-white/70 p-3.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
               <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-espresso-muted dark:text-cream/40">
                 <TrendingUp className="h-3 w-3" /> Son denemede
@@ -280,7 +290,11 @@ export function OlcmeAnalyticsPanel() {
                 <p
                   className={cn(
                     "mt-1 text-xl font-bold tabular-nums",
-                    data.summary.netChange > 0 ? "text-emerald-600 dark:text-emerald-400" : data.summary.netChange < 0 ? "text-rose-600 dark:text-rose-400" : "text-espresso dark:text-cream"
+                    data.summary.netChange > 0
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : data.summary.netChange < 0
+                        ? "text-rose-600 dark:text-rose-400"
+                        : "text-espresso dark:text-cream"
                   )}
                 >
                   {data.summary.netChange > 0 ? "+" : ""}
@@ -291,16 +305,46 @@ export function OlcmeAnalyticsPanel() {
             </div>
           </div>
 
-          {/* Trend grafiği */}
+          {/* Trend */}
           <div className="rounded-2xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-              <p className="text-xs font-semibold text-espresso dark:text-cream">Kurum Ortalama Net Gelişimi</p>
-              {data.summary.latestExamName && (
-                <p className="text-[10.5px] text-espresso-muted dark:text-cream/40">Son: {data.summary.latestExamName}</p>
-              )}
+              <p className="text-xs font-semibold text-espresso dark:text-cream">Ortalama Net Gelişimi</p>
+              {data.summary.latestName && <p className="text-[10.5px] text-espresso-muted dark:text-cream/40">Son: {data.summary.latestName}</p>}
             </div>
             <TrendChart points={data.trend} />
           </div>
+
+          {/* Sınıf seviyesi kırılımı — sadece seviye filtresi yokken anlamlı */}
+          {grade === null && data.gradeBreakdown.length > 1 && (
+            <div className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
+              <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
+                <GraduationCap className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Sınıf Seviyelerine Göre
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {data.gradeBreakdown.map((g) => (
+                  <button
+                    key={g.grade}
+                    onClick={() => setGrade(g.grade)}
+                    className="rounded-xl border border-hairline bg-cream-card/40 p-3 text-left transition hover:border-emerald-400/40 hover:bg-emerald-500/5 dark:border-white/10 dark:bg-white/5"
+                  >
+                    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                      <span className="text-[11.5px] font-semibold text-espresso dark:text-cream">{gradeLabel(g.grade)}</span>
+                      <span className="text-[11px] font-bold tabular-nums text-espresso dark:text-cream">{g.averageNet}</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
+                      <motion.div
+                        className="h-full rounded-full bg-emerald-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(g.averageNet / maxGradeNet) * 100}%` }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] text-espresso-muted dark:text-cream/40">{g.studentCount} öğrenci</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
             <div className="min-w-0 space-y-4">
@@ -330,37 +374,40 @@ export function OlcmeAnalyticsPanel() {
                 </div>
               </div>
 
-              {/* Şube karşılaştırması */}
+              {/* Şubeler — tıklayınca o şubeye daralır */}
               {data.branches.length > 1 && (
                 <div className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
-                  <p className="mb-3 text-xs font-semibold text-espresso dark:text-cream">Şube Karşılaştırması</p>
+                  <p className="mb-1 text-xs font-semibold text-espresso dark:text-cream">Şubeler</p>
+                  <p className="mb-3 text-[10.5px] text-espresso-muted dark:text-cream/40">Bir şubeye tıkla — tüm analiz o şubeye daralsın</p>
                   <div className="space-y-2.5">
-                    {data.branches.map((b, i) => (
-                      <div key={b.branchName}>
+                    {data.branches.map((b) => (
+                      <button key={b.branchId} onClick={() => setBranchId(b.branchId)} className="block w-full text-left">
                         <div className="mb-1 flex items-center justify-between gap-2">
                           <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-espresso dark:text-cream">
-                            <span className="text-[10px] text-espresso-muted dark:text-cream/40">{i + 1}.</span>
+                            <span className="rounded bg-cream-muted px-1.5 py-0.5 text-[9px] font-bold text-espresso-muted dark:bg-white/10 dark:text-cream/40">
+                              {b.grade}
+                            </span>
                             {b.branchName}
-                            <span className="text-[10px] font-normal text-espresso-muted dark:text-cream/40">({b.studentCount} öğrenci)</span>
+                            <span className="text-[10px] font-normal text-espresso-muted dark:text-cream/40">({b.studentCount})</span>
                           </span>
                           <span className="text-[11px] font-bold tabular-nums text-espresso dark:text-cream">{b.averageNet}</span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
                           <motion.div
-                            className={cn("h-full rounded-full", i === 0 ? "bg-emerald-500" : "bg-emerald-500/50")}
+                            className="h-full rounded-full bg-emerald-500/70"
                             initial={{ width: 0 }}
                             animate={{ width: `${(b.averageNet / maxBranchNet) * 100}%` }}
                             transition={{ duration: 0.6, ease: "easeOut" }}
                           />
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* En zayıf kazanımlar */}
+            {/* Zayıf kazanımlar */}
             <div className="lg:sticky lg:top-24 lg:self-start">
               <div className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
                 <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
@@ -374,8 +421,8 @@ export function OlcmeAnalyticsPanel() {
                 ) : (
                   <div className="space-y-2.5">
                     {data.weakSubtopics.map((w) => {
-                      const tone = w.averagePercent < 30 ? "bg-rose-500" : w.averagePercent < 60 ? "bg-amber-500" : "bg-emerald-500";
-                      const textTone =
+                      const bar = w.averagePercent < 30 ? "bg-rose-500" : w.averagePercent < 60 ? "bg-amber-500" : "bg-emerald-500";
+                      const text =
                         w.averagePercent < 30
                           ? "text-rose-700 dark:text-rose-300"
                           : w.averagePercent < 60
@@ -385,10 +432,10 @@ export function OlcmeAnalyticsPanel() {
                         <div key={w.subtopicLabel}>
                           <div className="mb-1 flex items-center justify-between gap-2">
                             <span className="min-w-0 truncate text-[11px] font-medium text-espresso dark:text-cream">{w.subtopicLabel}</span>
-                            <span className={cn("shrink-0 text-[11px] font-bold tabular-nums", textTone)}>%{w.averagePercent}</span>
+                            <span className={cn("shrink-0 text-[11px] font-bold tabular-nums", text)}>%{w.averagePercent}</span>
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-cream-muted dark:bg-white/10">
-                            <div className={cn("h-full rounded-full", tone)} style={{ width: `${w.averagePercent}%` }} />
+                            <div className={cn("h-full rounded-full", bar)} style={{ width: `${w.averagePercent}%` }} />
                           </div>
                         </div>
                       );
@@ -399,10 +446,12 @@ export function OlcmeAnalyticsPanel() {
             </div>
           </div>
 
-          {/* Öğrenci tablosu */}
+          {/* Öğrenciler */}
           <div className="rounded-2xl border border-hairline bg-white/70 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
             <div className="flex flex-wrap items-center gap-2 border-b border-hairline p-4 dark:border-white/10">
-              <p className="mr-auto text-xs font-semibold text-espresso dark:text-cream">Öğrenci Gelişimi</p>
+              <p className="mr-auto text-xs font-semibold text-espresso dark:text-cream">
+                Öğrenci Gelişimi <span className="font-normal text-espresso-muted dark:text-cream/40">— satıra tıkla, kişisel panel açılsın</span>
+              </p>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
                 <input
@@ -444,7 +493,11 @@ export function OlcmeAnalyticsPanel() {
                     const tone = deltaTone(s.delta);
                     const DeltaIcon = tone.icon;
                     return (
-                      <tr key={s.studentId} className="border-t border-hairline transition hover:bg-emerald-500/[0.04] dark:border-white/10">
+                      <tr
+                        key={s.studentId}
+                        onClick={() => setOpenStudentId(s.studentId)}
+                        className="cursor-pointer border-t border-hairline transition hover:bg-emerald-500/[0.06] dark:border-white/10"
+                      >
                         <td className="px-4 py-2.5 font-medium text-espresso dark:text-cream">
                           {s.firstName} {s.lastName}
                         </td>
@@ -471,6 +524,8 @@ export function OlcmeAnalyticsPanel() {
           </div>
         </div>
       )}
+
+      {openStudentId && <StudentAnalyticsModal studentId={openStudentId} categoryId={categoryId} onClose={() => setOpenStudentId(null)} />}
     </div>
   );
 }

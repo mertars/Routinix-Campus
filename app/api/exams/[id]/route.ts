@@ -20,7 +20,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
     if (!exam || exam.institutionId !== session.institutionId) return NextResponse.json({ error: "Deneme bulunamadı." }, { status: 404 });
 
     const body = await request.json().catch(() => null);
-    const data: { name?: string; examDate?: Date; category?: string | null } = {};
+    const data: { name?: string; examDate?: Date; categoryId?: string | null } = {};
 
     if (typeof body?.name === "string") {
       const name = body.name.trim();
@@ -32,8 +32,13 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
       if (Number.isNaN(parsed.getTime())) return NextResponse.json({ error: "Geçersiz tarih." }, { status: 400 });
       data.examDate = parsed;
     }
-    if ("category" in (body ?? {})) {
-      data.category = typeof body.category === "string" && body.category.trim() ? body.category.trim() : null;
+    if ("categoryId" in (body ?? {})) {
+      const categoryId = typeof body.categoryId === "string" && body.categoryId ? body.categoryId : null;
+      if (categoryId) {
+        const cat = await prisma.examCategory.findUnique({ where: { id: categoryId }, select: { institutionId: true } });
+        if (!cat || cat.institutionId !== session.institutionId) return NextResponse.json({ error: "Klasör bulunamadı." }, { status: 404 });
+      }
+      data.categoryId = categoryId;
     }
     if (Object.keys(data).length === 0) return NextResponse.json({ error: "Güncellenecek alan yok." }, { status: 400 });
 

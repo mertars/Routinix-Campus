@@ -1,46 +1,40 @@
-// Ölçme Değerlendirme modülünün paylaşılan tipleri (2026-09-05 yeniden
-// yazımı). Tek yerde toplandı — önceki sürümde aynı şekiller 4-5 ayrı
-// bileşende birbirinden hafifçe farklı kopyalarla tekrar tanımlanıyordu,
-// bu da bir uç değiştiğinde sessizce uyumsuz kalan bileşenlere yol
-// açıyordu.
+// Ölçme Değerlendirme modülünün paylaşılan tipleri. Tek yerde toplandı —
+// aynı şekillerin bileşen bileşen kopyalanması, bir uç değiştiğinde
+// sessizce uyumsuz kalan bileşenlere yol açıyordu.
+
+export type ExamCategoryKind = "STANDARD" | "YKS_PAIR";
+
+export type ExamCategory = {
+  id: string;
+  name: string;
+  kind: ExamCategoryKind;
+  sortOrder: number;
+  examCount: number;
+};
 
 export type ExamListItem = {
   id: string;
   name: string;
   examDate: string;
   opticalFormatId: string | null;
-  category: string | null;
+  categoryId: string | null;
+  category: { id: string; name: string; kind: ExamCategoryKind } | null;
+  groupId: string | null;
   subjectCount: number;
   answerKeySubjectCount: number;
   studentCount: number;
 };
 
-// Klasör adı önerileri. Kurum bunlardan birini seçebilir ya da kendi
-// adını yazabilir (Exam.category serbest metindir, bkz. şema) — bu liste
-// sadece en yaygın kullanımı tek tıkla sunar.
-export const CATEGORY_PRESETS = [
-  "TYT",
-  "AYT",
-  "LGS",
-  "5. Sınıf",
-  "6. Sınıf",
-  "7. Sınıf",
-  "8. Sınıf",
-  "9. Sınıf",
-  "10. Sınıf",
-  "11. Sınıf",
-  "12. Sınıf",
-] as const;
-
-// Kategorisiz denemeler için sanal klasör anahtarı — API'de de aynı
-// dize kullanılır (bkz. /api/olcme/analytics > categoryFilter).
-export const UNCATEGORIZED = "__none__";
+export type ExamGroupItem = {
+  id: string;
+  name: string;
+  examDate: string;
+  studentCount: number;
+  exams: { id: string; name: string; examDate: string; categoryName: string | null }[];
+};
 
 export type OverviewSubject = {
   subject: string;
-  // Şablondaki sütun uzunluğu = o dersin soru sayısı. Şablonsuz (eski)
-  // denemelerde null olabilir — o zaman kullanıcı soru sayısını cevap
-  // anahtarı metninin uzunluğuyla kendisi belirler.
   expectedQuestionCount: number | null;
   questionCount: number;
   answeredCount: number;
@@ -49,7 +43,7 @@ export type OverviewSubject = {
 };
 
 export type ExamOverview = {
-  exam: { id: string; name: string; examDate: string; opticalFormatId: string | null; category: string | null };
+  exam: { id: string; name: string; examDate: string; opticalFormatId: string | null; categoryId: string | null; categoryName: string | null };
   format: { id: string; name: string; subjectBlocks: { subject: string; start: number; length: number }[] } | null;
   subjects: OverviewSubject[];
   studentCount: number;
@@ -77,12 +71,17 @@ export type ExamResults = {
   students: ResultStudent[];
 };
 
-export type AnalyticsTrendPoint = { examId: string; examName: string; examDate: string; averageNet: number; studentCount: number };
+// ---------- Analiz ----------
+
+export type AnalyticsTrendPoint = { sessionId: string; name: string; date: string; averageNet: number; studentCount: number };
+
 export type AnalyticsStudent = {
   studentId: string;
   firstName: string;
   lastName: string;
+  branchId: string;
   branchName: string;
+  grade: number;
   examCount: number;
   latestNet: number;
   averageNet: number;
@@ -92,16 +91,36 @@ export type AnalyticsStudent = {
 };
 
 export type OlcmeAnalytics = {
-  categories: string[];
-  hasUncategorized: boolean;
-  summary: { examCount: number; studentCount: number; averageNet: number; latestExamName: string | null; netChange: number | null };
+  categories: { id: string; name: string; kind: ExamCategoryKind }[];
+  grades: number[];
+  branches: { branchId: string; branchName: string; grade: number; studentCount: number; averageNet: number }[];
+  gradeBreakdown: { grade: number; studentCount: number; averageNet: number }[];
+  summary: { sessionCount: number; studentCount: number; averageNet: number; latestName: string | null; netChange: number | null };
   trend: AnalyticsTrendPoint[];
   subjectAverages: { subject: string; averageNet: number; resultCount: number }[];
-  branches: { branchName: string; studentCount: number; averageNet: number }[];
   students: AnalyticsStudent[];
   weakSubtopics: { subtopicLabel: string; averagePercent: number; studentCount: number }[];
 };
 
+export type StudentAnalytics = {
+  student: { id: string; firstName: string; lastName: string; studentNumber: string; branchName: string; grade: number };
+  sessions: {
+    sessionId: string;
+    name: string;
+    date: string;
+    totalNet: number;
+    rank: number | null;
+    participantCount: number;
+    subjects: SubjectScore[];
+  }[];
+  subjectAverages: { subject: string; averageNet: number; examCount: number }[];
+  weakSubtopics: { subtopicLabel: string; percent: number; questionCount: number }[];
+};
+
 export function formatExamDate(value: string): string {
   return new Date(value).toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+}
+
+export function gradeLabel(grade: number): string {
+  return `${grade}. Sınıf`;
 }

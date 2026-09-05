@@ -14,7 +14,11 @@ export const dynamic = "force-dynamic";
 async function handleGet() {
   try {
     const session = await requireSession();
-    const exams = await prisma.exam.findMany({ where: { institutionId: session.institutionId }, orderBy: { examDate: "desc" } });
+    const exams = await prisma.exam.findMany({
+      where: { institutionId: session.institutionId },
+      orderBy: { examDate: "desc" },
+      include: { category: { select: { id: true, name: true, kind: true } } },
+    });
     if (exams.length === 0) return NextResponse.json({ exams });
 
     const examIds = exams.map((e) => e.id);
@@ -59,7 +63,7 @@ async function handlePost(request: NextRequest) {
     requireRole(session, "teacher", "principal");
 
     const body = await request.json();
-    const { name, examDate, opticalFormatId, category } = body as { name?: string; examDate?: string; opticalFormatId?: string; category?: string };
+    const { name, examDate, opticalFormatId, categoryId } = body as { name?: string; examDate?: string; opticalFormatId?: string; categoryId?: string };
     if (!name?.trim()) return NextResponse.json({ error: "name zorunludur." }, { status: 400 });
 
     let formatSubjects: string[] = [];
@@ -80,7 +84,7 @@ async function handlePost(request: NextRequest) {
         name: name.trim(),
         examDate: examDate ? new Date(examDate) : new Date(),
         opticalFormatId: opticalFormatId ?? null,
-        category: category?.trim() || null,
+        categoryId: categoryId || null,
       },
     });
 

@@ -21,7 +21,10 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
 
     const exam = await prisma.exam.findUnique({
       where: { id: params.id },
-      include: { opticalFormat: { include: { subjectBlocks: { orderBy: { order: "asc" } } } } },
+      include: {
+        opticalFormat: { include: { subjectBlocks: { orderBy: { order: "asc" } } } },
+        category: { select: { id: true, name: true } },
+      },
     });
     if (!exam || exam.institutionId !== session.institutionId) return NextResponse.json({ error: "Deneme bulunamadı." }, { status: 404 });
 
@@ -62,7 +65,14 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
       });
 
     return NextResponse.json({
-      exam: { id: exam.id, name: exam.name, examDate: exam.examDate, opticalFormatId: exam.opticalFormatId, category: exam.category },
+      exam: {
+        id: exam.id,
+        name: exam.name,
+        examDate: exam.examDate,
+        opticalFormatId: exam.opticalFormatId,
+        categoryId: exam.categoryId,
+        categoryName: exam.category?.name ?? null,
+      },
       format: exam.opticalFormat
         ? { id: exam.opticalFormat.id, name: exam.opticalFormat.name, subjectBlocks: exam.opticalFormat.subjectBlocks.map((b) => ({ subject: b.subject, start: b.start, length: b.length })) }
         : null,
