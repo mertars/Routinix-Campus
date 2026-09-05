@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { FileBarChart, ArrowLeft, LogOut, History, Search, Loader2 } from "lucide-react";
+import { FileBarChart, ArrowLeft, LogOut, History, Search, Loader2, LineChart } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -25,7 +25,17 @@ type ExamRow = { id: string; name: string; examDate: string };
 // BAĞLI OLMAYAN eski/legacy denemeler (opticalFormatId=null) hiçbir
 // akordeonun altında görünmez hale gelirdi — bu yüzden TÜM denemelere
 // (şablonuna bakmadan) tek bir aranabilir yerden erişim burada.
-export function OlcmeTopBar({ roleLabel, onSelectExam }: { roleLabel: string; onSelectExam?: (examId: string) => void }) {
+export function OlcmeTopBar({
+  roleLabel,
+  onSelectExam,
+  onToggleAnalytics,
+  analyticsActive = false,
+}: {
+  roleLabel: string;
+  onSelectExam?: (examId: string) => void;
+  onToggleAnalytics?: () => void;
+  analyticsActive?: boolean;
+}) {
   const router = useRouter();
   const logout = useLogout();
   const institutionName = useInstitutionName();
@@ -82,6 +92,20 @@ export function OlcmeTopBar({ roleLabel, onSelectExam }: { roleLabel: string; on
             >
               <History className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Geçmiş Denemeler</span>
+            </button>
+          )}
+          {onToggleAnalytics && (
+            <button
+              onClick={onToggleAnalytics}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold shadow-sm transition",
+                analyticsActive
+                  ? "border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500"
+                  : "border-hairline bg-white/60 text-espresso hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
+              )}
+            >
+              <LineChart className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{analyticsActive ? "Denemelere Dön" : "Analiz"}</span>
             </button>
           )}
           <div className="hidden items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300 lg:flex">

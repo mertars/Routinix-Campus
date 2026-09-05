@@ -62,7 +62,7 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
       });
 
     return NextResponse.json({
-      exam: { id: exam.id, name: exam.name, examDate: exam.examDate, opticalFormatId: exam.opticalFormatId },
+      exam: { id: exam.id, name: exam.name, examDate: exam.examDate, opticalFormatId: exam.opticalFormatId, category: exam.category },
       format: exam.opticalFormat
         ? { id: exam.opticalFormat.id, name: exam.opticalFormat.name, subjectBlocks: exam.opticalFormat.subjectBlocks.map((b) => ({ subject: b.subject, start: b.start, length: b.length })) }
         : null,

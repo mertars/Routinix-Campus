@@ -59,7 +59,7 @@ async function handlePost(request: NextRequest) {
     requireRole(session, "teacher", "principal");
 
     const body = await request.json();
-    const { name, examDate, opticalFormatId } = body as { name?: string; examDate?: string; opticalFormatId?: string };
+    const { name, examDate, opticalFormatId, category } = body as { name?: string; examDate?: string; opticalFormatId?: string; category?: string };
     if (!name?.trim()) return NextResponse.json({ error: "name zorunludur." }, { status: 400 });
 
     let formatSubjects: string[] = [];
@@ -80,6 +80,7 @@ async function handlePost(request: NextRequest) {
         name: name.trim(),
         examDate: examDate ? new Date(examDate) : new Date(),
         opticalFormatId: opticalFormatId ?? null,
+        category: category?.trim() || null,
       },
     });
 

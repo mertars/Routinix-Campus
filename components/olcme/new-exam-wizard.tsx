@@ -7,6 +7,7 @@ import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { OpticalFormatForm } from "./optical-format-form";
 import type { OpticalFormat } from "./optical-format-manager";
+import { CATEGORY_PRESETS } from "./types";
 
 type TemplatePreset = { label: string; suggestedSubjects: string[] };
 
@@ -33,7 +34,19 @@ function todayIso() {
 // özel, tekrar tekrar dönülen işler; onların yeri detay ekranının adımları
 // (bkz. exam-detail-view.tsx). Bu ayrım, önceki sürümde "şablon cevap
 // anahtarını da mı saklıyor?" karışıklığına yol açan tasarımın düzeltmesi.
-export function NewExamWizard({ isOpen, onClose, onCreated }: { isOpen: boolean; onClose: () => void; onCreated: (examId: string) => void }) {
+export function NewExamWizard({
+  isOpen,
+  onClose,
+  onCreated,
+  defaultCategory,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated: (examId: string) => void;
+  // Bir klasörün içindeyken "Yeni Deneme"ye basılmışsa o klasör önceden
+  // seçili gelir — yönetici aynı kararı tekrar vermesin.
+  defaultCategory?: string;
+}) {
   const { showError, showSuccess } = useToast();
   const [step, setStep] = useState<Step>("template");
   const [formats, setFormats] = useState<OpticalFormat[] | null>(null);
@@ -41,6 +54,7 @@ export function NewExamWizard({ isOpen, onClose, onCreated }: { isOpen: boolean;
   const [selectedFormat, setSelectedFormat] = useState<OpticalFormat | null>(null);
   const [examName, setExamName] = useState("");
   const [examDate, setExamDate] = useState(todayIso());
+  const [category, setCategory] = useState("");
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -50,6 +64,7 @@ export function NewExamWizard({ isOpen, onClose, onCreated }: { isOpen: boolean;
     setSelectedFormat(null);
     setExamName("");
     setExamDate(todayIso());
+    setCategory(defaultCategory ?? "");
     fetch("/api/optical-formats")
       .then((res) => res.json())
       .then((data) => setFormats(data.formats ?? []))
@@ -68,6 +83,12 @@ export function NewExamWizard({ isOpen, onClose, onCreated }: { isOpen: boolean;
   function chooseFormat(format: OpticalFormat) {
     setSelectedFormat(format);
     setExamName(`${format.name} — ${new Date().toLocaleDateString("tr-TR")}`);
+    // Klasörü şablon adından tahmin et ("AYT Sayısal" → "AYT") — yönetici
+    // istemezse değiştirir; çoğu zaman doğru olur ve bir karar eksilir.
+    if (!defaultCategory) {
+      const guessed = CATEGORY_PRESETS.find((p) => format.name.toLocaleUpperCase("tr").startsWith(p.toLocaleUpperCase("tr")));
+      setCategory(guessed ?? "");
+    }
     setStep("info");
   }
 
@@ -86,7 +107,7 @@ export function NewExamWizard({ isOpen, onClose, onCreated }: { isOpen: boolean;
       const res = await fetch("/api/exams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: examName.trim(), examDate, opticalFormatId: selectedFormat.id }),
+        body: JSON.stringify({ name: examName.trim(), examDate, opticalFormatId: selectedFormat.id, category: category.trim() || null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Deneme oluşturulamadı.");
@@ -232,6 +253,34 @@ export function NewExamWizard({ isOpen, onClose, onCreated }: { isOpen: boolean;
               type="date"
               value={examDate}
               onChange={(e) => setExamDate(e.target.value)}
+              className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-xs text-espresso outline-none transition focus:border-emerald-500 dark:border-white/10 dark:bg-midnight dark:text-cream"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[11px] font-medium text-espresso-muted dark:text-cream/40">
+              Klasör <span className="font-normal opacity-70">— listede hangi grupta görünsün</span>
+            </label>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {CATEGORY_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  onClick={() => setCategory(category === preset ? "" : preset)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[10.5px] font-medium transition",
+                    category === preset
+                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                      : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
+                  )}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            <input
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="veya kendi klasör adını yaz (boş bırakılabilir)"
               className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-xs text-espresso outline-none transition focus:border-emerald-500 dark:border-white/10 dark:bg-midnight dark:text-cream"
             />
           </div>

@@ -410,6 +410,13 @@ model Exam {
   institution     Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   name            String
   examDate        DateTime
+  // Klasör/kategori (2026-09-06) — denemeler düz bir liste olarak
+  // birikince aranamaz hale geliyordu. Kurumun kendi düzenine göre
+  // gruplanır: "TYT", "AYT", "8. Sınıf", "9. Sınıf"… Serbest metin
+  // (sabit enum DEĞİL) çünkü her kurumun sınıflandırması farklı;
+  // arayüz yaygın olanları hazır sunar ama kuruma özel klasör de
+  // açılabilir. null = "Kategorisiz" klasöründe toplanır.
+  category        String?
   results         ExamNetResult[]
   seatAssignments ExamSeatAssignment[]
   questions       ExamQuestion[]
@@ -424,6 +431,7 @@ model Exam {
   createdAt       DateTime             @default(now())
 
   @@index([institutionId])
+  @@index([institutionId, category])
 }
 
 // Bu sınavda hangi derslerin ele alınacağının AÇIK listesi (2026-09-05
