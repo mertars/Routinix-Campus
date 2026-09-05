@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/server/prisma";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
+import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { syncExamResultToRoentgen } from "@/lib/server/exams/subtopic-breakdown";
 
 export type RosterStudentForMatching = {
   id: string;
@@ -33,7 +35,18 @@ export async function listStudentRosterForMatching(institutionId: string): Promi
   }));
 }
 
-export type NetResultRow = { studentId: string; subject: string; net: number };
+export type NetResultRow = {
+  studentId: string;
+  subject: string;
+  net: number;
+  // Kazanım bazlı deneme analizi (2026-09-05) — bu ikisi VERİLİRSE ve o
+  // sınav+ders için bir cevap anahtarı (ExamQuestion) tanımlıysa, konu
+  // bazlı kırılım hesaplanıp Matematik/Fizik'te Röntgen'e de yazılır
+  // (bkz. lib/server/exams/subtopic-breakdown.ts). Verilmezse (undefined)
+  // sadece ders bazlı net kaydedilir, mevcut davranış AYNEN korunur.
+  wrongQuestionNumbers?: number[];
+  blankQuestionNumbers?: number[];
+};
 export type NetResultRowOutcome = { studentId: string; subject: string; status: "success" | "failed"; error?: string };
 
 // PDF'ten çıkarılan ya da elle girilen bir ızgaranın TAMAMINI tek seferde
@@ -73,11 +86,13 @@ export async function bulkUpsertExamNetResults(input: {
       results.push({ studentId: row.studentId, subject, status: "failed", error: "Geçersiz net değeri." });
       continue;
     }
+    const wrongQuestionNumbers = row.wrongQuestionNumbers ?? [];
+    const blankQuestionNumbers = row.blankQuestionNumbers ?? [];
     writes.push(
       prisma.examNetResult.upsert({
         where: { examId_studentId_subject: { examId: input.examId, studentId: row.studentId, subject } },
-        update: { net: row.net },
-        create: { examId: input.examId, studentId: row.studentId, subject, net: row.net },
+        update: { net: row.net, wrongQuestionNumbers, blankQuestionNumbers },
+        create: { examId: input.examId, studentId: row.studentId, subject, net: row.net, wrongQuestionNumbers, blankQuestionNumbers },
       })
     );
     results.push({ studentId: row.studentId, subject, status: "success" });
@@ -86,6 +101,20 @@ export async function bulkUpsertExamNetResults(input: {
   if (writes.length > 0) await prisma.$transaction(writes);
 
   const successCount = results.filter((r) => r.status === "success").length;
+
+  // Röntgen köprüsü — SADECE kazanım verisi verilmiş VE CURRICULUM_TREE'de
+  // gerçek kırılımı olan (bugün: Matematik, Fizik) satırlar için; diğerleri
+  // ucuz bir bellek-içi kontrolle atlanır (ekstra sorgu YOK). Sıralı
+  // çalışır (Promise.all DEĞİL) — toplu içe aktarma nadir/düşük frekanslı
+  // bir yönetici işlemi, bağlantı havuzuna gereksiz eşzamanlı baskı
+  // yapmaya değmez.
+  for (const row of input.rows) {
+    const subject = row.subject.trim();
+    if (!(subject in CURRICULUM_TREE)) continue;
+    if (!row.wrongQuestionNumbers && !row.blankQuestionNumbers) continue;
+    if (!validStudentIdSet.has(row.studentId)) continue;
+    await syncExamResultToRoentgen(input.examId, row.studentId, subject).catch(() => {});
+  }
 
   // Toplu işlem — öğrenci/ders başına ayrı kayıt yerine TEK denetim kaydı
   // (aynı gerekçe: bkz. lib/server/admin/bulk-import.ts).

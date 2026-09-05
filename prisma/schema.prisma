@@ -411,6 +411,7 @@ model Exam {
   examDate        DateTime
   results         ExamNetResult[]
   seatAssignments ExamSeatAssignment[]
+  questions       ExamQuestion[]
   createdAt       DateTime             @default(now())
 
   @@index([institutionId])
@@ -424,10 +425,40 @@ model ExamNetResult {
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject   String // "Matematik"
   net       Float
+  // Kazanım bazlı deneme analizi (2026-09-05) — bu dersin cevap anahtarı
+  // (bkz. ExamQuestion) tanımlıysa, bu iki dizi + ExamQuestion'daki soru→
+  // kazanım eşlemesi kullanılarak konu bazlı doğru/yanlış/boş kırılımı
+  // hesaplanır (bkz. lib/server/exams/subtopic-breakdown.ts). Soru NUMARASI
+  // saklanıyor (soru metni/cevabı değil) — dershanenin kağıt üzerindeki
+  // optik/cevap kâğıdıyla BİREBİR aynı numaralandırma varsayılıyor.
+  wrongQuestionNumbers Int[] @default([])
+  blankQuestionNumbers Int[] @default([])
   createdAt DateTime @default(now())
 
   @@unique([examId, studentId, subject])
   @@index([studentId])
+}
+
+// Kazanım bazlı deneme analizi (2026-09-05) — bir sınavın BİR dersi için
+// "cevap anahtarı": her soru numarasının hangi konuya/kazanıma ait olduğu.
+// subtopicId DOLUYSA (CURRICULUM_TREE'deki gerçek bir subtopic.id) bu soru
+// Röntgen köprüsüne (TopicMasteryAssessment, source=PAPER_EXAM) dahil
+// edilir — CURRICULUM_TREE sadece Matematik/Fizik için gerçek kırılıma
+// sahip olduğundan diğer derslerde subtopicId boş kalır, sadece
+// subtopicLabel (serbest metin) ile bu sınava özel analiz/karne
+// gösteriminde kullanılır (Röntgen'i beslemez, ama yine de "hangi
+// konudan kaç net" bilgisini karnede göstermeye yeter).
+model ExamQuestion {
+  id             String  @id @default(cuid())
+  examId         String
+  exam           Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subject        String
+  questionNumber Int
+  subtopicId     String? // CURRICULUM_TREE içindeki subtopic.id (varsa)
+  subtopicLabel  String // her zaman dolu — gösterim için (subtopicId varsa CURRICULUM_TREE'deki adıyla AYNI tutulmalı)
+
+  @@unique([examId, subject, questionNumber])
+  @@index([examId, subject])
 }
 
 // Kampüs V2 Part 4 — Gelişmiş Yoklama Matrisi: bir satır artık bir GÜNÜ
@@ -1321,8 +1352,15 @@ model StudyTopicGoal {
 enum XraySource {
   AI_TEST // XrayTestSession sonucundan otomatik hesaplandı
   PRACTICE_SELF_REPORT // Test 1 — öğrencinin cevap anahtarı sonrası kendi işaretlemesi
-  LOCKED_EXAM // Test 2 — kilitli, yönetici atamalı sınav sonucu
+  LOCKED_EXAM // Test 2 — kilitli, yönetici atamalı sınav sonucu (uygulama İÇİ quiz)
   TEACHER_OVERRIDE // öğretmen otomatik puanı elle düzeltti
+  // Faz (2026-09-05) — "Ölçme Değerlendirme" köprüsü: GERÇEK bir dershane
+  // denemesinden (Exam/ExamNetResult, kağıt üzerinde yapılan sınav)
+  // hesaplanan kazanım kırılımı. LOCKED_EXAM'dan BİLEREK AYRI — o
+  // uygulama İÇİ bir quiz'i, bu GERÇEK bir kağıt sınavı temsil ediyor;
+  // ikisinin güvenilirlik/ölçek farkı ileride analiz/filtre için önemli
+  // olabilir. Bkz. lib/server/exams/subtopic-breakdown.ts.
+  PAPER_EXAM
 }
 
 enum XrayTestStatus {

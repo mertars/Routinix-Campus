@@ -25,6 +25,7 @@ import {
   Scan,
   CalendarCheck,
   MessageSquareText,
+  Target,
 } from "lucide-react";
 import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { type NavTab } from "@/components/principal/floating-nav";
@@ -39,6 +40,7 @@ import { BranchStaffTab } from "@/components/principal/tabs/branch-staff";
 import { LiveTutoringTab } from "@/components/principal/tabs/live-tutoring";
 import { GuidanceProgramTab } from "@/components/principal/tabs/guidance-program";
 import { ExamResultsImportTab } from "@/components/principal/tabs/exam-results-import";
+import { ExamKazanimAnalysisTab } from "@/components/principal/tabs/exam-kazanim-analysis";
 import { AnnouncementsTab } from "@/components/principal/tabs/announcements";
 import { TeacherPerformanceTab } from "@/components/principal/tabs/teacher-performance";
 import { RiskRadarTab } from "@/components/principal/tabs/risk-radar";
@@ -69,6 +71,7 @@ const TABS = [
   { id: "students", label: "Kullanıcı Yönetimi & Performans", icon: GraduationCap, Component: BranchStaffTab, side: "left" },
   { id: "academic-xray", label: "Akademik Röntgen Karnesi", icon: Scan, Component: AcademicXrayTab, side: "left" },
   { id: "upload", label: "Sınav & Optik Yükleme", icon: ScanLine, Component: ExamResultsImportTab, side: "left" },
+  { id: "exam-kazanim", label: "Kazanım Bazlı Deneme Analizi", icon: Target, Component: ExamKazanimAnalysisTab, side: "left" },
   { id: "exam-seating", label: "Kelebek Sınav Oturma Planı", icon: Shuffle, Component: ExamSeatingTab, side: "left" },
   { id: "live-tutoring", label: "Canlı Birebir Etüt & Randevu", icon: Radio, Component: LiveTutoringTab, side: "left" },
   { id: "guidance-program", label: "Rehberlik & A4 Program Yapıcı", icon: NotebookPen, Component: GuidanceProgramTab, side: "left" },

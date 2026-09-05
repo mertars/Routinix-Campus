@@ -4,6 +4,8 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { withApiLogging, logger } from "@/lib/logger";
+import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { syncExamResultToRoentgen } from "@/lib/server/exams/subtopic-breakdown";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,14 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     requireRole(session, "teacher", "principal");
 
     const body = await request.json();
-    const { studentId, subject, correct, wrong } = body as { studentId?: string; subject?: string; correct?: number; wrong?: number };
+    const { studentId, subject, correct, wrong, wrongQuestionNumbers, blankQuestionNumbers } = body as {
+      studentId?: string;
+      subject?: string;
+      correct?: number;
+      wrong?: number;
+      wrongQuestionNumbers?: number[];
+      blankQuestionNumbers?: number[];
+    };
     if (!studentId || !subject?.trim() || typeof correct !== "number" || typeof wrong !== "number") {
       return NextResponse.json({ error: "studentId, subject, correct ve wrong zorunludur." }, { status: 400 });
     }
@@ -33,11 +42,26 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     }
 
     const net = Math.round((correct - wrong / 4) * 100) / 100;
+    const trimmedSubject = subject.trim();
     const result = await prisma.examNetResult.upsert({
-      where: { examId_studentId_subject: { examId: params.id, studentId, subject: subject.trim() } },
-      update: { net },
-      create: { examId: params.id, studentId, subject: subject.trim(), net },
+      where: { examId_studentId_subject: { examId: params.id, studentId, subject: trimmedSubject } },
+      update: { net, wrongQuestionNumbers: wrongQuestionNumbers ?? [], blankQuestionNumbers: blankQuestionNumbers ?? [] },
+      create: {
+        examId: params.id,
+        studentId,
+        subject: trimmedSubject,
+        net,
+        wrongQuestionNumbers: wrongQuestionNumbers ?? [],
+        blankQuestionNumbers: blankQuestionNumbers ?? [],
+      },
     });
+
+    // Röntgen köprüsü (bkz. lib/server/exams/subtopic-breakdown.ts) —
+    // kazanım verisi verilmişse ve ders CURRICULUM_TREE'de gerçek kırılıma
+    // sahipse (bugün: Matematik, Fizik).
+    if ((wrongQuestionNumbers || blankQuestionNumbers) && trimmedSubject in CURRICULUM_TREE) {
+      await syncExamResultToRoentgen(params.id, studentId, trimmedSubject).catch(() => {});
+    }
 
     await recordAuditLog({
       institutionId: session.institutionId,
