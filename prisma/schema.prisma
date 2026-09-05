@@ -413,9 +413,28 @@ model Exam {
   results         ExamNetResult[]
   seatAssignments ExamSeatAssignment[]
   questions       ExamQuestion[]
+  examSubjects    ExamSubject[]
   createdAt       DateTime             @default(now())
 
   @@index([institutionId])
+}
+
+// Bu sınavda hangi derslerin ele alınacağının AÇIK listesi (2026-09-05
+// Ölçme Değerlendirme sadeleştirmesi). Önceden "ders" kavramı SADECE
+// ExamNetResult/ExamQuestion'da veri varsa var sayılıyordu — bu da
+// sıfırdan bir sınavda "ders ekle" yapan bir yöneticinin, henüz hiçbir
+// cevap anahtarı/net kaydetmeden sayfadan çıkıp geri dönünce eklediği
+// dersin sessizce KAYBOLMASINA yol açıyordu (kafa karıştırıcıydı). Şimdi
+// bir ders EKLENDİĞİ anda burada kalıcı bir satır olarak saklanıyor.
+model ExamSubject {
+  id        String   @id @default(cuid())
+  examId    String
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subject   String
+  createdAt DateTime @default(now())
+
+  @@unique([examId, subject])
+  @@index([examId])
 }
 
 model ExamNetResult {

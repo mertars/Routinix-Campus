@@ -39,11 +39,16 @@ export function OpticalUploadSection({
   subject,
   roster,
   onSaved,
+  bare = false,
 }: {
   examId: string;
   subject: string;
   roster: RosterStudent[] | null;
   onSaved: () => void;
+  // true: çağıran taraf (bkz. olcme-panel.tsx > "Sonuçları Gir" sekmesi)
+  // zaten kendi kartını/başlığını çiziyor — burada dış kart+başlık TEKRAR
+  // çizilmez, sadece iç içerik render edilir.
+  bare?: boolean;
 }) {
   const { showError, showSuccess } = useToast();
   const [formats, setFormats] = useState<OpticalFormat[] | null>(null);
@@ -133,12 +138,15 @@ export function OpticalUploadSection({
   }
 
   return (
-    <div className="rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
+    <div className={bare ? "" : "rounded-2xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50"}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold text-espresso dark:text-cream">3. Optik Okuma — Tarayıcı Dosyasını Yükle</p>
+        {!bare && <p className="text-xs font-semibold text-espresso dark:text-cream">Optik Okuma — Tarayıcı Dosyasını Yükle</p>}
+        <p className={cn("text-[11px] text-espresso-muted dark:text-cream/40", !bare && "hidden")}>
+          Tarayıcının ürettiği .txt dosyasını yükle, sistem otomatik puanlasın.
+        </p>
         <button
           onClick={() => setManagerOpen(true)}
-          className="flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1 text-[11px] font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+          className="ml-auto flex items-center gap-1.5 rounded-lg border border-hairline px-2.5 py-1 text-[11px] font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
         >
           <Settings2 className="h-3 w-3" /> Formatları Yönet
         </button>
