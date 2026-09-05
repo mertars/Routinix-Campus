@@ -6,6 +6,7 @@ import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import type { RosterStudent } from "@/lib/exam-import/types";
 import { OpticalFormatManager, type OpticalFormat } from "./optical-format-manager";
+import { StudentPickerModal } from "./student-picker-modal";
 
 type PreviewSubjectResult = { subject: string; net: number; correctCount: number; wrongQuestionNumbers: number[]; blankQuestionNumbers: number[] };
 
@@ -58,6 +59,7 @@ export function OpticalUploadSection({
   const [overrides, setOverrides] = useState<Record<number, string>>({});
   const [managerOpen, setManagerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pickerLine, setPickerLine] = useState<number | null>(null);
 
   function loadFormats() {
     fetch("/api/optical-formats")
@@ -236,7 +238,9 @@ export function OpticalUploadSection({
                 {rows.map((row) => {
                   const status = STATUS_STYLE[row.matchStatus];
                   const StatusIcon = status.icon;
-                  const candidateList = row.matchStatus === "ambiguous" ? row.candidates : roster ?? [];
+                  const resolvedId = resolvedStudentId(row);
+                  const overridden = !!overrides[row.lineNumber] && overrides[row.lineNumber] !== row.matchedStudentId;
+                  const resolvedStudent = resolvedId ? roster?.find((s) => s.id === resolvedId) ?? null : null;
                   return (
                     <tr key={row.lineNumber} className="border-t border-hairline dark:border-white/10">
                       <td className="px-2 py-1.5 text-espresso-muted dark:text-cream/40">{row.lineNumber}</td>
@@ -245,27 +249,28 @@ export function OpticalUploadSection({
                         <span className="block text-[10px] text-espresso-muted dark:text-cream/40">{row.tcNo ?? row.studentNo ?? ""}</span>
                       </td>
                       <td className="px-2 py-1.5">
-                        {row.matchStatus === "matched" ? (
-                          <span className={cn("flex items-center gap-1", status.className)}>
-                            <StatusIcon className="h-3 w-3" /> {status.label}
-                          </span>
-                        ) : (
-                          <select
-                            value={overrides[row.lineNumber] ?? ""}
-                            onChange={(e) => setOverrides((prev) => ({ ...prev, [row.lineNumber]: e.target.value }))}
-                            className={cn(
-                              "rounded border bg-white px-1.5 py-1 text-[10.5px] outline-none dark:bg-midnight dark:text-cream",
-                              overrides[row.lineNumber] ? "border-emerald-500/40" : "border-amber-500/30"
-                            )}
-                          >
-                            <option value="">{status.label} — seç</option>
-                            {candidateList.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.firstName} {c.lastName}
-                              </option>
-                            ))}
-                          </select>
-                        )}
+                        <button
+                          onClick={() => setPickerLine(row.lineNumber)}
+                          className={cn(
+                            "flex items-center gap-1 rounded-lg border px-2 py-1 text-left text-[10.5px] font-medium transition hover:brightness-95",
+                            resolvedStudent
+                              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+                              : "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300"
+                          )}
+                        >
+                          {resolvedStudent ? (
+                            <>
+                              <CheckCircle2 className="h-3 w-3 shrink-0" />
+                              {resolvedStudent.firstName} {resolvedStudent.lastName}
+                              {overridden && <span className="opacity-60">(değiştirildi)</span>}
+                            </>
+                          ) : (
+                            <>
+                              <StatusIcon className="h-3 w-3 shrink-0" />
+                              {status.label} — seç
+                            </>
+                          )}
+                        </button>
                       </td>
                       {row.subjects.map((s) => (
                         <td key={s.subject} className="whitespace-nowrap px-2 py-1.5 tabular-nums">
@@ -293,6 +298,22 @@ export function OpticalUploadSection({
       )}
 
       <OpticalFormatManager isOpen={managerOpen} onClose={() => setManagerOpen(false)} onSaved={loadFormats} />
+
+      {pickerLine !== null &&
+        (() => {
+          const pickerRow = rows?.find((r) => r.lineNumber === pickerLine);
+          if (!pickerRow) return null;
+          return (
+            <StudentPickerModal
+              isOpen
+              onClose={() => setPickerLine(null)}
+              roster={roster ?? []}
+              currentStudentId={resolvedStudentId(pickerRow)}
+              rowLabel={`${pickerRow.name ?? "(isim yok)"} · ${pickerRow.tcNo ?? pickerRow.studentNo ?? ""}`}
+              onSelect={(studentId) => setOverrides((prev) => ({ ...prev, [pickerLine]: studentId }))}
+            />
+          );
+        })()}
     </div>
   );
 }
