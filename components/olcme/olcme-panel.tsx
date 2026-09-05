@@ -63,6 +63,8 @@ export function OlcmePanel() {
   const [summary, setSummary] = useState<SummaryRow[] | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
+  const [newSubjectName, setNewSubjectName] = useState("");
+
   const supportsRoentgenBridge = subject in CURRICULUM_TREE;
   const selectedExam = exams?.find((e) => e.id === examId) ?? null;
 
@@ -130,6 +132,21 @@ export function OlcmePanel() {
 
   function updateAnswerKeyRow(questionNumber: number, patch: Partial<AnswerKeyRow>) {
     setAnswerKey((prev) => prev.map((r) => (r.questionNumber === questionNumber ? { ...r, ...patch } : r)));
+  }
+
+  // "Ders" listesi SADECE zaten net girilmiş/cevap anahtarı olan dersleri
+  // gösterir (bkz. /api/exams/[id]/subjects) — sıfırdan bir sınava optik
+  // okuma/cevap anahtarı ile başlamak isteyen bir yönetici için, henüz
+  // hiçbir veri yokken de yeni bir ders EKLEYEBİLMESİ gerekir (aksi halde
+  // "ders yok, devam edemiyorum" çıkmazına düşer — 2026-09-05 düzeltmesi).
+  function addSubject() {
+    const name = newSubjectName.trim();
+    if (!name) return;
+    if (!subjects.some((s) => s.subject === name)) {
+      setSubjects((prev) => [...prev, { subject: name, supportsRoentgenBridge: name in CURRICULUM_TREE, hasAnswerKey: false }]);
+    }
+    setSubject(name);
+    setNewSubjectName("");
   }
 
   async function loadTemplates() {
@@ -269,31 +286,45 @@ export function OlcmePanel() {
             </div>
           ) : (
             <>
-              {subjects.length > 0 && (
-                <div className="mb-4 flex flex-wrap gap-1.5">
-                  {subjects.map((s) => (
-                    <button
-                      key={s.subject}
-                      onClick={() => setSubject(s.subject)}
-                      className={cn(
-                        "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-semibold transition",
-                        subject === s.subject
-                          ? "border-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                          : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
-                      )}
-                    >
-                      {s.subject}
-                      {s.hasAnswerKey && <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
-                    </button>
-                  ))}
+              <div className="mb-4 flex flex-wrap items-center gap-1.5">
+                {subjects.map((s) => (
+                  <button
+                    key={s.subject}
+                    onClick={() => setSubject(s.subject)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-semibold transition",
+                      subject === s.subject
+                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                        : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
+                    )}
+                  >
+                    {s.subject}
+                    {s.hasAnswerKey && <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />}
+                  </button>
+                ))}
+                <div className="flex items-center gap-1">
+                  <input
+                    value={newSubjectName}
+                    onChange={(e) => setNewSubjectName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && addSubject()}
+                    placeholder="Yeni ders adı (örn. Matematik)"
+                    className="w-44 rounded-full border border-dashed border-hairline bg-white px-3 py-1.5 text-[11.5px] text-espresso outline-none focus:border-emerald-600 dark:border-white/15 dark:bg-midnight dark:text-cream"
+                  />
+                  <button
+                    onClick={addSubject}
+                    className="rounded-full border border-emerald-500/30 bg-emerald-500/5 px-3 py-1.5 text-[11.5px] font-semibold text-emerald-700 transition hover:bg-emerald-500/10 dark:text-emerald-300"
+                  >
+                    + Ekle
+                  </button>
                 </div>
-              )}
+              </div>
 
               {!subject ? (
                 subjects.length === 0 ? (
                   <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-hairline bg-white/40 py-20 text-center dark:border-white/10 dark:bg-white/5">
                     <p className="text-xs text-espresso-muted dark:text-cream/40">
-                      &quot;{selectedExam?.name}&quot; için henüz net girilmemiş — ERP &gt; Sınav &amp; Optik Yükleme&apos;den gir.
+                      &quot;{selectedExam?.name}&quot; için henüz ders yok — yukarıdan yeni bir ders ekle (cevap anahtarı ve optik okuma buradan başlar), ya
+                      da ERP &gt; Sınav &amp; Optik Yükleme&apos;den elle net gir.
                     </p>
                   </div>
                 ) : (

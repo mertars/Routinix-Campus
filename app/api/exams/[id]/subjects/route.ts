@@ -8,9 +8,15 @@ import { CURRICULUM_TREE } from "@/lib/mock-data";
 export const dynamic = "force-dynamic";
 
 // GET /api/exams/[id]/subjects — bu sınav için ŞU ANA KADAR net girilmiş
-// dersleri döner (Ölçme Değerlendirme panelinin ders seçicisi buradan
-// besleniyor — serbest metin yazdırıp "Matematik" ile "matematik" gibi
-// eşleşmeyen iki ayrı ders yaratmayı önlemek için, bkz. olcme-panel.tsx).
+// VEYA cevap anahtarı tanımlanmış dersleri döner (ikisinin BİRLEŞİMİ —
+// 2026-09-05 düzeltmesi: önceden SADECE net girilmiş dersler dönüyordu,
+// bu da optik okumayı sıfırdan başlatmak isteyen bir sınav için "hiç ders
+// yok, devam edemiyorum" çıkmazına sokuyordu, çünkü optik okuma NET'İ
+// KENDİSİ ÜRETİYOR — önce bir cevap anahtarı tanımlayabilmek için dersin
+// listede görünmesi net'in ÖNCEDEN girilmiş olmasına bağlı olmamalı).
+// Ölçme Değerlendirme panelinin ders seçicisi buradan besleniyor — serbest
+// metin yazdırıp "Matematik" ile "matematik" gibi eşleşmeyen iki ayrı ders
+// yaratmayı önlemek için, bkz. olcme-panel.tsx.
 async function handleGet(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
@@ -24,10 +30,11 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
       prisma.examQuestion.findMany({ where: { examId: params.id }, select: { subject: true }, distinct: ["subject"] }),
     ]);
     const subjectsWithAnswerKey = new Set(answerKeyRows.map((r) => r.subject));
-    const subjects = rows.map((r) => ({
-      subject: r.subject,
-      supportsRoentgenBridge: r.subject in CURRICULUM_TREE,
-      hasAnswerKey: subjectsWithAnswerKey.has(r.subject),
+    const allSubjectNames = new Set([...rows.map((r) => r.subject), ...answerKeyRows.map((r) => r.subject)]);
+    const subjects = [...allSubjectNames].map((subject) => ({
+      subject,
+      supportsRoentgenBridge: subject in CURRICULUM_TREE,
+      hasAnswerKey: subjectsWithAnswerKey.has(subject),
     }));
 
     return NextResponse.json({ subjects });
