@@ -88,6 +88,10 @@ async function handleGet(request: NextRequest) {
       if (item.scopeType === "ALL_SCHOOL") return true;
       if (item.scopeType === "GRADE") return String(student.branch.grade) === item.scopeValue;
       if (item.scopeType === "BRANCH") return student.branchId === item.scopeValue;
+      // CUSTOM_ID_LIST — bkz. lib/server/exams/exam-notify.ts > notifyResultReady.
+      // Tek bir öğrenciye (deneme sonucu hazır gibi) hedefli bildirimler
+      // BURADAN geçer; scopeValue virgülle ayrılmış öğrenci ID listesidir.
+      if (item.scopeType === "CUSTOM_ID_LIST") return (item.scopeValue ?? "").split(",").includes(studentId);
       return false;
     });
 

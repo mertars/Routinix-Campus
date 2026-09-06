@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { OpticalFormatForm } from "./optical-format-form";
 import type { OpticalFormat } from "./optical-format-manager";
 import type { ExamCategory } from "./types";
+import { TRACK_SUBJECTS } from "@/lib/server/exams/track-mapping";
 
 type TemplatePreset = { label: string; suggestedSubjects: string[] };
 
@@ -16,9 +17,14 @@ type TemplatePreset = { label: string; suggestedSubjects: string[] };
 // tüm aynı türden denemelerde doğrudan kullanılır.
 const TEMPLATE_PRESETS: TemplatePreset[] = [
   { label: "TYT", suggestedSubjects: ["Türkçe", "Sosyal Bilimler", "Temel Matematik", "Fen Bilimleri"] },
-  { label: "AYT Sayısal", suggestedSubjects: ["Matematik", "Fizik", "Kimya", "Biyoloji"] },
-  { label: "AYT Eşit Ağırlık", suggestedSubjects: ["Matematik", "Edebiyat", "Tarih-1", "Coğrafya-1"] },
-  { label: "AYT Sözel", suggestedSubjects: ["Edebiyat-Coğrafya", "Tarih-2", "Coğrafya-2", "Felsefe Grubu"] },
+  { label: "AYT Sayısal", suggestedSubjects: TRACK_SUBJECTS["Sayısal"] },
+  { label: "AYT Eşit Ağırlık", suggestedSubjects: TRACK_SUBJECTS["Eşit Ağırlık"] },
+  { label: "AYT Sözel", suggestedSubjects: TRACK_SUBJECTS["Sözel"] },
+  // "AYT Karma" — bir dershanenin AYT gününü TÜM alanlar için TEK oturumda
+  // yaptığı, her öğrencinin sadece kendi alanının modülünü doldurduğu
+  // (diğerleri boş/0 net kaldığı) gerçek senaryo — bkz. track-mapping.ts.
+  // Bu şablonla oluşturulan denemede sıralama otomatik alan bazlı çıkar.
+  { label: "AYT Karma (Tüm Alanlar)", suggestedSubjects: [...new Set(Object.values(TRACK_SUBJECTS).flat())] },
   { label: "Sınıf Seviye Değerlendirme (Lise)", suggestedSubjects: ["Türkçe", "Matematik", "Fizik", "Kimya", "Biyoloji", "Tarih", "Coğrafya"] },
   { label: "Sınıf Seviye Değerlendirme (Ortaokul)", suggestedSubjects: ["Türkçe", "Matematik", "Fen Bilimleri", "Sosyal Bilgiler", "İngilizce"] },
 ];

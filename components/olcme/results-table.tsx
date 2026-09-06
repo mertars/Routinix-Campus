@@ -1,23 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, ArrowUpDown, Users, TrendingUp, Award, Target, Download } from "lucide-react";
+import { Loader2, Search, ArrowUpDown, Users, TrendingUp, Award, Target, Download, FileText, BellRing, ExternalLink } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { ExamKarneShareButton } from "./exam-karne-share-button";
 import type { ExamResults } from "./types";
 
 type SortKey = "rank" | "name" | "branch" | string;
 
 // Rapor — modülün asıl çıktısı. Öğrenci başına ders ders net + toplam net
-// + genel/şube sıralaması. Sıralama sunucuda hesaplanır (bkz.
+// + genel/şube/alan sıralaması. Sıralama sunucuda hesaplanır (bkz.
 // /api/exams/[id]/results) çünkü eşit netlerin AYNI sırayı alması
 // (1,2,2,4) istemcide tekrar tekrar yapılacak bir iş değil.
 export function ResultsTable({ examId }: { examId: string }) {
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [data, setData] = useState<ExamResults | null>(null);
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortAsc, setSortAsc] = useState(true);
+  const [notifyingAll, setNotifyingAll] = useState(false);
 
   useEffect(() => {
     setData(null);
@@ -75,6 +77,27 @@ export function ResultsTable({ examId }: { examId: string }) {
     URL.revokeObjectURL(url);
   }
 
+  function openRankingPdf(track?: string) {
+    const qs = track ? `?track=${encodeURIComponent(track)}` : "";
+    window.open(`/api/exams/${examId}/ranking-pdf${qs}`, "_blank", "noopener,noreferrer");
+  }
+
+  async function notifyAll() {
+    if (!data) return;
+    if (!window.confirm(`"${data.exam.name}" sonucu, ${data.stats.studentCount} öğrencinin ve velisinin paneline bildirilsin mi?`)) return;
+    setNotifyingAll(true);
+    try {
+      const res = await fetch(`/api/exams/${examId}/notify`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result?.error ?? "Bildirilemedi.");
+      showSuccess(`${result.notifiedCount} öğrenci ve velisine bildirim gönderildi.`);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Bildirilemedi.");
+    } finally {
+      setNotifyingAll(false);
+    }
+  }
+
   if (!data) {
     return (
       <div className="flex justify-center py-24">
@@ -130,6 +153,34 @@ export function ResultsTable({ examId }: { examId: string }) {
         ))}
       </div>
 
+      {/* Sıralama listesi PDF'leri — genel + (varsa) alan bazlı */}
+      <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-hairline bg-white/60 p-3 dark:border-white/10 dark:bg-white/5">
+        <span className="text-[10.5px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">Sıralama Listesi (PDF):</span>
+        <button
+          onClick={() => openRankingPdf()}
+          className="flex items-center gap-1 rounded-full border border-hairline bg-white px-2.5 py-1 text-[10.5px] font-medium text-espresso transition hover:border-emerald-400/40 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+        >
+          <FileText className="h-3 w-3" /> Genel <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+        </button>
+        {data.trackRankings.map((tr) => (
+          <button
+            key={tr.track}
+            onClick={() => openRankingPdf(tr.track)}
+            className="flex items-center gap-1 rounded-full border border-hairline bg-white px-2.5 py-1 text-[10.5px] font-medium text-espresso transition hover:border-emerald-400/40 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          >
+            <FileText className="h-3 w-3" /> {tr.track} ({tr.students.length}) <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+          </button>
+        ))}
+        <button
+          onClick={notifyAll}
+          disabled={notifyingAll}
+          className="ml-auto flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[10.5px] font-semibold text-sky-700 transition hover:bg-sky-500/20 disabled:opacity-50 dark:text-sky-300"
+        >
+          {notifyingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <BellRing className="h-3 w-3" />}
+          Tüm Öğrenci + Veli Panellerine Bildir
+        </button>
+      </div>
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-xs flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
@@ -176,6 +227,7 @@ export function ResultsTable({ examId }: { examId: string }) {
                   </th>
                 ))}
                 <th className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-espresso dark:text-cream">Toplam</th>
+                <th className="w-16 px-2 py-2.5 text-center font-semibold text-espresso dark:text-cream">Karne</th>
               </tr>
             </thead>
             <tbody>
@@ -199,7 +251,10 @@ export function ResultsTable({ examId }: { examId: string }) {
                     <span className="block font-medium text-espresso dark:text-cream">
                       {s.firstName} {s.lastName}
                     </span>
-                    <span className="block text-[10px] text-espresso-muted dark:text-cream/40">No: {s.studentNumber}</span>
+                    <span className="block text-[10px] text-espresso-muted dark:text-cream/40">
+                      No: {s.studentNumber}
+                      {s.trackResult && ` · ${s.trackResult.track} ${s.trackResult.rank ?? "—"}.`}
+                    </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-espresso-muted dark:text-cream/50">
                     {s.branchName}
@@ -221,6 +276,18 @@ export function ResultsTable({ examId }: { examId: string }) {
                   ))}
                   <td className="whitespace-nowrap px-3 py-2.5 text-right">
                     <span className="font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{s.totalNet}</span>
+                  </td>
+                  <td className="px-2 py-2.5">
+                    <div className="flex items-center justify-center gap-0.5">
+                      <button
+                        onClick={() => window.open(`/api/exams/${examId}/karne/${s.studentId}`, "_blank", "noopener,noreferrer")}
+                        title="Karneyi Görüntüle"
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-cream-card hover:text-espresso dark:text-cream/40 dark:hover:bg-white/10 dark:hover:text-cream"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                      </button>
+                      <ExamKarneShareButton examId={examId} studentId={s.studentId} studentName={`${s.firstName} ${s.lastName}`} />
+                    </div>
                   </td>
                 </tr>
               ))}
