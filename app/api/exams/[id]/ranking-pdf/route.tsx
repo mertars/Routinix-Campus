@@ -5,14 +5,15 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { computeExamResults } from "@/lib/server/exams/exam-results";
+import { TRACK_SUBJECTS } from "@/lib/server/exams/track-mapping";
 import { PdfExamRanking, type RankingRow } from "@/components/pdf/pdf-exam-ranking";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/exams/[id]/ranking-pdf?track= — sıralama listesi PDF'i.
-// track verilmezse GENEL sıralama (toplam net); track="Sayısal" gibi
-// verilirse SADECE o alanın öğrencileri, o alana ait derslerin neti
-// üzerinden (bkz. lib/server/exams/track-mapping.ts).
+// Kullanıcı geri bildirimi: "sadece net yazıyor, her dersin sonucunu
+// istiyorum" — artık her öğrenci satırında TÜM (ya da alan bazlıysa o
+// alana ait) derslerin doğru/yanlış/net'i de var, sadece toplam DEĞİL.
 async function handleGet(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
@@ -25,20 +26,46 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
     if (!results) return NextResponse.json({ error: "Deneme bulunamadı." }, { status: 404 });
 
     const track = request.nextUrl.searchParams.get("track");
+    let subjects: string[];
     let rows: RankingRow[];
     let listTitle: string;
-    let netLabel: string;
+    let totalLabel: string;
 
     if (track) {
       const trackRanking = results.trackRankings.find((t) => t.track === track);
       if (!trackRanking) return NextResponse.json({ error: "Bu denemede bu alan bulunamadı." }, { status: 400 });
-      rows = trackRanking.students.map((s) => ({ rank: s.rank, firstName: s.firstName, lastName: s.lastName, branchName: s.branchName, net: s.trackNet }));
+      const trackSubjectSet = new Set(TRACK_SUBJECTS[track] ?? []);
+      subjects = results.subjects.filter((s) => trackSubjectSet.has(s));
+
+      const byId = new Map(results.students.map((s) => [s.studentId, s]));
+      rows = trackRanking.students.map((ts) => {
+        const full = byId.get(ts.studentId);
+        return {
+          rank: ts.rank,
+          firstName: ts.firstName,
+          lastName: ts.lastName,
+          branchName: ts.branchName,
+          subjects: subjects.map((subj) => {
+            const cell = full?.subjects.find((x) => x?.subject === subj);
+            return cell ? { correct: cell.correct, wrong: cell.wrong, blank: cell.blank, net: cell.net } : null;
+          }),
+          totalNet: ts.trackNet,
+        };
+      });
       listTitle = `${track} Sıralaması`;
-      netLabel = `${track} Net`;
+      totalLabel = `${track} Net`;
     } else {
-      rows = results.students.map((s) => ({ rank: s.rank, firstName: s.firstName, lastName: s.lastName, branchName: s.branchName, net: s.totalNet }));
+      subjects = results.subjects;
+      rows = results.students.map((s) => ({
+        rank: s.rank,
+        firstName: s.firstName,
+        lastName: s.lastName,
+        branchName: s.branchName,
+        subjects: s.subjects.map((cell) => (cell ? { correct: cell.correct, wrong: cell.wrong, blank: cell.blank, net: cell.net } : null)),
+        totalNet: s.totalNet,
+      }));
       listTitle = "Genel Sıralama";
-      netLabel = "Toplam Net";
+      totalLabel = "Toplam Net";
     }
 
     const institution = await prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true, logoUrl: true } });
@@ -50,7 +77,8 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
         examName={results.exam.name}
         examDate={new Date(results.exam.examDate).toLocaleDateString("tr-TR")}
         listTitle={listTitle}
-        netLabel={netLabel}
+        subjects={subjects}
+        totalLabel={totalLabel}
         rows={rows}
       />
     );
