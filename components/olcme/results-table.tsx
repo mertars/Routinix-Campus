@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Search, ArrowUpDown, Users, TrendingUp, Award, Target, Download, FileText, BellRing, ExternalLink } from "lucide-react";
+import { Loader2, Search, ArrowUpDown, Users, TrendingUp, Award, Target, Download, FileText, BellRing, ExternalLink, GraduationCap } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { ExamKarneShareButton } from "./exam-karne-share-button";
+import { OsymReferenceManager } from "./osym-reference-manager";
 import type { ExamResults } from "./types";
 
 type SortKey = "rank" | "name" | "branch" | string;
@@ -20,6 +21,7 @@ export function ResultsTable({ examId }: { examId: string }) {
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortAsc, setSortAsc] = useState(true);
   const [notifyingAll, setNotifyingAll] = useState(false);
+  const [osymManagerOpen, setOsymManagerOpen] = useState(false);
 
   useEffect(() => {
     setData(null);
@@ -172,6 +174,12 @@ export function ResultsTable({ examId }: { examId: string }) {
           </button>
         ))}
         <button
+          onClick={() => setOsymManagerOpen(true)}
+          className="flex items-center gap-1.5 rounded-full border border-hairline bg-white px-2.5 py-1 text-[10.5px] font-medium text-espresso transition hover:border-amber-400/40 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+        >
+          <GraduationCap className="h-3 w-3" /> ÖSYM Referans
+        </button>
+        <button
           onClick={notifyAll}
           disabled={notifyingAll}
           className="ml-auto flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-[10.5px] font-semibold text-sky-700 transition hover:bg-sky-500/20 disabled:opacity-50 dark:text-sky-300"
@@ -180,6 +188,8 @@ export function ResultsTable({ examId }: { examId: string }) {
           Tüm Öğrenci + Veli Panellerine Bildir
         </button>
       </div>
+
+      <OsymReferenceManager isOpen={osymManagerOpen} onClose={() => setOsymManagerOpen(false)} />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative max-w-xs flex-1">

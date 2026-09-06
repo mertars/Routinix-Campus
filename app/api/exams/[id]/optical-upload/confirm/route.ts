@@ -38,7 +38,8 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
         if (!subject || !Number.isFinite(net)) continue;
         const wrongQuestionNumbers = Array.isArray(s?.wrongQuestionNumbers) ? s.wrongQuestionNumbers.filter((n: unknown) => Number.isInteger(n)) : [];
         const blankQuestionNumbers = Array.isArray(s?.blankQuestionNumbers) ? s.blankQuestionNumbers.filter((n: unknown) => Number.isInteger(n)) : [];
-        rows.push({ studentId, subject, net, wrongQuestionNumbers, blankQuestionNumbers });
+        const answerLetters = typeof s?.answerLetters === "string" ? s.answerLetters : undefined;
+        rows.push({ studentId, subject, net, wrongQuestionNumbers, blankQuestionNumbers, answerLetters });
       }
     }
     if (rows.length === 0) return NextResponse.json({ error: "Kaydedilecek eşleşmiş satır yok." }, { status: 400 });

@@ -130,6 +130,7 @@ model Institution {
   opticalFormats              OpticalFormat[]
   examCategories              ExamCategory[]
   examGroups                  ExamGroup[]
+  osymReferenceTables         OsymReferenceTable[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -492,6 +493,40 @@ model ExamGroup {
   @@index([institutionId])
 }
 
+// ÖSYM Referans Tablosu (2026-09-06) — kullanıcı kararı: "ösym sıralama
+// sistemini de kuralım". Resmi ÖSYM puanı ("ham puan katsayıları" o
+// yılın TÜM Türkiye'deki adaylarının ortalama/standart sapmasına göre
+// hesaplanır — bu istatistik ÖSYM'nin kendi verisidir, bizde YOK ve asla
+// olamaz) kendimiz HESAPLAYAMAYIZ; bunu uydurmak yanıltıcı olurdu. Bunun
+// yerine kurumun KENDİ elindeki (yayınevinden/ÖSYM'nin yıl sonu yayınladığı
+// resmi istatistik raporundan) GERÇEK net→sıralama referans tablosunu
+// buraya girmesini sağlıyoruz; karne bu tabloya göre ARA DEĞER (interpolasyon)
+// ile "tahmini sıralama" gösterir — açıkça "kurum kaynaklı tahmin" etiketiyle.
+model OsymReferenceTable {
+  id            String              @id @default(cuid())
+  institutionId String
+  institution   Institution         @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  name          String // "2025 TYT", "2025 AYT Sayısal" gibi
+  // Bu tablo hangi puan türüne karşılık geliyor — "TYT" ya da alan adı
+  // (bkz. track-mapping.ts > TRACK_NAMES: "Sayısal"/"Eşit Ağırlık"/"Sözel").
+  puanTuru      String
+  rows          OsymReferenceRow[]
+  createdAt     DateTime            @default(now())
+
+  @@unique([institutionId, name])
+  @@index([institutionId])
+}
+
+model OsymReferenceRow {
+  id      String             @id @default(cuid())
+  tableId String
+  table   OsymReferenceTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  net     Float
+  ranking Int
+
+  @@index([tableId, net])
+}
+
 // Bu sınavda hangi derslerin ele alınacağının AÇIK listesi (2026-09-05
 // Ölçme Değerlendirme sadeleştirmesi). Önceden "ders" kavramı SADECE
 // ExamNetResult/ExamQuestion'da veri varsa var sayılıyordu — bu da
@@ -526,6 +561,14 @@ model ExamNetResult {
   // optik/cevap kâğıdıyla BİREBİR aynı numaralandırma varsayılıyor.
   wrongQuestionNumbers Int[] @default([])
   blankQuestionNumbers Int[] @default([])
+  // Optik okumadan gelen HAM cevap dizisi (2026-09-06) — her karakter bir
+  // soru numarasının öğrencinin İŞARETLEDİĞİ şıkkı (A-E; boş/geçersizse
+  // orijinal karakter neyse o, örn. " " ya da "0"). Kullanıcı kararı:
+  // "yanlış şıkkı da alsın sistem, sonuçta sisteme girdi veriliyor" —
+  // optik dosyası zaten bunu taşıyor, sadece puanlamadan sonra ATILIYORDU.
+  // SADECE optik yüklemeden gelir; elle girilen (yanlış/boş soru NUMARASI)
+  // sonuçlarda null kalır — KONU ANALİZİ'nde ÖC sütunu o durumda boş kalır.
+  answerLetters        String?
   createdAt DateTime @default(now())
 
   @@unique([examId, studentId, subject])
@@ -1607,14 +1650,19 @@ model TopicMasteryAssessment {
 // DOKUNULMADI — "güncel skor" ihtiyacı için hâlâ en hızlı/basit kaynak o;
 // bu tablo SADECE trend grafikleri (bkz. mastery-history endpoint'i) için.
 model TopicMasteryHistory {
-  id           String     @id @default(cuid())
-  studentId    String
-  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject      String
-  subtopicId   String
-  masteryScore Int
-  source       XraySource
-  assessedAt   DateTime   @default(now())
+  id              String     @id @default(cuid())
+  studentId       String
+  student         Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject         String
+  subtopicId      String
+  masteryScore    Int
+  source          XraySource
+  // TopicMasteryAssessment'taki AYNI alan (bkz. o modelin üstündeki not) —
+  // source=PAPER_EXAM iken hangi Exam'dan geldiğini taşır ("etiketleme
+  // sistemi", 2026-09-06): Röntgen/Video Ders Merkezi ekranlarında "hangi
+  // denemeden geldi" rozetini bundan besleriz.
+  sourceSessionId String?
+  assessedAt      DateTime   @default(now())
 
   @@index([studentId, subtopicId, assessedAt])
 }

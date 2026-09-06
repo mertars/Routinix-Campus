@@ -9,7 +9,7 @@ import { OpticalFormatManager } from "./optical-format-manager";
 import { StudentPickerModal } from "./student-picker-modal";
 import type { ExamOverview } from "./types";
 
-type PreviewSubjectResult = { subject: string; net: number; correctCount: number; wrongQuestionNumbers: number[]; blankQuestionNumbers: number[] };
+type PreviewSubjectResult = { subject: string; net: number; correctCount: number; wrongQuestionNumbers: number[]; blankQuestionNumbers: number[]; answerLetters: string };
 type PreviewRow = {
   lineNumber: number;
   name: string | null;

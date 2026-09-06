@@ -46,6 +46,10 @@ export type NetResultRow = {
   // sadece ders bazlı net kaydedilir, mevcut davranış AYNEN korunur.
   wrongQuestionNumbers?: number[];
   blankQuestionNumbers?: number[];
+  // Optik okumadan gelen ham işaretli-şık dizisi (2026-09-06) — bkz. şema
+  // notundaki gerekçe: "sisteme zaten girdi veriliyor, atmayalım". SADECE
+  // optik yüklemeden gelir; elle girişte (manual-grid) verilmez.
+  answerLetters?: string;
 };
 export type NetResultRowOutcome = { studentId: string; subject: string; status: "success" | "failed"; error?: string };
 
@@ -88,11 +92,12 @@ export async function bulkUpsertExamNetResults(input: {
     }
     const wrongQuestionNumbers = row.wrongQuestionNumbers ?? [];
     const blankQuestionNumbers = row.blankQuestionNumbers ?? [];
+    const answerLetters = row.answerLetters ?? null;
     writes.push(
       prisma.examNetResult.upsert({
         where: { examId_studentId_subject: { examId: input.examId, studentId: row.studentId, subject } },
-        update: { net: row.net, wrongQuestionNumbers, blankQuestionNumbers },
-        create: { examId: input.examId, studentId: row.studentId, subject, net: row.net, wrongQuestionNumbers, blankQuestionNumbers },
+        update: { net: row.net, wrongQuestionNumbers, blankQuestionNumbers, ...(answerLetters !== null ? { answerLetters } : {}) },
+        create: { examId: input.examId, studentId: row.studentId, subject, net: row.net, wrongQuestionNumbers, blankQuestionNumbers, answerLetters },
       })
     );
     results.push({ studentId: row.studentId, subject, status: "success" });

@@ -123,17 +123,27 @@ export async function syncExamResultToRoentgen(examId: string, studentId: string
   const withSubtopic = breakdown.filter((row): row is SubtopicBreakdownRow & { subtopicId: string } => row.subtopicId !== null);
   if (withSubtopic.length === 0) return;
 
+  // sourceSessionId = examId ("etiketleme sistemi", 2026-09-06) — Röntgen
+  // ve Video Ders Merkezi ekranlarında "hangi denemeden geldi" rozetini
+  // bundan besliyoruz (bkz. o alanın Assessment/History şemasındaki not).
   await Promise.all(
     withSubtopic.map((row) =>
       prisma.topicMasteryAssessment.upsert({
         where: { studentId_subtopicId: { studentId, subtopicId: row.subtopicId } },
-        create: { studentId, subject, subtopicId: row.subtopicId, masteryScore: row.percent, source: "PAPER_EXAM" },
-        update: { subject, masteryScore: row.percent, source: "PAPER_EXAM", sourceSessionId: null, assessedAt: new Date() },
+        create: { studentId, subject, subtopicId: row.subtopicId, masteryScore: row.percent, source: "PAPER_EXAM", sourceSessionId: examId },
+        update: { subject, masteryScore: row.percent, source: "PAPER_EXAM", sourceSessionId: examId, assessedAt: new Date() },
       })
     )
   );
   await prisma.topicMasteryHistory.createMany({
-    data: withSubtopic.map((row) => ({ studentId, subject, subtopicId: row.subtopicId, masteryScore: row.percent, source: "PAPER_EXAM" as const })),
+    data: withSubtopic.map((row) => ({
+      studentId,
+      subject,
+      subtopicId: row.subtopicId,
+      masteryScore: row.percent,
+      source: "PAPER_EXAM" as const,
+      sourceSessionId: examId,
+    })),
   });
 
   // Diğer TÜM yazma noktalarıyla (comprehension-assignment/complete) AYNI

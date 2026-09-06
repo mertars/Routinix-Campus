@@ -4,7 +4,10 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { computeExamResults } from "@/lib/server/exams/exam-results";
+import { computeExamSubtopicBreakdown } from "@/lib/server/exams/subtopic-breakdown";
+import { estimateRanking } from "@/lib/server/exams/osym-reference";
 import { PdfExamKarne, type KarneSubjectRow, type KarneKonuRow } from "@/components/pdf/pdf-exam-karne";
 
 export const dynamic = "force-dynamic";
@@ -12,10 +15,7 @@ export const dynamic = "force-dynamic";
 const TREND_WINDOW = 6;
 
 // GET /api/exams/[id]/karne/[studentId] — bir öğrencinin TEK bir deneme
-// için karne PDF'i. Öğrenci/veli KENDİ karnesini görebilir (bkz. altta
-// requireInstitution+ownership benzeri kontrol — bu uç principal/teacher
-// İÇİN, ayrıca bkz. .../my-karne öğrenci-tarafı erişimi gerekirse ileride
-// eklenir); şu an yönetim tarafındaki "PDF" ikonundan üretilip WhatsApp/
+// için karne PDF'i. Yönetim tarafındaki "PDF" ikonundan üretilip WhatsApp/
 // panel paylaşımına konu olur.
 async function handleGet(_request: NextRequest, { params }: { params: { id: string; studentId: string } }) {
   try {
@@ -31,14 +31,40 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
     const me = results.students.find((s) => s.studentId === params.studentId);
     if (!me) return NextResponse.json({ error: "Bu öğrencinin bu denemede sonucu yok." }, { status: 404 });
 
-    const [institution, questions] = await Promise.all([
+    const [institution, questions, netResultsBySubject] = await Promise.all([
       prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true, logoUrl: true } }),
       prisma.examQuestion.findMany({
         where: { examId: params.id, subject: { in: results.subjects } },
         select: { subject: true, questionNumber: true, subtopicLabel: true, correctAnswer: true },
         orderBy: [{ subject: "asc" }, { questionNumber: "asc" }],
       }),
+      prisma.examNetResult.findMany({
+        where: { examId: params.id, studentId: params.studentId },
+        select: { subject: true, wrongQuestionNumbers: true, blankQuestionNumbers: true, answerLetters: true },
+      }),
     ]);
+
+    // Alt-ders kırılımı (2026-09-06, kullanıcı kararı: "sosyal ve fende
+    // var zaten") — CURRICULUM_TREE'de OLMAYAN dersler (Sosyal Bilimler,
+    // Fen Bilimleri gibi) için kazanım/konu etiketi genelde ZATEN geniş bir
+    // alt-ders adı (Tarih/Coğrafya/Fizik/Kimya…) oluyor, çünkü o derste
+    // seçilecek bir CURRICULUM_TREE dropdown'ı yok — admin doğrudan bunu
+    // yazıyor. computeExamSubtopicBreakdown BUNU zaten label bazında
+    // gruplanmış olarak veriyor; CURRICULUM_TREE'si olan (Matematik, Fizik,
+    // Türkçe) derslerde bu ÇOK GRANÜLER olurdu (onlarca kazanım) — o
+    // yüzden SADECE Röntgen köprüsü olmayan derslerde alt-ders satırı
+    // gösteriyoruz, granüler kazanım kırılımı yine KONU ANALİZİ'nde kalıyor.
+    const subDersBySubject = new Map<string, { label: string; correct: number; wrong: number; blank: number; net: number }[]>();
+    for (const subject of results.subjects) {
+      if (subject in CURRICULUM_TREE) continue;
+      const breakdown = await computeExamSubtopicBreakdown(params.id, params.studentId, subject);
+      const real = breakdown.filter((b) => b.subtopicLabel && b.subtopicLabel !== "Kazanım atanmadı");
+      if (real.length <= 1) continue; // tek grup varsa "alt-ders" göstermenin anlamı yok
+      subDersBySubject.set(
+        subject,
+        real.map((b) => ({ label: b.subtopicLabel, correct: b.correct, wrong: b.wrong, blank: b.blank, net: Math.round((b.correct - b.wrong / 4) * 100) / 100 }))
+      );
+    }
 
     const subjectStatMap = new Map(results.subjectStats.map((s) => [s.subject, s.averageNet]));
     const subjectRows: KarneSubjectRow[] = results.subjects.map((subject) => {
@@ -50,6 +76,7 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
         blank: score?.blank ?? 0,
         net: score?.net ?? 0,
         classAverage: subjectStatMap.get(subject) ?? null,
+        subRows: subDersBySubject.get(subject) ?? [],
       };
     });
 
@@ -78,24 +105,38 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
       .filter((e) => netByExam.has(e.id))
       .map((e) => ({ label: e.name, net: Math.round((netByExam.get(e.id) ?? 0) * 100) / 100 }));
 
-    // Konu analizi — SADECE gerçekten kazanım atanmış sorular (varsayılan
-    // "Kazanım atanmadı" etiketiyle bir sayfa doldurmak faydasız olurdu).
-    // Doğru/yanlış/boş, o dersin wrongQuestionNumbers/blankQuestionNumbers
-    // dizilerinden (ExamNetResult) türetilir — ÖC (öğrencinin işaretlediği
-    // yanlış şık) hiçbir yerde saklanmadığı için burada da YOK, bkz.
-    // pdf-exam-karne.tsx'teki dürüstlük notu.
-    const netResultsBySubject = await prisma.examNetResult.findMany({
-      where: { examId: params.id, studentId: params.studentId },
-      select: { subject: true, wrongQuestionNumbers: true, blankQuestionNumbers: true },
-    });
+    // Konu analizi — SADECE gerçekten kazanım atanmış sorular. ÖC (öğrencinin
+    // işaretlediği şık) artık GERÇEK: answerLetters optik okumadan geliyorsa
+    // (bkz. ExamNetResult.answerLetters, 2026-09-06) o pozisyondaki harf
+    // okunur; yoksa (elle giriş) "—" — var olmayanı uydurmuyoruz.
     const wrongMap = new Map(netResultsBySubject.map((r) => [r.subject, new Set(r.wrongQuestionNumbers)]));
     const blankMap = new Map(netResultsBySubject.map((r) => [r.subject, new Set(r.blankQuestionNumbers)]));
+    const answersMap = new Map(netResultsBySubject.map((r) => [r.subject, r.answerLetters]));
     const finalKonuRows: KarneKonuRow[] = questions
       .filter((q) => q.subtopicLabel && q.subtopicLabel !== "Kazanım atanmadı")
       .map((q) => {
-        const isCorrect = blankMap.get(q.subject)?.has(q.questionNumber) ? null : !wrongMap.get(q.subject)?.has(q.questionNumber);
-        return { subject: q.subject, questionNumber: q.questionNumber, konu: q.subtopicLabel, correctAnswer: q.correctAnswer, isCorrect };
+        const isBlank = blankMap.get(q.subject)?.has(q.questionNumber) ?? false;
+        const isCorrect = isBlank ? null : !wrongMap.get(q.subject)?.has(q.questionNumber);
+        const raw = answersMap.get(q.subject);
+        const studentAnswer = !isBlank && raw ? raw[q.questionNumber - 1]?.toUpperCase() ?? null : null;
+        return {
+          subject: q.subject,
+          questionNumber: q.questionNumber,
+          konu: q.subtopicLabel,
+          correctAnswer: q.correctAnswer,
+          studentAnswer: studentAnswer && /^[A-E]$/.test(studentAnswer) ? studentAnswer : null,
+          isCorrect,
+        };
       });
+
+    // ÖSYM tahmini sıralama — kurumun KENDİ girdiği referans tabloya göre
+    // (bkz. lib/server/exams/osym-reference.ts'teki dürüstlük notu). Alan
+    // (track) varsa o alanın adı, yoksa denemenin klasör adı (örn. "TYT")
+    // puanTuru olarak denenir.
+    const category2 = results.exam.categoryId ? await prisma.examCategory.findUnique({ where: { id: results.exam.categoryId }, select: { name: true } }) : null;
+    const puanTuru = me.trackResult?.track ?? category2?.name ?? null;
+    const netForOsym = me.trackResult?.net ?? me.totalNet;
+    const osymEstimate = puanTuru ? await estimateRanking(session.institutionId, puanTuru, netForOsym) : null;
 
     const pdfBuffer = await renderToBuffer(
       <PdfExamKarne
@@ -113,6 +154,7 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
         branchStudentCount={branchStudentCount}
         branchRank={me.branchRank}
         trackResult={me.trackResult ? { ...me.trackResult, studentCount: trackStudentCount } : null}
+        osymEstimate={osymEstimate}
         trend={trend}
         konuRows={finalKonuRows}
       />

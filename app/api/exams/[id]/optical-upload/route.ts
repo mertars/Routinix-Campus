@@ -14,6 +14,9 @@ export type OpticalPreviewSubjectResult = {
   correctCount: number;
   wrongQuestionNumbers: number[];
   blankQuestionNumbers: number[];
+  // Ham işaretli-şık dizisi (2026-09-06) — optik dosyası zaten taşıyor,
+  // puanlamadan sonra atmak yerine saklıyoruz (bkz. ExamNetResult.answerLetters).
+  answerLetters: string;
 };
 
 export type OpticalPreviewRow = {
@@ -98,8 +101,9 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     const preview: OpticalPreviewRow[] = parsedRows.map((row) => {
       const match = matchOpticalRow(row, roster);
       const subjects: OpticalPreviewSubjectResult[] = subjectsToScore.map((block) => {
-        const score = scoreOpticalAnswers(row.answersBySubject[block.subject] ?? "", questionsBySubject.get(block.subject) ?? []);
-        return { subject: block.subject, ...score };
+        const raw = row.answersBySubject[block.subject] ?? "";
+        const score = scoreOpticalAnswers(raw, questionsBySubject.get(block.subject) ?? []);
+        return { subject: block.subject, ...score, answerLetters: raw };
       });
       return {
         lineNumber: row.lineNumber,

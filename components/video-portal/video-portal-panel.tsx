@@ -18,6 +18,7 @@ import {
   History,
   CheckCircle2,
   Pencil,
+  ClipboardList,
 } from "lucide-react";
 import { VIDEO_SUBJECTS, subjectTone } from "@/lib/video-subjects";
 import { youtubeThumbnailUrl } from "@/lib/client/youtube";
@@ -71,6 +72,7 @@ type RecommendationPair = {
   videoTitle: string;
   videoSubject: string;
   videoTopic: string;
+  sourceExamName: string | null;
 };
 
 // Video Ders Merkezi — YouTube tabanlı sürüm (bkz. prisma/schema.prisma >
@@ -550,6 +552,11 @@ function RecommendationsMenu({ pairs, onAssign }: { pairs: RecommendationPair[] 
                       <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", subjectTone(pair.videoSubject).dot)} />
                       {pair.videoTitle}
                     </p>
+                    {pair.sourceExamName && (
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-[9.5px] font-medium text-emerald-700 dark:text-emerald-400">
+                        <ClipboardList className="h-2.5 w-2.5 shrink-0" /> {pair.sourceExamName} denemesinden
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => handleAssign(pair)}

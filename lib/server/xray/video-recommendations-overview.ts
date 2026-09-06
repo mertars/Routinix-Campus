@@ -22,6 +22,10 @@ export type VideoRecommendationPair = {
   videoTitle: string;
   videoSubject: string;
   videoTopic: string;
+  // "Etiketleme sistemi" (2026-09-06, kullanıcı talebi): bu öneri GERÇEK
+  // bir kağıt denemeden mi geldi, geldiyse hangi denemeden — bkz.
+  // TopicMasteryAssessment.source/sourceSessionId, syncExamResultToRoentgen.
+  sourceExamName: string | null;
 };
 
 export async function getVideoRecommendationPairs(institutionId: string, limit = 20): Promise<VideoRecommendationPair[]> {
@@ -49,7 +53,7 @@ export async function getVideoRecommendationPairs(institutionId: string, limit =
   const [redZoneRows, institutionStudents, assignments] = await Promise.all([
     prisma.topicMasteryAssessment.findMany({
       where: { subject: { in: [...XRAY_VIDEO_SUBJECTS] }, subtopicId: { in: [...videosBySubtopic.keys()] }, masteryScore: { lt: RED_ZONE_THRESHOLD } },
-      select: { studentId: true, subtopicId: true, masteryScore: true },
+      select: { studentId: true, subtopicId: true, masteryScore: true, source: true, sourceSessionId: true },
     }),
     prisma.student.findMany({ where: { institutionId, isActive: true }, select: { id: true, firstName: true, lastName: true, branch: { select: { name: true, grade: true } } } }),
     prisma.videoAssignment.findMany({ where: { videoId: { in: videos.map((v) => v.id) } }, select: { videoId: true, studentId: true } }),
@@ -57,6 +61,13 @@ export async function getVideoRecommendationPairs(institutionId: string, limit =
 
   const studentById = new Map(institutionStudents.map((s) => [s.id, s]));
   const assignedPairKey = new Set(assignments.map((a) => `${a.studentId}:${a.videoId}`));
+
+  // source=PAPER_EXAM olan satırların sourceSessionId'si bir Exam.id'dir
+  // (bkz. syncExamResultToRoentgen) — isimlerini TEK sorguda çözüyoruz.
+  const examIds = [...new Set(redZoneRows.filter((r) => r.source === "PAPER_EXAM" && r.sourceSessionId).map((r) => r.sourceSessionId as string))];
+  const examNameById = new Map(
+    examIds.length > 0 ? (await prisma.exam.findMany({ where: { id: { in: examIds } }, select: { id: true, name: true } })).map((e) => [e.id, e.name]) : []
+  );
 
   type Candidate = VideoRecommendationPair;
   const bestByStudent = new Map<string, Candidate>();
@@ -82,6 +93,7 @@ export async function getVideoRecommendationPairs(institutionId: string, limit =
       videoTitle: video.videoTitle,
       videoSubject: video.videoSubject,
       videoTopic: video.videoTopic,
+      sourceExamName: row.source === "PAPER_EXAM" && row.sourceSessionId ? (examNameById.get(row.sourceSessionId) ?? null) : null,
     });
   }
 
