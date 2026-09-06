@@ -9,7 +9,7 @@ import { computeExamResults } from "@/lib/server/exams/exam-results";
 import { computeExamSubtopicBreakdown } from "@/lib/server/exams/subtopic-breakdown";
 import { estimateRanking } from "@/lib/server/exams/osym-reference";
 import { TRACK_SUBJECTS } from "@/lib/server/exams/track-mapping";
-import { PdfExamRanking, type RankingColumnGroup, type RankingStudentRow } from "@/components/pdf/pdf-exam-ranking";
+import { PdfExamRanking, type RankingParentGroup, type RankingCell, type RankingStudentRow } from "@/components/pdf/pdf-exam-ranking";
 
 export const dynamic = "force-dynamic";
 
@@ -55,18 +55,22 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
     }
     const subDersSubjects = scopedSubjects.filter((s) => !(s in CURRICULUM_TREE) && (labelsBySubject.get(s)?.size ?? 0) > 1);
 
-    // Kolon grupları — fiziksel sırayla: alt-dersi olan dersler kendi alt
-    // grup adlarını (Tarih/Coğrafya/…), diğerleri kendi ders adını taşır.
-    const columnGroups: RankingColumnGroup[] = [];
+    // Kolon grupları — kullanıcı kararı: "sosyal ve feni başlıklarına
+    // ayır, üstte fen yazsın altında fizik kimya biyoloji yazsın" — ÜÇ
+    // katmanlı başlık: DERS ADI (Fen Bilimleri) tüm alt-derslerinin
+    // genişliğine yayılır, altında ALT-DERS ADLARI (Fizik/Kimya/Biyoloji),
+    // en altta her biri için D/Y/B/N (bkz. pdf-exam-ranking.tsx). Standalone
+    // bir ders için subColumns=[""] — orta satır boş kalır, ders adı zaten
+    // üst satırda.
+    const groups: RankingParentGroup[] = [];
     const columnKeys: { subject: string; label: string }[] = []; // subject + (alt-ders varsa) label
     for (const subject of scopedSubjects) {
       if (subDersSubjects.includes(subject)) {
-        for (const label of labelsBySubject.get(subject) ?? []) {
-          columnGroups.push({ label });
-          columnKeys.push({ subject, label });
-        }
+        const labels = [...(labelsBySubject.get(subject) ?? [])];
+        groups.push({ subject, subColumns: labels });
+        for (const label of labels) columnKeys.push({ subject, label });
       } else {
-        columnGroups.push({ label: subject });
+        groups.push({ subject, subColumns: [""] });
         columnKeys.push({ subject, label: "" });
       }
     }
@@ -94,15 +98,15 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
 
     const rows: RankingStudentRow[] = [];
     for (const student of relevantStudents) {
-      const cells = columnKeys.map(({ subject, label }) => {
+      const cells: RankingCell[] = columnKeys.map(({ subject, label }) => {
         if (label) {
           const breakdown = breakdownByStudentSubject.get(`${student.studentId}|${subject}`) ?? [];
           const row = breakdown.find((b) => b.subtopicLabel === label);
           if (!row) return null;
-          return { correct: row.correct, wrong: row.wrong, net: Math.round((row.correct - row.wrong / 4) * 100) / 100 };
+          return { correct: row.correct, wrong: row.wrong, blank: row.blank, net: Math.round((row.correct - row.wrong / 4) * 100) / 100 };
         }
         const cell = student.subjects.find((x) => x?.subject === subject);
-        return cell ? { correct: cell.correct, wrong: cell.wrong, net: cell.net } : null;
+        return cell ? { correct: cell.correct, wrong: cell.wrong, blank: cell.blank, net: cell.net } : null;
       });
 
       const totalCorrect = student.subjects.reduce((sum, c) => sum + (c?.correct ?? 0), 0);
@@ -139,7 +143,7 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
         examName={results.exam.name}
         examDate={new Date(results.exam.examDate).toLocaleDateString("tr-TR")}
         listTitle={listTitle}
-        columnGroups={columnGroups}
+        groups={groups}
         rows={rows}
         hasEstimate={hasEstimate}
       />
