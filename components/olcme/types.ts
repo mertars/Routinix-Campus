@@ -59,10 +59,12 @@ export type ResultStudent = {
   lastName: string;
   studentNumber: string;
   branchName: string;
+  grade: number;
   track: string | null;
   totalNet: number;
   rank: number;
   branchRank: number;
+  gradeRank: number;
   subjects: (SubjectScore | null)[];
   trackResult: TrackResult;
 };

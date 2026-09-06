@@ -9,11 +9,13 @@ export type ExamResultStudent = {
   lastName: string;
   studentNumber: string;
   branchName: string;
+  grade: number;
   track: string | null;
   totalNet: number;
   subjects: SubjectScore[];
   rank: number;
   branchRank: number;
+  gradeRank: number;
   trackResult: { track: string; net: number; rank: number | null } | null;
 };
 
@@ -55,7 +57,7 @@ export async function computeExamResults(examId: string): Promise<ExamResultsDat
         wrongQuestionNumbers: true,
         blankQuestionNumbers: true,
         student: {
-          select: { id: true, firstName: true, lastName: true, studentNumber: true, track: true, branch: { select: { name: true, track: true } } },
+          select: { id: true, firstName: true, lastName: true, studentNumber: true, track: true, branch: { select: { name: true, track: true, grade: true } } },
         },
       },
     }),
@@ -79,6 +81,7 @@ export async function computeExamResults(examId: string): Promise<ExamResultsDat
     lastName: string;
     studentNumber: string;
     branchName: string;
+    grade: number;
     track: string | null;
     scores: Map<string, SubjectScore>;
     totalNet: number;
@@ -94,6 +97,7 @@ export async function computeExamResults(examId: string): Promise<ExamResultsDat
         lastName: r.student.lastName,
         studentNumber: r.student.studentNumber,
         branchName: r.student.branch.name,
+        grade: r.student.branch.grade,
         track: effectiveTrack(r.student.track, r.student.branch.track),
         scores: new Map<string, SubjectScore>(),
         totalNet: 0,
@@ -113,6 +117,7 @@ export async function computeExamResults(examId: string): Promise<ExamResultsDat
       lastName: s.lastName,
       studentNumber: s.studentNumber,
       branchName: s.branchName,
+      grade: s.grade,
       track: s.track,
       totalNet: round(s.totalNet),
       subjects: subjects.map((subject) => s.scores.get(subject) ?? null),
@@ -122,8 +127,9 @@ export async function computeExamResults(examId: string): Promise<ExamResultsDat
   const genelTotals = students.map((s) => s.totalNet);
   const withRank = students.map((s) => ({ ...s, rank: competitionRank(genelTotals, s.totalNet) }));
   const withBranchRank = withRank.map((s) => {
-    const peerTotals = withRank.filter((o) => o.branchName === s.branchName).map((o) => o.totalNet);
-    return { ...s, branchRank: competitionRank(peerTotals, s.totalNet) };
+    const branchPeerTotals = withRank.filter((o) => o.branchName === s.branchName).map((o) => o.totalNet);
+    const gradePeerTotals = withRank.filter((o) => o.grade === s.grade).map((o) => o.totalNet);
+    return { ...s, branchRank: competitionRank(branchPeerTotals, s.totalNet), gradeRank: competitionRank(gradePeerTotals, s.totalNet) };
   });
 
   const totalNets = withBranchRank.map((s) => s.totalNet);
