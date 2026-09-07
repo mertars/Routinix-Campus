@@ -22,6 +22,7 @@ async function handleGet(request: NextRequest) {
         installment: { select: { title: true } },
         account: { select: { name: true } },
         recordedByAdmin: { select: { firstName: true, lastName: true } },
+        voidedByAdmin: { select: { firstName: true, lastName: true } },
       },
       orderBy: { paidAt: "desc" },
       take: 100,
@@ -39,6 +40,9 @@ async function handleGet(request: NextRequest) {
         collectedBy: `${p.recordedByAdmin.firstName} ${p.recordedByAdmin.lastName}`,
         paidAt: p.paidAt.toISOString(),
         note: p.note,
+        voidedAt: p.voidedAt?.toISOString() ?? null,
+        voidReason: p.voidReason,
+        voidedBy: p.voidedByAdmin ? `${p.voidedByAdmin.firstName} ${p.voidedByAdmin.lastName}` : null,
       })),
     });
   } catch (error) {

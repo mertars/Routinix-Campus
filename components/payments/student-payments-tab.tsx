@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown } from "lucide-react";
+import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown, Ban } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { InstallmentPlanModal } from "@/components/payments/installment-plan-modal";
@@ -14,11 +14,15 @@ type PaymentHistoryRow = {
   id: string;
   amount: number;
   method: string;
+  status: string;
   receiptNo: number | null;
   title: string;
   accountName: string;
   collectedBy: string;
   paidAt: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  voidedBy: string | null;
 };
 
 type InstallmentRow = {
@@ -46,7 +50,7 @@ const STATUS_META: Record<InstallmentRow["status"], { label: string; className: 
 };
 
 export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountRow[]; onChanged: () => void }) {
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [roster, setRoster] = useState<RosterStudent[] | null>(null);
   const [query, setQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<RosterStudent | null>(null);
@@ -80,6 +84,28 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
     setInstallments(null);
     setHistory(null);
     loadInstallments(s.id);
+  }
+
+  async function voidPayment(p: PaymentHistoryRow) {
+    const reason = window.prompt(
+      `${formatTRY(p.amount)} tutarındaki tahsilat iptal edilecek.\n\nKayıt silinmez; bakiye ve raporlardan düşer, denetim izi kalır.\n\nİptal gerekçesi:`
+    );
+    if (!reason?.trim()) return;
+    try {
+      const res = await fetch(`/api/payments/principal/payments/${p.id}/void`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        throw new Error(d?.error);
+      }
+      showSuccess("Tahsilat iptal edildi. Taksit durumu güncellendi.");
+      refresh();
+    } catch (e) {
+      showError(e instanceof Error && e.message ? e.message : "Tahsilat iptal edilemedi.");
+    }
   }
 
   function refresh() {
@@ -235,27 +261,55 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
             <Receipt className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Ödeme Geçmişi
           </h4>
           <div className="space-y-1.5">
-            {history.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl border border-hairline px-3 py-2 dark:border-white/5">
+            {history.map((p) => {
+              const isVoided = p.status === "VOIDED";
+              return (
+              <div
+                key={p.id}
+                className={cn(
+                  "flex items-center justify-between gap-2 rounded-xl border px-3 py-2",
+                  isVoided ? "border-rose-400/25 bg-rose-500/5" : "border-hairline dark:border-white/5"
+                )}
+              >
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-espresso dark:text-cream">
+                  <p className={cn("truncate text-xs font-medium text-espresso dark:text-cream", isVoided && "line-through opacity-60")}>
                     {formatTRY(p.amount)} · {METHOD_LABEL[p.method] ?? p.method}
                   </p>
                   <p className="truncate text-[10px] text-espresso-muted dark:text-cream/40">
                     {new Date(p.paidAt).toLocaleDateString("tr-TR")} · {p.title} · {p.collectedBy}
                     {p.receiptNo ? ` · Makbuz ${p.receiptNo}` : ""}
                   </p>
+                  {isVoided && (
+                    <p className="truncate text-[10px] font-medium text-rose-700 dark:text-rose-300">
+                      İptal edildi{p.voidedBy ? ` · ${p.voidedBy}` : ""}
+                      {p.voidReason ? ` · ${p.voidReason}` : ""}
+                    </p>
+                  )}
                 </div>
-                <a
-                  href={`/api/payments/principal/payments/${p.id}/receipt`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex shrink-0 items-center gap-1 rounded-full border border-hairline px-2.5 py-1 text-[11px] font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
-                >
-                  <FileDown className="h-3 w-3" /> Makbuz
-                </a>
+                {isVoided ? (
+                  <span className="shrink-0 rounded-full bg-rose-500/10 px-2.5 py-1 text-[10px] font-semibold text-rose-700 dark:text-rose-300">İptal</span>
+                ) : (
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <a
+                      href={`/api/payments/principal/payments/${p.id}/receipt`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 rounded-full border border-hairline px-2.5 py-1 text-[11px] font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                    >
+                      <FileDown className="h-3 w-3" /> Makbuz
+                    </a>
+                    <button
+                      onClick={() => voidPayment(p)}
+                      title="Hatalı kaydı iptal et"
+                      className="flex items-center gap-1 rounded-full border border-rose-400/25 px-2.5 py-1 text-[11px] font-semibold text-rose-600 transition hover:bg-rose-500/10 dark:border-rose-400/20 dark:text-rose-400"
+                    >
+                      <Ban className="h-3 w-3" /> İptal
+                    </button>
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

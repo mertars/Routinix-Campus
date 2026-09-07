@@ -432,6 +432,7 @@ model Admin {
   staffAdvances                StaffAdvance[]                @relation("AdminStaffAdvance")
   recordedTransfers            AccountTransfer[]             @relation("TransferRecordedBy")
   approvedDiscounts            StudentDiscount[]             @relation("DiscountApprovedBy")
+  voidedPayments               Payment[]                     @relation("PaymentVoidedBy")
 
   @@index([institutionId])
 }
@@ -2312,7 +2313,13 @@ enum PaymentStatus {
   COMPLETED // manuel kayıtlar hep bununla başlar
   PENDING // ileride: gateway'den dönüş bekleniyor
   FAILED
-  REFUNDED
+  REFUNDED // para GERÇEKTEN geri verildi (kayıt iptali vb.)
+  // Hatalı kayıt: para hiç alınmamıştı ya da yanlış girildi. REFUNDED'dan
+  // FARKLIDIR — ortada geri verilecek para yoktur, kayıt baştan yanlıştır.
+  // Tahsilat SİLİNMEZ: tüm hesaplama sorguları status="COMPLETED"
+  // filtrelediği için iptal edilen kayıt bakiye/rapor/yaşlandırma/
+  // hatırlatmalardan kendiliğinden düşer, ama denetim izi korunur.
+  VOIDED
 }
 
 enum PaymentSource {
@@ -2719,6 +2726,11 @@ model Payment {
   // davranıştır: numarası olmayan yüzlerce eski kayıt sorun çıkarmaz,
   // ama aynı numara aynı kurumda İKİ KEZ kullanılamaz.
   receiptNo         Int?
+  // İptal denetim izi — kim, ne zaman, neden iptal etti.
+  voidedAt          DateTime?
+  voidReason        String?
+  voidedByAdminId   String?
+  voidedByAdmin     Admin?         @relation("PaymentVoidedBy", fields: [voidedByAdminId], references: [id], onDelete: SetNull)
   gatewayProvider   String? // Faz 2: "iyzico" | "paytr" — şimdilik hep null
   gatewayReference  String? // Faz 2: gateway işlem id'si — şimdilik hep null
   paidAt            DateTime       @default(now())
