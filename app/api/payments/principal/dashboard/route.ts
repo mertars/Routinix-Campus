@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { computeAccountBalances } from "@/lib/server/payments/account-balance";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,8 @@ async function handleGet() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [accounts, accountBalances, monthPayments, openInstallments, recentPayments, plannedTotal, collectedTotal, paidExpenseByAccount, monthExpense, expenseByCategory, pendingExpenses] = await Promise.all([
-      prisma.paymentAccount.findMany({ where: { institutionId, isActive: true } }),
-      prisma.payment.groupBy({ by: ["accountId"], where: { institutionId, status: "COMPLETED" }, _sum: { amount: true } }),
+    const [accountRows, monthPayments, openInstallments, recentPayments, plannedTotal, collectedTotal, monthExpense, expenseByCategory, pendingExpenses] = await Promise.all([
+      computeAccountBalances(institutionId),
       prisma.payment.aggregate({ where: { institutionId, status: "COMPLETED", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
       prisma.installment.findMany({
         where: { institutionId, status: { in: ["PENDING", "PARTIALLY_PAID"] } },
@@ -37,8 +37,6 @@ async function handleGet() {
       // tahsil edilen toplam (iptal edilen taksitler plana dahil DEĞİL).
       prisma.installment.aggregate({ where: { institutionId, status: { not: "CANCELLED" } }, _sum: { amount: true } }),
       prisma.payment.aggregate({ where: { institutionId, status: "COMPLETED" }, _sum: { amount: true } }),
-      // Gider tarafı (Faz 2) — bakiye gelir − ÖDENMİŞ gider (bkz. accounts route).
-      prisma.expense.groupBy({ by: ["accountId"], where: { institutionId, status: "PAID", accountId: { not: null } }, _sum: { amount: true } }),
       prisma.expense.aggregate({ where: { institutionId, status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
       prisma.expense.groupBy({ by: ["categoryId"], where: { institutionId, status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
       prisma.expense.findMany({
@@ -49,14 +47,6 @@ async function handleGet() {
       }),
     ]);
 
-    const balanceByAccount = new Map(accountBalances.map((b) => [b.accountId, Number(b._sum.amount ?? 0)]));
-    const expenseByAccount = new Map(paidExpenseByAccount.map((b) => [b.accountId as string, Number(b._sum.amount ?? 0)]));
-    const accountRows = accounts.map((a) => ({
-      id: a.id,
-      name: a.name,
-      type: a.type,
-      balance: (balanceByAccount.get(a.id) ?? 0) - (expenseByAccount.get(a.id) ?? 0),
-    }));
     const totalBalance = accountRows.reduce((sum, a) => sum + a.balance, 0);
 
     const categoryNameById = new Map((await prisma.expenseCategory.findMany({ where: { institutionId }, select: { id: true, name: true } })).map((c) => [c.id, c.name]));

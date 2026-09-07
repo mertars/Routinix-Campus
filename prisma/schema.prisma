@@ -142,6 +142,8 @@ model Institution {
   payrollPeriods              PayrollPeriod[]
   staffAdvances               StaffAdvance[]
   products                    Product[]
+  accountTransfers            AccountTransfer[]
+  budgetLines                 BudgetLine[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -426,6 +428,7 @@ model Admin {
   salaryProfile                StaffSalaryProfile?           @relation("AdminSalaryProfile")
   payrollItems                 PayrollItem[]                 @relation("AdminPayrollItem")
   staffAdvances                StaffAdvance[]                @relation("AdminStaffAdvance")
+  recordedTransfers            AccountTransfer[]             @relation("TransferRecordedBy")
 
   @@index([institutionId])
 }
@@ -2256,6 +2259,8 @@ model PaymentAccount {
   isActive      Boolean            @default(true)
   payments      Payment[]
   expenses      Expense[]
+  transfersOut  AccountTransfer[]  @relation("TransferFrom")
+  transfersIn   AccountTransfer[]  @relation("TransferTo")
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
@@ -2310,6 +2315,59 @@ enum PaymentStatus {
 enum PaymentSource {
   MANUAL
   ONLINE // ileride gerçek gateway entegrasyonu
+}
+
+// ----------------------------------------------------------------------------
+// Bütçe & Virman (Ödeme Takip Faz 6)
+// ----------------------------------------------------------------------------
+//
+// VİRMAN: şimdiye kadar para yalnızca SİSTEME GİREBİLİYOR (Payment) veya
+// SİSTEMDEN ÇIKABİLİYORDU (Expense) — oysa kurum sürekli kasadan bankaya
+// para yatırır. Bu hareket ne gelir ne giderdir; toplam bakiyeyi
+// DEĞİŞTİRMEZ, sadece hesaplar arasında yer değiştirir. Bu yüzden ayrı bir
+// model: gider olarak kaydedilseydi kâr/zarar tablosu yanlış olurdu.
+model AccountTransfer {
+  id                String         @id @default(cuid())
+  institutionId     String
+  institution       Institution    @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  fromAccountId     String
+  fromAccount       PaymentAccount @relation("TransferFrom", fields: [fromAccountId], references: [id], onDelete: Restrict)
+  toAccountId       String
+  toAccount         PaymentAccount @relation("TransferTo", fields: [toAccountId], references: [id], onDelete: Restrict)
+  amount            Decimal        @db.Decimal(12, 2)
+  transferredAt     DateTime       @default(now())
+  note              String?
+  recordedByAdminId String
+  recordedByAdmin   Admin          @relation("TransferRecordedBy", fields: [recordedByAdminId], references: [id], onDelete: Restrict)
+  createdAt         DateTime       @default(now())
+
+  @@index([institutionId])
+}
+
+enum BudgetKind {
+  INCOME
+  EXPENSE
+}
+
+// Aylık bütçe hedefi. INCOME satırlarında categoryId NULL'dur (gelir tek
+// kalemde planlanır); EXPENSE satırları gider kategorisi bazındadır —
+// böylece "plan vs gerçekleşen" karşılaştırması kategori kırılımında
+// yapılabilir (bkz. /api/payments/principal/budget).
+model BudgetLine {
+  id            String           @id @default(cuid())
+  institutionId String
+  institution   Institution      @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  year          Int
+  month         Int // 1-12
+  kind          BudgetKind
+  categoryId    String?
+  category      ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  plannedAmount Decimal          @db.Decimal(12, 2)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([institutionId, year, month, kind, categoryId])
+  @@index([institutionId])
 }
 
 // ----------------------------------------------------------------------------
@@ -2532,14 +2590,15 @@ model StudentContract {
 // kategorisi yoksa ilk okumada varsayılan set tohumlanır (bkz.
 // app/api/payments/principal/expense-categories/route.ts > DEFAULT_CATEGORIES).
 model ExpenseCategory {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   institutionId String
-  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   name          String
-  isActive      Boolean     @default(true)
+  isActive      Boolean      @default(true)
   expenses      Expense[]
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  budgetLines   BudgetLine[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   @@unique([institutionId, name])
   @@index([institutionId])

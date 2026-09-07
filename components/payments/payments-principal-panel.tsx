@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3, FileSignature, Users2, Package } from "lucide-react";
+import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3, FileSignature, Users2, Package, Target, ArrowLeftRight } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { AccountModal } from "@/components/payments/account-modal";
@@ -13,6 +13,8 @@ import { ReportsTab } from "@/components/payments/reports-tab";
 import { ContractsTab } from "@/components/payments/contracts-tab";
 import { PayrollTab } from "@/components/payments/payroll-tab";
 import { ProductsTab } from "@/components/payments/products-tab";
+import { BudgetTab } from "@/components/payments/budget-tab";
+import { TransferModal } from "@/components/payments/transfer-modal";
 
 export type AccountRow = { id: string; name: string; type: "CASH" | "BANK"; balance: number };
 
@@ -41,6 +43,7 @@ const TABS = [
   { id: "products", label: "Ürün & Etkinlik", icon: Package },
   { id: "payroll", label: "Bordro", icon: Users2 },
   { id: "contracts", label: "Sözleşmeler", icon: FileSignature },
+  { id: "budget", label: "Bütçe", icon: Target },
   { id: "reports", label: "Raporlar", icon: BarChart3 },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -57,6 +60,7 @@ export function PaymentsPrincipalPanel() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   function loadDashboard() {
     fetch("/api/payments/principal/dashboard")
@@ -107,7 +111,11 @@ export function PaymentsPrincipalPanel() {
         )}
         {tab === "accounts" && (
           <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <AccountsTab accounts={dashboard?.accounts ?? null} onAddClick={() => setAccountModalOpen(true)} />
+            <AccountsTab
+              accounts={dashboard?.accounts ?? null}
+              onAddClick={() => setAccountModalOpen(true)}
+              onTransferClick={() => setTransferOpen(true)}
+            />
           </motion.div>
         )}
         {tab === "products" && (
@@ -125,6 +133,11 @@ export function PaymentsPrincipalPanel() {
             <ContractsTab />
           </motion.div>
         )}
+        {tab === "budget" && (
+          <motion.div key="budget" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <BudgetTab />
+          </motion.div>
+        )}
         {tab === "reports" && (
           <motion.div key="reports" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <ReportsTab />
@@ -134,6 +147,7 @@ export function PaymentsPrincipalPanel() {
 
       <AccountModal isOpen={accountModalOpen} onClose={() => setAccountModalOpen(false)} onCreated={loadDashboard} />
       <ReminderModal isOpen={reminderOpen} onClose={() => setReminderOpen(false)} onSent={loadDashboard} />
+      <TransferModal isOpen={transferOpen} onClose={() => setTransferOpen(false)} accounts={dashboard?.accounts ?? []} onTransferred={loadDashboard} />
     </div>
   );
 }
@@ -327,17 +341,35 @@ function DashboardTab({ data, onRemindClick }: { data: DashboardData | null; onR
   );
 }
 
-function AccountsTab({ accounts, onAddClick }: { accounts: AccountRow[] | null; onAddClick: () => void }) {
+function AccountsTab({
+  accounts,
+  onAddClick,
+  onTransferClick,
+}: {
+  accounts: AccountRow[] | null;
+  onAddClick: () => void;
+  onTransferClick: () => void;
+}) {
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-espresso dark:text-cream">Kasa & Banka Hesapları</h3>
-        <button
-          onClick={onAddClick}
-          className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
-        >
-          <Plus className="h-3.5 w-3.5" /> Yeni Hesap Ekle
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={onTransferClick}
+            disabled={(accounts?.length ?? 0) < 2}
+            title={(accounts?.length ?? 0) < 2 ? "Virman için en az iki hesap gerekir." : undefined}
+            className="flex items-center gap-1.5 rounded-full border border-hairline px-3 py-2 text-xs font-semibold text-espresso transition hover:bg-cream-card disabled:opacity-40 dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+          >
+            <ArrowLeftRight className="h-3.5 w-3.5" /> Virman
+          </button>
+          <button
+            onClick={onAddClick}
+            className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
+          >
+            <Plus className="h-3.5 w-3.5" /> Yeni Hesap Ekle
+          </button>
+        </div>
       </div>
 
       {!accounts ? (
