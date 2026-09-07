@@ -87,6 +87,28 @@ const EPSILON = 0.0001;
 
 export type DeterministicIssue = { soruNo: number; reason: string };
 
+// Faz Z19 — canlı üretimde bulunan YANLIŞ POZİTİF: finalAnswer "17.41",
+// detailedSolution'ın ulaştığı tam sonuç "17.41176470588235" (örn. 1/0,17
+// gibi devirli/uzun ondalıklı bir bölme) — bunlar ÖZÜNDE TUTARLI (finalAnswer
+// sadece solutionNum'ın kendi basamak sayısına YUVARLANMIŞ hali) ama ham
+// EPSILON (0.0001) karşılaştırması bunu "tutarsız" SANIYORDU. Bu, modele
+// gereksiz bir "düzeltme" turu açtırıyor VE model bazen zaten DOĞRU olan
+// finalAnswer'ı bu sahte uyarıyı gidermeye çalışırken GERÇEKTEN yanlış bir
+// değere değiştiriyordu (canlı üretimde gözlendi). finalAnswer'ın YAZILI
+// basamak sayısına yuvarlandığında solutionNum ile eşleştiğini kontrol
+// ederek bu sınıfı SESSİZCE (tutarlı sayarak) ele alıyoruz.
+function isRoundedMatch(finalAnswerRaw: string, answerNum: number, solutionNum: number): boolean {
+  const cleaned = finalAnswerRaw
+    .trim()
+    .replace(/^[a-zA-ZçÇğĞıİöÖşŞüÜ()\s]*[:=]\s*/, "")
+    .trim()
+    .replace(",", ".");
+  const decMatch = cleaned.match(/^-?\d+\.(\d+)$/);
+  if (!decMatch) return false;
+  const factor = 10 ** decMatch[1].length;
+  return Math.round(solutionNum * factor) / factor === answerNum;
+}
+
 // Verilen soru kümesindeki her soru için finalAnswer/detailedSolution
 // arasında SAYISAL bir tutarsızlık olup olmadığını kontrol eder. finalAnswer
 // veya detailedSolution'ın son sayısı GÜVENLE ayrıştırılamazsa (cebirsel
@@ -100,6 +122,7 @@ export function checkAnswerConsistency(questions: { soruNo: number; finalAnswer:
     const solutionNum = extractTrailingNumber(q.detailedSolution);
     if (solutionNum === null) continue;
     if (Math.abs(answerNum - solutionNum) > EPSILON) {
+      if (isRoundedMatch(q.finalAnswer, answerNum, solutionNum)) continue;
       issues.push({
         soruNo: q.soruNo,
         reason: `finalAnswer (${q.finalAnswer} ≈ ${answerNum}) detailedSolution'ın ulaştığı son sayısal sonuçla (${solutionNum}) TUTARSIZ — deterministik kontrol.`,

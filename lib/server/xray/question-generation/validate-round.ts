@@ -2,6 +2,15 @@ import { extractJson } from "./ai-client";
 import { isMultipleChoiceFormat } from "./deterministic-checks";
 import type { FlattenedTopic } from "./curriculum-flatten";
 
+// Faz Z19 — GEÇİCİ teşhis logu: "Yanıt geçerli JSON değil" hatası TEKRAR
+// TEKRAR görülüyor ama ham içerik hiçbir yerde loglanmadığı için KÖK NEDEN
+// (kesilmiş/truncate olmuş yanıt mı, gerçekten bozuk yapı mı) görülemiyordu.
+// Bu fonksiyon SADECE parse hatasında, ham içeriğin uzunluğunu ve SON 300
+// karakterini (kesilme genelde sonda görülür) console'a yazar.
+function logJsonParseFailure(context: string, rawContent: string) {
+  console.log(`    🔍 [${context}] JSON parse hatası teşhisi — uzunluk: ${rawContent.length}, son 300 karakter: ${JSON.stringify(rawContent.slice(-300))}`);
+}
+
 export type GenelRawQuestion = {
   soruNo?: number;
   subtopicAdi?: string;
@@ -33,6 +42,7 @@ export function validateGenelRoundResponse(rawContent: string, topic: FlattenedT
   try {
     parsed = extractJson(rawContent);
   } catch {
+    logJsonParseFailure("genel", rawContent);
     return { ok: false, errorSummary: "Yanıt geçerli JSON değil." };
   }
 
@@ -107,6 +117,7 @@ export function validateAltKonuRoundResponse(rawContent: string, lockedBlueprint
   try {
     parsed = extractJson(rawContent);
   } catch {
+    logJsonParseFailure("alt_konu", rawContent);
     return { ok: false, errorSummary: "Yanıt geçerli JSON değil." };
   }
 
@@ -168,6 +179,7 @@ export function validateFixResponse(rawContent: string, expectedSoruNos: number[
   try {
     parsed = extractJson(rawContent);
   } catch {
+    logJsonParseFailure("fix", rawContent);
     return { ok: false, errorSummary: "Düzeltme yanıtı geçerli JSON değil." };
   }
   if (!Array.isArray(parsed)) return { ok: false, errorSummary: "Düzeltme yanıtı bir JSON dizisi olmalı." };

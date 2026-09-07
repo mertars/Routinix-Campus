@@ -130,9 +130,32 @@ export async function callChatCompletion(params: { model: string; systemPrompt: 
 // savunmacı çıkarım — response_format:json_object desteği tüm DashScope
 // modellerinde garanti olmadığı için buna güvenilmiyor, ham metinden ilk
 // geçerli JSON dizisi/nesnesi çıkarılıyor.
+//
+// Faz Z19 — canlı üretimde TEKRAR TEKRAR görülen hata: model LaTeX
+// komutlarını (\frac, \sqrt, \cdot, \times, \angle, \pi vb.) JSON string
+// içinde TEK ters eğik çizgiyle yazıyor — SELF_CHECK_CLAUSE çift ters eğik
+// çizgi istese de model buna HER ZAMAN uymuyor. Bunun İKİ AYRI etkisi var:
+// (1) \sqrt, \cdot, \pi, \angle gibi [bfnrt] İLE BAŞLAMAYAN komutlar geçerli
+// bir JSON kaçış dizisi OLMADIĞI için JSON.parse baştan sona BAŞARISIZ olup
+// turun TAMAMINI (30/10 sorunun HEPSİNİ) israf ediyordu — bu GÖRÜNÜR bir
+// hataydı (loglarda "geçerli JSON değil"). (2) DAHA TEHLİKELİSİ: \frac,
+// \tan, \theta, \triangle, \nabla, \rightarrow, \bar, \binom, \beta gibi
+// [bfnrt] İLE BAŞLAYAN komutlarda \f/\t/\n/\r/\b JSON'da ZATEN geçerli bir
+// kaçış dizisi (form feed/tab/newline/return/backspace) olduğu için
+// JSON.parse HİÇ HATA VERMEDEN "başarıyla" ayrıştırıyor ama \frac'ın "f"si
+// gerçek bir form-feed KONTROL KARAKTERİNE dönüşüp "rac{1}{2}" yalnız
+// kalıyor — bu SESSİZ bir veri bozulması (loglarda hiç görünmüyor, hatalı
+// içerik yayınlanma riski taşıyor). Bu yüzden normalize etme adımı parse
+// BAŞARISINA bakılmaksızın HER ZAMAN, parse'DAN ÖNCE uygulanır: yukarıdaki
+// 8 geçerli kaçış karakterinden biri OLMAYAN ya da [bfnrt] olup HEMEN
+// ARDINDAN bir harf gelen (yani gerçek bir kontrol karakteri değil, bir
+// LaTeX komutunun başlangıcı olduğuna işaret eden) her ters eğik çizgi
+// katlanır (\\X) — zaten doğru çift-kaçışlanmış (\\, \", \n + harf-olmayan
+// devam vb.) diziler bu regex'e YAKALANMADIĞI için dokunulmadan kalır.
 export function extractJson(raw: string): unknown {
   const trimmed = raw.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   const candidate = fenced ? fenced[1] : trimmed;
-  return JSON.parse(candidate);
+  const normalized = candidate.replace(/\\u[0-9a-fA-F]{4}|\\["\\/]|\\[bfnrt](?![a-zA-Z])|\\/g, (m) => (m.length > 1 ? m : "\\\\"));
+  return JSON.parse(normalized);
 }
