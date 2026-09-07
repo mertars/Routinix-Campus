@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { applyDiscounts, getActiveDiscounts } from "@/lib/server/payments/discount-service";
 
 export const dynamic = "force-dynamic";
 
@@ -77,14 +78,26 @@ async function handlePost(request: NextRequest) {
 
     if (body?.installmentCount) {
       const installmentCount = Number(body.installmentCount);
-      const totalAmount = Number(body.totalAmount);
+      const listAmount = Number(body.totalAmount);
       const startDate = body.startDate ? new Date(body.startDate) : new Date();
       const titlePrefix = (body.titlePrefix as string | undefined)?.trim() || "Eğitim Ücreti";
+      const academicYear = (body.academicYear as string | undefined)?.trim() || "2025-2026";
       if (!Number.isInteger(installmentCount) || installmentCount < 1 || installmentCount > 36) {
         return NextResponse.json({ error: "installmentCount 1-36 arası bir tam sayı olmalı." }, { status: 400 });
       }
-      if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      if (!Number.isFinite(listAmount) || listAmount <= 0) {
         return NextResponse.json({ error: "totalAmount pozitif bir sayı olmalı." }, { status: 400 });
+      }
+
+      // Gelen tutar LİSTE FİYATIDIR — öğrencinin aktif indirimleri burada
+      // uygulanır ve taksitler NET tutardan üretilir. Uygulanan liste/
+      // indirim tutarları indirim kaydına basılır (snapshot) ki "ne kadar
+      // burs dağıttık" raporu geriye dönük değişmesin.
+      const activeDiscounts = await getActiveDiscounts(session.institutionId, studentId, academicYear);
+      const calc = applyDiscounts(listAmount, activeDiscounts);
+      const totalAmount = calc.netAmount;
+      if (totalAmount <= 0) {
+        return NextResponse.json({ error: "İndirimler sonrası net tutar sıfır — taksit planı oluşturulamaz." }, { status: 400 });
       }
       // Kuruş farkını son taksite yükle (bölme küsuratı kaybolmasın).
       const perInstallment = Math.floor((totalAmount / installmentCount) * 100) / 100;
@@ -102,7 +115,29 @@ async function handlePost(request: NextRequest) {
         };
       });
       await prisma.installment.createMany({ data: rows });
-      return NextResponse.json({ createdCount: rows.length }, { status: 201 });
+
+      // İndirim anlık kaydı — plan üretildiği AN'daki liste/indirim
+      // tutarları indirim satırlarına yazılır (bkz. schema > StudentDiscount).
+      if (calc.discountTotal > 0) {
+        const now = new Date();
+        for (const row of calc.rows) {
+          await prisma.studentDiscount.update({
+            where: { id: row.id },
+            data: { appliedListAmount: listAmount, appliedDiscount: row.amount, appliedAt: now },
+          });
+        }
+      }
+
+      return NextResponse.json(
+        {
+          createdCount: rows.length,
+          listAmount,
+          discountTotal: calc.discountTotal,
+          netAmount: totalAmount,
+          appliedDiscounts: calc.rows.map((r) => ({ label: r.label, amount: r.amount })),
+        },
+        { status: 201 }
+      );
     }
 
     const title = (body?.title as string | undefined)?.trim();

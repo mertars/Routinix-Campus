@@ -144,6 +144,7 @@ model Institution {
   products                    Product[]
   accountTransfers            AccountTransfer[]
   budgetLines                 BudgetLine[]
+  studentDiscounts            StudentDiscount[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -278,6 +279,7 @@ model Student {
   installments                 Installment[]
   payments                     Payment[]
   contracts                    StudentContract[]
+  discounts                    StudentDiscount[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -429,6 +431,7 @@ model Admin {
   payrollItems                 PayrollItem[]                 @relation("AdminPayrollItem")
   staffAdvances                StaffAdvance[]                @relation("AdminStaffAdvance")
   recordedTransfers            AccountTransfer[]             @relation("TransferRecordedBy")
+  approvedDiscounts            StudentDiscount[]             @relation("DiscountApprovedBy")
 
   @@index([institutionId])
 }
@@ -2315,6 +2318,61 @@ enum PaymentStatus {
 enum PaymentSource {
   MANUAL
   ONLINE // ileride gerçek gateway entegrasyonu
+}
+
+// ----------------------------------------------------------------------------
+// İndirim & Burs (Ödeme Takip Faz 7)
+// ----------------------------------------------------------------------------
+//
+// Dershane gerçeği: neredeyse HİÇBİR öğrenci liste fiyatından kayıt olmaz —
+// kardeş indirimi, başarı bursu, erken kayıt, personel çocuğu... Bu bilgi
+// sistemde tutulmadığında (a) "ne kadar burs dağıttık" sorusunun cevabı
+// yoktur, (b) taksit planındaki tutarın NEDEN o rakam olduğu kayıt dışı
+// kalır, (c) indirimi kimin onayladığı bilinmez.
+//
+// Uygulama anındaki liste/indirim/net tutarları kayda BASILIR (snapshot):
+// indirim oranı sonradan değişse bile geçmiş plan olduğu gibi okunabilir
+// kalır ve raporlar geriye dönük değişmez.
+
+enum DiscountType {
+  SIBLING // kardeş indirimi
+  MERIT // başarı bursu
+  EARLY_REGISTRATION // erken kayıt
+  STAFF_CHILD // personel çocuğu
+  FINANCIAL_AID // ihtiyaç bursu
+  OTHER
+}
+
+enum DiscountValueType {
+  PERCENTAGE
+  FIXED
+}
+
+model StudentDiscount {
+  id                String            @id @default(cuid())
+  institutionId     String
+  institution       Institution       @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  studentId         String
+  student           Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  type              DiscountType
+  valueType         DiscountValueType
+  // PERCENTAGE ise 0-100 arası oran, FIXED ise doğrudan tutar.
+  value             Decimal           @db.Decimal(12, 2)
+  academicYear      String // "2025-2026"
+  reason            String?
+  // Taksit planı üretilirken doldurulan anlık kayıt (bkz. üstteki not).
+  // Plan henüz üretilmediyse null'dır.
+  appliedListAmount Decimal?          @db.Decimal(12, 2)
+  appliedDiscount   Decimal?          @db.Decimal(12, 2)
+  appliedAt         DateTime?
+  isActive          Boolean           @default(true)
+  approvedByAdminId String
+  approvedByAdmin   Admin             @relation("DiscountApprovedBy", fields: [approvedByAdminId], references: [id], onDelete: Restrict)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([institutionId])
+  @@index([studentId])
 }
 
 // ----------------------------------------------------------------------------

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle } from "lucide-react";
+import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { InstallmentPlanModal } from "@/components/payments/installment-plan-modal";
 import { CollectPaymentModal } from "@/components/payments/collect-payment-modal";
+import { DiscountModal } from "@/components/payments/discount-modal";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string; grade: number };
@@ -39,6 +40,7 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
   const [installments, setInstallments] = useState<InstallmentRow[] | null>(null);
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [collectTarget, setCollectTarget] = useState<InstallmentRow | null>(null);
+  const [discountOpen, setDiscountOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/payments/principal/students")
@@ -134,12 +136,20 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                   {selectedStudent.branchName} · {selectedStudent.grade}. Sınıf
                 </p>
               </div>
-              <button
-                onClick={() => setPlanModalOpen(true)}
-                className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
-              >
-                <CalendarPlus className="h-3.5 w-3.5" /> Taksit Planı Oluştur
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  onClick={() => setDiscountOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+                >
+                  <BadgePercent className="h-3.5 w-3.5" /> İndirim
+                </button>
+                <button
+                  onClick={() => setPlanModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
+                >
+                  <CalendarPlus className="h-3.5 w-3.5" /> Taksit Planı Oluştur
+                </button>
+              </div>
             </div>
 
             {!installments ? (
@@ -199,6 +209,14 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
         studentId={selectedStudent?.id ?? null}
         studentName={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""}
         onCreated={refresh}
+      />
+      <DiscountModal
+        isOpen={discountOpen}
+        onClose={() => setDiscountOpen(false)}
+        studentId={selectedStudent?.id ?? null}
+        studentName={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""}
+        academicYear="2025-2026"
+        onChanged={refresh}
       />
       <CollectPaymentModal
         isOpen={collectTarget != null}

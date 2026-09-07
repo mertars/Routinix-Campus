@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Loader2, CalendarPlus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Loader2, CalendarPlus, BadgePercent } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 
@@ -27,7 +27,27 @@ export function InstallmentPlanModal({
   const [installmentCount, setInstallmentCount] = useState("12");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [titlePrefix, setTitlePrefix] = useState("Eğitim Ücreti");
+  const [academicYear] = useState("2025-2026");
   const [saving, setSaving] = useState(false);
+  // Girilen tutar LİSTE fiyatıdır; öğrencinin aktif indirimleri sunucuda
+  // uygulanır. Yönetici "kaydet"e basmadan ÖNCE net tutarı görmeli, bu
+  // yüzden aynı hesap canlı önizleniyor (aynı uç, aynı formül).
+  const [preview, setPreview] = useState<{ listAmount: number; discountTotal: number; netAmount: number; rows: { label: string; amount: number }[] } | null>(null);
+
+  useEffect(() => {
+    const amount = Number(totalAmount);
+    if (!isOpen || !studentId || !Number.isFinite(amount) || amount <= 0) {
+      setPreview(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetch(`/api/payments/principal/discounts?studentId=${encodeURIComponent(studentId)}&academicYear=${encodeURIComponent(academicYear)}&listAmount=${amount}`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
+        .then((d) => setPreview(d.calculation))
+        .catch(() => setPreview(null));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [isOpen, studentId, totalAmount, academicYear]);
 
   async function handleSubmit() {
     if (!studentId) return;
@@ -41,10 +61,15 @@ export function InstallmentPlanModal({
       const res = await fetch("/api/payments/principal/installments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, totalAmount: amount, installmentCount: count, startDate, titlePrefix: titlePrefix.trim() || undefined }),
+        body: JSON.stringify({ studentId, totalAmount: amount, installmentCount: count, startDate, titlePrefix: titlePrefix.trim() || undefined, academicYear }),
       });
       if (!res.ok) throw new Error();
-      showSuccess(`${count} taksitlik plan oluşturuldu.`);
+      const data = await res.json().catch(() => null);
+      showSuccess(
+        data?.discountTotal > 0
+          ? `${count} taksitlik plan oluşturuldu. ${data.discountTotal.toLocaleString("tr-TR")} ₺ indirim uygulandı.`
+          : `${count} taksitlik plan oluşturuldu.`
+      );
       onCreated();
       onClose();
     } catch {
@@ -58,7 +83,7 @@ export function InstallmentPlanModal({
     <Modal isOpen={isOpen} onClose={onClose} title={`Taksit Planı Oluştur — ${studentName}`} variant="center" widthClassName="max-w-sm">
       <div className="space-y-4">
         <div>
-          <label className="mb-1.5 block text-xs font-medium text-espresso dark:text-cream">Toplam Tutar (₺)</label>
+          <label className="mb-1.5 block text-xs font-medium text-espresso dark:text-cream">Liste Fiyatı (₺)</label>
           <input
             type="number"
             inputMode="decimal"
@@ -68,6 +93,24 @@ export function InstallmentPlanModal({
             className="w-full rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-espresso outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
           />
         </div>
+        {preview && preview.discountTotal > 0 && (
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+            <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+              <BadgePercent className="h-3.5 w-3.5" /> İndirimler uygulanacak
+            </p>
+            {preview.rows.filter((r) => r.amount > 0).map((r) => (
+              <div key={r.label} className="flex justify-between text-[11px] text-espresso-muted dark:text-cream/50">
+                <span>{r.label}</span>
+                <span>−{r.amount.toLocaleString("tr-TR")} ₺</span>
+              </div>
+            ))}
+            <div className="mt-1.5 flex justify-between border-t border-emerald-500/20 pt-1.5 text-xs font-semibold text-espresso dark:text-cream">
+              <span>Net tutar</span>
+              <span>{preview.netAmount.toLocaleString("tr-TR")} ₺</span>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="mb-1.5 block text-xs font-medium text-espresso dark:text-cream">Taksit Sayısı</label>

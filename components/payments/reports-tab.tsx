@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Download, AlertTriangle, TrendingUp, TrendingDown, PieChart, Users } from "lucide-react";
+import { Loader2, Download, AlertTriangle, TrendingUp, TrendingDown, PieChart, Users, BadgePercent } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -43,10 +43,26 @@ const AGING_TONE: Record<string, string> = {
   "90+": "bg-rose-600",
 };
 
+type DiscountSummary = {
+  grantedTotal: number;
+  listTotal: number;
+  discountRate: number;
+  studentCount: number;
+  byType: { type: string; label: string; count: number; amount: number }[];
+};
+
 export function ReportsTab() {
   const { showError } = useToast();
   const [data, setData] = useState<ReportData | null>(null);
+  const [discounts, setDiscounts] = useState<DiscountSummary | null>(null);
   const [months, setMonths] = useState(12);
+
+  useEffect(() => {
+    fetch("/api/payments/principal/discounts")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
+      .then((d) => setDiscounts(d.summary ?? null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setData(null);
@@ -218,6 +234,33 @@ export function ReportsTab() {
           )}
         </div>
       </div>
+
+      {/* Burs & indirim — "ne kadar burs dağıttık" */}
+      {discounts && discounts.grantedTotal > 0 && (
+        <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
+          <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+            <BadgePercent className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Burs & İndirim
+          </h3>
+          <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
+            {discounts.studentCount} öğrenciye toplam {formatTRY(discounts.grantedTotal)} indirim uygulandı · liste fiyatının %{Math.round(discounts.discountRate)}&apos;i
+          </p>
+          <div className="space-y-2">
+            {discounts.byType.filter((t) => t.amount > 0).map((t) => (
+              <div key={t.type} className="flex items-center gap-2">
+                <span className="w-32 shrink-0 truncate text-[11px] text-espresso dark:text-cream">{t.label}</span>
+                <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-cream-card dark:bg-white/10">
+                  <span
+                    className="block h-full rounded-full bg-emerald-500"
+                    style={{ width: `${(t.amount / Math.max(1, discounts.byType[0].amount)) * 100}%` }}
+                  />
+                </span>
+                <span className="w-24 shrink-0 text-right text-[11px] font-semibold text-espresso dark:text-cream">{formatTRY(t.amount)}</span>
+                <span className="w-16 shrink-0 text-right text-[10px] text-espresso-muted dark:text-cream/40">{t.count} öğrenci</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Riskli öğrenci listesi */}
       <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
