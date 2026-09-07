@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown, Ban } from "lucide-react";
+import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown, Ban, CalendarClock, Layers } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { InstallmentPlanModal } from "@/components/payments/installment-plan-modal";
 import { CollectPaymentModal } from "@/components/payments/collect-payment-modal";
 import { DiscountModal } from "@/components/payments/discount-modal";
+import { RestructureModal } from "@/components/payments/restructure-modal";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string; grade: number };
@@ -59,6 +60,7 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
   const [collectTarget, setCollectTarget] = useState<InstallmentRow | null>(null);
   const [discountOpen, setDiscountOpen] = useState(false);
   const [history, setHistory] = useState<PaymentHistoryRow[] | null>(null);
+  const [restructureOpen, setRestructureOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/payments/principal/students")
@@ -84,6 +86,34 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
     setInstallments(null);
     setHistory(null);
     loadInstallments(s.id);
+  }
+
+  async function postpone(inst: InstallmentRow) {
+    const current = new Date(inst.dueDate);
+    const suggested = new Date(current);
+    suggested.setMonth(suggested.getMonth() + 1);
+    const input = window.prompt(
+      `"${inst.title}" taksitinin vadesi ötelenecek.\n\nMevcut vade: ${current.toLocaleDateString("tr-TR")}\nTutar değişmez, borç silinmez — yalnızca vade ileri alınır.\n\nYeni vade (YYYY-AA-GG):`,
+      suggested.toISOString().slice(0, 10)
+    );
+    if (!input) return;
+    const reason = window.prompt("Erteleme gerekçesi:");
+    if (!reason?.trim()) return;
+    try {
+      const res = await fetch(`/api/payments/principal/installments/${inst.id}/postpone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newDueDate: input, reason: reason.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        throw new Error(d?.error);
+      }
+      showSuccess("Taksit ertelendi.");
+      refresh();
+    } catch (e) {
+      showError(e instanceof Error && e.message ? e.message : "Taksit ertelenemedi.");
+    }
   }
 
   async function voidPayment(p: PaymentHistoryRow) {
@@ -189,6 +219,12 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                   <BadgePercent className="h-3.5 w-3.5" /> İndirim
                 </button>
                 <button
+                  onClick={() => setRestructureOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full border border-hairline px-3 py-2 text-xs font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                >
+                  <Layers className="h-3.5 w-3.5" /> Yapılandır
+                </button>
+                <button
                   onClick={() => setPlanModalOpen(true)}
                   className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500"
                 >
@@ -230,6 +266,15 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                         <span className={cn("flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold", meta.className)}>
                           <meta.icon className="h-3 w-3" /> {meta.label}
                         </span>
+                        {canCollect && (
+                          <button
+                            onClick={() => postpone(inst)}
+                            title="Vadeyi ertele"
+                            className="flex items-center gap-1 rounded-full border border-hairline px-2.5 py-1 text-[11px] font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                          >
+                            <CalendarClock className="h-3 w-3" /> Ertele
+                          </button>
+                        )}
                         {canCollect && (
                           <button
                             onClick={() => setCollectTarget(inst)}
@@ -314,6 +359,13 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
         </div>
       )}
 
+      <RestructureModal
+        isOpen={restructureOpen}
+        onClose={() => setRestructureOpen(false)}
+        studentId={selectedStudent?.id ?? null}
+        studentName={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""}
+        onDone={refresh}
+      />
       <DiscountModal
         isOpen={discountOpen}
         onClose={() => setDiscountOpen(false)}
