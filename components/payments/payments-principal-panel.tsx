@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3, FileSignature, Users2, Package, Target, ArrowLeftRight } from "lucide-react";
+import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3, FileSignature, Users2, Package, Target, ArrowLeftRight, Handshake } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { AccountModal } from "@/components/payments/account-modal";
 import { StudentPaymentsTab } from "@/components/payments/student-payments-tab";
 import { ExpensesTab } from "@/components/payments/expenses-tab";
 import { ReminderModal } from "@/components/payments/reminder-modal";
+import { PromisesCard } from "@/components/payments/promises-card";
 import { ReportsTab } from "@/components/payments/reports-tab";
 import { ContractsTab } from "@/components/payments/contracts-tab";
 import { PayrollTab } from "@/components/payments/payroll-tab";
@@ -31,7 +32,7 @@ type DashboardData = {
   collectedTotal: number;
   pendingTotal: number;
   overdueTotal: number;
-  overdueInstallments: { id: string; studentName: string; title: string; remainingAmount: number; dueDate: string }[];
+  overdueInstallments: { id: string; studentId: string; studentName: string; title: string; remainingAmount: number; dueDate: string }[];
   recentPayments: { id: string; studentName: string; accountName: string; amount: number; method: string; paidAt: string }[];
 };
 
@@ -61,6 +62,9 @@ export function PaymentsPrincipalPanel() {
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  // Söz kartını tazelemek için sayaç — gecikmiş listesinden söz alınınca
+  // kart yeniden yüklensin.
+  const [promiseKey, setPromiseKey] = useState(0);
 
   function loadDashboard() {
     fetch("/api/payments/principal/dashboard")
@@ -96,7 +100,12 @@ export function PaymentsPrincipalPanel() {
       <AnimatePresence mode="wait">
         {tab === "dashboard" && (
           <motion.div key="dashboard" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <DashboardTab data={dashboard} onRemindClick={() => setReminderOpen(true)} />
+            <DashboardTab
+              data={dashboard}
+              onRemindClick={() => setReminderOpen(true)}
+              promiseKey={promiseKey}
+              onPromiseChanged={() => setPromiseKey((k) => k + 1)}
+            />
           </motion.div>
         )}
         {tab === "students" && (
@@ -170,7 +179,34 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: typeof Wallet; lab
   );
 }
 
-function DashboardTab({ data, onRemindClick }: { data: DashboardData | null; onRemindClick: () => void }) {
+async function createPromise(studentName: string, studentId: string, defaultAmount: number, onDone: () => void) {
+  const dateInput = window.prompt(
+    `${studentName} için ödeme sözü kaydedilecek.\n\nVeli ne zaman ödeyeceğini söyledi? (YYYY-AA-GG)`,
+    new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10)
+  );
+  if (!dateInput) return;
+  const amountInput = window.prompt("Söz verilen tutar (₺):", String(Math.round(defaultAmount)));
+  if (!amountInput) return;
+  const note = window.prompt("Not (opsiyonel):") ?? "";
+  const res = await fetch("/api/payments/principal/promises", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId, promisedAmount: Number(amountInput), promisedDate: dateInput, note: note.trim() || undefined }),
+  });
+  if (res.ok) onDone();
+}
+
+function DashboardTab({
+  data,
+  onRemindClick,
+  promiseKey,
+  onPromiseChanged,
+}: {
+  data: DashboardData | null;
+  onRemindClick: () => void;
+  promiseKey: number;
+  onPromiseChanged: () => void;
+}) {
   if (!data) {
     return (
       <div className="flex justify-center py-16">
@@ -280,6 +316,8 @@ function DashboardTab({ data, onRemindClick }: { data: DashboardData | null; onR
         )}
       </div>
 
+      <PromisesCard refreshKey={promiseKey} onChanged={onPromiseChanged} />
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -307,7 +345,16 @@ function DashboardTab({ data, onRemindClick }: { data: DashboardData | null; onR
                       {o.title} · vade {new Date(o.dueDate).toLocaleDateString("tr-TR")}
                     </p>
                   </div>
-                  <span className="shrink-0 text-xs font-semibold text-rose-700 dark:text-rose-300">{formatTRY(o.remainingAmount)}</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">{formatTRY(o.remainingAmount)}</span>
+                    <button
+                      onClick={() => createPromise(o.studentName, o.studentId, o.remainingAmount, onPromiseChanged)}
+                      title="Veli ödeme sözü verdiyse kaydet"
+                      className="flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-500/20 dark:text-amber-300"
+                    >
+                      <Handshake className="h-3 w-3" /> Söz Al
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

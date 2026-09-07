@@ -72,6 +72,15 @@ async function handleGet() {
     requireRole(session, "principal");
 
     const targets = await collectOverdueByStudent(session.institutionId);
+    // Aktif ödeme sözü olan veliye hatırlatma göndermek gereksiz baskıdır —
+    // veli zaten "şu tarihte ödeyeceğim" demiş ve tarih henüz geçmemiş.
+    // Bu öğrenciler listede GÖRÜNÜR ama varsayılan olarak SEÇİLMEZ.
+    const activePromises = await prisma.paymentPromise.findMany({
+      where: { institutionId: session.institutionId, closedAt: null, promisedDate: { gte: new Date() } },
+      select: { studentId: true, promisedDate: true },
+    });
+    const promiseByStudent = new Map(activePromises.map((p) => [p.studentId, p.promisedDate]));
+
     const [institution, recipients] = await Promise.all([
       prisma.institution.findUnique({ where: { id: session.institutionId }, select: { smsCredits: true } }),
       targets.length > 0 ? resolveScope("CUSTOM_ID_LIST", targets.map((t) => t.studentId).join(","), session.institutionId) : Promise.resolve([]),
@@ -94,6 +103,7 @@ async function handleGet() {
         installmentCount: t.installmentIds.length,
         lastReminderAt: t.lastReminderAt?.toISOString() ?? null,
         isReachable: reachableStudentIds.has(t.studentId),
+        promisedDate: promiseByStudent.get(t.studentId)?.toISOString() ?? null,
       })),
     });
   } catch (error) {

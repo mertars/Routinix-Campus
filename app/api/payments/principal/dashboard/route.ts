@@ -57,7 +57,7 @@ async function handleGet() {
 
     let pendingTotal = 0;
     let overdueTotal = 0;
-    const overdueList: { id: string; studentName: string; title: string; remainingAmount: number; dueDate: string }[] = [];
+    const overdueList: { id: string; studentId: string; studentName: string; title: string; remainingAmount: number; dueDate: string }[] = [];
     for (const inst of openInstallments) {
       const paid = inst.payments.reduce((sum, p) => sum + Number(p.amount), 0);
       const remaining = Number(inst.amount) - paid;
@@ -66,6 +66,7 @@ async function handleGet() {
         overdueTotal += remaining;
         overdueList.push({
           id: inst.id,
+          studentId: inst.studentId,
           studentName: `${inst.student.firstName} ${inst.student.lastName}`,
           title: inst.title,
           remainingAmount: remaining,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Send, MessageSquare, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, Send, MessageSquare, AlertTriangle, CheckCircle2, Clock, Handshake } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ type ReminderTarget = {
   installmentCount: number;
   lastReminderAt: string | null;
   isReachable: boolean;
+  // Dolu ise veli bu tarihte ödeme sözü verdi ve tarih henüz geçmedi.
+  promisedDate: string | null;
 };
 
 type PreviewData = {
@@ -53,7 +55,9 @@ export function ReminderModal({ isOpen, onClose, onSent }: { isOpen: boolean; on
       .then((data: PreviewData) => {
         setPreview(data);
         setMessage(data.defaultTemplate);
-        setSelected(new Set(data.targets.filter((t) => t.isReachable).map((t) => t.studentId)));
+        // Söz vermiş veliler varsayılan olarak SEÇİLMEZ — gereksiz baskı
+        // yapmamak için; yönetici isterse tek tıkla ekleyebilir.
+        setSelected(new Set(data.targets.filter((t) => t.isReachable && !t.promisedDate).map((t) => t.studentId)));
       })
       .catch(() => showError("Hatırlatma önizlemesi yüklenemedi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,10 +146,12 @@ export function ReminderModal({ isOpen, onClose, onSent }: { isOpen: boolean; on
                       <span className="block truncate text-[10px] text-espresso-muted dark:text-cream/40">
                         {formatTRY(t.totalRemaining)} · {t.installmentCount} taksit
                         {!t.isReachable && " · SMS onayı yok"}
+                        {t.promisedDate && ` · ${new Date(t.promisedDate).toLocaleDateString("tr-TR")} ödeme sözü var`}
                         {t.lastReminderAt && ` · ${relativeTime(t.lastReminderAt)} hatırlatıldı`}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
+                      {t.promisedDate && <Handshake className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
                       {t.lastReminderAt && <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />}
                       {isSelected && t.isReachable && <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
                     </span>
