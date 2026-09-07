@@ -8,31 +8,41 @@ import { withApiLogging, logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 // GET /api/payments/principal/accounts — kurumun kasa/banka hesapları,
-// her biri için Payment toplamı üzerinden hesaplanan GÜNCEL bakiye (ayrı bir
-// cache alanı YOK — az sayıda hesap/işlem için bakiye sapması riskine
+// her biri için GÜNCEL bakiye = tahsil edilen gelir − ÖDENMİŞ gider (ayrı
+// bir cache alanı YOK — az sayıda hesap/işlem için bakiye sapması riskine
 // girmektense her istekte toplanıyor, bkz. plan dosyasındaki gerekçe).
+// Bekleyen (PENDING) giderler bakiyeyi ETKİLEMEZ, sadece ödendiklerinde
+// düşer (bkz. prisma/schema.prisma > ExpenseStatus).
 async function handleGet() {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
 
-    const accounts = await prisma.paymentAccount.findMany({
-      where: { institutionId: session.institutionId, isActive: true },
-      orderBy: { createdAt: "asc" },
-    });
-    const balances = await prisma.payment.groupBy({
-      by: ["accountId"],
-      where: { institutionId: session.institutionId, status: "COMPLETED" },
-      _sum: { amount: true },
-    });
-    const balanceByAccount = new Map(balances.map((b) => [b.accountId, Number(b._sum.amount ?? 0)]));
+    const [accounts, incomes, paidExpenses] = await Promise.all([
+      prisma.paymentAccount.findMany({
+        where: { institutionId: session.institutionId, isActive: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.payment.groupBy({
+        by: ["accountId"],
+        where: { institutionId: session.institutionId, status: "COMPLETED" },
+        _sum: { amount: true },
+      }),
+      prisma.expense.groupBy({
+        by: ["accountId"],
+        where: { institutionId: session.institutionId, status: "PAID", accountId: { not: null } },
+        _sum: { amount: true },
+      }),
+    ]);
+    const incomeByAccount = new Map(incomes.map((b) => [b.accountId, Number(b._sum.amount ?? 0)]));
+    const expenseByAccount = new Map(paidExpenses.map((b) => [b.accountId as string, Number(b._sum.amount ?? 0)]));
 
     return NextResponse.json({
       accounts: accounts.map((a) => ({
         id: a.id,
         name: a.name,
         type: a.type,
-        balance: balanceByAccount.get(a.id) ?? 0,
+        balance: (incomeByAccount.get(a.id) ?? 0) - (expenseByAccount.get(a.id) ?? 0),
       })),
     });
   } catch (error) {

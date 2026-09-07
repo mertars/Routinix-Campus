@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, Wallet, Loader2, HandCoins, Banknote } from "lucide-react";
+import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { AccountModal } from "@/components/payments/account-modal";
 import { StudentPaymentsTab } from "@/components/payments/student-payments-tab";
+import { ExpensesTab } from "@/components/payments/expenses-tab";
 
 export type AccountRow = { id: string; name: string; type: "CASH" | "BANK"; balance: number };
 
@@ -14,6 +15,11 @@ type DashboardData = {
   accounts: AccountRow[];
   totalBalance: number;
   monthlyCollected: number;
+  monthlyExpense: number;
+  monthlyNet: number;
+  expenseBreakdown: { name: string; amount: number }[];
+  pendingExpenses: { id: string; title: string; categoryName: string; vendorName: string | null; amount: number; dueDate: string | null; isOverdue: boolean }[];
+  pendingExpenseTotal: number;
   plannedTotal: number;
   collectedTotal: number;
   pendingTotal: number;
@@ -25,6 +31,7 @@ type DashboardData = {
 const TABS = [
   { id: "dashboard", label: "Kontrol Paneli", icon: LayoutDashboard },
   { id: "students", label: "Öğrenci Ödemeleri", icon: Users },
+  { id: "expenses", label: "Giderler", icon: Receipt },
   { id: "accounts", label: "Kasa & Banka", icon: Landmark },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -81,6 +88,11 @@ export function PaymentsPrincipalPanel() {
         {tab === "students" && (
           <motion.div key="students" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <StudentPaymentsTab accounts={dashboard?.accounts ?? []} onChanged={loadDashboard} />
+          </motion.div>
+        )}
+        {tab === "expenses" && (
+          <motion.div key="expenses" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <ExpensesTab accounts={dashboard?.accounts ?? []} onChanged={loadDashboard} />
           </motion.div>
         )}
         {tab === "accounts" && (
@@ -164,6 +176,59 @@ function DashboardTab({ data }: { data: DashboardData | null }) {
                   <span className="block truncate text-[10px] text-espresso-muted dark:text-cream/40">{a.name}</span>
                   <span className="block text-xs font-semibold text-espresso dark:text-cream">{formatTRY(a.balance)}</span>
                 </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Bu ayın gelir/gider/net tablosu + gider kategori dağılımı (Faz 2).
+          Grafik kütüphanesi yerine oransal Tailwind çubukları — dağılım tek
+          bakışta okunuyor, yeni bağımlılık yok. */}
+      <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
+        <h3 className="mb-3 text-sm font-semibold text-espresso dark:text-cream">Bu Ay Gelir / Gider</h3>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <p className="flex items-center gap-1 text-[11px] text-espresso-muted dark:text-cream/40">
+              <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> Gelir
+            </p>
+            <p className="text-base font-bold text-emerald-700 dark:text-emerald-300">{formatTRY(data.monthlyCollected)}</p>
+          </div>
+          <div>
+            <p className="flex items-center gap-1 text-[11px] text-espresso-muted dark:text-cream/40">
+              <TrendingDown className="h-3 w-3 text-rose-600 dark:text-rose-400" /> Gider
+            </p>
+            <p className="text-base font-bold text-rose-700 dark:text-rose-300">{formatTRY(data.monthlyExpense)}</p>
+          </div>
+          <div>
+            <p className="text-[11px] text-espresso-muted dark:text-cream/40">Net</p>
+            <p className={cn("text-base font-bold", data.monthlyNet >= 0 ? "text-espresso dark:text-cream" : "text-rose-700 dark:text-rose-300")}>
+              {formatTRY(data.monthlyNet)}
+            </p>
+          </div>
+        </div>
+
+        {/* Gelir/gider oranı — tek çubukta iki taraf */}
+        {(data.monthlyCollected > 0 || data.monthlyExpense > 0) && (
+          <div className="mt-3 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full">
+            <div className="bg-emerald-500" style={{ width: `${(data.monthlyCollected / Math.max(1, data.monthlyCollected + data.monthlyExpense)) * 100}%` }} />
+            <div className="bg-rose-500" style={{ width: `${(data.monthlyExpense / Math.max(1, data.monthlyCollected + data.monthlyExpense)) * 100}%` }} />
+          </div>
+        )}
+
+        {data.expenseBreakdown.length > 0 && (
+          <div className="mt-4 space-y-1.5 border-t border-hairline pt-3 dark:border-white/5">
+            <p className="mb-2 text-[11px] font-semibold text-espresso-muted dark:text-cream/40">Gider Dağılımı (bu ay)</p>
+            {data.expenseBreakdown.slice(0, 5).map((c) => (
+              <div key={c.name} className="flex items-center gap-2">
+                <span className="w-32 shrink-0 truncate text-[11px] text-espresso dark:text-cream">{c.name}</span>
+                <span className="h-2 flex-1 overflow-hidden rounded-full bg-cream-card dark:bg-white/10">
+                  <span
+                    className="block h-full rounded-full bg-rose-400"
+                    style={{ width: `${(c.amount / Math.max(1, data.expenseBreakdown[0].amount)) * 100}%` }}
+                  />
+                </span>
+                <span className="w-20 shrink-0 text-right text-[11px] font-semibold text-espresso dark:text-cream">{formatTRY(c.amount)}</span>
               </div>
             ))}
           </div>

@@ -19,7 +19,7 @@ async function handleGet() {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [accounts, accountBalances, monthPayments, openInstallments, recentPayments, plannedTotal, collectedTotal] = await Promise.all([
+    const [accounts, accountBalances, monthPayments, openInstallments, recentPayments, plannedTotal, collectedTotal, paidExpenseByAccount, monthExpense, expenseByCategory, pendingExpenses] = await Promise.all([
       prisma.paymentAccount.findMany({ where: { institutionId, isActive: true } }),
       prisma.payment.groupBy({ by: ["accountId"], where: { institutionId, status: "COMPLETED" }, _sum: { amount: true } }),
       prisma.payment.aggregate({ where: { institutionId, status: "COMPLETED", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
@@ -37,11 +37,33 @@ async function handleGet() {
       // tahsil edilen toplam (iptal edilen taksitler plana dahil DEĞİL).
       prisma.installment.aggregate({ where: { institutionId, status: { not: "CANCELLED" } }, _sum: { amount: true } }),
       prisma.payment.aggregate({ where: { institutionId, status: "COMPLETED" }, _sum: { amount: true } }),
+      // Gider tarafı (Faz 2) — bakiye gelir − ÖDENMİŞ gider (bkz. accounts route).
+      prisma.expense.groupBy({ by: ["accountId"], where: { institutionId, status: "PAID", accountId: { not: null } }, _sum: { amount: true } }),
+      prisma.expense.aggregate({ where: { institutionId, status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
+      prisma.expense.groupBy({ by: ["categoryId"], where: { institutionId, status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
+      prisma.expense.findMany({
+        where: { institutionId, status: "PENDING" },
+        include: { category: { select: { name: true } } },
+        orderBy: [{ dueDate: "asc" }],
+        take: 20,
+      }),
     ]);
 
     const balanceByAccount = new Map(accountBalances.map((b) => [b.accountId, Number(b._sum.amount ?? 0)]));
-    const accountRows = accounts.map((a) => ({ id: a.id, name: a.name, type: a.type, balance: balanceByAccount.get(a.id) ?? 0 }));
+    const expenseByAccount = new Map(paidExpenseByAccount.map((b) => [b.accountId as string, Number(b._sum.amount ?? 0)]));
+    const accountRows = accounts.map((a) => ({
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      balance: (balanceByAccount.get(a.id) ?? 0) - (expenseByAccount.get(a.id) ?? 0),
+    }));
     const totalBalance = accountRows.reduce((sum, a) => sum + a.balance, 0);
+
+    const categoryNameById = new Map((await prisma.expenseCategory.findMany({ where: { institutionId }, select: { id: true, name: true } })).map((c) => [c.id, c.name]));
+    const monthlyExpense = Number(monthExpense._sum.amount ?? 0);
+    const expenseBreakdown = expenseByCategory
+      .map((row) => ({ name: categoryNameById.get(row.categoryId) ?? "Diğer", amount: Number(row._sum.amount ?? 0) }))
+      .sort((a, b) => b.amount - a.amount);
 
     let pendingTotal = 0;
     let overdueTotal = 0;
@@ -67,6 +89,19 @@ async function handleGet() {
       accounts: accountRows,
       totalBalance,
       monthlyCollected: Number(monthPayments._sum.amount ?? 0),
+      monthlyExpense,
+      monthlyNet: Number(monthPayments._sum.amount ?? 0) - monthlyExpense,
+      expenseBreakdown,
+      pendingExpenses: pendingExpenses.map((e) => ({
+        id: e.id,
+        title: e.title,
+        categoryName: e.category.name,
+        vendorName: e.vendorName,
+        amount: Number(e.amount),
+        dueDate: e.dueDate?.toISOString() ?? null,
+        isOverdue: e.dueDate != null && e.dueDate < now,
+      })),
+      pendingExpenseTotal: pendingExpenses.reduce((sum, e) => sum + Number(e.amount), 0),
       plannedTotal: Number(plannedTotal._sum.amount ?? 0),
       collectedTotal: Number(collectedTotal._sum.amount ?? 0),
       pendingTotal,
