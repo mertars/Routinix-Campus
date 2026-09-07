@@ -4,6 +4,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { nextReceiptNo } from "@/lib/server/payments/receipt-service";
 
 export const dynamic = "force-dynamic";
 
@@ -48,10 +49,15 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: `Tutar kalan bakiyeyi (${remaining.toFixed(2)}) aşamaz.` }, { status: 400 });
     }
 
+    // Makbuz numarası kayıt ANINDA verilir — makbuz basılmasa bile her
+    // tahsilatın takip edilebilir bir numarası olsun (bkz. receipt-service).
+    const receiptNo = await nextReceiptNo(session.institutionId);
+
     const [payment] = await prisma.$transaction([
       prisma.payment.create({
         data: {
           institutionId: session.institutionId,
+          receiptNo,
           studentId: installment.studentId,
           installmentId: installment.id,
           accountId,

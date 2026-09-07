@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent } from "lucide-react";
+import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { InstallmentPlanModal } from "@/components/payments/installment-plan-modal";
@@ -10,6 +10,17 @@ import { DiscountModal } from "@/components/payments/discount-modal";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string; grade: number };
+type PaymentHistoryRow = {
+  id: string;
+  amount: number;
+  method: string;
+  receiptNo: number | null;
+  title: string;
+  accountName: string;
+  collectedBy: string;
+  paidAt: string;
+};
+
 type InstallmentRow = {
   id: string;
   title: string;
@@ -20,6 +31,8 @@ type InstallmentRow = {
   status: "PENDING" | "PARTIALLY_PAID" | "PAID" | "CANCELLED";
   isOverdue: boolean;
 };
+
+const METHOD_LABEL: Record<string, string> = { CASH: "Nakit", BANK_TRANSFER: "Havale/EFT", CREDIT_CARD: "Kredi Kartı" };
 
 function formatTRY(n: number) {
   return n.toLocaleString("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 });
@@ -41,6 +54,7 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [collectTarget, setCollectTarget] = useState<InstallmentRow | null>(null);
   const [discountOpen, setDiscountOpen] = useState(false);
+  const [history, setHistory] = useState<PaymentHistoryRow[] | null>(null);
 
   useEffect(() => {
     fetch("/api/payments/principal/students")
@@ -55,11 +69,16 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
       .then((data) => setInstallments(data.installments ?? []))
       .catch(() => showError("Taksit planı yüklenemedi."));
+    fetch(`/api/payments/principal/payments?studentId=${encodeURIComponent(studentId)}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((data) => setHistory(data.payments ?? []))
+      .catch(() => setHistory([]));
   }
 
   function selectStudent(s: RosterStudent) {
     setSelectedStudent(s);
     setInstallments(null);
+    setHistory(null);
     loadInstallments(s.id);
   }
 
@@ -210,6 +229,37 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
         studentName={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""}
         onCreated={refresh}
       />
+      {selectedStudent && history && history.length > 0 && (
+        <div className="rounded-2xl border border-hairline bg-white p-4 lg:col-start-2 dark:border-white/5 dark:bg-midnight-card/50">
+          <h4 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+            <Receipt className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Ödeme Geçmişi
+          </h4>
+          <div className="space-y-1.5">
+            {history.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl border border-hairline px-3 py-2 dark:border-white/5">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-espresso dark:text-cream">
+                    {formatTRY(p.amount)} · {METHOD_LABEL[p.method] ?? p.method}
+                  </p>
+                  <p className="truncate text-[10px] text-espresso-muted dark:text-cream/40">
+                    {new Date(p.paidAt).toLocaleDateString("tr-TR")} · {p.title} · {p.collectedBy}
+                    {p.receiptNo ? ` · Makbuz ${p.receiptNo}` : ""}
+                  </p>
+                </div>
+                <a
+                  href={`/api/payments/principal/payments/${p.id}/receipt`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex shrink-0 items-center gap-1 rounded-full border border-hairline px-2.5 py-1 text-[11px] font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                >
+                  <FileDown className="h-3 w-3" /> Makbuz
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <DiscountModal
         isOpen={discountOpen}
         onClose={() => setDiscountOpen(false)}

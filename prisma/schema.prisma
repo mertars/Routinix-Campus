@@ -2711,6 +2711,14 @@ model Payment {
   method            PaymentMethod
   status            PaymentStatus  @default(COMPLETED)
   source            PaymentSource  @default(MANUAL)
+  // Makbuz numarası — kurum içinde artan sıra. Muhasebe belgesinin takip
+  // edilebilir bir numarası olmalı; cuid insan-okur değil. Yeni
+  // tahsilatlarda kayıt anında verilir; modül öncesinden kalan eski
+  // kayıtlara ilk makbuz basımında atanır (bkz. receipt route).
+  // @@unique'te null'lar çakışmaz (Postgres) — bu BURADA İSTENEN
+  // davranıştır: numarası olmayan yüzlerce eski kayıt sorun çıkarmaz,
+  // ama aynı numara aynı kurumda İKİ KEZ kullanılamaz.
+  receiptNo         Int?
   gatewayProvider   String? // Faz 2: "iyzico" | "paytr" — şimdilik hep null
   gatewayReference  String? // Faz 2: gateway işlem id'si — şimdilik hep null
   paidAt            DateTime       @default(now())
@@ -2720,6 +2728,7 @@ model Payment {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
+  @@unique([institutionId, receiptNo])
   @@index([institutionId])
   @@index([studentId])
   @@index([installmentId])
