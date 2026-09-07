@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt } from "lucide-react";
+import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { AccountModal } from "@/components/payments/account-modal";
 import { StudentPaymentsTab } from "@/components/payments/student-payments-tab";
 import { ExpensesTab } from "@/components/payments/expenses-tab";
+import { ReminderModal } from "@/components/payments/reminder-modal";
 
 export type AccountRow = { id: string; name: string; type: "CASH" | "BANK"; balance: number };
 
@@ -47,6 +48,7 @@ export function PaymentsPrincipalPanel() {
   const [tab, setTab] = useState<TabId>("dashboard");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
 
   function loadDashboard() {
     fetch("/api/payments/principal/dashboard")
@@ -82,7 +84,7 @@ export function PaymentsPrincipalPanel() {
       <AnimatePresence mode="wait">
         {tab === "dashboard" && (
           <motion.div key="dashboard" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <DashboardTab data={dashboard} />
+            <DashboardTab data={dashboard} onRemindClick={() => setReminderOpen(true)} />
           </motion.div>
         )}
         {tab === "students" && (
@@ -103,6 +105,7 @@ export function PaymentsPrincipalPanel() {
       </AnimatePresence>
 
       <AccountModal isOpen={accountModalOpen} onClose={() => setAccountModalOpen(false)} onCreated={loadDashboard} />
+      <ReminderModal isOpen={reminderOpen} onClose={() => setReminderOpen(false)} onSent={loadDashboard} />
     </div>
   );
 }
@@ -125,7 +128,7 @@ function StatCard({ icon: Icon, label, value, tone }: { icon: typeof Wallet; lab
   );
 }
 
-function DashboardTab({ data }: { data: DashboardData | null }) {
+function DashboardTab({ data, onRemindClick }: { data: DashboardData | null; onRemindClick: () => void }) {
   if (!data) {
     return (
       <div className="flex justify-center py-16">
@@ -237,9 +240,19 @@ function DashboardTab({ data }: { data: DashboardData | null }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
-          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-            <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" /> Gecikmiş Ödemeler
-          </h3>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+              <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" /> Gecikmiş Ödemeler
+            </h3>
+            {data.overdueInstallments.length > 0 && (
+              <button
+                onClick={onRemindClick}
+                className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+              >
+                <Send className="h-3 w-3" /> Hatırlatma Gönder
+              </button>
+            )}
+          </div>
           {data.overdueInstallments.length === 0 ? (
             <p className="py-6 text-center text-xs text-espresso-muted dark:text-cream/40">Gecikmiş ödeme yok 🎉</p>
           ) : (

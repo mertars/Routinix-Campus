@@ -79,6 +79,49 @@ export async function sendBulkNotification(input: SendBulkInput) {
   return { batchId: batch.id, recipientCount: recipients.length };
 }
 
+// Ödeme hatırlatması gibi ALICIYA ÖZEL veri taşıyan gönderimler için —
+// sendBulkNotification'ın extraParams'ı TÜM alıcılar için aynıdır, oysa her
+// velinin kendi borç tutarı/vadesi farklıdır. Bu fonksiyon öğrenci bazlı
+// parametre haritası alır, TEK bir batch açar ve her alıcıya kendi
+// verisiyle render edilmiş mesajı gönderir. Kapsam çözümleme (smsConsent
+// filtresi dahil), kuyruk ve loglama sendBulkNotification ile AYNI yolu
+// kullanır — KVKK/İYS filtresi tek bir yerde kalsın diye.
+export type PersonalizedTarget = { studentId: string; params: Record<string, string> };
+
+export async function sendPersonalizedNotification(input: { institutionId: string; templateBody: string; targets: PersonalizedTarget[] }) {
+  if (input.targets.length === 0) throw new Error("Gönderilecek alıcı yok.");
+
+  const scopeValue = input.targets.map((t) => t.studentId).join(",");
+  const recipients = await resolveScope("CUSTOM_ID_LIST", scopeValue, input.institutionId);
+  if (recipients.length === 0) {
+    throw new Error("Bu kapsamda SMS onayı (smsConsent) olan alıcı bulunamadı.");
+  }
+
+  const paramsByStudent = new Map(input.targets.map((t) => [t.studentId, t.params]));
+
+  const batch = await prisma.notificationBatch.create({
+    data: { institutionId: input.institutionId, scopeType: "CUSTOM_ID_LIST", scopeValue, rawMessage: input.templateBody },
+  });
+
+  const queue = getSmsQueue();
+
+  for (const recipient of recipients) {
+    const message = renderTemplate(input.templateBody, {
+      veli_adi: recipient.parentName,
+      ogrenci_adi: recipient.studentName,
+      ...(paramsByStudent.get(recipient.studentId) ?? {}),
+    });
+
+    const log = await prisma.notificationLog.create({
+      data: { batchId: batch.id, recipientPhone: recipient.phone, recipientName: recipient.parentName, message, status: "PENDING" },
+    });
+
+    await queue.enqueue({ logId: log.id, phone: recipient.phone, message });
+  }
+
+  return { batchId: batch.id, recipientCount: recipients.length };
+}
+
 export async function getBatchStatus(batchId: string, institutionId: string) {
   const batch = await prisma.notificationBatch.findUnique({ where: { id: batchId }, select: { institutionId: true } });
   if (!batch || batch.institutionId !== institutionId) throw new Error("Bildirim grubu (batch) bulunamadı.");

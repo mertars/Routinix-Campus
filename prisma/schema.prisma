@@ -2256,18 +2256,23 @@ enum InstallmentStatus {
 }
 
 model Installment {
-  id            String            @id @default(cuid())
-  institutionId String
-  institution   Institution       @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  studentId     String
-  student       Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  title         String // "2026-2027 Eğitim Ücreti - Taksit 3/12"
-  amount        Decimal           @db.Decimal(12, 2)
-  dueDate       DateTime
-  status        InstallmentStatus @default(PENDING)
-  payments      Payment[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id             String            @id @default(cuid())
+  institutionId  String
+  institution    Institution       @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  studentId      String
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  title          String // "2026-2027 Eğitim Ücreti - Taksit 3/12"
+  amount         Decimal           @db.Decimal(12, 2)
+  dueDate        DateTime
+  status         InstallmentStatus @default(PENDING)
+  // Bu taksit için veliye en son ne zaman ödeme hatırlatma SMS'i gidildiği
+  // (bkz. app/api/payments/principal/reminders). Amaç: aynı veliye üst üste
+  // hatırlatma gönderilmesini önlemek — arayüz "3 saat önce hatırlatıldı"
+  // diyerek yöneticiyi uyarır.
+  lastReminderAt DateTime?
+  payments       Payment[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@index([institutionId])
   @@index([studentId])
