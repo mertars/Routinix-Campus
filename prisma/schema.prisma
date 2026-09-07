@@ -138,6 +138,9 @@ model Institution {
   expenses                    Expense[]
   contractTemplates           ContractTemplate[]
   studentContracts            StudentContract[]
+  staffSalaryProfiles         StaffSalaryProfile[]
+  payrollPeriods              PayrollPeriod[]
+  staffAdvances               StaffAdvance[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -359,6 +362,9 @@ model Teacher {
   dutySlots               TeacherDutySlot[]
   reportCardComments      ReportCardTeacherComment[]
   topicMasteryAssessments TopicMasteryAssessment[]
+  salaryProfile           StaffSalaryProfile?
+  payrollItems            PayrollItem[]
+  staffAdvances           StaffAdvance[]
   guidanceReferrals       GuidanceReferral[]
   createdAt               DateTime                   @default(now())
   updatedAt               DateTime                   @updatedAt
@@ -416,6 +422,9 @@ model Admin {
   recordedPayments             Payment[]
   recordedExpenses             Expense[]                     @relation("ExpenseRecordedBy")
   createdContracts             StudentContract[]             @relation("ContractCreatedBy")
+  salaryProfile                StaffSalaryProfile?           @relation("AdminSalaryProfile")
+  payrollItems                 PayrollItem[]                 @relation("AdminPayrollItem")
+  staffAdvances                StaffAdvance[]                @relation("AdminStaffAdvance")
 
   @@index([institutionId])
 }
@@ -2301,6 +2310,118 @@ enum PaymentSource {
 }
 
 // ----------------------------------------------------------------------------
+// Personel Ücret / Bordro (Ödeme Takip Faz 4)
+// ----------------------------------------------------------------------------
+//
+// Demo verisinde giderin ~%68'i personel maaşıydı ve elle giriliyordu —
+// bordro bu kalemi otomatikleştirir. Saatlik çalışan öğretmenin aylık ders
+// saati HAFTALIK DERS PROGRAMINDAN (LessonSlot) türetilir; yönetici
+// gerekirse üzerine yazabilir (tatil/telafi gerçek hayatta sapma yaratır).
+//
+// Bordro "ödendi" işaretlendiğinde TEK bir toplu Expense kaydı üretilir
+// (kategori: Personel Maaş) — böylece kasa/banka bakiyesi ve gider
+// raporları bordroyu otomatik görür, çift kayıt olmaz.
+
+enum StaffPayType {
+  MONTHLY_SALARY // sabit aylık ücret
+  HOURLY // ders saati başına
+}
+
+// Personelin nasıl ücretlendirildiği. Teacher VEYA Admin'e bağlanır —
+// ikisi de kurumun personelidir ama ayrı tablolarda tutulur.
+model StaffSalaryProfile {
+  id            String       @id @default(cuid())
+  institutionId String
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  teacherId     String?      @unique
+  teacher       Teacher?     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  adminId       String?      @unique
+  admin         Admin?       @relation("AdminSalaryProfile", fields: [adminId], references: [id], onDelete: Cascade)
+  payType       StaffPayType
+  monthlyAmount Decimal?     @db.Decimal(12, 2)
+  hourlyRate    Decimal?     @db.Decimal(12, 2)
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([institutionId])
+}
+
+enum PayrollStatus {
+  DRAFT // hesaplandı, üzerinde oynanabilir
+  PAID // ödendi, Expense kaydı üretildi, artık değiştirilemez
+}
+
+model PayrollPeriod {
+  id            String        @id @default(cuid())
+  institutionId String
+  institution   Institution   @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  year          Int
+  month         Int // 1-12
+  status        PayrollStatus @default(DRAFT)
+  totalAmount   Decimal       @default(0) @db.Decimal(12, 2)
+  paidAt        DateTime?
+  // Ödendiğinde üretilen toplu gider kaydı — SetNull: gider silinse bile
+  // bordro geçmişi kaybolmamalı.
+  expenseId     String?
+  expense       Expense?      @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  items         PayrollItem[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([institutionId, year, month])
+  @@index([institutionId])
+}
+
+model PayrollItem {
+  id               String         @id @default(cuid())
+  periodId         String
+  period           PayrollPeriod  @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  teacherId        String?
+  teacher          Teacher?       @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  adminId          String?
+  admin            Admin?         @relation("AdminPayrollItem", fields: [adminId], references: [id], onDelete: SetNull)
+  // Personel sonradan silinse/pasifleşse bile bordro satırı okunabilir
+  // kalsın diye ad ve rol ANLIK kopyalanır.
+  staffName        String
+  staffRole        String // "Öğretmen" | "Yönetici"
+  payType          StaffPayType
+  hours            Decimal?       @db.Decimal(8, 2) // saatlik personelde ders saati
+  rate             Decimal?       @db.Decimal(12, 2)
+  baseAmount       Decimal        @db.Decimal(12, 2)
+  advanceDeduction Decimal        @default(0) @db.Decimal(12, 2)
+  netAmount        Decimal        @db.Decimal(12, 2)
+  note             String?
+  advances         StaffAdvance[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([periodId])
+}
+
+// Avans — personele bordro dışında yapılan ön ödeme. Bir sonraki bordroda
+// otomatik olarak netAmount'tan düşülür (düşüldüğü satır payrollItemId).
+model StaffAdvance {
+  id            String       @id @default(cuid())
+  institutionId String
+  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  teacherId     String?
+  teacher       Teacher?     @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  adminId       String?
+  admin         Admin?       @relation("AdminStaffAdvance", fields: [adminId], references: [id], onDelete: Cascade)
+  amount        Decimal      @db.Decimal(12, 2)
+  paidAt        DateTime     @default(now())
+  note          String?
+  // Hangi bordro satırında mahsup edildi — null ise HENÜZ düşülmemiş
+  // (bir sonraki bordroda otomatik yakalanır).
+  payrollItemId String?
+  payrollItem   PayrollItem? @relation(fields: [payrollItemId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+
+  @@index([institutionId])
+}
+
+// ----------------------------------------------------------------------------
 // Sözleşme Yönetimi (Ödeme Takip Faz 3)
 // ----------------------------------------------------------------------------
 //
@@ -2412,6 +2533,7 @@ model Expense {
   note              String?
   recordedByAdminId String
   recordedByAdmin   Admin           @relation("ExpenseRecordedBy", fields: [recordedByAdminId], references: [id], onDelete: Restrict)
+  payrollPeriods    PayrollPeriod[]
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
