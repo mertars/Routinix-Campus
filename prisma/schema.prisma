@@ -136,6 +136,8 @@ model Institution {
   payments                    Payment[]
   expenseCategories           ExpenseCategory[]
   expenses                    Expense[]
+  contractTemplates           ContractTemplate[]
+  studentContracts            StudentContract[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -269,6 +271,7 @@ model Student {
   studyGoals                   StudyGoal[]
   installments                 Installment[]
   payments                     Payment[]
+  contracts                    StudentContract[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -412,6 +415,7 @@ model Admin {
   videos                       Video[]
   recordedPayments             Payment[]
   recordedExpenses             Expense[]                     @relation("ExpenseRecordedBy")
+  createdContracts             StudentContract[]             @relation("ContractCreatedBy")
 
   @@index([institutionId])
 }
@@ -2294,6 +2298,73 @@ enum PaymentStatus {
 enum PaymentSource {
   MANUAL
   ONLINE // ileride gerçek gateway entegrasyonu
+}
+
+// ----------------------------------------------------------------------------
+// Sözleşme Yönetimi (Ödeme Takip Faz 3)
+// ----------------------------------------------------------------------------
+//
+// Öğrenci kayıt sözleşmesi: yönetici bir ŞABLONDAN sözleşme üretir, veliye
+// süreli/tokenlı bir bağlantı gider, veli oturum AÇMADAN sözleşmeyi okuyup
+// parmağıyla/fareyle imzalar (bkz. app/sozlesme/[token]). Token deseni
+// ReportCardShareLink ile AYNI (bkz. lib/server/report-card/share-link.ts).
+
+enum ContractStatus {
+  DRAFT // oluşturuldu, veliye henüz gönderilmedi
+  SENT // bağlantı paylaşıldı, imza bekleniyor
+  SIGNED
+  CANCELLED
+}
+
+model ContractTemplate {
+  id            String            @id @default(cuid())
+  institutionId String
+  institution   Institution       @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  title         String
+  // {ogrenci_adi}, {veli_adi}, {tutar} gibi yer tutucular içerir —
+  // lib/server/sms/template-parser.ts'teki AYNI renderTemplate ile doldurulur.
+  content       String
+  isActive      Boolean           @default(true)
+  contracts     StudentContract[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([institutionId])
+}
+
+model StudentContract {
+  id               String            @id @default(cuid())
+  institutionId    String
+  institution      Institution       @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  studentId        String
+  student          Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  // SetNull — şablon silinse bile İMZALANMIŞ sözleşme ASLA kaybolmamalı.
+  templateId       String?
+  template         ContractTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  title            String
+  // ⚠️ Şablonun o ANDAKİ hali, yer tutucuları doldurulmuş şekilde BURAYA
+  // kopyalanır. Şablon sonradan değiştirilse bile imzalanmış metin
+  // DEĞİŞMEZ — hukuken imzalanan şey bu satırdaki metindir.
+  content          String
+  totalAmount      Decimal?          @db.Decimal(12, 2)
+  installmentCount Int?
+  status           ContractStatus    @default(DRAFT)
+  shareToken       String            @unique
+  expiresAt        DateTime
+  // İmza kanıtı: imzalayanın beyan ettiği ad, yakınlık, çizdiği imzanın
+  // PNG (base64 data URL) hali ve imza anı/IP'si.
+  signerName       String?
+  signerRelation   String?
+  signatureData    String?
+  signedAt         DateTime?
+  signedIp         String?
+  createdByAdminId String
+  createdByAdmin   Admin             @relation("ContractCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([institutionId])
+  @@index([studentId])
 }
 
 // Gider Yönetimi (Faz 2) — gelirin karşı tarafı. Kategoriler kurum bazında
