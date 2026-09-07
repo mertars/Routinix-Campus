@@ -8,7 +8,10 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
-export const DEFAULT_REMINDER_TEMPLATE =
+// Not: export EDİLMEZ — Next.js route dosyaları sadece GET/POST/dynamic gibi
+// bilinen isimleri export edebilir, fazlası derleme hatasına yol açar.
+// İstemci bu şablonu GET yanıtındaki defaultTemplate alanından alır.
+const DEFAULT_REMINDER_TEMPLATE =
   "Sayın {veli_adi}, {ogrenci_adi} adlı öğrencimizin {tutar} tutarında vadesi geçmiş ödemesi bulunmaktadır. Bilgilerinize sunarız.";
 
 function formatTRY(n: number) {

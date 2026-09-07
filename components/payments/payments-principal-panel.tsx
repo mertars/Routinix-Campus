@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send } from "lucide-react";
+import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { AccountModal } from "@/components/payments/account-modal";
 import { StudentPaymentsTab } from "@/components/payments/student-payments-tab";
 import { ExpensesTab } from "@/components/payments/expenses-tab";
 import { ReminderModal } from "@/components/payments/reminder-modal";
+import { ReportsTab } from "@/components/payments/reports-tab";
 
 export type AccountRow = { id: string; name: string; type: "CASH" | "BANK"; balance: number };
 
@@ -34,6 +35,7 @@ const TABS = [
   { id: "students", label: "Öğrenci Ödemeleri", icon: Users },
   { id: "expenses", label: "Giderler", icon: Receipt },
   { id: "accounts", label: "Kasa & Banka", icon: Landmark },
+  { id: "reports", label: "Raporlar", icon: BarChart3 },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
 
@@ -100,6 +102,11 @@ export function PaymentsPrincipalPanel() {
         {tab === "accounts" && (
           <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <AccountsTab accounts={dashboard?.accounts ?? null} onAddClick={() => setAccountModalOpen(true)} />
+          </motion.div>
+        )}
+        {tab === "reports" && (
+          <motion.div key="reports" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <ReportsTab />
           </motion.div>
         )}
       </AnimatePresence>
