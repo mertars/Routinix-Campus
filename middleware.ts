@@ -30,6 +30,11 @@ const ROUTE_ROLE: Record<string, string> = {
   // Ölçme Değerlendirme (Hub'daki 3. modül) — AYNI ilke.
   "/olcme/principal": "principal",
   "/olcme/teacher": "teacher",
+  // Ödeme Takip (Hub'daki 5. modül) — AYNI ilke. Faz 1'de öğretmen görünümü
+  // YOK (finansal veri sadece yönetim + veli); veli kendi salt-okunur
+  // görünümüne /parent panelindeki giriş noktasından ulaşır.
+  "/payments/principal": "principal",
+  "/payments/parent": "parent",
 };
 
 // CSP nonce'ı burada, HER sayfa isteğinde yeniden üretilir (statik bir değer

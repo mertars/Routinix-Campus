@@ -131,6 +131,9 @@ model Institution {
   examCategories              ExamCategory[]
   examGroups                  ExamGroup[]
   osymReferenceTables         OsymReferenceTable[]
+  paymentAccounts             PaymentAccount[]
+  installments                Installment[]
+  payments                    Payment[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -142,15 +145,15 @@ model Institution {
 // öğretmenler kendi müsaitliklerini kendileri yönetir (bkz. Kampüs V2 >
 // Birebir Etüt modülü, ileriki bir PART'ta uygulanacak).
 model InstitutionSettings {
-  id                 String      @id @default(cuid())
-  institutionId      String      @unique
-  institution        Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  isEtutAdminManaged Boolean     @default(true)
+  id                   String      @id @default(cuid())
+  institutionId        String      @unique
+  institution          Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  isEtutAdminManaged   Boolean     @default(true)
   // Deneme klasörlerinin varsayılan seti bu kuruma bir kez kuruldu mu?
   // Bayrak olmadan, kurum TÜM kategorileri bilerek silerse sistem onları
   // her istekte yeniden yaratırdı (bkz. ensureDefaultCategories).
-  examCategoriesSeeded Boolean  @default(false)
-  updatedAt          DateTime    @updatedAt
+  examCategoriesSeeded Boolean     @default(false)
+  updatedAt            DateTime    @updatedAt
 }
 
 model Branch {
@@ -262,6 +265,8 @@ model Student {
   alumniProfile                AlumniProfile?
   sentMentorRequests           MentorRequest[]               @relation("MentorRequestsSent")
   studyGoals                   StudyGoal[]
+  installments                 Installment[]
+  payments                     Payment[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -403,6 +408,7 @@ model Admin {
   xrayPracticeAttempts         XrayPracticeAttempt[]
   xrayMonthlyScreeningConfigs  XrayMonthlyScreeningConfig[]
   videos                       Video[]
+  recordedPayments             Payment[]
 
   @@index([institutionId])
 }
@@ -503,15 +509,15 @@ model ExamGroup {
 // buraya girmesini sağlıyoruz; karne bu tabloya göre ARA DEĞER (interpolasyon)
 // ile "tahmini sıralama" gösterir — açıkça "kurum kaynaklı tahmin" etiketiyle.
 model OsymReferenceTable {
-  id            String              @id @default(cuid())
+  id            String             @id @default(cuid())
   institutionId String
-  institution   Institution         @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  institution   Institution        @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   name          String // "2025 TYT", "2025 AYT Sayısal" gibi
   // Bu tablo hangi puan türüne karşılık geliyor — "TYT" ya da alan adı
   // (bkz. track-mapping.ts > TRACK_NAMES: "Sayısal"/"Eşit Ağırlık"/"Sözel").
   puanTuru      String
   rows          OsymReferenceRow[]
-  createdAt     DateTime            @default(now())
+  createdAt     DateTime           @default(now())
 
   @@unique([institutionId, name])
   @@index([institutionId])
@@ -546,21 +552,21 @@ model ExamSubject {
 }
 
 model ExamNetResult {
-  id        String   @id @default(cuid())
-  examId    String
-  exam      Exam     @relation(fields: [examId], references: [id])
-  studentId String
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject   String // "Matematik"
-  net       Float
+  id                   String   @id @default(cuid())
+  examId               String
+  exam                 Exam     @relation(fields: [examId], references: [id])
+  studentId            String
+  student              Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject              String // "Matematik"
+  net                  Float
   // Kazanım bazlı deneme analizi (2026-09-05) — bu dersin cevap anahtarı
   // (bkz. ExamQuestion) tanımlıysa, bu iki dizi + ExamQuestion'daki soru→
   // kazanım eşlemesi kullanılarak konu bazlı doğru/yanlış/boş kırılımı
   // hesaplanır (bkz. lib/server/exams/subtopic-breakdown.ts). Soru NUMARASI
   // saklanıyor (soru metni/cevabı değil) — dershanenin kağıt üzerindeki
   // optik/cevap kâğıdıyla BİREBİR aynı numaralandırma varsayılıyor.
-  wrongQuestionNumbers Int[] @default([])
-  blankQuestionNumbers Int[] @default([])
+  wrongQuestionNumbers Int[]    @default([])
+  blankQuestionNumbers Int[]    @default([])
   // Optik okumadan gelen HAM cevap dizisi (2026-09-06) — her karakter bir
   // soru numarasının öğrencinin İŞARETLEDİĞİ şıkkı (A-E; boş/geçersizse
   // orijinal karakter neyse o, örn. " " ya da "0"). Kullanıcı kararı:
@@ -569,7 +575,7 @@ model ExamNetResult {
   // SADECE optik yüklemeden gelir; elle girilen (yanlış/boş soru NUMARASI)
   // sonuçlarda null kalır — KONU ANALİZİ'nde ÖC sütunu o durumda boş kalır.
   answerLetters        String?
-  createdAt DateTime @default(now())
+  createdAt            DateTime @default(now())
 
   @@unique([examId, studentId, subject])
   @@index([studentId])
@@ -2142,14 +2148,14 @@ enum VideoStatus {
 }
 
 model Video {
-  id            String            @id @default(cuid())
-  institutionId String
-  institution   Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  title         String
-  description   String?
-  grade         Int
-  subject       String
-  topic         String
+  id              String            @id @default(cuid())
+  institutionId   String
+  institution     Institution       @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  grade           Int
+  subject         String
+  topic           String
   // Faz (2026-09-05, sağlamlaştırma) — DB satırı artık R2→YouTube aktarımı
   // BAŞLAMADAN ÖNCE oluşturuluyor (bkz. app/api/videos/route.ts > handlePost),
   // bu yüzden youtubeId aktarım bitene kadar NULL olabilir — sunucusuz
@@ -2157,24 +2163,24 @@ model Video {
   // artık en azından KAYIP OLMAYAN, yeniden denenebilir bir satır kalıyor
   // (eskiden create() aktarım BİTTİKTEN sonra çağrılıyordu, yarıda kesilen
   // bir aktarım DB'de hiçbir iz bırakmıyordu — sessizce kayboluyordu).
-  youtubeId     String? // YouTube video ID'si (11 karakter) — embed/thumbnail URL'leri lib/client/youtube.ts'te türetilir
-  status        VideoStatus       @default(PROCESSING)
+  youtubeId       String? // YouTube video ID'si (11 karakter) — embed/thumbnail URL'leri lib/client/youtube.ts'te türetilir
+  status          VideoStatus       @default(PROCESSING)
   // Sadece status=FAILED iken dolu — YouTube'un rejectionReason/
   // processingFailureReason alanı ya da bizim "zaman aşımı" tespitimiz
   // (bkz. checkYoutubeProcessingStatus, GET /api/videos). Amaç: "başarısız"
   // her zaman AYNI genel mesajı göstermek yerine yöneticiye GERÇEK sebebi
   // (kota doldu mu, dosya reddedildi mi, kontrol zaman aşımına mı uğradı)
   // gösterebilmek.
-  failureReason String?
+  failureReason   String?
   // "Kaldığı yerden devam" özelliği için — YouTube API'sine ayrı bir
   // sorgu atmak yerine, bir öğrenci videoyu İLK kez oynattığında tarayıcı
   // tarafında zaten bilinen süre buraya bir kere yazılır (bkz. POST
   // /api/videos/assigned/[id]/watched > durationSeconds).
   durationSeconds Int?
-  createdById   String?
-  createdBy     Admin?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  createdAt     DateTime          @default(now())
-  assignments   VideoAssignment[]
+  createdById     String?
+  createdBy       Admin?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime          @default(now())
+  assignments     VideoAssignment[]
 
   @@index([institutionId, grade, subject])
 }
@@ -2185,13 +2191,13 @@ model Video {
 // atama modellerindeki (TopicMasteryAssessment vb.) AYNI desen, ayrı bir
 // "hedef" tablosu YOK, doğrudan öğrenci bazlı satırlar.
 model VideoAssignment {
-  id         String    @id @default(cuid())
-  videoId    String
-  video      Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  studentId  String
-  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  assignedAt DateTime  @default(now())
-  watchedAt  DateTime?
+  id                  String    @id @default(cuid())
+  videoId             String
+  video               Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  studentId           String
+  student             Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignedAt          DateTime  @default(now())
+  watchedAt           DateTime?
   // "Kaldığı yerden devam" (2026-09-05) — öğrenci oynatırken periyodik
   // olarak (bkz. POST /api/videos/assigned/[id]/progress) güncellenir;
   // bir sonraki açılışta YoutubePlayer bu saniyeden itibaren başlar (bkz.
@@ -2202,4 +2208,109 @@ model VideoAssignment {
 
   @@unique([videoId, studentId])
   @@index([studentId])
+}
+
+// ----------------------------------------------------------------------------
+// Ödeme Takip (Hub'daki 5. modül) — Faz 1: Gelir Yönetimi + Kontrol Paneli
+// ----------------------------------------------------------------------------
+//
+// Faz 1 kapsamı BİLİNÇLİ olarak dar: sadece öğrenci tahsilat/taksit takibi +
+// kasa/banka bakiyesi (manuel kayıt). Gider Yönetimi, Sözleşme, Bordro,
+// Çoklu Şube/Bütçe, Mağaza, Raporlar ve gerçek ödeme gateway'i entegrasyonu
+// Faz 2+'ya bırakıldı (bkz. plan dosyası).
+//
+// İleride gerçek bir ödeme gateway'i (iyzico/PayTR) eklendiğinde şema
+// DEĞİŞMEDEN genişleyebilsin diye Payment.status/source ve rezerve
+// gatewayProvider/gatewayReference alanları şimdiden var — manuel kayıtlar
+// hep status=COMPLETED/source=MANUAL ile başlar, gateway eklenince online
+// ödemeler PENDING başlayıp webhook ile COMPLETED/FAILED'a döner.
+
+enum PaymentAccountType {
+  CASH // Nakit Kasa
+  BANK // Banka Hesabı
+}
+
+model PaymentAccount {
+  id            String             @id @default(cuid())
+  institutionId String
+  institution   Institution        @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  name          String // "Nakit Kasa", "Ziraat Bankası TL Hesabı"
+  type          PaymentAccountType
+  isActive      Boolean            @default(true)
+  payments      Payment[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([institutionId])
+}
+
+enum InstallmentStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+model Installment {
+  id            String            @id @default(cuid())
+  institutionId String
+  institution   Institution       @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  studentId     String
+  student       Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  title         String // "2026-2027 Eğitim Ücreti - Taksit 3/12"
+  amount        Decimal           @db.Decimal(12, 2)
+  dueDate       DateTime
+  status        InstallmentStatus @default(PENDING)
+  payments      Payment[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([institutionId])
+  @@index([studentId])
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+}
+
+enum PaymentStatus {
+  COMPLETED // manuel kayıtlar hep bununla başlar
+  PENDING // ileride: gateway'den dönüş bekleniyor
+  FAILED
+  REFUNDED
+}
+
+enum PaymentSource {
+  MANUAL
+  ONLINE // ileride gerçek gateway entegrasyonu
+}
+
+model Payment {
+  id                String         @id @default(cuid())
+  institutionId     String
+  institution       Institution    @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  studentId         String
+  student           Student        @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  installmentId     String?
+  installment       Installment?   @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+  accountId         String
+  account           PaymentAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  amount            Decimal        @db.Decimal(12, 2)
+  method            PaymentMethod
+  status            PaymentStatus  @default(COMPLETED)
+  source            PaymentSource  @default(MANUAL)
+  gatewayProvider   String? // Faz 2: "iyzico" | "paytr" — şimdilik hep null
+  gatewayReference  String? // Faz 2: gateway işlem id'si — şimdilik hep null
+  paidAt            DateTime       @default(now())
+  note              String?
+  recordedByAdminId String
+  recordedByAdmin   Admin          @relation(fields: [recordedByAdminId], references: [id], onDelete: Restrict)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([institutionId])
+  @@index([studentId])
+  @@index([installmentId])
 }

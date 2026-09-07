@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, GraduationCap, Target, CalendarCheck2, LogOut } from "lucide-react";
+import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { XRAY_MIN_GRADE } from "@/lib/mock-data";
@@ -22,6 +23,7 @@ type StudentDetail = {
 
 export default function ParentPage() {
   const logout = useLogout();
+  const router = useRouter();
   const [parentName, setParentName] = useState("");
   const [students, setStudents] = useState<StudentDetail[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -118,6 +120,24 @@ export default function ParentPage() {
               <div key={detail.id}>
                 <PerformanceCard detail={detail} />
                 {detail.grade >= XRAY_MIN_GRADE && <XrayParentSummaryCard studentId={detail.id} />}
+                {/* Ödeme Takip (Hub'daki 5. modül) — velinin salt-okunur
+                    taksit/ödeme görünümüne giriş noktası. Veli hub'ı
+                    kullanmadığı için modül buradan açılır. */}
+                <button
+                  onClick={() => router.push("/payments/parent")}
+                  className="mt-4 flex w-full items-center justify-between gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5 text-left transition hover:bg-emerald-500/10 dark:border-emerald-400/20"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                      <Wallet className="h-6 w-6" />
+                    </span>
+                    <span>
+                      <span className="block text-base font-semibold text-espresso dark:text-cream">Ödemelerim</span>
+                      <span className="block text-xs text-espresso-muted dark:text-cream/40">Taksit planı ve ödeme geçmişini görüntüle.</span>
+                    </span>
+                  </span>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                </button>
               </div>
             ) : (
               <EmptyState msg="Öğrenci verisi yükleniyor…" />

@@ -53,9 +53,9 @@ const MODULES: ModuleDef[] = [
   {
     id: "payments",
     label: "Ödeme Takip",
-    description: "Ödeme ve tahsilat takibi merkezi.",
+    description: "Öğrenci taksit planı, tahsilat kaydı ve kasa/banka bakiyesi tek ekranda.",
     icon: Wallet,
-    active: false,
+    active: true,
   },
 ];
 
@@ -137,7 +137,13 @@ export default function HubPage() {
     if (mod.id === "xray") router.push(isTeacher ? "/xray/teacher" : "/xray/principal");
     else if (mod.id === "video") router.push(isTeacher ? "/videos/teacher" : "/videos/principal");
     else if (mod.id === "measurement") router.push(isTeacher ? "/olcme/teacher" : "/olcme/principal");
-    else router.push(isTeacher ? "/teacher" : "/principal");
+    // Ödeme Takip'in Faz 1'inde öğretmen görünümü YOK (finansal veri sadece
+    // yönetim + veli). Öğretmen tıklarsa middleware'in "yanlış rol"
+    // yönlendirmesine düşmek yerine burada net bir mesaj gösterilir.
+    else if (mod.id === "payments") {
+      if (isTeacher) showToast("info", "Ödeme Takip yalnızca yönetici hesaplarına açıktır.");
+      else router.push("/payments/principal");
+    } else router.push(isTeacher ? "/teacher" : "/principal");
   }
 
   return (
