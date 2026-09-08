@@ -151,6 +151,7 @@ model Institution {
   cashCounts                  CashCount[]
   reminderRule                ReminderRule?
   recurringExpenses           RecurringExpense[]
+  studentEnrollments          StudentEnrollment[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -289,6 +290,7 @@ model Student {
   installmentAdjustments       InstallmentAdjustment[]
   paymentPromises              PaymentPromise[]
   enrollmentCancellations      EnrollmentCancellation[]
+  enrollments                  StudentEnrollment[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -427,6 +429,7 @@ model Admin {
   extensionNumber              String? // Dahili No
   passwordHash                 String? // bcrypt — kalıcı şifre hash'i (ilk girişe kadar null)
   mustChangePassword           Boolean                       @default(true) // ilk giriş / şifre değiştirme zorunluluğu
+  createdEnrollments           StudentEnrollment[]           @relation("EnrollmentCreatedBy")
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
   xrayComprehensionAssignments XrayComprehensionAssignment[]
@@ -2987,4 +2990,49 @@ model RecurringExpense {
 
   @@index([institutionId])
   @@index([categoryId])
+}
+
+enum EnrollmentStatus {
+  ACTIVE // sürüyor
+  RENEWED // bir sonraki yıla yenilendi
+  ENDED // süresi doldu, yenilenmedi
+  LEFT // öğrenci ayrıldı
+}
+
+// Öğrencinin bir eğitim yılına ait KAYIT DÖNEMİ.
+//
+// Kayıt sırasında "ne zamana kadar" girilir; süre dolduğunda sistem
+// "devam mı?" diye sorar. Yenileme YENİ bir satır açar — eskisi
+// SİLİNMEZ, RENEWED olarak durur. Böylece "geçen yıl ne ödedi, kaç
+// taksitti" sorusu her zaman cevaplanabilir ve öğrenci numarası
+// (Student.studentNumber) hiç değişmez.
+model StudentEnrollment {
+  id               String             @id @default(cuid())
+  institutionId    String
+  institution      Institution        @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  studentId        String
+  student          Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicYear     String // "2026-2027"
+  startDate        DateTime
+  // Sözleşme/kayıt bitişi. Yenileme hatırlatması buna göre çıkar.
+  endDate          DateTime
+  status           EnrollmentStatus   @default(ACTIVE)
+  // O yılın anlaşılan LİSTE ücreti ve taksit sayısı — geçmişe dönük
+  // "hangi yıl ne konuşulmuştu" sorusunun cevabı. Taksitlerin kendisi
+  // Installment'ta; burası anlaşmanın kaydı.
+  listAmount       Decimal?           @db.Decimal(12, 2)
+  installmentCount Int?
+  note             String?
+  // Yenilendiyse hangi kayda — zinciri geriye doğru takip etmek için.
+  renewedToId      String?            @unique
+  renewedTo        StudentEnrollment? @relation("EnrollmentChain", fields: [renewedToId], references: [id], onDelete: SetNull)
+  renewedFrom      StudentEnrollment? @relation("EnrollmentChain")
+  createdByAdminId String
+  createdByAdmin   Admin              @relation("EnrollmentCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@unique([studentId, academicYear])
+  @@index([institutionId, endDate])
+  @@index([studentId])
 }

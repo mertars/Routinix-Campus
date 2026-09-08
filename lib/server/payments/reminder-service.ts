@@ -84,6 +84,11 @@ export async function collectDueSoon(institutionId: string, daysBefore: number):
     where: {
       institutionId,
       status: { in: ["PENDING", "PARTIALLY_PAID"] },
+      // ⚠️ AYRILMIŞ öğrencinin velisine hatırlatma GİTMEZ. Borç defterde
+      // durur ve ödeme panelinde "Ayrıldı" etiketiyle görünür (müdür
+      // gerekirse tahsil eder ya da kayıt iptaliyle kapatır) ama artık
+      // kurumda olmayan bir öğrenci için otomatik SMS taciz olur.
+      student: { isActive: true },
       dueDate: { gte: today, lt: until },
       lastReminderAt: null,
     },
@@ -105,6 +110,11 @@ export async function collectOverdue(institutionId: string, daysAfter: number): 
     where: {
       institutionId,
       status: { in: ["PENDING", "PARTIALLY_PAID"] },
+      // ⚠️ AYRILMIŞ öğrencinin velisine hatırlatma GİTMEZ. Borç defterde
+      // durur ve ödeme panelinde "Ayrıldı" etiketiyle görünür (müdür
+      // gerekirse tahsil eder ya da kayıt iptaliyle kapatır) ama artık
+      // kurumda olmayan bir öğrenci için otomatik SMS taciz olur.
+      student: { isActive: true },
       dueDate: { lt: cutoff },
       OR: [{ lastReminderAt: null }, { lastReminderAt: { lt: repeatCutoff } }],
     },

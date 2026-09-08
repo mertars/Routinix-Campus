@@ -13,7 +13,7 @@ import { BulkPlanModal } from "@/components/payments/bulk-plan-modal";
 import { currentAcademicYear } from "@/lib/payments/academic-year";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
-type RosterStudent = { id: string; firstName: string; lastName: string; studentNumber: string; branchName: string; grade: number };
+type RosterStudent = { id: string; firstName: string; lastName: string; studentNumber: string; branchName: string; grade: number; hasLeft?: boolean };
 type PaymentHistoryRow = {
   id: string;
   amount: number;
@@ -218,6 +218,13 @@ export function StudentPaymentsTab({
                     {s.branchName} · {s.grade}. Sınıf
                   </span>
                 </span>
+                {/* Ayrılmış öğrenci listede KALIR (açık borcu varsa) —
+                    borcu görünmez olursa tahsil de iptal de edilemez. */}
+                {s.hasLeft && (
+                  <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300">
+                    Ayrıldı
+                  </span>
+                )}
               </button>
             ))}
             {filtered.length === 0 &&
@@ -251,8 +258,13 @@ export function StudentPaymentsTab({
           <div>
             <div className="mb-4 flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm font-semibold text-espresso dark:text-cream">
+                <p className="flex items-center gap-2 text-sm font-semibold text-espresso dark:text-cream">
                   {selectedStudent.firstName} {selectedStudent.lastName}
+                  {selectedStudent.hasLeft && (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                      Kurumdan ayrıldı
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-espresso-muted dark:text-cream/40">
                   {selectedStudent.branchName} · {selectedStudent.grade}. Sınıf

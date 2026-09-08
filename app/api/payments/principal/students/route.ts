@@ -17,10 +17,30 @@ async function handleGet() {
     requireRole(session, "principal");
     await requirePaymentRole(session, "COLLECTOR");
 
+    // AYRILMIŞ öğrenci de listelenir — ama YALNIZCA açık borcu varsa.
+    //
+    // Önceden liste `isActive: true` süzüyordu: müdür öğrenciyi ERP'den
+    // pasifleştirince borcu ödeme panelinden KAYBOLUYOR ama defterde
+    // (bekleyen alacak) kalmaya devam ediyordu. Yani düzeltilebilecek
+    // tek ekrandan siliniyor, faturadan silinmiyordu. Borcu kapanmış
+    // ayrılmışlar listeyi şişirmesin diye onlar gelmez.
     const students = await prisma.student.findMany({
-      where: { institutionId: session.institutionId, isActive: true },
-      select: { id: true, firstName: true, lastName: true, studentNumber: true, branch: { select: { name: true, grade: true } } },
-      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      where: {
+        institutionId: session.institutionId,
+        OR: [
+          { isActive: true },
+          { isActive: false, installments: { some: { status: { in: ["PENDING", "PARTIALLY_PAID"] } } } },
+        ],
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        studentNumber: true,
+        isActive: true,
+        branch: { select: { name: true, grade: true } },
+      },
+      orderBy: [{ isActive: "desc" }, { firstName: "asc" }, { lastName: "asc" }],
     });
 
     return NextResponse.json({
@@ -31,6 +51,7 @@ async function handleGet() {
         studentNumber: s.studentNumber,
         branchName: s.branch.name,
         grade: s.branch.grade,
+        hasLeft: !s.isActive,
       })),
     });
   } catch (error) {

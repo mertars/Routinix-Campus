@@ -4,6 +4,8 @@ import { AdminCreateError, createStudentAccount, createTeacherAccount, createAdm
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { currentAcademicYear } from "@/lib/payments/academic-year";
+import { createEnrollment, defaultEndDate } from "@/lib/server/enrollment/enrollment-service";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import {
@@ -36,6 +38,9 @@ type CreateBody = {
   // Kayıt sırasında ödeme kurulumu — ödeme panelindeki ekranlarla AYNI
   // servisleri kullanır (bkz. enrollment-setup).
   payment?: { listAmount?: unknown; installmentCount?: unknown; startDate?: unknown; titlePrefix?: unknown; academicYear?: unknown };
+  // Kayıt dönemi — "ne zamana kadar". Süre dolunca yenileme listesinde
+  // çıkar (bkz. enrollment-service).
+  enrollmentEndDate?: unknown;
   salary?: { payType?: unknown; monthlyAmount?: unknown; hourlyRate?: unknown };
 };
 
@@ -107,8 +112,40 @@ async function handlePost(request: NextRequest) {
         }
       }
 
+      // Kayıt dönemi kaydı — ücret girilmiş olsun olmasın açılır ki
+      // "bu öğrencinin kaydı ne zaman bitiyor" sorusu cevapsız kalmasın.
+      let enrollmentWarning: string | null = null;
+      try {
+        const academicYear = paymentSetup?.academicYear ?? currentAcademicYear();
+        const startDate = paymentSetup?.startDate ?? new Date();
+        const endDate = body.enrollmentEndDate ? new Date(String(body.enrollmentEndDate)) : defaultEndDate(academicYear);
+        if (!Number.isNaN(endDate.getTime())) {
+          await createEnrollment({
+            institutionId: session.institutionId,
+            studentId: account.id,
+            academicYear,
+            startDate,
+            endDate,
+            listAmount: paymentSetup?.listAmount ?? null,
+            installmentCount: paymentSetup?.installmentCount ?? null,
+            createdByAdminId: session.sub,
+          });
+        }
+      } catch (enrollError) {
+        const message = enrollError instanceof Error ? enrollError.message : "Bilinmeyen hata";
+        logger.error("enrollment_on_create_failed", { studentId: account.id, error: message });
+        enrollmentWarning = `Öğrenci oluşturuldu ancak kayıt dönemi kaydedilemedi: ${message}`;
+      }
+
       return NextResponse.json(
-        { id: account.id, role: "STUDENT", username: account.username, password: account.password, plan, paymentWarning },
+        {
+          id: account.id,
+          role: "STUDENT",
+          username: account.username,
+          password: account.password,
+          plan,
+          paymentWarning: paymentWarning ?? enrollmentWarning,
+        },
         { status: 201 }
       );
     }

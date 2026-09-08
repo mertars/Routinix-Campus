@@ -25,7 +25,14 @@ function formatTRY(n: number) {
 async function collectOverdueByStudent(institutionId: string) {
   const now = new Date();
   const overdue = await prisma.installment.findMany({
-    where: { institutionId, status: { in: ["PENDING", "PARTIALLY_PAID"] }, dueDate: { lt: now } },
+    where: {
+      institutionId,
+      status: { in: ["PENDING", "PARTIALLY_PAID"] },
+      // Ayrılmış öğrenci elle hatırlatma listesinde de yer almaz —
+      // otomatik cron ile aynı kural (bkz. reminder-service).
+      student: { isActive: true },
+      dueDate: { lt: now },
+    },
     include: {
       student: { select: { id: true, firstName: true, lastName: true } },
       payments: { where: { status: "COMPLETED" }, select: { amount: true } },
