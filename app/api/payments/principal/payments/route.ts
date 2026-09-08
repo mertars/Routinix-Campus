@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "COLLECTOR");
 
     const studentId = request.nextUrl.searchParams.get("studentId");
     if (!studentId) return NextResponse.json({ error: "studentId zorunludur." }, { status: 400 });

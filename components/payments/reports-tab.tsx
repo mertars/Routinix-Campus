@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Download, AlertTriangle, TrendingUp, TrendingDown, PieChart, Users, BadgePercent, UserCheck, CalendarDays } from "lucide-react";
+import { Loader2, Download, AlertTriangle, TrendingUp, TrendingDown, PieChart, Users, BadgePercent, UserCheck, CalendarDays, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { CashflowCard } from "@/components/payments/cashflow-card";
@@ -39,6 +39,9 @@ function monthLabel(key: string) {
   return `${["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"][Number(m) - 1]} ${y.slice(2)}`;
 }
 
+const exportInputClass =
+  "rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-xs text-espresso outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream";
+
 // Yaşlandırma kovası ne kadar eskiyse o kadar koyu kırmızı — "90+ gün"
 // listede kaybolmasın, bakışta ilk o yakalansın.
 const AGING_TONE: Record<string, string> = {
@@ -61,6 +64,10 @@ export function ReportsTab() {
   const [data, setData] = useState<ReportData | null>(null);
   const [discounts, setDiscounts] = useState<DiscountSummary | null>(null);
   const [months, setMonths] = useState(12);
+  // Muhasebeci dökümü için serbest tarih aralığı. Varsayılan: içinde
+  // bulunulan yılın başından bugüne — mali müşavirin en sık istediği aralık.
+  const [from, setFrom] = useState(`${new Date().getFullYear()}-01-01`);
+  const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
 
   useEffect(() => {
     fetch("/api/payments/principal/discounts")
@@ -129,8 +136,42 @@ export function ReportsTab() {
           onClick={exportAgingCsv}
           className="flex items-center gap-1.5 rounded-full border border-hairline px-3 py-1.5 text-xs font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
         >
-          <Download className="h-3.5 w-3.5" /> Alacak Raporu (CSV)
+          <Download className="h-3.5 w-3.5" /> Riskli Öğrenciler (CSV)
         </button>
+      </div>
+
+      {/* Muhasebeci dökümü — ekrandaki özeti değil, sunucudan satır satır
+          DETAY üretir; dönem ekranda yüklü olandan çok daha uzun olabilir. */}
+      <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+          <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Muhasebe Dökümü
+        </h3>
+        <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
+          Mali müşavirinize gönderilecek satır bazlı Excel (CSV) dökümü. İptal edilen tahsilatlar gelire dahil edilmez.
+        </p>
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-espresso-muted dark:text-cream/40">Başlangıç</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={exportInputClass} />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-medium text-espresso-muted dark:text-cream/40">Bitiş</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={exportInputClass} />
+          </div>
+          {([
+            ["income", "Gelir"],
+            ["expense", "Gider"],
+            ["receivables", "Alacak"],
+          ] as const).map(([type, label]) => (
+            <a
+              key={type}
+              href={`/api/payments/principal/export?type=${type}&from=${from}&to=${to}`}
+              className="flex items-center gap-1.5 rounded-full border border-hairline px-3 py-2 text-xs font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+            >
+              <Download className="h-3.5 w-3.5" /> {label}
+            </a>
+          ))}
+        </div>
       </div>
 
       {/* İleriye dönük görünüm en üstte — geri kalan rapor blokları

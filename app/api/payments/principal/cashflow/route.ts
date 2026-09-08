@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { computeAccountBalances } from "@/lib/server/payments/account-balance";
 import { computePayrollDraft, PAYROLL_CATEGORY } from "@/lib/server/payroll/payroll-service";
 import { projectCashflow, computeCollectionRate } from "@/lib/server/payments/cashflow";
@@ -33,6 +34,7 @@ async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const requested = Number(request.nextUrl.searchParams.get("months"));
     const monthCount = Number.isFinite(requested) && requested >= 1 ? Math.min(MAX_MONTHS, Math.floor(requested)) : DEFAULT_MONTHS;

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { PAYROLL_CATEGORY } from "@/lib/server/payroll/payroll-service";
 
@@ -18,6 +19,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const period = await prisma.payrollPeriod.findUnique({
       where: { id: params.id },

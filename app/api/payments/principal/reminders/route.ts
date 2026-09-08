@@ -5,6 +5,7 @@ import { sendPersonalizedNotification } from "@/lib/server/sms/notification-serv
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,7 @@ async function handleGet() {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const targets = await collectOverdueByStudent(session.institutionId);
     // Aktif ödeme sözü olan veliye hatırlatma göndermek gereksiz baskıdır —
@@ -121,6 +123,7 @@ async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const body = await request.json().catch(() => null);
     const selectedIds: string[] | null = Array.isArray(body?.studentIds) ? body.studentIds.filter((id: unknown) => typeof id === "string") : null;

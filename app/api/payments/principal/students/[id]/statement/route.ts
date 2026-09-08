@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { renderStatement } from "@/lib/server/payments/statement-render";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "COLLECTOR");
 
     const student = await prisma.student.findUnique({ where: { id: params.id }, select: { institutionId: true } });
     if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });

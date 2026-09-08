@@ -4,6 +4,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { PdfStudentContract } from "@/components/pdf/pdf-student-contract";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const contract = await prisma.studentContract.findUnique({
       where: { id: params.id },

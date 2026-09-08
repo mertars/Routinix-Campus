@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { renderReceipt } from "@/lib/server/payments/receipt-render";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "COLLECTOR");
 
     const owner = await prisma.payment.findUnique({ where: { id: params.id }, select: { institutionId: true } });
     if (!owner) return NextResponse.json({ error: "Tahsilat bulunamadı." }, { status: 404 });

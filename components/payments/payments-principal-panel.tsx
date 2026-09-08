@@ -5,6 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3, FileSignature, Users2, Package, Target, ArrowLeftRight, Handshake } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { canAccessTab, PAYMENT_ROLE_LABEL, type PaymentRole } from "@/lib/payments/payment-roles";
+import { CashCountCard } from "@/components/payments/cash-count-card";
+import { StaffRolesCard } from "@/components/payments/staff-roles-card";
+import { ReminderRuleCard } from "@/components/payments/reminder-rule-card";
 import { AccountModal } from "@/components/payments/account-modal";
 import { StudentPaymentsTab } from "@/components/payments/student-payments-tab";
 import { ExpensesTab } from "@/components/payments/expenses-tab";
@@ -65,6 +69,10 @@ export function PaymentsPrincipalPanel() {
   // Söz kartını tazelemek için sayaç — gecikmiş listesinden söz alınınca
   // kart yeniden yüklensin.
   const [promiseKey, setPromiseKey] = useState(0);
+  // null = yetki henüz bilinmiyor. Sekmeler yetki gelene kadar
+  // GİZLENİR — önce hepsini gösterip sonra silmek, yetkisiz kullanıcıya
+  // bir an için yapamayacağı işlemleri vaat ederdi.
+  const [paymentRole, setPaymentRole] = useState<PaymentRole | null>(null);
 
   function loadDashboard() {
     fetch("/api/payments/principal/dashboard")
@@ -74,14 +82,38 @@ export function PaymentsPrincipalPanel() {
   }
 
   useEffect(() => {
+    fetch("/api/payments/principal/me")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((d) => setPaymentRole(d.paymentRole as PaymentRole))
+      .catch(() => setPaymentRole("NONE"));
     loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const visibleTabs = paymentRole ? TABS.filter((t) => canAccessTab(paymentRole, t.id)) : [];
+
+  // Görünür olmayan bir sekmede kalınmasın (yetki işlem sırasında
+  // kısıtlanmış olabilir).
+  useEffect(() => {
+    if (paymentRole && !canAccessTab(paymentRole, tab) && visibleTabs[0]) setTab(visibleTabs[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentRole, tab]);
+
+  if (paymentRole === "NONE") {
+    return (
+      <div className="mx-auto max-w-md px-4 py-20 text-center">
+        <p className="text-sm font-semibold text-espresso dark:text-cream">Ödeme modülüne erişiminiz yok</p>
+        <p className="mt-2 text-xs text-espresso-muted dark:text-cream/40">
+          Yetki tanımlanması için kurumunuzdaki tam yetkili bir yöneticiye başvurun.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-10">
-      <div className="mb-6 flex flex-wrap gap-2">
-        {TABS.map((t) => (
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -95,6 +127,11 @@ export function PaymentsPrincipalPanel() {
             <t.icon className="h-4 w-4" /> {t.label}
           </button>
         ))}
+        {paymentRole === "COLLECTOR" && (
+          <span className="ml-auto rounded-full bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+            {PAYMENT_ROLE_LABEL.COLLECTOR} yetkisi
+          </span>
+        )}
       </div>
 
       <AnimatePresence mode="wait">
@@ -120,11 +157,19 @@ export function PaymentsPrincipalPanel() {
         )}
         {tab === "accounts" && (
           <motion.div key="accounts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <AccountsTab
-              accounts={dashboard?.accounts ?? null}
-              onAddClick={() => setAccountModalOpen(true)}
-              onTransferClick={() => setTransferOpen(true)}
-            />
+            <div className="space-y-4">
+              <AccountsTab
+                accounts={dashboard?.accounts ?? null}
+                onAddClick={() => setAccountModalOpen(true)}
+                onTransferClick={() => setTransferOpen(true)}
+              />
+              {/* Kasa sayımı, otomatik hatırlatma ve yetkiler bu sekmede:
+                  üçü de "kurulum/işletme" işleri, günlük tahsilat akışının
+                  ortasında durmamalı. */}
+              <CashCountCard />
+              <ReminderRuleCard />
+              <StaffRolesCard />
+            </div>
           </motion.div>
         )}
         {tab === "products" && (

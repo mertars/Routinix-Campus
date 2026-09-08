@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { computeAccountBalances } from "@/lib/server/payments/account-balance";
 
@@ -13,6 +14,7 @@ async function handleGet() {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const transfers = await prisma.accountTransfer.findMany({
       where: { institutionId: session.institutionId },
@@ -45,6 +47,7 @@ async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const body = await request.json().catch(() => null);
     const fromAccountId = body?.fromAccountId as string | undefined;

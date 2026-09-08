@@ -15,7 +15,9 @@ export type PaymentAuditAction =
   | "DISCOUNT_GRANTED"
   | "EXPENSE_PAID"
   | "ACCOUNT_TRANSFERRED"
-  | "PAYROLL_PAID";
+  | "PAYROLL_PAID"
+  | "CASH_COUNTED"
+  | "PAYMENT_ROLE_CHANGED";
 
 export const PAYMENT_AUDIT_LABEL: Record<PaymentAuditAction, string> = {
   PAYMENT_COLLECTED: "Tahsilat alındı",
@@ -28,6 +30,8 @@ export const PAYMENT_AUDIT_LABEL: Record<PaymentAuditAction, string> = {
   EXPENSE_PAID: "Gider ödendi",
   ACCOUNT_TRANSFERRED: "Hesaplar arası virman",
   PAYROLL_PAID: "Bordro ödendi",
+  CASH_COUNTED: "Gün sonu kasa sayımı",
+  PAYMENT_ROLE_CHANGED: "Ödeme yetkisi değiştirildi",
 };
 
 // Eylemin kurumun kasasına net etkisi.
@@ -49,4 +53,6 @@ export const ACTION_FLOW: Record<PaymentAuditAction, AuditFlow> = {
   INSTALLMENT_POSTPONED: "NEUTRAL",
   INSTALLMENT_RESTRUCTURED: "NEUTRAL",
   DISCOUNT_GRANTED: "NEUTRAL",
+  CASH_COUNTED: "NEUTRAL",
+  PAYMENT_ROLE_CHANGED: "NEUTRAL",
 };

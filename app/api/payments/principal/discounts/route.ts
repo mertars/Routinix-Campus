@@ -4,6 +4,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { DISCOUNT_TYPE_LABEL, applyDiscounts, getActiveDiscounts } from "@/lib/server/payments/discount-service";
 
@@ -18,6 +19,7 @@ async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "COLLECTOR");
     const institutionId = session.institutionId;
 
     const studentId = request.nextUrl.searchParams.get("studentId");
@@ -105,6 +107,7 @@ async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const body = await request.json().catch(() => null);
     const studentId = body?.studentId as string | undefined;
@@ -162,6 +165,7 @@ async function handlePatch(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const body = await request.json().catch(() => null);
     const id = body?.id as string | undefined;

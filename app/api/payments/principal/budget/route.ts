@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
     const institutionId = session.institutionId;
 
     const yearParam = Number(request.nextUrl.searchParams.get("year"));
@@ -103,6 +105,7 @@ async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const body = await request.json().catch(() => null);
     const year = Number(body?.year);

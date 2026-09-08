@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { AVERAGE_WEEKS_PER_MONTH } from "@/lib/server/payroll/payroll-service";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ async function handleGet() {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
     const institutionId = session.institutionId;
 
     const [teachers, admins, profiles, slotCounts] = await Promise.all([
@@ -84,6 +86,7 @@ async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+    await requirePaymentRole(session, "FULL");
 
     const body = await request.json().catch(() => null);
     const teacherId = (body?.teacherId as string | undefined) || null;
