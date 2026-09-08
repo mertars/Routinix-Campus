@@ -212,7 +212,22 @@ export function StudentPaymentsTab({
                 </span>
               </button>
             ))}
-            {filtered.length === 0 && <p className="py-6 text-center text-xs text-espresso-muted dark:text-cream/40">Öğrenci bulunamadı.</p>}
+            {filtered.length === 0 &&
+              // Ödeme paneli öğrenciyi ERP'den alır; boş listede bunu
+              // söylemezsek müdür burada bir "öğrenci ekle" düğmesi arar.
+              (roster && roster.length === 0 ? (
+                <div className="py-6 text-center">
+                  <p className="text-xs text-espresso-muted dark:text-cream/40">Bu kurumda henüz öğrenci kaydı yok.</p>
+                  <a
+                    href="/principal"
+                    className="mt-2 inline-block text-xs font-semibold text-emerald-700 underline underline-offset-2 dark:text-emerald-300"
+                  >
+                    Kampüs ERP &gt; Kullanıcı Yönetimi&apos;nden ekleyin
+                  </a>
+                </div>
+              ) : (
+                <p className="py-6 text-center text-xs text-espresso-muted dark:text-cream/40">Öğrenci bulunamadı.</p>
+              ))}
           </div>
         )}
       </div>

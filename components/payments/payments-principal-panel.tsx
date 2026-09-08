@@ -10,6 +10,7 @@ import { CashCountCard } from "@/components/payments/cash-count-card";
 import { StaffRolesCard } from "@/components/payments/staff-roles-card";
 import { ReminderRuleCard } from "@/components/payments/reminder-rule-card";
 import { CollectPaymentModal } from "@/components/payments/collect-payment-modal";
+import { SetupChecklist } from "@/components/payments/setup-checklist";
 import { AccountModal } from "@/components/payments/account-modal";
 import { StudentPaymentsTab } from "@/components/payments/student-payments-tab";
 import { ExpensesTab } from "@/components/payments/expenses-tab";
@@ -145,6 +146,7 @@ export function PaymentsPrincipalPanel() {
             <DashboardTab
               data={dashboard}
               canManage={paymentRole === "FULL"}
+              onGoTab={(t) => setTab(t as TabId)}
               onQuickCollect={(i) => setQuickCollect({ id: i.id, title: `${i.studentName} · ${i.title}`, remaining: i.remainingAmount })}
               onRemindClick={() => setReminderOpen(true)}
               promiseKey={promiseKey}
@@ -284,6 +286,7 @@ async function createPromise(studentName: string, studentId: string, defaultAmou
 function DashboardTab({
   data,
   canManage,
+  onGoTab,
   onQuickCollect,
   onRemindClick,
   promiseKey,
@@ -291,6 +294,7 @@ function DashboardTab({
 }: {
   data: DashboardData | null;
   canManage: boolean;
+  onGoTab: (tab: string) => void;
   onQuickCollect: (i: DashboardData["overdueInstallments"][number]) => void;
   onRemindClick: () => void;
   promiseKey: number;
@@ -306,6 +310,9 @@ function DashboardTab({
 
   return (
     <div className="space-y-4">
+      {/* Kurulum bitince kendiliğinden kaybolur (bkz. SetupChecklist). */}
+      <SetupChecklist onGoTab={onGoTab} />
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={Wallet} label="Toplam Bakiye" value={formatTRY(data.totalBalance)} tone="emerald" alert={data.totalBalance < 0} />
         <StatCard icon={TrendingUp} label="Bu Ay Tahsilat" value={formatTRY(data.monthlyCollected)} tone="sky" />
@@ -425,7 +432,11 @@ function DashboardTab({
             )}
           </div>
           {data.overdueInstallments.length === 0 ? (
-            <p className="py-6 text-center text-xs text-espresso-muted dark:text-cream/40">Gecikmiş ödeme yok 🎉</p>
+            <p className="py-6 text-center text-xs text-espresso-muted dark:text-cream/40">
+              {/* Hiç taksit planı yokken "gecikme yok" bir başarı değil,
+                  veri yokluğudur — kutlamak yanıltıcı olurdu. */}
+              {data.plannedTotal > 0 ? "Gecikmiş ödeme yok 🎉" : "Henüz taksit planı yok."}
+            </p>
           ) : (
             <div className="space-y-2">
               {data.overdueInstallments.map((o) => (

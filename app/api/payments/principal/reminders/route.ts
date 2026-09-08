@@ -135,7 +135,15 @@ async function handlePost(request: NextRequest) {
 
     const recipients = await resolveScope("CUSTOM_ID_LIST", targets.map((t) => t.studentId).join(","), session.institutionId);
     if (recipients.length === 0) {
-      return NextResponse.json({ error: "Seçili öğrencilerin velisinde SMS onayı (smsConsent) yok." }, { status: 400 });
+      // Nereden düzeltileceğini SÖYLEMEK şart: "onay yok" demek müdürü
+      // çıkmaz sokakta bırakıyordu.
+      return NextResponse.json(
+        {
+          error:
+            "Seçili öğrencilerin velisinde SMS onayı yok. KVKK gereği onayı olmayan veliye gönderim yapılamaz — onayı Kampüs ERP > Kullanıcı Yönetimi'nden veli kaydını düzenleyerek verebilirsiniz.",
+        },
+        { status: 400 }
+      );
     }
 
     const institution = await prisma.institution.findUnique({ where: { id: session.institutionId }, select: { smsCredits: true } });
