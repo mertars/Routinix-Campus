@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { currentAcademicYear } from "@/lib/payments/academic-year";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { createInstallmentPlan, findStudentsWithExistingPlan } from "@/lib/server/payments/plan-service";
@@ -77,7 +78,7 @@ async function handlePost(request: NextRequest) {
     const installmentCount = Number(body?.installmentCount);
     const startDate = body?.startDate ? new Date(body.startDate) : new Date();
     const titlePrefix = (body?.titlePrefix as string | undefined)?.trim() || "Eğitim Ücreti";
-    const academicYear = (body?.academicYear as string | undefined)?.trim() || "2025-2026";
+    const academicYear = (body?.academicYear as string | undefined)?.trim() || currentAcademicYear();
 
     if (studentIds.length === 0) return NextResponse.json({ error: "En az bir öğrenci seçilmelidir." }, { status: 400 });
     if (studentIds.length > MAX_STUDENTS) {

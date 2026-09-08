@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, CalendarPlus, BadgePercent } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
+import { currentAcademicYear, academicYearOptions } from "@/lib/payments/academic-year";
 
 // Toplu taksit planı — kullanıcı geri bildirimi: yarın demo var, öğrenci
 // başına tek tek taksit girmek yerine "toplam tutar + taksit sayısı" ile
@@ -27,7 +28,9 @@ export function InstallmentPlanModal({
   const [installmentCount, setInstallmentCount] = useState("12");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [titlePrefix, setTitlePrefix] = useState("Eğitim Ücreti");
-  const [academicYear] = useState("2025-2026");
+  // Dönem SABİT yazılıydı: 2026-2027 indirimleri 2025-2026 için aranıp
+  // hiç bulunamıyor, öğrenci liste fiyatından borçlanıyordu.
+  const [academicYear, setAcademicYear] = useState(currentAcademicYear());
   const [saving, setSaving] = useState(false);
   // Girilen tutar LİSTE fiyatıdır; öğrencinin aktif indirimleri sunucuda
   // uygulanır. Yönetici "kaydet"e basmadan ÖNCE net tutarı görmeli, bu
@@ -93,6 +96,26 @@ export function InstallmentPlanModal({
             className="w-full rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-espresso outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
           />
         </div>
+        <div>
+          {/* Dönem seçilebilir olmalı: indirimler DÖNEM bazında tanımlanır,
+              yanlış dönem sessizce "indirim yok" demektir. */}
+          <label className="mb-1.5 block text-xs font-medium text-espresso dark:text-cream">Eğitim-Öğretim Yılı</label>
+          <select
+            value={academicYear}
+            onChange={(e) => setAcademicYear(e.target.value)}
+            className="w-full rounded-lg border border-hairline bg-white px-3 py-2.5 text-sm text-espresso outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          >
+            {academicYearOptions().map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[10px] text-espresso-muted dark:text-cream/40">
+            İndirimler bu döneme tanımlı olanlardan uygulanır.
+          </p>
+        </div>
+
         {preview && preview.discountTotal > 0 && (
           <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
             <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">

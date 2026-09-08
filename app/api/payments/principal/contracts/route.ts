@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { currentAcademicYear } from "@/lib/payments/academic-year";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { createShareToken, renderContractContent } from "@/lib/server/contracts/contract-service";
 
@@ -67,7 +68,7 @@ async function handlePost(request: NextRequest) {
     const templateId = body?.templateId as string | undefined;
     const totalAmount = body?.totalAmount != null ? Number(body.totalAmount) : null;
     const installmentCount = body?.installmentCount != null ? Number(body.installmentCount) : null;
-    const academicYear = (body?.academicYear as string | undefined)?.trim() || "2025-2026";
+    const academicYear = (body?.academicYear as string | undefined)?.trim() || currentAcademicYear();
 
     if (!studentId) return NextResponse.json({ error: "studentId zorunludur." }, { status: 400 });
     if (!templateId) return NextResponse.json({ error: "templateId zorunludur." }, { status: 400 });

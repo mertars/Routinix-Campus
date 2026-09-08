@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Loader2, FileText, Link2, FileDown, CheckCircle2, Clock, Send, XCircle, Search } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
+import { currentAcademicYear, academicYearOptions } from "@/lib/payments/academic-year";
 import { cn } from "@/lib/utils";
 
 type ContractRow = {
@@ -196,7 +197,7 @@ function CreateContractModal({
   const [templateId, setTemplateId] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [installmentCount, setInstallmentCount] = useState("12");
-  const [academicYear, setAcademicYear] = useState("2025-2026");
+  const [academicYear, setAcademicYear] = useState(currentAcademicYear());
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {

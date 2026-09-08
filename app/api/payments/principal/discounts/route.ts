@@ -4,6 +4,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { currentAcademicYear } from "@/lib/payments/academic-year";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { DISCOUNT_TYPE_LABEL, applyDiscounts, getActiveDiscounts } from "@/lib/server/payments/discount-service";
@@ -23,7 +24,7 @@ async function handleGet(request: NextRequest) {
     const institutionId = session.institutionId;
 
     const studentId = request.nextUrl.searchParams.get("studentId");
-    const academicYear = request.nextUrl.searchParams.get("academicYear") ?? "2025-2026";
+    const academicYear = request.nextUrl.searchParams.get("academicYear") ?? currentAcademicYear();
     const listAmountParam = Number(request.nextUrl.searchParams.get("listAmount"));
 
     if (studentId) {
@@ -114,7 +115,7 @@ async function handlePost(request: NextRequest) {
     const type = body?.type as DiscountType | undefined;
     const valueType = body?.valueType as DiscountValueType | undefined;
     const value = Number(body?.value);
-    const academicYear = (body?.academicYear as string | undefined)?.trim() || "2025-2026";
+    const academicYear = (body?.academicYear as string | undefined)?.trim() || currentAcademicYear();
     const reason = (body?.reason as string | undefined)?.trim() || null;
 
     if (!studentId) return NextResponse.json({ error: "studentId zorunludur." }, { status: 400 });

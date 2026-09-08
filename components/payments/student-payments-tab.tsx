@@ -10,6 +10,7 @@ import { DiscountModal } from "@/components/payments/discount-modal";
 import { RestructureModal } from "@/components/payments/restructure-modal";
 import { CancellationModal } from "@/components/payments/cancellation-modal";
 import { BulkPlanModal } from "@/components/payments/bulk-plan-modal";
+import { currentAcademicYear } from "@/lib/payments/academic-year";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string; grade: number };
@@ -451,7 +452,7 @@ export function StudentPaymentsTab({
         onClose={() => setDiscountOpen(false)}
         studentId={selectedStudent?.id ?? null}
         studentName={selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : ""}
-        academicYear="2025-2026"
+        academicYear={currentAcademicYear()}
         onChanged={refresh}
       />
       <CollectPaymentModal
