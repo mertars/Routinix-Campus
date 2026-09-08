@@ -14,6 +14,30 @@ const METHODS: { id: PaymentMethod; label: string; icon: typeof Banknote }[] = [
   { id: "CREDIT_CARD", label: "Kredi Kartı", icon: CreditCard },
 ];
 
+const REMEMBER_KEY = "routinix.payments.lastCollect";
+
+type Remembered = { method?: PaymentMethod; accountId?: string };
+
+// localStorage her ortamda erişilebilir değil (gizli sekme, site verisi
+// kapalı) ve erişim denemesi HATA FIRLATABİLİR — okuma/yazma sarmalanır,
+// başarısız olursa varsayılana düşülür.
+function readRemembered(): Remembered {
+  try {
+    const raw = window.localStorage.getItem(REMEMBER_KEY);
+    return raw ? (JSON.parse(raw) as Remembered) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeRemembered(value: Remembered) {
+  try {
+    window.localStorage.setItem(REMEMBER_KEY, JSON.stringify(value));
+  } catch {
+    // Hatırlamamak tahsilatı engellemez.
+  }
+}
+
 export function CollectPaymentModal({
   isOpen,
   onClose,
@@ -41,11 +65,19 @@ export function CollectPaymentModal({
   useEffect(() => {
     if (!isOpen) return;
     setAmount(remainingAmount > 0 ? remainingAmount.toFixed(2) : "");
-    setMethod("CASH");
-    setAccountId(accounts[0]?.id ?? "");
+    // Yöntem ve hesap günde onlarca tahsilatta neredeyse HEP aynı; her
+    // seferinde yeniden seçtirmek boşuna iki tıklama. Son kullanılan
+    // tarayıcıda saklanır — kuruma değil KİŞİYE ait bir kolaylık olduğu
+    // için sunucuya yazılmıyor.
+    const remembered = readRemembered();
+    setMethod(remembered.method ?? "CASH");
+    // Hatırlanan hesap silinmiş/pasifleşmiş olabilir; listede yoksa
+    // ilkine düşülür, aksi halde boş bir seçim kalırdı.
+    const validAccount = accounts.some((a) => a.id === remembered.accountId) ? remembered.accountId : null;
+    setAccountId(validAccount ?? accounts[0]?.id ?? "");
     setNote("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, installmentId]);
+  }, [isOpen, installmentId, accounts]);
 
   async function handleSubmit() {
     if (!installmentId) return;
@@ -64,6 +96,9 @@ export function CollectPaymentModal({
         const data = await res.json().catch(() => null);
         throw new Error(data?.error);
       }
+      // Başarılı olduktan SONRA hatırla — reddedilen bir denemenin
+      // seçimini varsayılan yapmak yanlış olurdu.
+      writeRemembered({ method, accountId });
       showSuccess("Tahsilat kaydedildi.");
       onCollected();
       onClose();

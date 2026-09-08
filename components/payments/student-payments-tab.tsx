@@ -13,7 +13,7 @@ import { BulkPlanModal } from "@/components/payments/bulk-plan-modal";
 import { currentAcademicYear } from "@/lib/payments/academic-year";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
-type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string; grade: number };
+type RosterStudent = { id: string; firstName: string; lastName: string; studentNumber: string; branchName: string; grade: number };
 type PaymentHistoryRow = {
   id: string;
   amount: number;
@@ -163,7 +163,14 @@ export function StudentPaymentsTab({
     if (!roster) return [];
     const q = query.trim().toLocaleLowerCase("tr-TR");
     if (!q) return roster;
-    return roster.filter((s) => `${s.firstName} ${s.lastName}`.toLocaleLowerCase("tr-TR").includes(q) || s.branchName.toLocaleLowerCase("tr-TR").includes(q));
+    // Öğrenci NUMARASI da aranır: elinde makbuz olan müdür "2026-1043"
+    // yazıp bulabilmeli — ad/şube araması buna cevap vermiyordu.
+    return roster.filter(
+      (s) =>
+        `${s.firstName} ${s.lastName}`.toLocaleLowerCase("tr-TR").includes(q) ||
+        s.branchName.toLocaleLowerCase("tr-TR").includes(q) ||
+        s.studentNumber.toLocaleLowerCase("tr-TR").includes(q)
+    );
   }, [roster, query]);
 
   return (
@@ -184,7 +191,7 @@ export function StudentPaymentsTab({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Öğrenci ara..."
+            placeholder="Ad, şube veya öğrenci no..."
             className="w-full rounded-lg border border-hairline bg-white py-2 pl-8 pr-3 text-sm text-espresso outline-none focus:border-emerald-500 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
           />
         </div>

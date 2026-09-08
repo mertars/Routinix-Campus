@@ -118,13 +118,16 @@ export function PaymentsPrincipalPanel() {
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-10">
-      <div className="mb-6 flex flex-wrap items-center gap-2">
+      {/* Dar ekranda sekmeler SARMAZ, yatay kayar: 9 sekme telefonda beş
+          satıra yayılıp ilk ekranın tamamını yiyordu, tek bir rakam
+          görmek için kaydırmak gerekiyordu. */}
+      <div className="-mx-4 mb-6 flex items-center gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:overflow-visible md:px-0 md:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={cn(
-              "flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition",
+              "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition",
               tab === t.id
                 ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                 : "border-hairline text-espresso-muted hover:bg-cream-card dark:border-white/10 dark:text-cream/50 dark:hover:bg-white/5"
