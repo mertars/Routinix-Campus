@@ -331,20 +331,24 @@ export type ScheduleAssignment = {
   // bazında dinamik (bkz. ScheduleSlotDefinition), sabit bir listeye
   // kilitli değil.
   slot: string;
+  // API bunu zaten döndürüyordu ama tipte yoktu — öğretmen bazlı
+  // görünüm ada göre eşleştirmek zorunda kalıyordu (aynı adlı iki
+  // öğretmende yanlış sonuç verirdi).
+  teacherId: string;
   teacherName: string;
   subject: string;
 };
 
 export const INITIAL_SCHEDULE: ScheduleAssignment[] = [
-  { id: "s1", branchId: "12a", branchName: "12-A VIP", day: "Pazartesi", slot: "16:00-17:00", teacherName: "İrfan Hoca", subject: "Matematik" },
-  { id: "s2", branchId: "12a", branchName: "12-A VIP", day: "Çarşamba", slot: "17:00-18:00", teacherName: "Kemal Hoca", subject: "Fizik" },
-  { id: "s3", branchId: "10a", branchName: "10-A VIP", day: "Salı", slot: "16:00-17:00", teacherName: "Selin Hoca", subject: "Türkçe" },
-  { id: "s4", branchId: "11a", branchName: "11-A Fen", day: "Perşembe", slot: "18:00-19:00", teacherName: "Kemal Hoca", subject: "Fizik" },
-  { id: "s5", branchId: "lgs", branchName: "LGS Derece", day: "Cuma", slot: "16:00-17:00", teacherName: "Ayşe Hoca", subject: "LGS Branş" },
-  { id: "s6", branchId: "11a", branchName: "11-A Fen", day: "Salı", slot: "17:00-18:00", teacherName: "İrfan Hoca", subject: "Matematik" },
-  { id: "s7", branchId: "mezun", branchName: "YKS Mezun Sınıfı", day: "Çarşamba", slot: "18:00-19:00", teacherName: "İrfan Hoca", subject: "Matematik" },
-  { id: "s8", branchId: "12a", branchName: "12-A VIP", day: "Perşembe", slot: "16:00-17:00", teacherName: "İrfan Hoca", subject: "Matematik" },
-  { id: "s9", branchId: "11a", branchName: "11-A Fen", day: "Cuma", slot: "17:00-18:00", teacherName: "İrfan Hoca", subject: "Matematik" },
+  { id: "s1", branchId: "12a", branchName: "12-A VIP", day: "Pazartesi", slot: "16:00-17:00", teacherId: "mock-i̇rfan", teacherName: "İrfan Hoca", subject: "Matematik" },
+  { id: "s2", branchId: "12a", branchName: "12-A VIP", day: "Çarşamba", slot: "17:00-18:00", teacherId: "mock-kemal", teacherName: "Kemal Hoca", subject: "Fizik" },
+  { id: "s3", branchId: "10a", branchName: "10-A VIP", day: "Salı", slot: "16:00-17:00", teacherId: "mock-selin", teacherName: "Selin Hoca", subject: "Türkçe" },
+  { id: "s4", branchId: "11a", branchName: "11-A Fen", day: "Perşembe", slot: "18:00-19:00", teacherId: "mock-kemal", teacherName: "Kemal Hoca", subject: "Fizik" },
+  { id: "s5", branchId: "lgs", branchName: "LGS Derece", day: "Cuma", slot: "16:00-17:00", teacherId: "mock-ayse", teacherName: "Ayşe Hoca", subject: "LGS Branş" },
+  { id: "s6", branchId: "11a", branchName: "11-A Fen", day: "Salı", slot: "17:00-18:00", teacherId: "mock-i̇rfan", teacherName: "İrfan Hoca", subject: "Matematik" },
+  { id: "s7", branchId: "mezun", branchName: "YKS Mezun Sınıfı", day: "Çarşamba", slot: "18:00-19:00", teacherId: "mock-i̇rfan", teacherName: "İrfan Hoca", subject: "Matematik" },
+  { id: "s8", branchId: "12a", branchName: "12-A VIP", day: "Perşembe", slot: "16:00-17:00", teacherId: "mock-i̇rfan", teacherName: "İrfan Hoca", subject: "Matematik" },
+  { id: "s9", branchId: "11a", branchName: "11-A Fen", day: "Cuma", slot: "17:00-18:00", teacherId: "mock-i̇rfan", teacherName: "İrfan Hoca", subject: "Matematik" },
 ];
 
 // Öğretmenin ders veremeyeceği, kurum dışı bağlılığı sebebiyle müsait olmadığı saatler (mock).

@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GripVertical, Lock, X, LayoutGrid, Table2, AlertCircle, Clock3, Plus, Pencil, Trash2, Check } from "lucide-react";
+import { GripVertical, Lock, X, LayoutGrid, Table2, AlertCircle, Clock3, Plus, Pencil, Trash2, Check, UserCog2, Upload } from "lucide-react";
 import { SCHEDULE_DAYS, type ScheduleAssignment, type ScheduleDay } from "@/lib/mock-data";
+import { ScheduleImportModal } from "@/components/principal/schedule/schedule-import-modal";
 import { parseSlotRange } from "@/lib/schedule-time";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
@@ -200,7 +201,11 @@ export function ScheduleMatrixTab() {
   const [assignments, setAssignments] = useState<ScheduleAssignment[]>([]);
   const [unavailable, setUnavailable] = useState<UnavailableBlock[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState("");
-  const [view, setView] = useState<"edit" | "sheet">("edit");
+  const [view, setView] = useState<"edit" | "sheet" | "teacher">("edit");
+  // Öğretmen bazlı görünümde seçili hoca — müdür "Ahmet Hoca'nın haftası
+  // nasıl?" diye baktığında şube şube gezmek zorunda kalmasın.
+  const [focusTeacherId, setFocusTeacherId] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
   const [draggingTeacher, setDraggingTeacher] = useState<DraggingTeacher | null>(null);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
   const [isSlotManagerOpen, setIsSlotManagerOpen] = useState(false);
@@ -253,12 +258,24 @@ export function ScheduleMatrixTab() {
       setSlots(slotsData.slots ?? []);
       setAssignments(
         (lessonSlotsData.slots ?? []).map(
-          (s: { id: string; branchId: string; branchName: string; day: string; slot: string; subject: string; teacherName: string }) => ({
+          (s: {
+            id: string;
+            branchId: string;
+            branchName: string;
+            day: string;
+            slot: string;
+            subject: string;
+            teacherId: string;
+            teacherName: string;
+          }) => ({
             id: s.id,
             branchId: s.branchId,
             branchName: s.branchName,
             day: s.day as ScheduleDay,
             slot: s.slot,
+            // API bunu döndürüyordu ama eşlemede atlanıyordu; öğretmen
+            // bazlı görünüm bu yüzden her hocayı "boş" gösteriyordu.
+            teacherId: s.teacherId,
             teacherName: s.teacherName,
             subject: s.subject,
           })
@@ -321,7 +338,7 @@ export function ScheduleMatrixTab() {
       if (!res.ok) throw new Error(data?.error ?? "Atama başarısız.");
       setAssignments((prev) => [
         ...prev.filter((row) => !(row.branchId === selectedBranchId && row.day === day && row.slot === slot)),
-        { id: data.slot.id, branchId: selectedBranchId, branchName: selectedBranch.name, day, slot, teacherName: teacher.name, subject: teacher.subject },
+        { id: data.slot.id, branchId: selectedBranchId, branchName: selectedBranch.name, day, slot, teacherId: teacher.id, teacherName: teacher.name, subject: teacher.subject },
       ]);
     } catch (error) {
       setConflictMessage(error instanceof Error ? error.message : "Atama başarısız.");
@@ -371,6 +388,12 @@ export function ScheduleMatrixTab() {
           >
             <Clock3 className="h-3.5 w-3.5" /> Saatleri Yönet
           </button>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-brand-600/40 bg-brand-600/10 px-3 py-2 text-xs font-medium text-brand-700 transition hover:bg-brand-600/20 dark:text-brand-500"
+          >
+            <Upload className="h-3.5 w-3.5" /> İçe Aktar
+          </button>
         </div>
 
         <div className="flex gap-1.5 rounded-full border border-hairline bg-white/70 p-1 dark:border-white/10 dark:bg-midnight-card/50">
@@ -392,8 +415,22 @@ export function ScheduleMatrixTab() {
           >
             <Table2 className="h-3.5 w-3.5" /> Çarşaf Liste
           </button>
+          {/* Şube bazlı görünüm "bu sınıfın haftası ne?" sorusuna cevap
+              verir; öğretmen bazlı görünüm "bu hocanın haftası ne?"
+              sorusuna. İkisi farklı iş ve ikisi de gerekli. */}
+          <button
+            onClick={() => setView("teacher")}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition",
+              view === "teacher" ? "bg-brand-600 text-white" : "text-espresso-muted dark:text-cream/40"
+            )}
+          >
+            <UserCog2 className="h-3.5 w-3.5" /> Öğretmen Bazlı
+          </button>
         </div>
       </div>
+
+      <ScheduleImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} onImported={loadAll} />
 
       <AnimatePresence>
         {conflictMessage && (
@@ -497,6 +534,72 @@ export function ScheduleMatrixTab() {
             </div>
           </motion.div>
         </div>
+      ) : view === "teacher" ? (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+          <select
+            value={focusTeacherId}
+            onChange={(e) => setFocusTeacherId(e.target.value)}
+            className="rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          >
+            <option value="">Öğretmen seçin…</option>
+            {teachers.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.firstName} {t.lastName} · {t.subject}
+              </option>
+            ))}
+          </select>
+
+          {!focusTeacherId ? (
+            <p className="rounded-2xl border border-hairline bg-white/70 p-6 text-center text-xs text-espresso-muted dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream/40">
+              Bir öğretmen seçin — haftalık programı ve boş saatleri burada görünür.
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm dark:border-white/10 dark:bg-midnight-card/50">
+              <table className="w-full min-w-[560px] border-collapse text-xs">
+                <thead>
+                  <tr>
+                    <th className="border-b border-hairline px-2 py-1.5 text-left font-medium text-espresso-muted dark:border-white/10 dark:text-cream/40">
+                      Gün
+                    </th>
+                    {sortedSlots.map((slotDef) => (
+                      <th key={slotDef.id} className="border-b border-hairline px-2 py-1.5 text-left font-medium text-espresso-muted dark:border-white/10 dark:text-cream/40">
+                        {slotDef.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {SCHEDULE_DAYS.map((day) => (
+                    <tr key={day} className="border-b border-hairline last:border-0 dark:border-white/5">
+                      <td className="px-2 py-1.5 font-medium text-espresso dark:text-cream">{day}</td>
+                      {sortedSlots.map((slotDef) => {
+                        const row = assignments.find(
+                          (a) => a.teacherId === focusTeacherId && a.day === day && a.slot === slotDef.label
+                        );
+                        return (
+                          <td key={slotDef.id} className="px-2 py-1.5">
+                            {row ? (
+                              <span className="rounded-full bg-brand-600/10 px-2 py-0.5 text-brand-700 dark:text-brand-500">
+                                {row.branchName}
+                              </span>
+                            ) : (
+                              <span className="text-espresso-muted/40 dark:text-cream/20">boş</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-3 text-[11px] text-espresso-muted dark:text-cream/40">
+                Haftalık ders yükü:{" "}
+                <strong>{assignments.filter((a) => a.teacherId === focusTeacherId).length} saat</strong> ·{" "}
+                {new Set(assignments.filter((a) => a.teacherId === focusTeacherId).map((a) => a.branchName)).size} şube
+              </p>
+            </div>
+          )}
+        </motion.div>
       ) : (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
