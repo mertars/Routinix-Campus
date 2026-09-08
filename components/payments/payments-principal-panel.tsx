@@ -11,6 +11,7 @@ import { StaffRolesCard } from "@/components/payments/staff-roles-card";
 import { ReminderRuleCard } from "@/components/payments/reminder-rule-card";
 import { CollectPaymentModal } from "@/components/payments/collect-payment-modal";
 import { SetupChecklist } from "@/components/payments/setup-checklist";
+import { DigestBanner } from "@/components/payments/digest-banner";
 import { AccountModal } from "@/components/payments/account-modal";
 import { StudentPaymentsTab } from "@/components/payments/student-payments-tab";
 import { ExpensesTab } from "@/components/payments/expenses-tab";
@@ -315,6 +316,10 @@ function DashboardTab({
     <div className="space-y-4">
       {/* Kurulum bitince kendiliğinden kaybolur (bkz. SetupChecklist). */}
       <SetupChecklist onGoTab={onGoTab} />
+
+      {/* Günün uyarıları en üstte — kötü haberi bulmak için kart okumak
+          ya da sekme gezmek gerekmesin. Uyarı yoksa hiç çizilmez. */}
+      <DigestBanner onGoTab={onGoTab} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard icon={Wallet} label="Toplam Bakiye" value={formatTRY(data.totalBalance)} tone="emerald" alert={data.totalBalance < 0} />
