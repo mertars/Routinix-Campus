@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,14 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
 
     const payment = await prisma.payment.findUnique({
       where: { id: params.id },
-      select: { institutionId: true, status: true, installmentId: true, amount: true },
+      select: {
+        institutionId: true,
+        status: true,
+        installmentId: true,
+        amount: true,
+        studentId: true,
+        student: { select: { firstName: true, lastName: true } },
+      },
     });
     if (!payment) return NextResponse.json({ error: "Tahsilat bulunamadı." }, { status: 404 });
     requireInstitution(session, payment.institutionId);
@@ -54,6 +62,16 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
           await tx.installment.update({ where: { id: payment.installmentId }, data: { status: nextStatus } });
         }
       }
+    });
+
+    await recordPaymentAudit({
+      session,
+      action: "PAYMENT_VOIDED",
+      targetType: "Payment",
+      targetId: params.id,
+      amount: Number(payment.amount),
+      summary: `${payment.student.firstName} ${payment.student.lastName} · ${reason}`,
+      metadata: { reason, studentId: payment.studentId },
     });
 
     return NextResponse.json({ ok: true });

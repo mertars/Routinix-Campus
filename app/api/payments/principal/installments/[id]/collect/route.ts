@@ -4,6 +4,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { nextReceiptNo } from "@/lib/server/payments/receipt-service";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +74,20 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
         data: { status: amount >= remaining - 0.009 ? "PAID" : "PARTIALLY_PAID" },
       }),
     ]);
+
+    const student = await prisma.student.findUnique({
+      where: { id: installment.studentId },
+      select: { firstName: true, lastName: true },
+    });
+    await recordPaymentAudit({
+      session,
+      action: "PAYMENT_COLLECTED",
+      targetType: "Payment",
+      targetId: payment.id,
+      amount,
+      summary: `${student?.firstName ?? ""} ${student?.lastName ?? ""} · ${installment.title}`.trim(),
+      metadata: { method, receiptNo, studentId: installment.studentId },
+    });
 
     return NextResponse.json({ payment }, { status: 201 });
   } catch (error) {

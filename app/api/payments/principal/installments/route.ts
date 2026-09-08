@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { applyDiscounts, getActiveDiscounts } from "@/lib/server/payments/discount-service";
 import { splitIntoInstallments } from "@/lib/server/payments/installment-math";
 
@@ -126,6 +127,16 @@ async function handlePost(request: NextRequest) {
           });
         }
       }
+
+      await recordPaymentAudit({
+        session,
+        action: "INSTALLMENT_PLAN_CREATED",
+        targetType: "Student",
+        targetId: studentId,
+        amount: totalAmount,
+        summary: `${rows.length} taksit · liste ${listAmount.toFixed(2)} ₺${calc.discountTotal > 0 ? ` · indirim ${calc.discountTotal.toFixed(2)} ₺` : ""}`,
+        metadata: { installmentCount: rows.length, listAmount, discountTotal: calc.discountTotal },
+      });
 
       return NextResponse.json(
         {

@@ -1447,6 +1447,19 @@ enum AuditAction {
   CLASSROOM_CREATED
   ALUMNI_PROFILE_CREATED
   HOMEWORK_SUBMITTED
+  // --- Ödeme modülü: PARA HAREKETİ veya BORÇ DEĞİŞTİREN eylemler ---
+  // Salt okuma (rapor görüntüleme, PDF indirme) bilerek loglanmaz; iz
+  // kaydı gürültüyle dolarsa asıl olayı bulmak imkânsızlaşır.
+  PAYMENT_COLLECTED
+  PAYMENT_VOIDED
+  INSTALLMENT_PLAN_CREATED
+  INSTALLMENT_POSTPONED
+  INSTALLMENT_RESTRUCTURED
+  ENROLLMENT_CANCELLED
+  DISCOUNT_GRANTED
+  EXPENSE_PAID
+  ACCOUNT_TRANSFERRED
+  PAYROLL_PAID
 }
 
 model AuditLog {

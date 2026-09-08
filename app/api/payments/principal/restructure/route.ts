@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { splitIntoInstallments } from "@/lib/server/payments/installment-math";
 
 export const dynamic = "force-dynamic";
@@ -107,6 +108,16 @@ async function handlePost(request: NextRequest) {
           createdByAdminId: session.sub,
         },
       });
+    });
+
+    await recordPaymentAudit({
+      session,
+      action: "INSTALLMENT_RESTRUCTURED",
+      targetType: "Student",
+      targetId: studentId,
+      amount: remaining,
+      summary: `${open.length} taksit kapatıldı → ${installmentCount} yeni taksit`,
+      metadata: { closedCount: open.length, newCount: installmentCount },
     });
 
     return NextResponse.json({ closedCount: open.length, restructuredAmount: remaining, newCount: installmentCount }, { status: 201 });

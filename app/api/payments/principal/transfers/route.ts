@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { computeAccountBalances } from "@/lib/server/payments/account-balance";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +76,22 @@ async function handlePost(request: NextRequest) {
     const transfer = await prisma.accountTransfer.create({
       data: { institutionId: session.institutionId, fromAccountId, toAccountId, amount, note, recordedByAdminId: session.sub },
     });
+    const names = new Map(
+      (await prisma.paymentAccount.findMany({
+        where: { id: { in: [fromAccountId, toAccountId] } },
+        select: { id: true, name: true },
+      })).map((a) => [a.id, a.name])
+    );
+    await recordPaymentAudit({
+      session,
+      action: "ACCOUNT_TRANSFERRED",
+      targetType: "AccountTransfer",
+      targetId: transfer.id,
+      amount,
+      summary: `${names.get(fromAccountId) ?? "?"} → ${names.get(toAccountId) ?? "?"}`,
+      metadata: { fromAccountId, toAccountId },
+    });
+
     return NextResponse.json({ transfer: { id: transfer.id } }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

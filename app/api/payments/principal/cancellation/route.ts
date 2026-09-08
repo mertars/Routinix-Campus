@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { computeAccountBalances } from "@/lib/server/payments/account-balance";
 
 export const dynamic = "force-dynamic";
@@ -147,6 +148,18 @@ async function handlePost(request: NextRequest) {
           createdByAdminId: session.sub,
         },
       });
+    });
+
+    await recordPaymentAudit({
+      session,
+      action: "ENROLLMENT_CANCELLED",
+      targetType: "EnrollmentCancellation",
+      targetId: cancellation.id,
+      // İzin tutarı İADE'dir — kasadan gerçekten çıkan para budur.
+      // İptal edilen borç ayrıca metadata'da durur.
+      amount: refundAmount,
+      summary: `${open.length} taksit iptal · ${reason}`,
+      metadata: { studentId, cancelledAmount, refundAccountId, reason },
     });
 
     return NextResponse.json(

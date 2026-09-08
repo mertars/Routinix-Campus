@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
 
     const installment = await prisma.installment.findUnique({
       where: { id: params.id },
-      select: { institutionId: true, studentId: true, status: true, dueDate: true, amount: true },
+      select: { institutionId: true, studentId: true, status: true, dueDate: true, amount: true, title: true },
     });
     if (!installment) return NextResponse.json({ error: "Taksit bulunamadı." }, { status: 404 });
     requireInstitution(session, installment.institutionId);
@@ -49,6 +50,16 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
         },
       }),
     ]);
+
+    await recordPaymentAudit({
+      session,
+      action: "INSTALLMENT_POSTPONED",
+      targetType: "Installment",
+      targetId: params.id,
+      amount: Number(installment.amount),
+      summary: `${installment.title} · ${installment.dueDate.toLocaleDateString("tr-TR")} → ${newDueDate.toLocaleDateString("tr-TR")}`,
+      metadata: { reason, studentId: installment.studentId },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

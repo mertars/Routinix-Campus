@@ -4,6 +4,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { DISCOUNT_TYPE_LABEL, applyDiscounts, getActiveDiscounts } from "@/lib/server/payments/discount-service";
 
 export const dynamic = "force-dynamic";
@@ -134,6 +135,19 @@ async function handlePost(request: NextRequest) {
         approvedByAdminId: session.sub,
       },
     });
+    await recordPaymentAudit({
+      session,
+      action: "DISCOUNT_GRANTED",
+      targetType: "StudentDiscount",
+      targetId: discount.id,
+      // İndirim henüz bir plana uygulanmadığı için parasal karşılığı
+      // burada 0'dır; oran/tutar metadata'da durur. Tutar plan
+      // oluşturulurken netleşir (INSTALLMENT_PLAN_CREATED izinde görünür).
+      amount: 0,
+      summary: `${DISCOUNT_TYPE_LABEL[type] ?? type} · ${valueType === "PERCENTAGE" ? `%${value}` : `${value} ₺`} · ${academicYear}`,
+      metadata: { studentId, type, valueType, value, academicYear },
+    });
+
     return NextResponse.json({ discount: { id: discount.id } }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

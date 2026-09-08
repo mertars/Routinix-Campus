@@ -5,6 +5,7 @@ import { Loader2, Download, AlertTriangle, TrendingUp, TrendingDown, PieChart, U
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { CashflowCard } from "@/components/payments/cashflow-card";
+import { AuditCard } from "@/components/payments/audit-card";
 
 type ReportData = {
   months: number;
@@ -364,6 +365,10 @@ export function ReportsTab() {
           </div>
         )}
       </div>
+
+      {/* Denetim izi en sonda: bilerek aranan bir görünüm, özet
+          raporların önüne geçmemeli. */}
+      <AuditCard />
     </div>
   );
 }

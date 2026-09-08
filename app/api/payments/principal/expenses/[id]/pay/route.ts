@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,16 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       where: { id: params.id },
       data: { status: "PAID", accountId, paidAt },
     });
+    await recordPaymentAudit({
+      session,
+      action: "EXPENSE_PAID",
+      targetType: "Expense",
+      targetId: params.id,
+      amount: Number(updated.amount),
+      summary: `${updated.title}${updated.vendorName ? ` · ${updated.vendorName}` : ""}`,
+      metadata: { accountId, categoryId: updated.categoryId },
+    });
+
     return NextResponse.json({ expense: updated });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
