@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, UserCog2, ShieldCheck, Send, Loader2 } from "lucide-react";
+import { GraduationCap, UserCog2, ShieldCheck, Send, Loader2, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import type { NewUserCredentials } from "./credentials-card-modal";
+import { currentAcademicYear, academicYearOptions } from "@/lib/payments/academic-year";
 
 type BranchOption = { id: string; name: string };
 
@@ -24,6 +25,13 @@ const AUTHORITY_OPTIONS: { id: string; label: string }[] = [
   { id: "BRANCH_MANAGER", label: "Şube Müdürü" },
   { id: "COORDINATOR", label: "Koordinatör" },
   { id: "SUPER_ADMIN", label: "Genel Müdür" },
+];
+
+// Yöneticiye SAATLİK ücret gösterilmez: ders programında yer almadığı
+// için saat sayısı hesaplanamaz (bkz. salary-profiles route'undaki kural).
+const PAY_TYPES: { id: "MONTHLY_SALARY" | "HOURLY"; label: string }[] = [
+  { id: "MONTHLY_SALARY", label: "Aylık Maaş" },
+  { id: "HOURLY", label: "Saat Ücreti" },
 ];
 
 const inputClass =
@@ -62,6 +70,27 @@ export function AddUserModal({
   const [title, setTitle] = useState("");
   const [authorityLevel, setAuthorityLevel] = useState("BRANCH_MANAGER");
 
+  // Kayıt sırasında ödeme kurulumu. Alanlar BOŞ bırakılabilir — o zaman
+  // kullanıcı ödeme bilgisi olmadan oluşur, planı sonra kurulur.
+  const [fee, setFee] = useState("");
+  const [installmentCount, setInstallmentCount] = useState("10");
+  const [firstDueDate, setFirstDueDate] = useState(new Date().toISOString().slice(0, 10));
+  const [academicYear, setAcademicYear] = useState(currentAcademicYear());
+  const [payType, setPayType] = useState<"" | "MONTHLY_SALARY" | "HOURLY">("");
+  const [salaryAmount, setSalaryAmount] = useState("");
+  // Borç yazmak ve maaş tanımlamak tam yetki ister; yetkisi olmayana
+  // dolduramayacağı alan göstermek, sunucunun reddedeceği bir işi vaat
+  // etmek olurdu.
+  const [canSetPayment, setCanSetPayment] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetch("/api/payments/principal/me")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
+      .then((d) => setCanSetPayment(d.paymentRole === "FULL"))
+      .catch(() => setCanSetPayment(false));
+  }, [isOpen]);
+
   // branches asenkron yüklenir (bkz. BranchStaffTab > loadBranches) — modal
   // ilk açıldığında henüz boş olabilir, geldiğinde varsayılan seçimi ata.
   useEffect(() => {
@@ -82,6 +111,11 @@ export function AddUserModal({
     setAdvisorBranchId("");
     setTitle("");
     setAuthorityLevel("BRANCH_MANAGER");
+    setFee("");
+    setInstallmentCount("10");
+    setFirstDueDate(new Date().toISOString().slice(0, 10));
+    setPayType("");
+    setSalaryAmount("");
   }
 
   const isValid =
@@ -96,12 +130,34 @@ export function AddUserModal({
     if (!isValid) return;
     setSubmitting(true);
     try {
+      // Ödeme kurulumu yalnızca yetki VARSA ve alan DOLDURULMUŞSA gönderilir.
+      const paymentPart =
+        canSetPayment && fee.trim()
+          ? {
+              payment: {
+                listAmount: Number(fee),
+                installmentCount: Number(installmentCount),
+                startDate: firstDueDate,
+                academicYear,
+              },
+            }
+          : {};
+      const salaryPart =
+        canSetPayment && payType && salaryAmount.trim()
+          ? {
+              salary: {
+                payType,
+                ...(payType === "MONTHLY_SALARY" ? { monthlyAmount: Number(salaryAmount) } : { hourlyRate: Number(salaryAmount) }),
+              },
+            }
+          : {};
+
       const body =
         role === "STUDENT"
-          ? { role, fullName, nationalId, branchId, phone: studentPhone, parentName, parentPhone, healthNote }
+          ? { role, fullName, nationalId, branchId, phone: studentPhone, parentName, parentPhone, healthNote, ...paymentPart }
           : role === "TEACHER"
-            ? { role, fullName, nationalId, subject: subject === "Diğer" ? customSubject : subject, mobilePhone, email, advisorBranchId: advisorBranchId || undefined }
-            : { role, fullName, title, mobilePhone, email, authorityLevel };
+            ? { role, fullName, nationalId, subject: subject === "Diğer" ? customSubject : subject, mobilePhone, email, advisorBranchId: advisorBranchId || undefined, ...salaryPart }
+            : { role, fullName, title, mobilePhone, email, authorityLevel, ...salaryPart };
 
       const res = await fetch(`${apiBase}/users/create`, {
         method: "POST",
@@ -185,6 +241,38 @@ export function AddUserModal({
               <input value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} placeholder="Veli Telefonu" className={inputClass} />
             </div>
             <textarea value={healthNote} onChange={(e) => setHealthNote(e.target.value)} placeholder="Tıbbi / özel not (isteğe bağlı)" rows={2} className={inputClass} />
+
+            {canSetPayment && (
+              <PaymentSection title="Ücret & Taksit Planı" hint="Boş bırakırsanız öğrenci ödeme bilgisi olmadan kaydedilir; planı sonra kurabilirsiniz.">
+                <div className="grid grid-cols-2 gap-2">
+                  <LabeledInput label="Yıllık Ücret (₺)">
+                    <input type="number" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="90000" className={inputClass} />
+                  </LabeledInput>
+                  <LabeledInput label="Taksit Sayısı">
+                    <input type="number" min={1} max={36} value={installmentCount} onChange={(e) => setInstallmentCount(e.target.value)} className={inputClass} />
+                  </LabeledInput>
+                  <LabeledInput label="İlk Vade">
+                    <input type="date" value={firstDueDate} onChange={(e) => setFirstDueDate(e.target.value)} className={inputClass} />
+                  </LabeledInput>
+                  <LabeledInput label="Eğitim Yılı">
+                    <select value={academicYear} onChange={(e) => setAcademicYear(e.target.value)} className={inputClass}>
+                      {academicYearOptions().map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </LabeledInput>
+                </div>
+                {fee.trim() && Number(fee) > 0 && Number(installmentCount) > 0 && (
+                  <p className="mt-2 text-[11px] font-medium text-brand-700 dark:text-brand-500">
+                    {installmentCount} taksit × yaklaşık{" "}
+                    {(Number(fee) / Number(installmentCount)).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} ₺
+                    <span className="font-normal text-espresso-muted dark:text-cream/40">
+                      {" "}· tanımlı indirimler kayıtta ayrıca uygulanır
+                    </span>
+                  </p>
+                )}
+              </PaymentSection>
+            )}
           </motion.div>
         )}
 
@@ -217,6 +305,43 @@ export function AddUserModal({
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
+
+            {canSetPayment && (
+              <PaymentSection title="Ücret Bilgisi" hint="Boş bırakırsanız ücret profili olmadan kaydedilir; bordroda sonra tanımlayabilirsiniz.">
+                <div className="mb-2 flex gap-1.5 rounded-lg border border-hairline p-1 dark:border-white/10">
+                  {PAY_TYPES.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setPayType(payType === opt.id ? "" : opt.id)}
+                      className={cn(
+                        "flex-1 rounded-md py-1.5 text-[11px] font-medium transition",
+                        payType === opt.id ? "bg-brand-600 text-white" : "text-espresso-muted dark:text-cream/40"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {payType && (
+                  <LabeledInput label={payType === "MONTHLY_SALARY" ? "Aylık Ücret (₺)" : "Saat Ücreti (₺)"}>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={salaryAmount}
+                      onChange={(e) => setSalaryAmount(e.target.value)}
+                      placeholder={payType === "MONTHLY_SALARY" ? "45000" : "600"}
+                      className={inputClass}
+                    />
+                  </LabeledInput>
+                )}
+                {payType === "HOURLY" && (
+                  <p className="mt-1.5 text-[10px] text-espresso-muted dark:text-cream/40">
+                    Aylık tutar, ders programındaki haftalık saat sayısından hesaplanır.
+                  </p>
+                )}
+              </PaymentSection>
+            )}
           </motion.div>
         )}
 
@@ -242,6 +367,43 @@ export function AddUserModal({
                 </button>
               ))}
             </div>
+
+            {canSetPayment && (
+              <PaymentSection title="Ücret Bilgisi" hint="Boş bırakırsanız ücret profili olmadan kaydedilir; bordroda sonra tanımlayabilirsiniz.">
+                <div className="mb-2 flex gap-1.5 rounded-lg border border-hairline p-1 dark:border-white/10">
+                  {PAY_TYPES.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setPayType(payType === opt.id ? "" : opt.id)}
+                      className={cn(
+                        "flex-1 rounded-md py-1.5 text-[11px] font-medium transition",
+                        payType === opt.id ? "bg-brand-600 text-white" : "text-espresso-muted dark:text-cream/40"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {payType && (
+                  <LabeledInput label={payType === "MONTHLY_SALARY" ? "Aylık Ücret (₺)" : "Saat Ücreti (₺)"}>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={salaryAmount}
+                      onChange={(e) => setSalaryAmount(e.target.value)}
+                      placeholder={payType === "MONTHLY_SALARY" ? "45000" : "600"}
+                      className={inputClass}
+                    />
+                  </LabeledInput>
+                )}
+                {payType === "HOURLY" && (
+                  <p className="mt-1.5 text-[10px] text-espresso-muted dark:text-cream/40">
+                    Aylık tutar, ders programındaki haftalık saat sayısından hesaplanır.
+                  </p>
+                )}
+              </PaymentSection>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -255,5 +417,29 @@ export function AddUserModal({
         {submitting ? "Oluşturuluyor..." : "Kullanıcıyı Oluştur"}
       </button>
     </Modal>
+  );
+}
+
+// Ödeme alanları görsel olarak AYRIŞTIRILIR: kimlik bilgisiyle para
+// bilgisi aynı akışta ama farklı sorumluluk; müdür hangisini doldurup
+// doldurmadığını bir bakışta görsün.
+function PaymentSection({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-brand-600/25 bg-brand-600/[0.04] p-3">
+      <p className="mb-0.5 flex items-center gap-1.5 text-xs font-semibold text-espresso dark:text-cream">
+        <Wallet className="h-3.5 w-3.5 text-brand-600 dark:text-brand-500" /> {title}
+      </p>
+      <p className="mb-2.5 text-[10px] text-espresso-muted dark:text-cream/40">{hint}</p>
+      {children}
+    </div>
+  );
+}
+
+function LabeledInput({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="mb-1 block text-[10px] font-medium text-espresso-muted dark:text-cream/40">{label}</label>
+      {children}
+    </div>
   );
 }

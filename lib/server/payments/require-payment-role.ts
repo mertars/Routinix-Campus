@@ -28,8 +28,11 @@ export async function requirePaymentRole(
     throw new AuthError("Ödeme modülüne erişim yetkiniz yok.", "FORBIDDEN_ROLE", 403);
   }
   if (minimum === "FULL" && role !== "FULL") {
+    // Mesaj GENEL tutulur: bu kapı yalnızca para çıkışını değil, borç
+    // yazmayı (taksit planı) ve ücret tanımlamayı da kapsıyor —
+    // "para çıkaran işlem" demek o durumlarda yanlış olurdu.
     throw new AuthError(
-      "Bu işlem için tam yetki gerekiyor. Tahsildar yetkisiyle para çıkaran işlem yapılamaz.",
+      "Bu işlem için ödeme modülünde tam yetki gerekiyor. Tahsildar yetkisiyle yapılamaz.",
       "FORBIDDEN_ROLE",
       403
     );
