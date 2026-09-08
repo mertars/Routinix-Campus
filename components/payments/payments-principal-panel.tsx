@@ -139,6 +139,7 @@ export function PaymentsPrincipalPanel() {
           <motion.div key="dashboard" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <DashboardTab
               data={dashboard}
+              canManage={paymentRole === "FULL"}
               onRemindClick={() => setReminderOpen(true)}
               promiseKey={promiseKey}
               onPromiseChanged={() => setPromiseKey((k) => k + 1)}
@@ -147,7 +148,7 @@ export function PaymentsPrincipalPanel() {
         )}
         {tab === "students" && (
           <motion.div key="students" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <StudentPaymentsTab accounts={dashboard?.accounts ?? []} onChanged={loadDashboard} />
+            <StudentPaymentsTab accounts={dashboard?.accounts ?? []} onChanged={loadDashboard} canManage={paymentRole === "FULL"} />
           </motion.div>
         )}
         {tab === "expenses" && (
@@ -243,11 +244,13 @@ async function createPromise(studentName: string, studentId: string, defaultAmou
 
 function DashboardTab({
   data,
+  canManage,
   onRemindClick,
   promiseKey,
   onPromiseChanged,
 }: {
   data: DashboardData | null;
+  canManage: boolean;
   onRemindClick: () => void;
   promiseKey: number;
   onPromiseChanged: () => void;
@@ -369,7 +372,7 @@ function DashboardTab({
             <h3 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
               <AlertTriangle className="h-4 w-4 text-rose-600 dark:text-rose-400" /> Gecikmiş Ödemeler
             </h3>
-            {data.overdueInstallments.length > 0 && (
+            {data.overdueInstallments.length > 0 && canManage && (
               <button
                 onClick={onRemindClick}
                 className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"

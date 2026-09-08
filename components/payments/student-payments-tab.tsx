@@ -51,7 +51,18 @@ const STATUS_META: Record<InstallmentRow["status"], { label: string; className: 
   CANCELLED: { label: "İptal", className: "bg-gray-500/10 text-gray-600 dark:text-gray-400", icon: XCircle },
 };
 
-export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountRow[]; onChanged: () => void }) {
+// canManage=false (tahsildar): para çıkaran veya borcu değiştiren
+// eylemler GİZLENİR. Sunucu bunları zaten 403 ile reddediyor; düğmeyi
+// göstermek kullanıcıya yapamayacağı bir şeyi vaat etmek olurdu.
+export function StudentPaymentsTab({
+  accounts,
+  onChanged,
+  canManage,
+}: {
+  accounts: AccountRow[];
+  onChanged: () => void;
+  canManage: boolean;
+}) {
   const { showError, showSuccess } = useToast();
   const [roster, setRoster] = useState<RosterStudent[] | null>(null);
   const [query, setQuery] = useState("");
@@ -225,6 +236,10 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                 >
                   <FileDown className="h-3.5 w-3.5" /> Ekstre
                 </a>
+                {/* Para çıkaran / borcu değiştiren eylemler yalnızca tam
+                    yetkide. Tahsildar yalnızca ekstre indirir ve tahsilat alır. */}
+                {canManage && (
+                  <>
                 <button
                   onClick={() => setDiscountOpen(true)}
                   className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
@@ -250,6 +265,8 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                 >
                   <CalendarPlus className="h-3.5 w-3.5" /> Taksit Planı Oluştur
                 </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -286,7 +303,7 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                         <span className={cn("flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold", meta.className)}>
                           <meta.icon className="h-3 w-3" /> {meta.label}
                         </span>
-                        {canCollect && (
+                        {canCollect && canManage && (
                           <button
                             onClick={() => postpone(inst)}
                             title="Vadeyi ertele"
@@ -363,6 +380,7 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                     >
                       <FileDown className="h-3 w-3" /> Makbuz
                     </a>
+                    {canManage && (
                     <button
                       onClick={() => voidPayment(p)}
                       title="Hatalı kaydı iptal et"
@@ -370,6 +388,7 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                     >
                       <Ban className="h-3 w-3" /> İptal
                     </button>
+                    )}
                   </div>
                 )}
               </div>
