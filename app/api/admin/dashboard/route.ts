@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
 import { buildStatusCountMap } from "@/lib/server/risk/status-count-map";
+import { getTaughtBranchesByTeacher } from "@/lib/server/teachers/taught-branches";
 import { POSITIVE_STATUSES, EXCLUDED_FROM_RATE } from "@/lib/attendance/status";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
@@ -124,14 +125,18 @@ async function computeDashboard(institutionId: string, segment: string) {
   const homeworkByStudent = buildStatusCountMap(homeworkCounts, ["DONE"]);
   const masteryAvgByStudent = new Map(masteryAverages.map((m) => [m.studentId, m._avg.masteryScore ?? null]));
 
+  // Personel listesi DERS PROGRAMINDAN türetilir: eskiden yalnızca
+  // "Danışman Şube" ile dolan teachingBranches'e bakıyordu ve programı
+  // dolu bir kurumda bile pano "0 personel" gösteriyordu.
+  const taughtByTeacher = await getTaughtBranchesByTeacher(teachers.map((t) => t.id));
   const staff = teachers
-    .filter((t) => t.teachingBranches.some((b) => branchIds.includes(b.id)))
     .map((t) => ({
       id: t.id,
       name: `${t.firstName} ${t.lastName}`,
       subject: t.subject,
-      branchNames: t.teachingBranches.filter((b) => branchIds.includes(b.id)).map((b) => b.name),
-    }));
+      branchNames: (taughtByTeacher.get(t.id) ?? []).filter((b) => branchIds.includes(b.id)).map((b) => b.name),
+    }))
+    .filter((t) => t.branchNames.length > 0);
 
   // Öğrenci bazlı: güncel net (en son denemedeki branş netlerinin toplamı),
   // devam oranı, ödev tamamlama, risk skoru — hepsi gerçek sinyalden.

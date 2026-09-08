@@ -4,6 +4,8 @@ import { requireSession, requireInstitution, assertOwnsSelf } from "@/lib/server
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
+import { getTaughtBranches } from "@/lib/server/teachers/taught-branches";
+
 export const dynamic = "force-dynamic";
 
 // GET /api/teachers/[id] — useTeacherScope'un tek gerçek veri kaynağı.
@@ -29,14 +31,24 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
       throw new AuthError("Kayıt bulunamadı.", "NOT_FOUND", 404);
     }
 
+    // "Girdiği sınıflar" DERS PROGRAMINDAN türetilir (bkz.
+    // taught-branches): öğretmen panelinin tüm sekmeleri bu listeyi
+    // kullanıyor ve eskiden yalnızca "Danışman Şube" ile dolan bir
+    // ilişkiden okunduğu için programı dolu öğretmenler bile ekranları
+    // BOŞ görüyordu.
+    const assignedBranches = await getTaughtBranches(teacher.id);
+
     return NextResponse.json({
       id: teacher.id,
       firstName: teacher.firstName,
       lastName: teacher.lastName,
       subject: teacher.subject,
       mobilePhone: teacher.mobilePhone,
-      assignedBranches: teacher.teachingBranches.map((b) => ({ id: b.id, name: b.name, grade: b.grade, track: b.track })),
+      assignedBranches,
+      // Danışmanlık AYRI bir kavram — "girdiği sınıf" değil, "rehberi
+      // olduğu sınıf". İkisi karıştırılmasın diye ayrı alanda kalıyor.
       advisorBranchIds: teacher.advisorBranches.map((b) => b.id),
+      advisoryBranches: teacher.teachingBranches.map((b) => ({ id: b.id, name: b.name })),
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

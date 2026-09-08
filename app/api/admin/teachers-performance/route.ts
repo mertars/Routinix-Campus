@@ -6,6 +6,8 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withTtlCache } from "@/lib/server/cache/ttl-cache";
 import { withApiLogging, logger } from "@/lib/logger";
 
+import { getTaughtBranchesByTeacher } from "@/lib/server/teachers/taught-branches";
+
 export const dynamic = "force-dynamic";
 
 const TEACHERS_PERFORMANCE_CACHE_TTL_MS = 20_000;
@@ -68,13 +70,15 @@ async function computeTeachersPerformance(institutionId: string) {
   const attendanceByTeacher = new Map(attendanceCounts.map((r) => [r.teacherId, r._count]));
   const homeworkByTeacher = new Map(homeworkCounts.map((r) => [r.teacherId, r._count]));
   const quizByTeacher = new Map(quizCounts.map((r) => [r.teacherId, r._count]));
+  // Ders verdiği şubeler DERS PROGRAMINDAN (bkz. taught-branches).
+  const taughtByTeacher = await getTaughtBranchesByTeacher(teachers.map((t) => t.id));
 
   return teachers.map((teacher) => {
     // Öğretmenin verdiği TÜM şubelerdeki net sonuçları (şube ortalamalarının
     // ortalaması DEĞİL, şube başına ağırlıklı toplam/sayı) tek havuzda topla.
     let sum = 0;
     let count = 0;
-    for (const branch of teacher.teachingBranches) {
+    for (const branch of taughtByTeacher.get(teacher.id) ?? []) {
       const entry = netByBranch.get(branch.id);
       if (entry) {
         sum += entry.sum;

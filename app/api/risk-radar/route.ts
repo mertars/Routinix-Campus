@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
 import { buildStatusCountMap } from "@/lib/server/risk/status-count-map";
+import { getTaughtBranches } from "@/lib/server/teachers/taught-branches";
 import { POSITIVE_STATUSES, EXCLUDED_FROM_RATE } from "@/lib/attendance/status";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
@@ -58,8 +59,12 @@ async function handleGet(request: NextRequest) {
 async function computeRiskRadar(institutionId: string, teacherId: string | null) {
   let branchIds: string[] | null = null;
   if (teacherId) {
-    const teacher = await prisma.teacher.findUnique({ where: { id: teacherId }, include: { teachingBranches: { select: { id: true } } } });
-    branchIds = teacher && teacher.institutionId === institutionId ? teacher.teachingBranches.map((b) => b.id) : [];
+    const teacher = await prisma.teacher.findUnique({ where: { id: teacherId }, select: { institutionId: true } });
+    // Öğretmenin kapsamı DERS PROGRAMINDAN (bkz. taught-branches) —
+    // eskiden yalnızca danışman şubesiyle dolan ilişkiden okunuyordu,
+    // programı dolu öğretmen bile boş risk listesi görüyordu.
+    branchIds =
+      teacher && teacher.institutionId === institutionId ? (await getTaughtBranches(teacherId)).map((b) => b.id) : [];
   }
 
   // isActive: ayrılmış öğrenci risk listesinde yer almamalı — müdür

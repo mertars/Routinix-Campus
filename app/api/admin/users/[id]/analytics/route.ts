@@ -1,3 +1,4 @@
+import { getTaughtBranches } from "@/lib/server/teachers/taught-branches";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { computeAttendanceRate } from "@/lib/server/report-card/analyzer";
@@ -92,8 +93,10 @@ async function teacherAnalytics(teacherId: string, institutionId: string) {
 
   // Danışmanlık (advisorBranches) TEK şubedir; bir öğretmen birden fazla
   // şubede ders verebilir — sınıf net ortalaması/branş listesi bu yüzden
-  // gerçek "ders veriyor" ilişkisinden (teachingBranches) hesaplanır.
-  const branchIds = teacher.teachingBranches.map((b) => b.id);
+  // gerçek "ders veriyor" ilişkisinden, yani DERS PROGRAMINDAN hesaplanır
+  // (bkz. taught-branches; eskiden teachingBranches okunuyordu ve o
+  // ilişki yalnızca danışman şubesiyle doluyordu).
+  const branchIds = (await getTaughtBranches(teacher.id)).map((b) => b.id);
 
   const [classNetResults, attendanceSubmissionCount, homeworkCount, quizCount] = await Promise.all([
     branchIds.length > 0
