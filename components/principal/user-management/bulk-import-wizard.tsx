@@ -28,6 +28,7 @@ import { parsePdfFile } from "@/lib/bulk-import/parse-pdf";
 import { validateRows } from "@/lib/bulk-import/validate";
 import type { ImportRole, RawRow, ValidatedRow } from "@/lib/bulk-import/types";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
+import { runChunked, DEFAULT_CHUNK_SIZE, type ChunkProgress } from "@/lib/client/chunked-import";
 
 export type PrintableCredential = { fullName: string; username: string; password: string; phone?: string; institutionalCode?: string };
 
@@ -113,6 +114,7 @@ export function BulkImportWizard({
   const [isImporting, setIsImporting] = useState(false);
   const [results, setResults] = useState<RowResult[] | null>(null);
   const [downloadingCredentialsPdf, setDownloadingCredentialsPdf] = useState(false);
+  const [progress, setProgress] = useState<ChunkProgress>({ done: 0, total: 0, percent: 0 });
 
   function reset() {
     setStep(1);
@@ -179,14 +181,27 @@ export function BulkImportWizard({
     setIsImporting(true);
     setStep(4);
     try {
-      const res = await fetch(`${apiBase}/import/bulk`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role, rows: validRawRows }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "İçe aktarma başarısız.");
-      setResults(data.results ?? []);
+      // Parça parça gönderilir: hem gerçek ilerleme gösterilir hem de
+      // satır sayısı arttıkça sunucu tarafında zaman aşımı riski
+      // kalmaz (bkz. lib/client/chunked-import).
+      const collected = await runChunked(
+        validRawRows,
+        DEFAULT_CHUNK_SIZE,
+        async (chunk) => {
+          const res = await fetch(`${apiBase}/import/bulk`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role, rows: chunk }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error ?? "İçe aktarma başarısız.");
+          return (data.results ?? []) as RowResult[];
+        },
+        setProgress
+      );
+      // Satır numaraları her parçada sıfırdan başlar; sonuçları
+      // birleştirirken dosyadaki gerçek sıraya göre yeniden numaralanır.
+      setResults(collected.map((r, i) => ({ ...r, rowIndex: i })));
       onImported();
     } catch (error) {
       showError(error instanceof Error ? error.message : "İçe aktarma başarısız.");
@@ -403,7 +418,20 @@ export function BulkImportWizard({
               {isImporting || !results ? (
                 <div className="flex flex-col items-center gap-3 py-10">
                   <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
-                  <p className="text-sm text-espresso-muted dark:text-cream/40">Kayıtlar oluşturuluyor, her satır ayrı ayrı işleniyor...</p>
+                  <p className="text-sm text-espresso dark:text-cream">
+                    {progress.total > 0 ? `${progress.done} / ${progress.total} kayıt oluşturuldu` : "Kayıtlar oluşturuluyor…"}
+                  </p>
+                  {progress.total > 0 && (
+                    <div className="h-2 w-64 overflow-hidden rounded-full bg-cream-card dark:bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-brand-600 transition-all duration-300"
+                        style={{ width: `${progress.percent}%` }}
+                      />
+                    </div>
+                  )}
+                  <p className="text-[11px] text-espresso-muted dark:text-cream/40">
+                    Bu pencereyi kapatmayın — işlem parça parça sürüyor.
+                  </p>
                 </div>
               ) : (
                 <>

@@ -5,6 +5,7 @@ import { Loader2, Upload, Download, CheckCircle2, AlertTriangle, FileSpreadsheet
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { runChunked, DEFAULT_CHUNK_SIZE, type ChunkProgress } from "@/lib/client/chunked-import";
 
 type RowResult = {
   rowIndex: number;
@@ -82,6 +83,7 @@ export function ScheduleImportModal({
   const [fileName, setFileName] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<ChunkProgress>({ done: 0, total: 0, percent: 0 });
 
   function reset() {
     setRows([]);
@@ -103,17 +105,36 @@ export function ScheduleImportModal({
 
   async function run(dryRun: boolean) {
     setBusy(true);
+    setProgress({ done: 0, total: rows.length, percent: 0 });
     try {
-      const res = await fetch("/api/lesson-slots/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows, dryRun }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d?.error);
-      setOutcome(d);
-      if (!dryRun) {
-        showSuccess(`${d.okCount} ders programa işlendi.`);
+      // ⚠️ KONTROL aşaması parçalanmaz: çakışma denetimi dosyanın
+      // TAMAMINA bakmak zorunda (aynı öğretmeni aynı saatte iki şubeye
+      // yazan iki satır ayrı parçalara düşerse çakışma görünmez).
+      // Yalnızca UYGULAMA parçalanır — orada satırlar zaten doğrulanmış.
+      const send = async (chunk: Record<string, string>[]) => {
+        const res = await fetch("/api/lesson-slots/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows: chunk, dryRun }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d?.error);
+        return [d as Outcome];
+      };
+
+      if (dryRun) {
+        const [d] = await send(rows);
+        setOutcome(d);
+      } else {
+        const parts = await runChunked(rows, DEFAULT_CHUNK_SIZE, send, setProgress);
+        const merged: Outcome = {
+          results: parts.flatMap((p) => p.results),
+          okCount: parts.reduce((s, p) => s + p.okCount, 0),
+          failedCount: parts.reduce((s, p) => s + p.failedCount, 0),
+          overwriteCount: parts.reduce((s, p) => s + p.overwriteCount, 0),
+        };
+        setOutcome(merged);
+        showSuccess(`${merged.okCount} ders programa işlendi.`);
         onImported();
       }
     } catch (e) {
@@ -224,6 +245,18 @@ export function ScheduleImportModal({
                 Hatalı satırlar atlanır, geçerli olanlar uygulanır. Dosyayı düzeltip yeniden yüklemek isterseniz bu
                 pencereyi kapatmanız yeterli.
               </p>
+            )}
+
+            {busy && progress.total > 0 && (
+              <div>
+                <div className="mb-1 flex justify-between text-[11px] text-espresso-muted dark:text-cream/40">
+                  <span>{progress.done} / {progress.total} satır işlendi</span>
+                  <span>%{progress.percent}</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-cream-card dark:bg-white/10">
+                  <div className="h-full rounded-full bg-brand-600 transition-all duration-300" style={{ width: `${progress.percent}%` }} />
+                </div>
+              </div>
             )}
 
             <button

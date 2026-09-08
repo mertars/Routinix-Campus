@@ -18,6 +18,10 @@ export type RosterStudentForMatching = {
 // o genel amaçlı roster ucu (arama/filtre, kadro listesi ekranı) T.C. No
 // döndürmez — burada PDF satırlarını gerçek öğrenciyle eşleştirmek için
 // gerekli, bu yüzden ayrı ve dar kapsamlı tutuldu.
+// Tek transaction'da kaç satır yazılsın. 5 sn sınırının altında
+// rahatça kalan, ama gidiş dönüş sayısını da makul tutan bir değer.
+const WRITE_CHUNK = 25;
+
 export async function listStudentRosterForMatching(institutionId: string): Promise<RosterStudentForMatching[]> {
   const students = await prisma.student.findMany({
     where: { institutionId, isActive: true },
@@ -103,7 +107,19 @@ export async function bulkUpsertExamNetResults(input: {
     results.push({ studentId: row.studentId, subject, status: "success" });
   }
 
-  if (writes.length > 0) await prisma.$transaction(writes);
+  // ⚠️ TEK transaction KULLANILMAZ. Eskiden tüm satırlar tek
+  // $transaction'a veriliyordu ve Prisma'nın 5 sn etkileşimli işlem
+  // sınırına takılıyordu: gerçek bir denemede 100 öğrenci × 4 ders =
+  // 400 satır olur ve İŞLEMİN TAMAMI geri alınırdı — yönetici
+  // "Beklenmeyen hata" görür, hiçbir net yazılmazdı. Ölçüldü: 60 satır
+  // geçiyor, 120 geçmiyordu.
+  //
+  // Parça parça yazılır. Bir parçanın hatası diğerlerini geri almaz;
+  // net girişinde kısmi başarı, hiç başarı olmamasından iyidir
+  // (yönetici eksik kalan satırları tekrar yükler).
+  for (let i = 0; i < writes.length; i += WRITE_CHUNK) {
+    await prisma.$transaction(writes.slice(i, i + WRITE_CHUNK));
+  }
 
   const successCount = results.filter((r) => r.status === "success").length;
 

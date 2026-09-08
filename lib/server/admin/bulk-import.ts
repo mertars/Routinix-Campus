@@ -21,6 +21,8 @@ type RowResult = {
   error?: string;
 };
 
+import { bulkCreateStudents } from "@/lib/server/admin/bulk-students";
+
 export async function runBulkImport(
   role: BulkImportRole,
   rows: RawRow[],
@@ -55,6 +57,26 @@ export async function runBulkImport(
     return { results, successCount, failedCount: rows.length - successCount };
   }
 
+  // ÖĞRENCİ içe aktarımı hızlı yola gider: tekil yol öğrenci başına ~7
+  // gidiş dönüş yapıyordu (100 öğrenci ≈ 100 sn). Kurallar aynı, sadece
+  // sorgular toplulaştırıldı — bkz. bulk-students.ts.
+  if (role === "STUDENT") {
+    const outcome = await bulkCreateStudents(
+      rows.map((row) => ({
+        fullName: (row.fullName ?? row["Ad Soyad"] ?? "").toString(),
+        nationalId: (row.nationalId ?? row["T.C. No"] ?? "").toString(),
+        branchName: (row.branchName ?? row["Şube"] ?? "").toString(),
+        phone: (row.phone ?? row["Öğrenci GSM"] ?? "").toString(),
+        parentName: (row.parentName ?? row["Veli Ad Soyad"] ?? "").toString(),
+        parentPhone: (row.parentPhone ?? row["Veli GSM"] ?? "").toString(),
+        healthNote: (row.healthNote ?? row["Özel Not"])?.toString(),
+      })),
+      institutionId,
+      actorId
+    );
+    return outcome;
+  }
+
   const branches = await prisma.branch.findMany({ where: { institutionId }, select: { id: true, name: true } });
   const branchByName = new Map(branches.map((b) => [b.name.trim().toLocaleLowerCase("tr"), b.id]));
 
@@ -72,49 +94,25 @@ export async function runBulkImport(
       if (seenNationalIds.has(nationalId)) throw new AdminCreateError("Bu dosya içinde tekrar eden T.C. No.");
       seenNationalIds.add(nationalId);
 
-      if (role === "STUDENT") {
-        const branchName = (row.branchName ?? row["Şube"] ?? "").toString().trim();
-        const branchId = branchByName.get(branchName.toLocaleLowerCase("tr"));
-        if (!branchId) throw new AdminCreateError(`Şube bulunamadı: "${branchName}".`);
-        const phone = (row.phone ?? row["Öğrenci GSM"] ?? "").toString().trim();
-        if (!phone) throw new AdminCreateError("Öğrenci GSM zorunludur (kişisel telefonu yoksa veli telefonu girilebilir).");
-        const parentName = (row.parentName ?? row["Veli Ad Soyad"] ?? "").toString().trim();
-        const parentPhone = (row.parentPhone ?? row["Veli GSM"] ?? "").toString().trim();
-        if (!parentName || !parentPhone) throw new AdminCreateError("Veli Ad Soyad ve Veli GSM zorunludur.");
+      const subject = (row.subject ?? row["Branş"] ?? "").toString().trim();
+      const mobilePhone = (row.mobilePhone ?? row["GSM"] ?? "").toString().trim();
+      const advisorBranchName = (row.advisorBranchName ?? row["Danışman Şube"] ?? "").toString().trim();
+      const advisorBranchId = advisorBranchName ? branchByName.get(advisorBranchName.toLocaleLowerCase("tr")) : undefined;
+      if (!subject) throw new AdminCreateError("Branş zorunludur.");
+      if (!mobilePhone) throw new AdminCreateError("GSM zorunludur.");
+      if (advisorBranchName && !advisorBranchId) throw new AdminCreateError(`Şube bulunamadı: "${advisorBranchName}".`);
 
-        const account = await createStudentAccount({
-          institutionId,
-          actorId,
-          fullName,
-          nationalId,
-          branchId,
-          phone,
-          parentName,
-          parentPhone,
-          healthNote: (row.healthNote ?? row["Özel Not"])?.toString().trim(),
-        });
-        results.push({ rowIndex: i, fullName, status: "success", username: account.username, password: account.password, phone });
-      } else {
-        const subject = (row.subject ?? row["Branş"] ?? "").toString().trim();
-        const mobilePhone = (row.mobilePhone ?? row["GSM"] ?? "").toString().trim();
-        const advisorBranchName = (row.advisorBranchName ?? row["Danışman Şube"] ?? "").toString().trim();
-        const advisorBranchId = advisorBranchName ? branchByName.get(advisorBranchName.toLocaleLowerCase("tr")) : undefined;
-        if (!subject) throw new AdminCreateError("Branş zorunludur.");
-        if (!mobilePhone) throw new AdminCreateError("GSM zorunludur.");
-        if (advisorBranchName && !advisorBranchId) throw new AdminCreateError(`Şube bulunamadı: "${advisorBranchName}".`);
-
-        const account = await createTeacherAccount({
-          institutionId,
-          actorId,
-          fullName,
-          nationalId,
-          subject,
-          mobilePhone,
-          email: (row.email ?? row["E-posta"])?.toString().trim(),
-          advisorBranchId,
-        });
-        results.push({ rowIndex: i, fullName, status: "success", username: account.username, password: account.password, phone: mobilePhone, institutionalCode: account.institutionalCode });
-      }
+      const account = await createTeacherAccount({
+        institutionId,
+        actorId,
+        fullName,
+        nationalId,
+        subject,
+        mobilePhone,
+        email: (row.email ?? row["E-posta"])?.toString().trim(),
+        advisorBranchId,
+      });
+      results.push({ rowIndex: i, fullName, status: "success", username: account.username, password: account.password, phone: mobilePhone, institutionalCode: account.institutionalCode });
     } catch (error) {
       seenNationalIds.delete(nationalId);
       const message = error instanceof AdminCreateError ? error.message : "Beklenmeyen hata";
