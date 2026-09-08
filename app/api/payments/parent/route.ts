@@ -7,9 +7,10 @@ import { withApiLogging, logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 // GET /api/payments/parent?studentId= — SALT OKUNUR: o öğrencinin taksit
-// planı + ödeme geçmişi. assertParentOwnsStudent, velinin SADECE kendi
-// bağlı öğrencisini sorgulayabilmesini garanti eder (bkz. announcements
-// route'undaki AYNI sahiplik deseni).
+// planı, ödeme geçmişi (makbuzlarıyla), sıradaki taksit ve sözleşmeleri.
+// assertParentOwnsStudent, velinin SADECE kendi bağlı öğrencisini
+// sorgulayabilmesini garanti eder (bkz. announcements route'undaki AYNI
+// sahiplik deseni).
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
@@ -19,7 +20,7 @@ async function handleGet(request: NextRequest) {
     if (!studentId) return NextResponse.json({ error: "studentId zorunludur." }, { status: 400 });
     await assertParentOwnsStudent(session.sub, studentId);
 
-    const [installments, payments] = await Promise.all([
+    const [installments, payments, contracts] = await Promise.all([
       prisma.installment.findMany({
         where: { studentId },
         include: { payments: { where: { status: "COMPLETED" }, select: { amount: true } } },
@@ -28,12 +29,55 @@ async function handleGet(request: NextRequest) {
       prisma.payment.findMany({
         where: { studentId, status: "COMPLETED" },
         orderBy: { paidAt: "desc" },
-        include: { account: { select: { name: true } } },
+        include: { account: { select: { name: true } }, installment: { select: { title: true } } },
+      }),
+      // Veli, imzaladığı sözleşmeye SMS'teki bağlantıyı kaybetse de
+      // ulaşabilmeli — bu yüzden token'ı burada da veriyoruz. Token zaten
+      // veliye gönderilmiş bir sırdır, kendi çocuğunun sözleşmesi için
+      // geri okunması yeni bir bilgi açığa çıkarmaz.
+      prisma.studentContract.findMany({
+        where: { studentId, status: { not: "CANCELLED" } },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, title: true, status: true, signedAt: true, expiresAt: true, shareToken: true },
       }),
     ]);
 
     const now = new Date();
+    const active = installments.filter((i) => i.status !== "CANCELLED");
+    const paidByInstallment = new Map(
+      active.map((i) => [i.id, i.payments.reduce((sum, p) => sum + Number(p.amount), 0)])
+    );
+
+    const planTotal = active.reduce((sum, i) => sum + Number(i.amount), 0);
+    const totalPaid = active.reduce((sum, i) => sum + (paidByInstallment.get(i.id) ?? 0), 0);
+
+    // Sıradaki taksit: ödenmemiş taksitlerin vadesi EN YAKIN olanı. Vadesi
+    // geçmiş bir taksit varsa sıradaki odur — veli önce onu görmelidir.
+    const openSorted = active.filter((i) => i.status !== "PAID");
+    const next = openSorted[0] ?? null;
+
     return NextResponse.json({
+      summary: {
+        planTotal: Math.round(planTotal * 100) / 100,
+        totalPaid: Math.round(totalPaid * 100) / 100,
+        remaining: Math.round((planTotal - totalPaid) * 100) / 100,
+      },
+      nextInstallment: next
+        ? {
+            id: next.id,
+            title: next.title,
+            remainingAmount: Math.round((Number(next.amount) - (paidByInstallment.get(next.id) ?? 0)) * 100) / 100,
+            dueDate: next.dueDate.toISOString(),
+            // Kalan gün: negatifse vadesi geçmiş demektir. Gün farkını
+            // saat/dakika kirliliğinden arındırmak için iki tarihi de
+            // yerel gün başlangıcına çekiyoruz.
+            daysLeft: Math.round(
+              (new Date(next.dueDate.getFullYear(), next.dueDate.getMonth(), next.dueDate.getDate()).getTime() -
+                new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) /
+                86_400_000
+            ),
+          }
+        : null,
       installments: installments.map((i) => {
         const paidAmount = i.payments.reduce((sum, p) => sum + Number(p.amount), 0);
         return {
@@ -51,7 +95,18 @@ async function handleGet(request: NextRequest) {
         amount: Number(p.amount),
         method: p.method,
         accountName: p.account.name,
+        installmentTitle: p.installment?.title ?? null,
         paidAt: p.paidAt.toISOString(),
+      })),
+      contracts: contracts.map((c) => ({
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        signedAt: c.signedAt?.toISOString() ?? null,
+        // İmzalanmamış ve süresi dolmuş sözleşme artık açılamaz; velinin
+        // boşa tıklamaması için bunu peşinen bildiriyoruz.
+        isExpired: c.status !== "SIGNED" && c.expiresAt < now,
+        shareToken: c.shareToken,
       })),
     });
   } catch (error) {
