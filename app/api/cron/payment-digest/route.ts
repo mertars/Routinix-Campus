@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { getEnv } from "@/lib/server/env";
 import { withApiLogging, logger } from "@/lib/logger";
 import { buildDigest, isWorthSending, renderDigestText } from "@/lib/server/payments/daily-digest";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -60,8 +61,7 @@ async function handleGet(request: NextRequest) {
 
     return NextResponse.json({ processed: institutions.length, results });
   } catch (error) {
-    logger.error("payment_digest_cron_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("payment_digest_cron_failed", error);
   }
 }
 

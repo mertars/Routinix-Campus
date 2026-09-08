@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { getEnv } from "@/lib/server/env";
 import { withApiLogging, logger } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 import {
   collectDueSoon,
   collectOverdue,
@@ -68,8 +69,7 @@ async function handleGet(request: NextRequest) {
 
     return NextResponse.json({ processed: rules.length, results });
   } catch (error) {
-    logger.error("payment_reminder_cron_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("payment_reminder_cron_failed", error);
   }
 }
 

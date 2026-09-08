@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { renderStatement } from "@/lib/server/payments/statement-render";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,7 @@ async function handleGet(_request: NextRequest, { params }: { params: { id: stri
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("student_statement_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("student_statement_failed", error);
   }
 }
 

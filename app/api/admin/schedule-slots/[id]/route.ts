@@ -3,7 +3,8 @@ import { renameScheduleSlot, deleteScheduleSlot } from "@/lib/server/admin/sched
 import { AdminCreateError } from "@/lib/server/admin/create-user";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof AdminCreateError) return NextResponse.json({ error: error.message }, { status: error.status });
-    logger.error("admin_schedule_slot_rename_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("admin_schedule_slot_rename_failed", error);
   }
 }
 
@@ -33,8 +33,7 @@ async function handleDelete(request: NextRequest, { params }: { params: { id: st
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof AdminCreateError) return NextResponse.json({ error: error.message }, { status: error.status });
-    logger.error("admin_schedule_slot_delete_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("admin_schedule_slot_delete_failed", error);
   }
 }
 

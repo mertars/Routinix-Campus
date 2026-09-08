@@ -6,7 +6,8 @@ import { normalizePhone } from "@/lib/server/auth/otp";
 import { signPlatformSessionToken, PLATFORM_SESSION_COOKIE_NAME } from "@/lib/server/auth/platform-jwt";
 import { assertLoginNotLocked, recordFailedLogin, resetLoginAttempts } from "@/lib/server/auth/rate-limit";
 import { AuthError } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 // Kurum girişinden (bkz. app/api/auth/login) FARKLI olarak: OTP/ilk-giriş
 // akışı yok — PlatformOwner hesapları SADECE scripts/create-platform-owner.ts
@@ -57,8 +58,7 @@ async function handlePost(request: NextRequest) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
-    logger.error("platform_login_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("platform_login_failed", error);
   }
 }
 

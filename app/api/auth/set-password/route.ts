@@ -13,7 +13,8 @@ import { resetLoginAttempts } from "@/lib/server/auth/rate-limit";
 import { AuthError } from "@/lib/server/auth/errors";
 import { prisma } from "@/lib/server/prisma";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 const TARGET_TYPE_BY_ROLE: Record<string, string> = {
   STUDENT: "Student",
@@ -91,8 +92,7 @@ async function handlePost(request: NextRequest) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
-    logger.error("set_password_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("set_password_failed", error);
   }
 }
 

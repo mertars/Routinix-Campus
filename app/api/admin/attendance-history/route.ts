@@ -3,7 +3,8 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { getAbsenceSummary } from "@/lib/server/attendance/absence-summary";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -44,8 +45,7 @@ async function handleGet(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("admin_attendance_history_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("admin_attendance_history_failed", error);
   }
 }
 

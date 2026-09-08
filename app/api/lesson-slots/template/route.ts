@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { toCsv } from "@/lib/server/payments/csv";
 import { SCHEDULE_DAYS } from "@/lib/server/schedule/bulk-schedule";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -79,8 +80,7 @@ async function handleGet() {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("schedule_template_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("schedule_template_failed", error);
   }
 }
 

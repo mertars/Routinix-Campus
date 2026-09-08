@@ -4,7 +4,8 @@ import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { SCREENING_GRADES } from "@/lib/server/xray/monthly-screening";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +40,7 @@ async function handleGet() {
     return NextResponse.json({ configs });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_monthly_screening_config_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_monthly_screening_config_list_failed", error);
   }
 }
 
@@ -102,8 +102,7 @@ async function handlePut(request: NextRequest) {
     return NextResponse.json({ grade: config.grade, enabled: config.enabled, nextRunAt: config.nextRunAt.toISOString() });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_monthly_screening_config_save_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_monthly_screening_config_save_failed", error);
   }
 }
 

@@ -6,7 +6,8 @@ import { signSessionToken, signPasswordChangeToken, ROLE_ID_BY_AUTH_ROLE, REDIRE
 import { assertRoleMatches } from "@/lib/server/auth/role-guard";
 import { assertLoginNotLocked, recordFailedLogin, resetLoginAttempts } from "@/lib/server/auth/rate-limit";
 import { AuthError } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -93,8 +94,7 @@ async function handlePost(request: NextRequest) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
-    logger.error("login_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("login_failed", error);
   }
 }
 

@@ -7,6 +7,7 @@ import { assertOtpResendAllowed } from "@/lib/server/auth/rate-limit";
 import { AuthError } from "@/lib/server/auth/errors";
 import { createSmsProvider } from "@/lib/server/sms/provider-factory";
 import { withApiLogging, logger } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 // Bu, giriş akışının İLK adımıdır: telefon + hedef rol gönderilir.
 //   * Hesap bulunamazsa                         -> 404 ACCOUNT_NOT_FOUND
@@ -94,8 +95,7 @@ async function handlePost(request: NextRequest) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
-    logger.error("send_otp_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("send_otp_failed", error);
   }
 }
 

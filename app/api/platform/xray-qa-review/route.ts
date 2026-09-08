@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requirePlatformSession } from "@/lib/server/auth/platform-session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -65,8 +66,7 @@ async function handleGet(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_qa_review_status_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_qa_review_status_failed", error);
   }
 }
 
@@ -87,8 +87,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ control });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_qa_review_control_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_qa_review_control_failed", error);
   }
 }
 

@@ -3,7 +3,8 @@ import type { AnnouncementCategory, AnnouncementAuthorRole, NotificationScopeTyp
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution, assertOwnsSelf, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -46,8 +47,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ announcement }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("announcement_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("announcement_create_failed", error);
   }
 }
 
@@ -109,8 +109,7 @@ async function handleGet(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("announcements_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("announcements_list_failed", error);
   }
 }
 

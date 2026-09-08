@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireInstitution, assertOwnsSelf, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +26,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ programIds: rows.map((r) => r.programId) });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("preferences_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("preferences_list_failed", error);
   }
 }
 
@@ -56,8 +56,7 @@ async function handlePut(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("preferences_put_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("preferences_put_failed", error);
   }
 }
 

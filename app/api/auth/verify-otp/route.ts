@@ -5,7 +5,8 @@ import { findAccountByPhone, normalizePhone, verifyOtpCode } from "@/lib/server/
 import { signPasswordChangeToken } from "@/lib/server/auth/jwt";
 import { assertRoleMatches } from "@/lib/server/auth/role-guard";
 import { AuthError } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 const MAX_ATTEMPTS = 5;
 
@@ -69,8 +70,7 @@ async function handlePost(request: NextRequest) {
     if (error instanceof AuthError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
-    logger.error("verify_otp_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("verify_otp_failed", error);
   }
 }
 

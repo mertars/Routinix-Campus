@@ -3,7 +3,8 @@ import { listAlumniProfiles, createAlumniProfile } from "@/lib/server/admin/alum
 import { AdminCreateError } from "@/lib/server/admin/create-user";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,7 @@ async function handleGet() {
     return NextResponse.json({ profiles });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("admin_alumni_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("admin_alumni_list_failed", error);
   }
 }
 
@@ -52,8 +52,7 @@ async function handlePost(request: NextRequest) {
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof AdminCreateError) return NextResponse.json({ error: error.message }, { status: error.status });
-    logger.error("admin_alumni_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("admin_alumni_create_failed", error);
   }
 }
 

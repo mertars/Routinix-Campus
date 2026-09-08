@@ -3,7 +3,8 @@ import { deleteUserAccountPermanently } from "@/lib/server/admin/update-user";
 import { AdminCreateError } from "@/lib/server/admin/create-user";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
 // aksiyon "Pasifleştir" (bkz. .../deactivate) — bu uç sadece kaydın
 // kendisinin ve TÜM geçmişinin fiziksel olarak kalkması istendiğinde.
 async function handlePost(request: NextRequest, { params }: { params: { id: string } }) {
+  let deletingLabel = "Kayıt";
   try {
     const session = await requireSession();
     requireRole(session, "principal");
@@ -20,6 +22,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     if (body.role !== "STUDENT" && body.role !== "TEACHER") {
       return NextResponse.json({ error: "role 'STUDENT' veya 'TEACHER' olmalı." }, { status: 400 });
     }
+    deletingLabel = body.role === "STUDENT" ? "Öğrenci" : "Öğretmen";
 
     const result = await deleteUserAccountPermanently({
       id: params.id,
@@ -31,8 +34,10 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof AdminCreateError) return NextResponse.json({ error: error.message }, { status: error.status });
-    logger.error("admin_user_delete_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    // Özne verilir ki mesaj "Bu kayıt silinemez" değil "Öğrenci
+    // silinemez: bağlı tahsilat kaydı var" diye çıksın — müdürün
+    // testte göremediği tam olarak buydu.
+    return apiFailure("admin_user_delete_failed", error, { deleting: deletingLabel });
   }
 }
 

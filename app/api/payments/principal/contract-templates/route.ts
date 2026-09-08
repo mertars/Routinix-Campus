@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { DEFAULT_CONTRACT_TEMPLATE } from "@/lib/server/contracts/contract-service";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -34,8 +35,7 @@ async function handleGet() {
     return NextResponse.json({ templates: templates.map((t) => ({ id: t.id, title: t.title, content: t.content })) });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("contract_templates_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("contract_templates_list_failed", error);
   }
 }
 
@@ -63,8 +63,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ template: { id: created.id, title: created.title, content: created.content } }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("contract_template_save_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("contract_template_save_failed", error);
   }
 }
 

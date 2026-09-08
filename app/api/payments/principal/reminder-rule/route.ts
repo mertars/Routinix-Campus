@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
+import { apiFailure } from "@/lib/server/api-failure";
 import {
   DEFAULT_BEFORE_TEMPLATE,
   DEFAULT_AFTER_TEMPLATE,
@@ -54,8 +55,7 @@ async function handleGet() {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("reminder_rule_get_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("reminder_rule_get_failed", error);
   }
 }
 
@@ -100,8 +100,7 @@ async function handlePut(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("reminder_rule_put_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("reminder_rule_put_failed", error);
   }
 }
 

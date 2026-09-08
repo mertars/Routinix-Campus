@@ -7,7 +7,8 @@ import { POSITIVE_STATUSES, EXCLUDED_FROM_RATE } from "@/lib/attendance/status";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withTtlCache } from "@/lib/server/cache/ttl-cache";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +46,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ entries });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("risk_radar_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("risk_radar_failed", error);
   }
 }
 

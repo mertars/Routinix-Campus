@@ -4,7 +4,8 @@ import { prisma } from "@/lib/server/prisma";
 import { PdfYearlyPlan, type PdfYearlyPlanRow } from "@/components/pdf/pdf-yearly-plan";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +37,7 @@ async function handlePost(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("yearly_plan_pdf_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("yearly_plan_pdf_failed", error);
   }
 }
 

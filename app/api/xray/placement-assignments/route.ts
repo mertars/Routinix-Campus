@@ -5,7 +5,8 @@ import { resolveUnitSubtopicIds } from "@/lib/server/xray/unit-label";
 import { resolveTargetStudentIds, type AssignmentTarget } from "@/lib/server/xray/assignment-target";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +39,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ statuses: [...latestByStudent.entries()].map(([studentId, v]) => ({ studentId, ...v })) });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_placement_assignment_status_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_placement_assignment_status_failed", error);
   }
 }
 
@@ -107,8 +107,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ created, skipped }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_placement_assignment_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_placement_assignment_create_failed", error);
   }
 }
 

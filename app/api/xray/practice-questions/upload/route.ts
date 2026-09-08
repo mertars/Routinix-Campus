@@ -5,7 +5,8 @@ import type { RawQuestion } from "@/lib/xray-question-import/types";
 import { slugifyTestName } from "@/lib/server/xray/question-pool-upload";
 import { requirePlatformSession } from "@/lib/server/auth/platform-session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -84,8 +85,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ testId, results }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_practice_question_upload_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_practice_question_upload_failed", error);
   }
 }
 

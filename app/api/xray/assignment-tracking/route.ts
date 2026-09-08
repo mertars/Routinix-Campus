@@ -4,7 +4,8 @@ import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { resolveUnitLabel } from "@/lib/server/xray/unit-label";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -115,8 +116,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ rows: filtered, totals });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_assignment_tracking_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_assignment_tracking_failed", error);
   }
 }
 

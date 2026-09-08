@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendCredentialsBySms, sendBulkCredentials, type BulkUser } from "@/lib/server/notifications/send-credentials";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 async function handlePost(request: NextRequest) {
   try {
@@ -59,8 +60,7 @@ async function handlePost(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("send_credentials_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("send_credentials_failed", error);
   }
 }
 

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requirePlatformSession } from "@/lib/server/auth/platform-session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -41,8 +42,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ question: updated });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_pool_question_edit_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_pool_question_edit_failed", error);
   }
 }
 

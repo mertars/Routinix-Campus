@@ -3,7 +3,8 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { getTeacherDaySlots } from "@/lib/server/etut/get-teacher-day-slots";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -49,8 +50,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ appointment }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("appointment_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("appointment_create_failed", error);
   }
 }
 
@@ -116,8 +116,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ appointments: payload });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("appointments_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("appointments_list_failed", error);
   }
 }
 

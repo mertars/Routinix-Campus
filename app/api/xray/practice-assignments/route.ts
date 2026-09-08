@@ -5,7 +5,8 @@ import { resolveTargetStudentIds, type AssignmentTarget } from "@/lib/server/xra
 import { resolveUnitLabel, resolveUnitSubtopicIds } from "@/lib/server/xray/unit-label";
 import { requireSession, requireRole, requireInstitution, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +40,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ assignments: withNames });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_practice_assignments_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_practice_assignments_list_failed", error);
   }
 }
 
@@ -107,8 +107,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ created }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_practice_assignment_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_practice_assignment_create_failed", error);
   }
 }
 

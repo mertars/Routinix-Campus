@@ -4,7 +4,8 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution, assertTeacherOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -57,8 +58,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ guidanceNote }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("guidance_note_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("guidance_note_create_failed", error);
   }
 }
 
@@ -105,8 +105,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ notes });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("guidance_notes_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("guidance_notes_list_failed", error);
   }
 }
 

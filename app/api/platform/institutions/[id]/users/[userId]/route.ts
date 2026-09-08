@@ -3,7 +3,8 @@ import { getEditableStudent, getEditableTeacher, updateStudentAccount, updateTea
 import { AdminCreateError } from "@/lib/server/admin/create-user";
 import { requirePlatformSession, requirePlatformInstitution } from "@/lib/server/auth/platform-session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,7 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof AdminCreateError) return NextResponse.json({ error: error.message }, { status: error.status });
-    logger.error("platform_user_edit_fetch_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("platform_user_edit_fetch_failed", error);
   }
 }
 
@@ -81,8 +81,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     if (error instanceof AdminCreateError) return NextResponse.json({ error: error.message }, { status: error.status });
-    logger.error("platform_user_update_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("platform_user_update_failed", error);
   }
 }
 

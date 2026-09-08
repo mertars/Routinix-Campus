@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendCredentialsBySms } from "@/lib/server/notifications/send-credentials";
 import { requirePlatformSession } from "@/lib/server/auth/platform-session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 // app/api/admin/send-credentials/route.ts'in platform-sahibi eşdeğeri —
 // tekil gönderim. Bu uç kurum-scope'suz çalışır (sadece telefon/isim/
@@ -24,8 +25,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("platform_send_credentials_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("platform_send_credentials_failed", error);
   }
 }
 

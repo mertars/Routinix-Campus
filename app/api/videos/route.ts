@@ -5,6 +5,7 @@ import { uploadToYoutube, checkYoutubeProcessingStatus } from "@/lib/server/yout
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 // Büyük videolarda R2→YouTube aktarımı birkaç dakika sürebilir — Vercel'in
@@ -95,8 +96,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ videos });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("video_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("video_list_failed", error);
   }
 }
 

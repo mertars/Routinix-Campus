@@ -3,6 +3,7 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { runScheduleImport, SCHEDULE_DAYS, type RawScheduleRow } from "@/lib/server/schedule/bulk-schedule";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -46,8 +47,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ ...outcome, dryRun, days: SCHEDULE_DAYS });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("schedule_bulk_import_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("schedule_bulk_import_failed", error);
   }
 }
 

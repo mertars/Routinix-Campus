@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { currentAcademicYear } from "@/lib/payments/academic-year";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { createInstallmentPlan, findStudentsWithExistingPlan } from "@/lib/server/payments/plan-service";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +52,7 @@ async function handleGet(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("bulk_plan_preview_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("bulk_plan_preview_failed", error);
   }
 }
 
@@ -160,8 +160,7 @@ async function handlePost(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("bulk_plan_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("bulk_plan_failed", error);
   }
 }
 

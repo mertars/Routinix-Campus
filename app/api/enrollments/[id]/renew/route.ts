@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import {
@@ -11,6 +11,7 @@ import {
   defaultEndDate,
 } from "@/lib/server/enrollment/enrollment-service";
 import { academicYearOf } from "@/lib/payments/academic-year";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -89,8 +90,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
   } catch (error) {
     if (error instanceof EnrollmentError) return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("enrollment_renew_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("enrollment_renew_failed", error);
   }
 }
 
@@ -107,8 +107,7 @@ async function handleDelete(request: NextRequest, { params }: { params: { id: st
   } catch (error) {
     if (error instanceof EnrollmentError) return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("enrollment_close_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("enrollment_close_failed", error);
   }
 }
 

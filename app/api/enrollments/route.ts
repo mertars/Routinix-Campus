@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 import {
   EnrollmentError,
   createEnrollment,
@@ -64,8 +65,7 @@ async function handleGet(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("enrollments_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("enrollments_list_failed", error);
   }
 }
 
@@ -109,8 +109,7 @@ async function handlePost(request: NextRequest) {
   } catch (error) {
     if (error instanceof EnrollmentError) return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("enrollment_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("enrollment_create_failed", error);
   }
 }
 

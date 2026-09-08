@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { assertSufficientFunds } from "@/lib/server/payments/assert-funds";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { PAYROLL_CATEGORY } from "@/lib/server/payroll/payroll-service";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -99,8 +100,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Bu bordro zaten ödenmiş." }, { status: 400 });
     }
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("payroll_pay_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("payroll_pay_failed", error);
   }
 }
 

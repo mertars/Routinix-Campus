@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -57,8 +58,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ active, history });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("study_goals_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("study_goals_list_failed", error);
   }
 }
 
@@ -100,8 +100,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ goal }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("study_goal_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("study_goal_create_failed", error);
   }
 }
 

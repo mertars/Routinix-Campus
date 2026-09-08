@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,7 @@ async function handleGet() {
     return NextResponse.json({ durationMinutes: setting?.durationMinutes ?? DEFAULT_DURATION_MINUTES });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("etut_settings_get_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("etut_settings_get_failed", error);
   }
 }
 
@@ -47,8 +47,7 @@ async function handlePut(request: NextRequest) {
     return NextResponse.json({ durationMinutes: setting.durationMinutes });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("etut_settings_update_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("etut_settings_update_failed", error);
   }
 }
 

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +40,7 @@ async function handlePost(request: Request, { params }: { params: { assignmentId
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("video_mark_watched_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("video_mark_watched_failed", error);
   }
 }
 

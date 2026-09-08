@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { listStudentDirectory, listTeacherDirectory } from "@/lib/server/admin/directory";
 import { requirePlatformSession, requirePlatformInstitution } from "@/lib/server/auth/platform-session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,7 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ students, total: students.length });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("platform_directory_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("platform_directory_failed", error);
   }
 }
 

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePlatformSession } from "@/lib/server/auth/platform-session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { flattenTopics, flattenCurriculum } from "@/lib/server/xray/question-generation/curriculum-flatten";
 import { SYSTEM_PROMPT_GENEL, buildGenelRound1UserPrompt, SYSTEM_PROMPT_ALT_KONU, buildAltKonuRound1UserPrompt } from "@/lib/server/xray/question-generation/prompt";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +36,7 @@ async function handleGet(request: NextRequest) {
     return NextResponse.json({ error: "Bu variant için prompt henüz tasarlanmadı." }, { status: 404 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("xray_pool_generation_prompt_view_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("xray_pool_generation_prompt_view_failed", error);
   }
 }
 

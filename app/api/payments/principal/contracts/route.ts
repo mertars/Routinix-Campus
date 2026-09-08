@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
-import { withApiLogging, logger } from "@/lib/logger";
+import { withApiLogging } from "@/lib/logger";
 import { currentAcademicYear } from "@/lib/payments/academic-year";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { createShareToken, renderContractContent } from "@/lib/server/contracts/contract-service";
+import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
 
@@ -49,8 +50,7 @@ async function handleGet(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("contracts_list_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("contracts_list_failed", error);
   }
 }
 
@@ -127,8 +127,7 @@ async function handlePost(request: NextRequest) {
     return NextResponse.json({ contract: { id: contract.id, shareToken: contract.shareToken, status: contract.status } }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("contract_create_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("contract_create_failed", error);
   }
 }
 
@@ -157,8 +156,7 @@ async function handlePatch(request: NextRequest) {
     return NextResponse.json({ contract: { id: updated.id, status: updated.status } });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    logger.error("contract_update_failed", { error: error instanceof Error ? error.message : String(error) });
-    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+    return apiFailure("contract_update_failed", error);
   }
 }
 
