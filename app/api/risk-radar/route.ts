@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
 import { buildStatusCountMap } from "@/lib/server/risk/status-count-map";
+import { POSITIVE_STATUSES, EXCLUDED_FROM_RATE } from "@/lib/attendance/status";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withTtlCache } from "@/lib/server/cache/ttl-cache";
@@ -61,7 +62,11 @@ async function computeRiskRadar(institutionId: string, teacherId: string | null)
     branchIds = teacher && teacher.institutionId === institutionId ? teacher.teachingBranches.map((b) => b.id) : [];
   }
 
-  const studentWhere = branchIds ? { branchId: { in: branchIds } } : { institutionId };
+  // isActive: ayrılmış öğrenci risk listesinde yer almamalı — müdür
+  // artık kurumda olmayan biri için "risk" uyarısı almasın.
+  const studentWhere = branchIds
+    ? { branchId: { in: branchIds }, isActive: true }
+    : { institutionId, isActive: true };
   // ⚠️ attendance/homework sorguları artık ÖNCE öğrencileri çekip id
   // listesine indirgemeyi BEKLEMİYOR — aynı studentWhere koşulunu
   // `student: {...}` ilişki filtresiyle doğrudan uyguluyor, bu yüzden
@@ -86,7 +91,7 @@ async function computeRiskRadar(institutionId: string, teacherId: string | null)
     prisma.topicMasteryAssessment.groupBy({ by: ["studentId"], where: { student: studentWhere }, _avg: { masteryScore: true } }),
   ]);
 
-  const attendanceByStudent = buildStatusCountMap(attendanceCounts, ["PRESENT", "LATE"]);
+  const attendanceByStudent = buildStatusCountMap(attendanceCounts, POSITIVE_STATUSES, EXCLUDED_FROM_RATE);
   const homeworkByStudent = buildStatusCountMap(homeworkCounts, ["DONE"]);
   const masteryAvgByStudent = new Map(masteryAverages.map((m) => [m.studentId, m._avg.masteryScore ?? null]));
 

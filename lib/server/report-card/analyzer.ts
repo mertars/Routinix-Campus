@@ -1,3 +1,8 @@
+import { computeAttendanceRate } from "@/lib/attendance/status";
+
+// Devam oranı kuralı (izinli paydadan düşer) tek yerde tanımlı —
+// bkz. lib/attendance/status.
+export { computeAttendanceRate };
 import type { ReportCardAnalysis, SubjectNetSummary } from "./types";
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
@@ -17,11 +22,7 @@ export function computeSubjectSummaries(
   });
 }
 
-export function computeAttendanceRate(records: { status: string }[]): number {
-  if (records.length === 0) return 100;
-  const presentOrLate = records.filter((record) => record.status === "PRESENT" || record.status === "LATE").length;
-  return Math.round((presentOrLate / records.length) * 100);
-}
+
 
 // Kural bazlı, yapay zeka KULLANMAYAN otomatik rehberlik notu üreteci.
 // Eşik değerleri (±5 net, %95/%80 devam) sabit kurallardır — istenirse

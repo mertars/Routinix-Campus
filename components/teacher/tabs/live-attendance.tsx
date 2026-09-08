@@ -2,18 +2,29 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, X, Clock, Bell, Loader2, CheckCheck, Radio, Archive, BarChart2, Send, CheckCircle2 } from "lucide-react";
+import { Check, X, Clock, Bell, Loader2, CheckCheck, Radio, Archive, BarChart2, Send, CheckCircle2, FileText, AlertTriangle } from "lucide-react";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
 import { getTodayTrDayName, parseSlotRange } from "@/lib/schedule-time";
 import { useToast } from "@/lib/toast-context";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
-type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE";
+import { ATTENDANCE_LABEL, type AttendanceStatus } from "@/lib/attendance/status";
 type RosterStudent = { id: string; firstName: string; lastName: string };
 type ArchiveEntry = { id: string; teacherName: string; branchName: string; date: string; submittedAt: string; records: { studentName: string; status: AttendanceStatus }[] };
 
+// Sıra bilinçli: en sık kullanılan solda. "İzinli", "Yok"tan ÖNCE —
+// mazeretli öğrenciyi yanlışlıkla devamsız işaretlemek, tersinden daha
+// sık yapılan bir hata.
+const STATUS_BUTTONS: { id: AttendanceStatus; icon: typeof Check }[] = [
+  { id: "PRESENT", icon: Check },
+  { id: "LATE", icon: Clock },
+  { id: "EXCUSED", icon: FileText },
+  { id: "ABSENT", icon: X },
+];
+
 const STATUS_STYLES: Record<AttendanceStatus | "unmarked", string> = {
+  EXCUSED: "bg-sky-600 text-white",
   PRESENT: "bg-green-600 text-white",
   ABSENT: "bg-rose-600 text-white",
   LATE: "bg-brand-600 text-white",
@@ -131,7 +142,7 @@ function AbsenceAnalysisModal({ isOpen, onClose, entries, roster }: { isOpen: bo
           <div key={index} className="flex items-center justify-between rounded-lg bg-cream-card px-3 py-1.5 text-xs dark:bg-white/5">
             <span className="text-espresso dark:text-cream">{entry.date}</span>
             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_STYLES[entry.status])}>
-              {entry.status === "PRESENT" ? "Geldi" : entry.status === "LATE" ? "Geç" : "Yok"}
+              {ATTENDANCE_LABEL[entry.status] ?? entry.status}
             </span>
           </div>
         ))}
@@ -226,6 +237,24 @@ export function LiveAttendanceTab() {
     };
   }, [selectedBranchId, selectedSlot]);
 
+  // İşaretlenmemiş öğrenci sayısı — kaydet düğmesinin kilidi buna bağlı.
+  const unmarkedCount = roster.filter((st) => !statuses[st.id] || statuses[st.id] === "unmarked").length;
+
+  function markAll(status: AttendanceStatus) {
+    return () => setStatuses(Object.fromEntries(roster.map((st) => [st.id, status])));
+  }
+
+  // Yalnızca BOŞ olanları doldurur — öğretmenin elle işaretlediği
+  // devamsızlıkları ezmez.
+  function markRemaining(status: AttendanceStatus) {
+    return () =>
+      setStatuses((prev) => {
+        const next = { ...prev };
+        for (const st of roster) if (!next[st.id] || next[st.id] === "unmarked") next[st.id] = status;
+        return next;
+      });
+  }
+
   function setStatus(studentId: string, status: AttendanceStatus) {
     setStatuses((prev) => ({ ...prev, [studentId]: status }));
   }
@@ -253,7 +282,12 @@ export function LiveAttendanceTab() {
           branchId: branch.id,
           date: todayIso(),
           slot: selectedSlot,
-          records: roster.map((student) => ({ studentId: student.id, status: statuses[student.id] ?? "PRESENT" })),
+          // ⚠️ Eskiden işaretlenmeyen öğrenci sessizce "PRESENT"
+          // sayılıyordu; ekranda bunu söyleyen hiçbir şey yoktu, yani
+          // öğretmen farkında olmadan boş gönderince tüm devamsızlıklar
+          // "geldi" olarak kaydoluyordu. Artık eksik işaretleme varken
+          // kaydet düğmesi zaten kilitli (bkz. allMarked).
+          records: roster.map((student) => ({ studentId: student.id, status: statuses[student.id] as AttendanceStatus })),
         }),
       });
       const data = await res.json();
@@ -338,6 +372,45 @@ export function LiveAttendanceTab() {
         whileHover={{ scale: 1.005, y: -2 }}
         className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
+        {/* Tek tuşla hepsini işaretle: tipik derste 30 öğrencinin 28'i
+            gelir. Önce "hepsi geldi" denir, sonra 2 kişi değiştirilir —
+            30 dokunuş 3'e iner. Eksik işaretleme kaydı ENGELLEDİĞİ için
+            bu kısayol olmadan kural yalnızca yük olurdu. */}
+        {roster.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-hairline p-2.5 dark:border-white/10">
+            <button
+              onClick={markAll("PRESENT")}
+              className="flex items-center gap-1.5 rounded-full bg-green-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-green-500"
+            >
+              <CheckCheck className="h-3.5 w-3.5" /> Hepsi Geldi
+            </button>
+            {unmarkedCount > 0 && (
+              <button
+                onClick={markRemaining("PRESENT")}
+                className="rounded-full border border-hairline px-3 py-1.5 text-[11px] font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+              >
+                Kalan {unmarkedCount} kişiyi &quot;Geldi&quot; yap
+              </button>
+            )}
+            <span
+              className={cn(
+                "ml-auto flex items-center gap-1 text-[11px] font-medium",
+                unmarkedCount > 0 ? "text-amber-700 dark:text-amber-400" : "text-green-700 dark:text-green-400"
+              )}
+            >
+              {unmarkedCount > 0 ? (
+                <>
+                  <AlertTriangle className="h-3.5 w-3.5" /> {unmarkedCount} eksik
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Tümü işaretlendi
+                </>
+              )}
+            </span>
+          </div>
+        )}
+
         <div className="space-y-2">
           {roster.map((student, index) => {
             const status = statuses[student.id] ?? "unmarked";
@@ -351,25 +424,20 @@ export function LiveAttendanceTab() {
                 className="rounded-2xl bg-cream-card p-3 dark:bg-white/5 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:rounded-xl sm:px-3 sm:py-2.5"
               >
                 <p className="mb-2 text-sm font-medium text-espresso dark:text-cream sm:mb-0 sm:min-w-[140px]">{studentName}</p>
-                <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center">
-                  <button
-                    onClick={() => setStatus(student.id, "PRESENT")}
-                    className={cn("flex min-h-[40px] items-center justify-center gap-1 rounded-full text-[11px] font-medium transition sm:min-h-0 sm:px-2.5 sm:py-1", STATUS_STYLES.PRESENT, status !== "PRESENT" && "opacity-40 hover:opacity-100")}
-                  >
-                    <Check className="h-3 w-3" /> Geldi
-                  </button>
-                  <button
-                    onClick={() => setStatus(student.id, "LATE")}
-                    className={cn("flex min-h-[40px] items-center justify-center gap-1 rounded-full text-[11px] font-medium transition sm:min-h-0 sm:px-2.5 sm:py-1", STATUS_STYLES.LATE, status !== "LATE" && "opacity-40 hover:opacity-100")}
-                  >
-                    <Clock className="h-3 w-3" /> Geç
-                  </button>
-                  <button
-                    onClick={() => setStatus(student.id, "ABSENT")}
-                    className={cn("flex min-h-[40px] items-center justify-center gap-1 rounded-full text-[11px] font-medium transition sm:min-h-0 sm:px-2.5 sm:py-1", STATUS_STYLES.ABSENT, status !== "ABSENT" && "opacity-40 hover:opacity-100")}
-                  >
-                    <X className="h-3 w-3" /> Yok
-                  </button>
+                <div className="grid grid-cols-4 gap-1.5 sm:flex sm:items-center">
+                  {STATUS_BUTTONS.map((btn) => (
+                    <button
+                      key={btn.id}
+                      onClick={() => setStatus(student.id, btn.id)}
+                      className={cn(
+                        "flex min-h-[40px] items-center justify-center gap-1 rounded-full text-[11px] font-medium transition sm:min-h-0 sm:px-2.5 sm:py-1",
+                        STATUS_STYLES[btn.id],
+                        status !== btn.id && "opacity-40 hover:opacity-100"
+                      )}
+                    >
+                      <btn.icon className="h-3 w-3" /> {ATTENDANCE_LABEL[btn.id]}
+                    </button>
+                  ))}
                 </div>
                 {(status === "ABSENT" || status === "LATE") && (
                   <div className="mt-2 flex justify-start sm:mt-0 sm:min-w-[100px] sm:justify-end">
@@ -383,11 +451,17 @@ export function LiveAttendanceTab() {
 
         <button
           onClick={handleSubmit}
-          disabled={roster.length === 0 || submitting}
+          disabled={roster.length === 0 || submitting || unmarkedCount > 0}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-espresso py-3 text-sm font-semibold text-cream transition hover:bg-caramel disabled:opacity-50 dark:bg-brand-600 dark:hover:bg-brand-500"
         >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : submitted ? <CheckCircle2 className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-          {submitting ? "Kaydediliyor..." : submitted ? "Yönetici Paneline İletildi" : "Yoklamayı Kaydet ve Gönder"}
+          {submitting
+            ? "Kaydediliyor..."
+            : submitted
+              ? "Yönetici Paneline İletildi"
+              : unmarkedCount > 0
+                ? `${unmarkedCount} öğrenci işaretlenmedi`
+                : "Yoklamayı Kaydet ve Gönder"}
         </button>
       </motion.div>
 

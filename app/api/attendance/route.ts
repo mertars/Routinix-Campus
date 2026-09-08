@@ -5,6 +5,8 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
+import { ATTENDANCE_STATUSES } from "@/lib/attendance/status";
+
 export const dynamic = "force-dynamic";
 
 function parseDateOnly(value: string): Date {
@@ -38,7 +40,8 @@ async function handlePost(request: NextRequest) {
     if (!branchId || !date || !slot || !Array.isArray(records) || records.length === 0) {
       return NextResponse.json({ error: "branchId, date, slot ve records zorunludur." }, { status: 400 });
     }
-    const validStatuses = new Set(["PRESENT", "ABSENT", "LATE"]);
+    // Durum listesi tek kaynaktan (bkz. lib/attendance/status).
+    const validStatuses = new Set<string>(ATTENDANCE_STATUSES);
     if (records.some((r) => !r.studentId || !validStatuses.has(r.status))) {
       return NextResponse.json({ error: "Her kayıt geçerli bir studentId ve status içermeli." }, { status: 400 });
     }

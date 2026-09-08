@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
 import { buildStatusCountMap } from "@/lib/server/risk/status-count-map";
+import { POSITIVE_STATUSES, EXCLUDED_FROM_RATE } from "@/lib/attendance/status";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withTtlCache } from "@/lib/server/cache/ttl-cache";
@@ -87,7 +88,11 @@ async function computeDashboard(institutionId: string, segment: string) {
       include: { _count: { select: { results: true } } },
     }),
     prisma.student.findMany({
-      where: { branch: branchWhere },
+      // Pasif (ayrılmış) öğrenci panoda SAYILMAZ: ödeme paneli ve
+      // kullanıcı listesi zaten aktifleri gösteriyordu, pano saymaya
+      // devam edince müdür iki ekranda iki farklı öğrenci sayısı
+      // görüyordu (103 / 102).
+      where: { branch: branchWhere, isActive: true },
       select: {
         id: true,
         firstName: true,
@@ -115,7 +120,7 @@ async function computeDashboard(institutionId: string, segment: string) {
   const branchIds = branches.map((b) => b.id);
   const latestExamResultCount = latestExamRow?._count.results ?? 0;
 
-  const attendanceByStudent = buildStatusCountMap(attendanceCounts, ["PRESENT", "LATE"]);
+  const attendanceByStudent = buildStatusCountMap(attendanceCounts, POSITIVE_STATUSES, EXCLUDED_FROM_RATE);
   const homeworkByStudent = buildStatusCountMap(homeworkCounts, ["DONE"]);
   const masteryAvgByStudent = new Map(masteryAverages.map((m) => [m.studentId, m._avg.masteryScore ?? null]));
 

@@ -18,7 +18,7 @@ function parseDateParam(value: string | null): Date {
   return date;
 }
 
-const TO_LOWER: Record<string, "present" | "absent" | "late"> = { PRESENT: "present", ABSENT: "absent", LATE: "late" };
+const TO_LOWER: Record<string, "present" | "absent" | "late" | "excused"> = { PRESENT: "present", ABSENT: "absent", LATE: "late", EXCUSED: "excused" };
 
 // GET /api/admin/attendance?branchId=X&date=YYYY-MM-DD&slot=HH:MM-HH:MM —
 // yöneticinin seçtiği TEK bir dersin (şube+gün+saat) salt okunur yoklama
