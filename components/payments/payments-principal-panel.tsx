@@ -9,6 +9,7 @@ import { canAccessTab, PAYMENT_ROLE_LABEL, type PaymentRole } from "@/lib/paymen
 import { CashCountCard } from "@/components/payments/cash-count-card";
 import { StaffRolesCard } from "@/components/payments/staff-roles-card";
 import { ReminderRuleCard } from "@/components/payments/reminder-rule-card";
+import { CollectPaymentModal } from "@/components/payments/collect-payment-modal";
 import { AccountModal } from "@/components/payments/account-modal";
 import { StudentPaymentsTab } from "@/components/payments/student-payments-tab";
 import { ExpensesTab } from "@/components/payments/expenses-tab";
@@ -73,6 +74,10 @@ export function PaymentsPrincipalPanel() {
   // GİZLENİR — önce hepsini gösterip sonra silmek, yetkisiz kullanıcıya
   // bir an için yapamayacağı işlemleri vaat ederdi.
   const [paymentRole, setPaymentRole] = useState<PaymentRole | null>(null);
+  // Gecikmiş listesinden DOĞRUDAN tahsilat: müdür parayı almak için
+  // sekme değiştirip öğrenciyi aramak zorunda kalmasın (beş adım, kişi
+  // zaten listede karşısındayken).
+  const [quickCollect, setQuickCollect] = useState<{ id: string; title: string; remaining: number } | null>(null);
 
   function loadDashboard() {
     fetch("/api/payments/principal/dashboard")
@@ -140,6 +145,7 @@ export function PaymentsPrincipalPanel() {
             <DashboardTab
               data={dashboard}
               canManage={paymentRole === "FULL"}
+              onQuickCollect={(i) => setQuickCollect({ id: i.id, title: `${i.studentName} · ${i.title}`, remaining: i.remainingAmount })}
               onRemindClick={() => setReminderOpen(true)}
               promiseKey={promiseKey}
               onPromiseChanged={() => setPromiseKey((k) => k + 1)}
@@ -203,6 +209,18 @@ export function PaymentsPrincipalPanel() {
       <AccountModal isOpen={accountModalOpen} onClose={() => setAccountModalOpen(false)} onCreated={loadDashboard} />
       <ReminderModal isOpen={reminderOpen} onClose={() => setReminderOpen(false)} onSent={loadDashboard} />
       <TransferModal isOpen={transferOpen} onClose={() => setTransferOpen(false)} accounts={dashboard?.accounts ?? []} onTransferred={loadDashboard} />
+      <CollectPaymentModal
+        isOpen={quickCollect !== null}
+        onClose={() => setQuickCollect(null)}
+        installmentId={quickCollect?.id ?? null}
+        installmentTitle={quickCollect?.title ?? ""}
+        remainingAmount={quickCollect?.remaining ?? 0}
+        accounts={dashboard?.accounts ?? []}
+        onCollected={() => {
+          setQuickCollect(null);
+          loadDashboard();
+        }}
+      />
     </div>
   );
 }
@@ -266,12 +284,14 @@ async function createPromise(studentName: string, studentId: string, defaultAmou
 function DashboardTab({
   data,
   canManage,
+  onQuickCollect,
   onRemindClick,
   promiseKey,
   onPromiseChanged,
 }: {
   data: DashboardData | null;
   canManage: boolean;
+  onQuickCollect: (i: DashboardData["overdueInstallments"][number]) => void;
   onRemindClick: () => void;
   promiseKey: number;
   onPromiseChanged: () => void;
@@ -418,6 +438,13 @@ function DashboardTab({
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">{formatTRY(o.remainingAmount)}</span>
+                    <button
+                      onClick={() => onQuickCollect(o)}
+                      title="Tahsilatı buradan kaydet"
+                      className="flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-emerald-500"
+                    >
+                      <HandCoins className="h-3 w-3" /> Tahsil Et
+                    </button>
                     <button
                       onClick={() => createPromise(o.studentName, o.studentId, o.remainingAmount, onPromiseChanged)}
                       title="Veli ödeme sözü verdiyse kaydet"

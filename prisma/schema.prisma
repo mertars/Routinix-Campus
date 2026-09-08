@@ -150,6 +150,7 @@ model Institution {
   enrollmentCancellations     EnrollmentCancellation[]
   cashCounts                  CashCount[]
   reminderRule                ReminderRule?
+  recurringExpenses           RecurringExpense[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -2800,15 +2801,16 @@ model StudentContract {
 // kategorisi yoksa ilk okumada varsayılan set tohumlanır (bkz.
 // app/api/payments/principal/expense-categories/route.ts > DEFAULT_CATEGORIES).
 model ExpenseCategory {
-  id            String       @id @default(cuid())
-  institutionId String
-  institution   Institution  @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  name          String
-  isActive      Boolean      @default(true)
-  expenses      Expense[]
-  budgetLines   BudgetLine[]
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                String             @id @default(cuid())
+  institutionId     String
+  institution       Institution        @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  name              String
+  isActive          Boolean            @default(true)
+  expenses          Expense[]
+  budgetLines       BudgetLine[]
+  recurringExpenses RecurringExpense[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@unique([institutionId, name])
   @@index([institutionId])
@@ -2949,4 +2951,36 @@ model ReminderRule {
   lastSentCount  Int         @default(0)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+}
+
+// Aylık tekrar eden gider şablonu (kira, elektrik, temizlik, internet…).
+//
+// Bu olmadan müdür AYNI gideri her ay sıfırdan yazıyordu: 5 sabit
+// giderli bir kurumda yılda 60 form. Şablon "gideri otomatik ödemez" —
+// yalnızca o ayın taslağını hazır üretir; ödemeyi müdür onaylar, çünkü
+// gerçek tutar (fatura) her ay değişebilir.
+model RecurringExpense {
+  id                 String          @id @default(cuid())
+  institutionId      String
+  institution        Institution     @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  categoryId         String
+  category           ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  title              String // "Kira", "Elektrik Faturası"
+  vendorName         String?
+  // Beklenen tutar. Fatura tutarı değişebileceği için taslak üretilirken
+  // DÜZENLENEBİLİR olarak sunulur.
+  amount             Decimal         @db.Decimal(12, 2)
+  // Ayın kaçında ödenir (1-28). 28 üstü kabul edilmez: her ayda var
+  // olmayan bir gün (29/30/31) vade hesabını bozardı.
+  dayOfMonth         Int             @default(1)
+  isActive           Boolean         @default(true)
+  // Şablonun en son hangi ay için gider ürettiği ("2026-09"). Aynı ay
+  // için İKİNCİ kez üretimi engeller — mükerrer gider, bakiyeyi ve
+  // raporları sessizce bozardı.
+  lastGeneratedMonth String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([institutionId])
+  @@index([categoryId])
 }

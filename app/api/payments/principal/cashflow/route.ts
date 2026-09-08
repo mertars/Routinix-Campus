@@ -53,6 +53,7 @@ async function handleGet(request: NextRequest) {
       paidExpenses,
       payrollDrafts,
       payrollCategory,
+      recurringTemplates,
       paidThisMonth,
     ] = await Promise.all([
         computeAccountBalances(session.institutionId),
@@ -89,6 +90,13 @@ async function handleGet(request: NextRequest) {
         }),
         computePayrollDraft(session.institutionId),
         prisma.expenseCategory.findFirst({ where: { institutionId: session.institutionId, name: PAYROLL_CATEGORY }, select: { id: true } }),
+        // Tekrar eden gider şablonları — müdürün BEYAN ettiği sabit
+        // giderler. Yeni kurulan bir kurumda geçmiş ortalama yoktur ama
+        // şablon vardır; bu yüzden tahminin birincil kaynağıdır.
+        prisma.recurringExpense.findMany({
+          where: { institutionId: session.institutionId, isActive: true },
+          select: { categoryId: true, amount: true },
+        }),
         // Bu ay ZATEN ödenmiş giderler — açılış bakiyesinden düşmüş
         // oldukları için ilk ayın tahmininden çıkarılırlar.
         prisma.expense.groupBy({
@@ -108,6 +116,10 @@ async function handleGet(request: NextRequest) {
     const dueTotal = pastInstallments.reduce((sum, i) => sum + Number(i.amount), 0);
     const collectedTotal = pastInstallments.reduce((sum, i) => sum + i.payments.reduce((s, p) => s + Number(p.amount), 0), 0);
     const collectionRate = computeCollectionRate(dueTotal, collectedTotal);
+    // Geçmiş veri yokken oran 1 döner (bkz. computeCollectionRate) — bu
+    // makul bir varsayılan ama EKRANDA %100 olarak görünüyordu ve müdür
+    // bunu ölçülmüş bir başarı sanabilirdi.
+    const hasCollectionHistory = dueTotal > 0;
 
     const categories = await prisma.expenseCategory.findMany({
       where: { institutionId: session.institutionId },
@@ -127,6 +139,35 @@ async function handleGet(request: NextRequest) {
         monthlyAmount: Math.round((Number(row._sum.amount ?? 0) / RECURRING_LOOKBACK_MONTHS) * 100) / 100,
       }))
       .filter((row) => row.monthlyAmount > 0);
+
+    // Şablon beyanı ile geçmiş ortalamanın BÜYÜĞÜ alınır — panelin geri
+    // kalanındaki max(bilinen, tahmin) kuralıyla aynı mantık. Şablon
+    // 85.000 derken geçmiş 3 ayın ortalaması 20.000 çıkıyorsa (kira yeni
+    // başladı) doğru beklenti 85.000'dir.
+    const templateByCategory = new Map<string, number>();
+    for (const t of recurringTemplates) {
+      templateByCategory.set(t.categoryId, (templateByCategory.get(t.categoryId) ?? 0) + Number(t.amount));
+    }
+    const recurringTemplateTotal = Math.round([...templateByCategory.values()].reduce((a, b) => a + b, 0) * 100) / 100;
+
+    for (const row of recurringByCategory) {
+      const declared = templateByCategory.get(row.categoryId);
+      if (declared != null) {
+        row.monthlyAmount = Math.max(row.monthlyAmount, declared);
+        templateByCategory.delete(row.categoryId);
+      }
+    }
+    // Geçmişte hiç ödenmemiş ama şablonu olan kategoriler
+    for (const [categoryId, amount] of templateByCategory) {
+      recurringByCategory.push({ categoryId, categoryName: categoryName.get(categoryId) ?? "Diğer", monthlyAmount: amount });
+    }
+
+    // Düzenli gider ortalaması yalnızca GEÇMİŞ aylara bakar; yeni kurulan
+    // bir kurumda kira/fatura henüz o pencereye girmediği için tahmin
+    // sadece bordrodan ibaret kalır ve gerçeğin çok altında çıkar. Bu
+    // durumu ekranda söylemek şart — güvenilmez bir rakamı güvenilir gibi
+    // sunmak, hiç göstermemekten kötüdür.
+    const hasExpenseHistory = paidExpenses.length > 0;
 
     const monthlyPayroll = Math.round(payrollDrafts.reduce((sum, d) => sum + d.baseAmount, 0) * 100) / 100;
     if (monthlyPayroll > 0) {
@@ -171,6 +212,11 @@ async function handleGet(request: NextRequest) {
       ...projection,
       basis: {
         openingBalance: Math.round(openingBalance * 100) / 100,
+        // Tekrar eden gider şablonları, geçmişi olmayan kurumda gider
+        // tahmininin en güvenilir kaynağıdır — müdürün kendi beyanıdır.
+        recurringTemplateTotal,
+        hasCollectionHistory,
+        hasExpenseHistory,
         collectionRate: Math.round(collectionRate * 1000) / 1000,
         collectionRateWindowMonths: RATE_LOOKBACK_MONTHS,
         monthlyPayroll,

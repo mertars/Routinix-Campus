@@ -9,6 +9,7 @@ import { CollectPaymentModal } from "@/components/payments/collect-payment-modal
 import { DiscountModal } from "@/components/payments/discount-modal";
 import { RestructureModal } from "@/components/payments/restructure-modal";
 import { CancellationModal } from "@/components/payments/cancellation-modal";
+import { BulkPlanModal } from "@/components/payments/bulk-plan-modal";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string; grade: number };
@@ -74,6 +75,7 @@ export function StudentPaymentsTab({
   const [history, setHistory] = useState<PaymentHistoryRow[] | null>(null);
   const [restructureOpen, setRestructureOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/payments/principal/students")
@@ -167,6 +169,15 @@ export function StudentPaymentsTab({
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
       {/* Öğrenci arama/seçim listesi */}
       <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
+        {canManage && (
+          <button
+            onClick={() => setBulkOpen(true)}
+            title="Bir şubenin tamamına tek seferde taksit planı kur"
+            className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+          >
+            <Layers className="h-3.5 w-3.5" /> Toplu Plan Kur
+          </button>
+        )}
         <div className="relative mb-3">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-espresso-muted dark:text-cream/40" />
           <input
@@ -404,6 +415,14 @@ export function StudentPaymentsTab({
         studentId={selectedStudent?.id ?? null}
         accounts={accounts}
         onDone={refresh}
+      />
+      <BulkPlanModal
+        isOpen={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        onDone={() => {
+          if (selectedStudent) loadInstallments(selectedStudent.id);
+          onChanged();
+        }}
       />
       <RestructureModal
         isOpen={restructureOpen}

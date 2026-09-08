@@ -28,6 +28,9 @@ type Cashflow = {
     collectionRateWindowMonths: number;
     monthlyPayroll: number;
     recurringLookbackMonths: number;
+    recurringTemplateTotal: number;
+    hasCollectionHistory: boolean;
+    hasExpenseHistory: boolean;
     recurringByCategory: { categoryId: string; categoryName: string; monthlyAmount: number }[];
     overdueBacklog: number;
   };
@@ -92,6 +95,20 @@ export function CashflowCard() {
         </div>
       ) : (
         <>
+          {/* Geçmişi olmayan kurumda tahmin GÜVENİLMEZ; bunu söylemeden
+              rakam göstermek, hiç göstermemekten kötüdür. */}
+          {(!data.basis.hasCollectionHistory || (!data.basis.hasExpenseHistory && data.basis.recurringTemplateTotal === 0)) && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-500/5 p-3 text-[11px] text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                <strong>Bu tahmin henüz oturmadı.</strong>{" "}
+                {!data.basis.hasCollectionHistory && "Vadesi geçmiş taksit geçmişi olmadığı için tahsilat oranı %100 varsayıldı. "}
+                {!data.basis.hasExpenseHistory && data.basis.recurringTemplateTotal === 0 && "Geçmiş gider kaydı ve tekrar eden gider şablonu yok; sabit giderler tahmine girmiyor. "}
+                Birkaç ay veri biriktikçe ya da tekrar eden giderlerinizi tanımladıkça isabet artar.
+              </span>
+            </div>
+          )}
+
           {data.firstNegativeMonth ? (
             <div className="mb-3 flex items-start gap-2 rounded-xl border border-rose-400/30 bg-rose-500/5 p-3 text-[11px] text-rose-800 dark:text-rose-300">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -149,8 +166,12 @@ export function CashflowCard() {
               />
               <BasisRow
                 label="Tahsilat oranı"
-                value={`%${Math.round(data.basis.collectionRate * 100)}`}
-                hint={`Son ${data.basis.collectionRateWindowMonths} ayda vadesi gelen taksitlerin tahsil edilen kısmı. Beklenen gelir bu oranla çarpılır.`}
+                value={data.basis.hasCollectionHistory ? `%${Math.round(data.basis.collectionRate * 100)}` : "veri yok"}
+                hint={
+                  data.basis.hasCollectionHistory
+                    ? `Son ${data.basis.collectionRateWindowMonths} ayda vadesi gelen taksitlerin tahsil edilen kısmı. Beklenen gelir bu oranla çarpılır.`
+                    : "Vadesi geçmiş taksit geçmişi yok; herkesin ödeyeceği (%100) varsayıldı."
+                }
               />
               <BasisRow
                 label="Aylık bordro"
@@ -175,7 +196,8 @@ export function CashflowCard() {
                     </div>
                   ))}
                   <p className="mt-1.5 text-[10px] leading-relaxed text-espresso-muted dark:text-cream/40">
-                    Son {data.basis.recurringLookbackMonths} ayın ortalamasıdır. Bir ay için gider zaten girilmişse o
+                    Son {data.basis.recurringLookbackMonths} ayın ortalaması ile{" "}
+                    <strong>tekrar eden gider şablonlarınızın</strong> büyüğü alınır. Bir ay için gider zaten girilmişse o
                     kategoride <strong>girilen rakam</strong> kullanılır — ikisi toplanmaz. Bu ay <strong>ödenmiş</strong>{" "}
                     giderler başlangıç bakiyesinden zaten düştüğü için ilk ayın tahmininden çıkarılır.
                   </p>

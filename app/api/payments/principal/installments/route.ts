@@ -5,8 +5,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
-import { applyDiscounts, getActiveDiscounts } from "@/lib/server/payments/discount-service";
-import { splitIntoInstallments } from "@/lib/server/payments/installment-math";
+import { createInstallmentPlan } from "@/lib/server/payments/plan-service";
 
 export const dynamic = "force-dynamic";
 
@@ -94,41 +93,21 @@ async function handlePost(request: NextRequest) {
         return NextResponse.json({ error: "totalAmount pozitif bir sayı olmalı." }, { status: 400 });
       }
 
-      // Gelen tutar LİSTE FİYATIDIR — öğrencinin aktif indirimleri burada
-      // uygulanır ve taksitler NET tutardan üretilir. Uygulanan liste/
-      // indirim tutarları indirim kaydına basılır (snapshot) ki "ne kadar
-      // burs dağıttık" raporu geriye dönük değişmesin.
-      const activeDiscounts = await getActiveDiscounts(session.institutionId, studentId, academicYear);
-      const calc = applyDiscounts(listAmount, activeDiscounts);
-      const totalAmount = calc.netAmount;
-      if (totalAmount <= 0) {
-        return NextResponse.json({ error: "İndirimler sonrası net tutar sıfır — taksit planı oluşturulamaz." }, { status: 400 });
-      }
-      // Kuruş küsuratı kaybolmasın diye ortak yardımcı (bkz. installment-math).
-      const amounts = splitIntoInstallments(totalAmount, installmentCount);
-      const rows = amounts.map((amount, i) => {
-        const dueDate = new Date(startDate);
-        dueDate.setMonth(dueDate.getMonth() + i);
-        return {
+      // İndirim uygulaması, kuruş bölüşümü ve indirim anlık kaydı
+      // plan-service içinde; toplu atama ucu AYNI yolu kullanır.
+      let result;
+      try {
+        result = await createInstallmentPlan({
           institutionId: session.institutionId,
           studentId,
-          title: `${titlePrefix} - Taksit ${i + 1}/${installmentCount}`,
-          amount,
-          dueDate,
-        };
-      });
-      await prisma.installment.createMany({ data: rows });
-
-      // İndirim anlık kaydı — plan üretildiği AN'daki liste/indirim
-      // tutarları indirim satırlarına yazılır (bkz. schema > StudentDiscount).
-      if (calc.discountTotal > 0) {
-        const now = new Date();
-        for (const row of calc.rows) {
-          await prisma.studentDiscount.update({
-            where: { id: row.id },
-            data: { appliedListAmount: listAmount, appliedDiscount: row.amount, appliedAt: now },
-          });
-        }
+          listAmount,
+          installmentCount,
+          startDate,
+          titlePrefix,
+          academicYear,
+        });
+      } catch (planError) {
+        return NextResponse.json({ error: planError instanceof Error ? planError.message : "Plan oluşturulamadı." }, { status: 400 });
       }
 
       await recordPaymentAudit({
@@ -136,21 +115,12 @@ async function handlePost(request: NextRequest) {
         action: "INSTALLMENT_PLAN_CREATED",
         targetType: "Student",
         targetId: studentId,
-        amount: totalAmount,
-        summary: `${rows.length} taksit · liste ${listAmount.toFixed(2)} ₺${calc.discountTotal > 0 ? ` · indirim ${calc.discountTotal.toFixed(2)} ₺` : ""}`,
-        metadata: { installmentCount: rows.length, listAmount, discountTotal: calc.discountTotal },
+        amount: result.netAmount,
+        summary: `${result.createdCount} taksit · liste ${listAmount.toFixed(2)} ₺${result.discountTotal > 0 ? ` · indirim ${result.discountTotal.toFixed(2)} ₺` : ""}`,
+        metadata: { installmentCount: result.createdCount, listAmount, discountTotal: result.discountTotal },
       });
 
-      return NextResponse.json(
-        {
-          createdCount: rows.length,
-          listAmount,
-          discountTotal: calc.discountTotal,
-          netAmount: totalAmount,
-          appliedDiscounts: calc.rows.map((r) => ({ label: r.label, amount: r.amount })),
-        },
-        { status: 201 }
-      );
+      return NextResponse.json(result, { status: 201 });
     }
 
     const title = (body?.title as string | undefined)?.trim();

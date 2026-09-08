@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Loader2, CheckCircle2, Clock, AlertTriangle, Receipt } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { RecurringExpensesCard } from "@/components/payments/recurring-expenses-card";
 import { ExpenseModal, type ExpenseCategory } from "@/components/payments/expense-modal";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
@@ -173,6 +174,10 @@ export function ExpensesTab({ accounts, onChanged }: { accounts: AccountRow[]; o
           )}
         </div>
       )}
+
+      {/* Şablonlar listenin ALTINDA: günlük iş gider girmek, şablon
+          yönetimi ayda bir yapılan bir kurulum işi. */}
+      <RecurringExpensesCard categories={categories} onGenerated={refresh} />
 
       <ExpenseModal isOpen={modalOpen} onClose={() => setModalOpen(false)} categories={categories} accounts={accounts} onCreated={refresh} />
     </div>
