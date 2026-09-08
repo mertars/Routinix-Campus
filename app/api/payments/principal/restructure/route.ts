@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { splitIntoInstallments } from "@/lib/server/payments/installment-math";
 
 export const dynamic = "force-dynamic";
 
@@ -75,21 +76,20 @@ async function handlePost(request: NextRequest) {
     const remaining = Math.round(open.reduce((sum, i) => sum + (Number(i.amount) - i.payments.reduce((s, p) => s + Number(p.amount), 0)), 0) * 100) / 100;
     if (remaining <= 0) return NextResponse.json({ error: "Kalan borç bulunmuyor." }, { status: 400 });
 
-    const per = Math.floor((remaining / installmentCount) * 100) / 100;
-    const last = Math.round((remaining - per * (installmentCount - 1)) * 100) / 100;
+    const amounts = splitIntoInstallments(remaining, installmentCount);
 
     await prisma.$transaction(async (tx) => {
       await tx.installment.updateMany({ where: { id: { in: open.map((i) => i.id) } }, data: { status: "CANCELLED" } });
 
       await tx.installment.createMany({
-        data: Array.from({ length: installmentCount }, (_, k) => {
+        data: amounts.map((amount, k) => {
           const dueDate = new Date(startDate);
           dueDate.setMonth(dueDate.getMonth() + k);
           return {
             institutionId: session.institutionId,
             studentId,
             title: `${titlePrefix} - Taksit ${k + 1}/${installmentCount}`,
-            amount: k === installmentCount - 1 ? last : per,
+            amount,
             dueDate,
           };
         }),

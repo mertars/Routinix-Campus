@@ -4,6 +4,7 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { applyDiscounts, getActiveDiscounts } from "@/lib/server/payments/discount-service";
+import { splitIntoInstallments } from "@/lib/server/payments/installment-math";
 
 export const dynamic = "force-dynamic";
 
@@ -99,18 +100,16 @@ async function handlePost(request: NextRequest) {
       if (totalAmount <= 0) {
         return NextResponse.json({ error: "İndirimler sonrası net tutar sıfır — taksit planı oluşturulamaz." }, { status: 400 });
       }
-      // Kuruş farkını son taksite yükle (bölme küsuratı kaybolmasın).
-      const perInstallment = Math.floor((totalAmount / installmentCount) * 100) / 100;
-      const lastInstallmentAmount = Math.round((totalAmount - perInstallment * (installmentCount - 1)) * 100) / 100;
-
-      const rows = Array.from({ length: installmentCount }, (_, i) => {
+      // Kuruş küsuratı kaybolmasın diye ortak yardımcı (bkz. installment-math).
+      const amounts = splitIntoInstallments(totalAmount, installmentCount);
+      const rows = amounts.map((amount, i) => {
         const dueDate = new Date(startDate);
         dueDate.setMonth(dueDate.getMonth() + i);
         return {
           institutionId: session.institutionId,
           studentId,
           title: `${titlePrefix} - Taksit ${i + 1}/${installmentCount}`,
-          amount: i === installmentCount - 1 ? lastInstallmentAmount : perInstallment,
+          amount,
           dueDate,
         };
       });
