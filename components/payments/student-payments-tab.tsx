@@ -214,6 +214,17 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {/* Veli görüşmesinde masaya konan belge — plan, ödenenler ve
+                    kalan borcun tek sayfalık dökümü. */}
+                <a
+                  href={`/api/payments/principal/students/${selectedStudent.id}/statement`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Öğrencinin tüm taksit ve tahsilat dökümü (PDF)"
+                  className="flex items-center gap-1.5 rounded-full border border-hairline px-3 py-2 text-xs font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                >
+                  <FileDown className="h-3.5 w-3.5" /> Ekstre
+                </a>
                 <button
                   onClick={() => setDiscountOpen(true)}
                   className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"

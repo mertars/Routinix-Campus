@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, HandCoins, Wallet, Download, FileText, CalendarClock, ExternalLink } from "lucide-react";
+import { Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, HandCoins, Wallet, Download, FileText, FileDown, CalendarClock, ExternalLink } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -172,7 +172,19 @@ export function PaymentsParentPanel() {
         )}
 
         <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
-          <h3 className="mb-3 text-sm font-semibold text-espresso dark:text-cream">Taksit Planı</h3>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-espresso dark:text-cream">Taksit Planı</h3>
+            {selectedId && (
+              <a
+                href={`/api/payments/parent/statement/${selectedId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex shrink-0 items-center gap-1.5 rounded-full border border-hairline px-2.5 py-1.5 text-[11px] font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+              >
+                <FileDown className="h-3.5 w-3.5" /> Ekstre (PDF)
+              </a>
+            )}
+          </div>
           {!installments ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
