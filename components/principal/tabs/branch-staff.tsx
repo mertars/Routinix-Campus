@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, memo } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil, UserX, UserCheck, Trash2 } from "lucide-react";
+import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil, UserX, UserCheck, Trash2, ListChecks, FileDown } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import type { EditTarget } from "@/components/principal/user-management/edit-user-modal";
@@ -40,6 +40,10 @@ const PermanentDeleteConfirmModal = dynamic(
   () => import("@/components/principal/user-management/permanent-delete-confirm-modal").then((mod) => mod.PermanentDeleteConfirmModal),
   { ssr: false }
 );
+const BulkActionsModal = dynamic(
+  () => import("@/components/principal/user-management/bulk-actions-modal").then((mod) => mod.BulkActionsModal),
+  { ssr: false }
+);
 
 type DirectoryRole = "STUDENT" | "TEACHER";
 type StudentRow = { id: string; firstName: string; lastName: string; studentNumber: string; isActive: boolean; branchId: string; branchName: string };
@@ -53,12 +57,16 @@ type TeacherRow = { id: string; firstName: string; lastName: string; subject: st
 // kalır, her render'da "yeni" prop görür); bkz. handleInspect/handleEdit.
 const StudentRowCard = memo(function StudentRowCard({
   student,
+  selected,
+  onToggleSelect,
   onInspect,
   onEdit,
   onDeactivate,
   onDelete,
 }: {
   student: StudentRow;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
   onInspect: (id: string, role: DirectoryRole, name: string) => void;
   onEdit: (id: string, role: DirectoryRole, name: string) => void;
   onDeactivate: (id: string, role: DirectoryRole, name: string, isActive: boolean) => void;
@@ -72,11 +80,19 @@ const StudentRowCard = memo(function StudentRowCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       className={cn(
-        "flex items-center gap-1.5 rounded-xl bg-cream-card pr-2 transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10",
+        "flex items-center gap-1.5 rounded-xl pr-2 transition",
+        selected ? "bg-brand-50 ring-1 ring-brand-600 dark:bg-brand-600/15" : "bg-cream-card hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10",
         !student.isActive && "opacity-50"
       )}
     >
-      <button onClick={() => onInspect(student.id, "STUDENT", fullName)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left">
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggleSelect(student.id)}
+        aria-label={`${fullName} seç`}
+        className="ml-3 h-4 w-4 shrink-0 accent-brand-600"
+      />
+      <button onClick={() => onInspect(student.id, "STUDENT", fullName)} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pr-3 text-left">
         <AvatarInitials name={fullName} className="h-9 w-9 text-xs" />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-espresso dark:text-cream">
@@ -117,12 +133,16 @@ const StudentRowCard = memo(function StudentRowCard({
 
 const TeacherRowCard = memo(function TeacherRowCard({
   teacher,
+  selected,
+  onToggleSelect,
   onInspect,
   onEdit,
   onDeactivate,
   onDelete,
 }: {
   teacher: TeacherRow;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
   onInspect: (id: string, role: DirectoryRole, name: string) => void;
   onEdit: (id: string, role: DirectoryRole, name: string) => void;
   onDeactivate: (id: string, role: DirectoryRole, name: string, isActive: boolean) => void;
@@ -136,11 +156,19 @@ const TeacherRowCard = memo(function TeacherRowCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       className={cn(
-        "flex items-center gap-1.5 rounded-xl bg-cream-card pr-2 transition hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10",
+        "flex items-center gap-1.5 rounded-xl pr-2 transition",
+        selected ? "bg-brand-50 ring-1 ring-brand-600 dark:bg-brand-600/15" : "bg-cream-card hover:bg-brand-50 dark:bg-white/5 dark:hover:bg-brand-600/10",
         !teacher.isActive && "opacity-50"
       )}
     >
-      <button onClick={() => onInspect(teacher.id, "TEACHER", fullName)} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 text-left">
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggleSelect(teacher.id)}
+        aria-label={`${fullName} seç`}
+        className="ml-3 h-4 w-4 shrink-0 accent-brand-600"
+      />
+      <button onClick={() => onInspect(teacher.id, "TEACHER", fullName)} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pr-3 text-left">
         <AvatarInitials name={fullName} className="h-9 w-9 text-xs" />
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-espresso dark:text-cream">
@@ -202,6 +230,17 @@ export function BranchStaffTab() {
   const [deactivateTarget, setDeactivateTarget] = useState<DeactivateTarget>(null);
   const [permanentDeleteTarget, setPermanentDeleteTarget] = useState<PermanentDeleteTarget>(null);
 
+  // Seçim, öğrenci/öğretmen sekmesine göre AYRI tutulmaz — sekme
+  // değişince temizlenir (aşağıdaki effect). Aksi halde öğrenci seçip
+  // öğretmen sekmesine geçen müdür, göremediği bir seçimle toplu işlem
+  // yapabilirdi.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
+  const toggleSelect = useCallback(
+    (id: string) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])),
+    []
+  );
+
   // Sabit referanslar — StudentRowCard/TeacherRowCard'ın React.memo'su
   // ancak bu callback'ler HER render'da "yeni" fonksiyon olmazsa işe yarar.
   const handleInspect = useCallback((id: string, role: DirectoryRole, name: string) => setInspectorTarget({ id, role, name }), []);
@@ -253,7 +292,44 @@ export function BranchStaffTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sekme/filtre değişince seçim düşer: ekranda görünmeyen bir kaydın
+  // seçili kalması, "12 seçili" yazarken listede 3 satır görmek gibi
+  // yanıltıcı durumlar doğurur.
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [role, query, branchFilter, includeInactive]);
+
   const totalCount = role === "STUDENT" ? students.length : teachers.length;
+  const visibleIds = role === "STUDENT" ? students.map((s) => s.id) : teachers.map((t) => t.id);
+  const allSelected = visibleIds.length > 0 && selectedIds.length === visibleIds.length;
+
+  // Seçilenleri CSV'ye döker. Sunucuya gitmez — satırlar zaten ekranda.
+  // Excel'in tr-TR ayarı için BOM + noktalı virgül (bkz. içe aktarma
+  // şablonlarındaki aynı kural).
+  function exportSelectedCsv() {
+    const chosen = new Set(selectedIds);
+    const rows =
+      role === "STUDENT"
+        ? [
+            ["Ad", "Soyad", "Öğrenci No", "Şube", "Durum"],
+            ...students.filter((s) => chosen.has(s.id)).map((s) => [s.firstName, s.lastName, s.studentNumber, s.branchName, s.isActive ? "Aktif" : "Pasif"]),
+          ]
+        : [
+            ["Ad", "Soyad", "Branş", "Telefon", "Kurumsal Kod", "Şubeler", "Durum"],
+            ...teachers
+              .filter((t) => chosen.has(t.id))
+              .map((t) => [t.firstName, t.lastName, t.subject, t.mobilePhone, t.institutionalCode ?? "", t.branchNames.join(" / "), t.isActive ? "Aktif" : "Pasif"]),
+          ];
+
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${role === "STUDENT" ? "ogrenciler" : "ogretmenler"}-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="space-y-4">
@@ -333,14 +409,67 @@ export function BranchStaffTab() {
           </label>
         </div>
 
+        {/* Seçim çubuğu — listenin ÜSTÜNDE durur ki 100 satırlık listede
+            aşağı inmeden erişilebilsin. Hiçbir şey seçili değilken sadece
+            "tümünü seç" görünür, ekranı meşgul etmez. */}
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-hairline bg-cream-card px-3 py-2 dark:border-white/10 dark:bg-white/5">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-espresso dark:text-cream">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={(e) => setSelectedIds(e.target.checked ? visibleIds : [])}
+              disabled={visibleIds.length === 0}
+              className="h-4 w-4 accent-brand-600"
+            />
+            {allSelected ? "Seçimi kaldır" : "Listedekilerin tümünü seç"}
+          </label>
+          {selectedIds.length > 0 && (
+            <>
+              <span className="text-xs text-espresso-muted dark:text-cream/40">{selectedIds.length} seçili</span>
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                <button
+                  onClick={exportSelectedCsv}
+                  className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-white dark:border-white/10 dark:text-cream dark:hover:bg-white/10"
+                >
+                  <FileDown className="h-3.5 w-3.5" /> Excel/CSV İndir
+                </button>
+                <button
+                  onClick={() => setIsBulkOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-espresso px-3 py-1.5 text-xs font-medium text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+                >
+                  <ListChecks className="h-3.5 w-3.5" /> Toplu İşlem
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
         <div className="grid gap-2 sm:grid-cols-2">
           <AnimatePresence mode="popLayout">
             {role === "STUDENT"
               ? students.map((s) => (
-                  <StudentRowCard key={s.id} student={s} onInspect={handleInspect} onEdit={handleEdit} onDeactivate={handleDeactivate} onDelete={handleDelete} />
+                  <StudentRowCard
+                    key={s.id}
+                    student={s}
+                    selected={selectedIds.includes(s.id)}
+                    onToggleSelect={toggleSelect}
+                    onInspect={handleInspect}
+                    onEdit={handleEdit}
+                    onDeactivate={handleDeactivate}
+                    onDelete={handleDelete}
+                  />
                 ))
               : teachers.map((t) => (
-                  <TeacherRowCard key={t.id} teacher={t} onInspect={handleInspect} onEdit={handleEdit} onDeactivate={handleDeactivate} onDelete={handleDelete} />
+                  <TeacherRowCard
+                    key={t.id}
+                    teacher={t}
+                    selected={selectedIds.includes(t.id)}
+                    onToggleSelect={toggleSelect}
+                    onInspect={handleInspect}
+                    onEdit={handleEdit}
+                    onDeactivate={handleDeactivate}
+                    onDelete={handleDelete}
+                  />
                 ))}
           </AnimatePresence>
           {!loading && totalCount === 0 && (
@@ -376,6 +505,17 @@ export function BranchStaffTab() {
       />
       <DeactivateConfirmModal target={deactivateTarget} onClose={() => setDeactivateTarget(null)} onChanged={loadDirectory} />
       <PermanentDeleteConfirmModal target={permanentDeleteTarget} onClose={() => setPermanentDeleteTarget(null)} onDeleted={loadDirectory} />
+      <BulkActionsModal
+        isOpen={isBulkOpen}
+        onClose={() => setIsBulkOpen(false)}
+        role={role}
+        ids={selectedIds}
+        branches={branches}
+        onDone={() => {
+          setSelectedIds([]);
+          loadDirectory();
+        }}
+      />
       <BulkImportWizard
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}

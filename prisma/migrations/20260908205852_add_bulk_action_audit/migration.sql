@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "AuditAction" ADD VALUE 'BULK_ACTION_APPLIED';

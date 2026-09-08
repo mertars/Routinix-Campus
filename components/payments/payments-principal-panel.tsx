@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3, FileSignature, Users2, Package, Target, ArrowLeftRight, Handshake } from "lucide-react";
+import { CalendarClock, LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3, FileSignature, Users2, Package, Target, ArrowLeftRight, Handshake } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { canAccessTab, PAYMENT_ROLE_LABEL, type PaymentRole } from "@/lib/payments/payment-roles";
@@ -23,6 +23,7 @@ import { PayrollTab } from "@/components/payments/payroll-tab";
 import { ProductsTab } from "@/components/payments/products-tab";
 import { BudgetTab } from "@/components/payments/budget-tab";
 import { TransferModal } from "@/components/payments/transfer-modal";
+import { RenewalsTab } from "@/components/payments/renewals-tab";
 
 export type AccountRow = { id: string; name: string; type: "CASH" | "BANK"; balance: number };
 
@@ -51,6 +52,7 @@ const TABS = [
   { id: "products", label: "Ürün & Etkinlik", icon: Package },
   { id: "payroll", label: "Bordro", icon: Users2 },
   { id: "contracts", label: "Sözleşmeler", icon: FileSignature },
+  { id: "renewals", label: "Kayıt Yenileme", icon: CalendarClock },
   { id: "budget", label: "Bütçe", icon: Target },
   { id: "reports", label: "Raporlar", icon: BarChart3 },
 ] as const;
@@ -198,6 +200,11 @@ export function PaymentsPrincipalPanel() {
         {tab === "contracts" && (
           <motion.div key="contracts" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <ContractsTab />
+          </motion.div>
+        )}
+        {tab === "renewals" && (
+          <motion.div key="renewals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <RenewalsTab />
           </motion.div>
         )}
         {tab === "budget" && (

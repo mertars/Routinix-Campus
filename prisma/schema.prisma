@@ -1459,6 +1459,10 @@ enum AuditAction {
   CLASSROOM_CREATED
   ALUMNI_PROFILE_CREATED
   HOMEWORK_SUBMITTED
+  // Toplu işlem TEK kayıt bırakır: 100 öğrenci pasifleştirildiğinde 100
+  // satır değil bir satır. Hangi işlem olduğu ve kaçının başarılı olduğu
+  // metadata'da durur (bkz. lib/server/admin/bulk-actions.ts).
+  BULK_ACTION_APPLIED
   // --- Ödeme modülü: PARA HAREKETİ veya BORÇ DEĞİŞTİREN eylemler ---
   // Salt okuma (rapor görüntüleme, PDF indirme) bilerek loglanmaz; iz
   // kaydı gürültüyle dolarsa asıl olayı bulmak imkânsızlaşır.

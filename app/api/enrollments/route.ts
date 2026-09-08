@@ -4,6 +4,7 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { backfillEnrollments, countStudentsWithoutEnrollment } from "@/lib/server/enrollment/backfill";
 import {
   EnrollmentError,
   createEnrollment,
@@ -55,13 +56,20 @@ async function handleGet(request: NextRequest) {
 
     const windowParam = Number(request.nextUrl.searchParams.get("days"));
     const windowDays = Number.isFinite(windowParam) && windowParam > 0 ? Math.floor(windowParam) : RENEWAL_WINDOW_DAYS;
-    const candidates = await listRenewalCandidates(session.institutionId, windowDays);
+    const [candidates, missingEnrollment] = await Promise.all([
+      listRenewalCandidates(session.institutionId, windowDays),
+      countStudentsWithoutEnrollment(session.institutionId),
+    ]);
 
     return NextResponse.json({
       candidates,
       windowDays,
       currentAcademicYear: currentAcademicYear(),
       suggestedEndDate: defaultEndDate(currentAcademicYear()).toISOString(),
+      // Özellik eklenmeden önce kaydolan öğrenciler yenileme listesinde
+      // HİÇ görünmez. Sayı sıfırdan büyükse panel bunu söyleyip tek
+      // tuşla doldurma önerir (POST ?backfill=1).
+      missingEnrollment,
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
@@ -76,6 +84,14 @@ async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+
+    // POST ?backfill=1 — kayıt dönemi olmayan TÜM aktif öğrenciler için
+    // bu yılın kaydını tek seferde açar. Var olan kayıtlara dokunmaz ve
+    // iki kez çalıştırılırsa ikincisi hiçbir şey yapmaz.
+    if (request.nextUrl.searchParams.get("backfill") === "1") {
+      const result = await backfillEnrollments(session.institutionId, session.sub);
+      return NextResponse.json(result);
+    }
 
     const body = await request.json().catch(() => null);
     const studentId = body?.studentId as string | undefined;
