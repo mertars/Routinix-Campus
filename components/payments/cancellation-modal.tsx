@@ -67,14 +67,27 @@ export function CancellationModal({
     if (!reason.trim()) return showError("İptal gerekçesi zorunludur.");
     if (!Number.isFinite(value) || value < 0) return showError("Geçerli bir iade tutarı girin.");
     if (value > 0 && !accountId) return showError("İade için kasa/banka hesabı seçin.");
-    if (!window.confirm(`${preview.studentName} için kayıt iptal edilecek.\n\n${preview.openCount} açık taksit iptal olacak${value > 0 ? `, ${formatTRY(value)} iade yapılacak` : ""}.\n\nOnaylıyor musunuz?`)) return;
+    const secondWarning = preview.alreadyCancelled
+      ? `\n\n⚠️ Bu öğrenci için ${new Date(preview.alreadyCancelled.at).toLocaleDateString("tr-TR")} tarihinde ZATEN bir iptal kaydı var. İKİNCİ bir iptal kaydedilecek.`
+      : "";
+    if (!window.confirm(`${preview.studentName} için kayıt iptal edilecek.\n\n${preview.openCount} açık taksit iptal olacak${value > 0 ? `, ${formatTRY(value)} iade yapılacak` : ""}.${secondWarning}\n\nOnaylıyor musunuz?`)) return;
 
     setSaving(true);
     try {
       const res = await fetch("/api/payments/principal/cancellation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, reason: reason.trim(), refundAmount: value, refundAccountId: value > 0 ? accountId : undefined }),
+        body: JSON.stringify({
+          studentId,
+          reason: reason.trim(),
+          refundAmount: value,
+          refundAccountId: value > 0 ? accountId : undefined,
+          // Önizlemede zaten bir iptal kaydı gösteriliyorsa müdür bunu
+          // görerek onaylamış olur. Çift tıklamada önizleme henüz
+          // yenilenmediği için bayrak GÖNDERİLMEZ ve sunucu ikinciyi
+          // reddeder — asıl koruma budur.
+          confirmSecond: preview.alreadyCancelled ? true : undefined,
+        }),
       });
       const d = await res.json().catch(() => null);
       if (!res.ok) throw new Error(d?.error);

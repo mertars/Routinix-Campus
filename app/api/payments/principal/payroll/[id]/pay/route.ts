@@ -12,6 +12,10 @@ export const dynamic = "force-dynamic";
 
 const MONTH_NAMES = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
+// İşlem İÇİNDE yakalanan "zaten ödenmiş" durumu — dışarıdaki erken
+// kontrolle aynı yanıtı üretmek için ayrı bir tür.
+class AlreadyPaidError extends Error {}
+
 // POST /api/payments/principal/payroll/[id]/pay — { accountId }
 // Bordroyu ödendi işaretler ve kasa/bankadan düşen TEK bir toplu Expense
 // üretir. Böylece bakiye ve gider raporları bordroyu otomatik görür; ayrıca
@@ -50,6 +54,16 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     const now = new Date();
 
     const updated = await prisma.$transaction(async (tx) => {
+      // ⚠️ Bordro satırını KİLİTLE ve durumu İŞLEM İÇİNDE yeniden oku.
+      // Yukarıdaki status kontrolü işlem dışındaydı: çift tıklamada iki
+      // istek de "PENDING" görüp İKİ gider yazıyordu (testte doğrulandı:
+      // 65.000'lik bordro 130.000 olarak defterlere geçti, üstelik iki
+      // istek de 200 döndüğü için hiç fark edilmiyordu).
+      const locked = await tx.$queryRaw<{ status: string }[]>`
+        SELECT status FROM "PayrollPeriod" WHERE id = ${params.id} FOR UPDATE
+      `;
+      if (locked[0]?.status === "PAID") throw new AlreadyPaidError();
+
       const expense = await tx.expense.create({
         data: {
           institutionId: session.institutionId,
@@ -81,6 +95,9 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
 
     return NextResponse.json({ period: { id: updated.id, status: updated.status, expenseId: updated.expenseId } });
   } catch (error) {
+    if (error instanceof AlreadyPaidError) {
+      return NextResponse.json({ error: "Bu bordro zaten ödenmiş." }, { status: 400 });
+    }
     if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("payroll_pay_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });

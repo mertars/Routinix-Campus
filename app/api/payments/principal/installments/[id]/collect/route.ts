@@ -6,7 +6,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
-import { nextReceiptNo } from "@/lib/server/payments/receipt-service";
+import { collectPayment, OverCollectionError } from "@/lib/server/payments/collect-service";
 
 export const dynamic = "force-dynamic";
 
@@ -46,36 +46,30 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     const account = await prisma.paymentAccount.findUnique({ where: { id: accountId }, select: { institutionId: true } });
     if (!account || account.institutionId !== session.institutionId) return NextResponse.json({ error: "Hesap bulunamadı." }, { status: 404 });
 
-    const alreadyPaid = installment.payments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const remaining = Number(installment.amount) - alreadyPaid;
-    if (amount > remaining + 0.009) {
-      return NextResponse.json({ error: `Tutar kalan bakiyeyi (${remaining.toFixed(2)}) aşamaz.` }, { status: 400 });
+    // Kalan tutar kontrolü, makbuz numarası ve kayıt TEK bir kilitli
+    // işlemde yapılır (bkz. collect-service) — burada okunan bir "kalan"
+    // değeri, kayıt anına kadar bayatlayabilirdi.
+    let result;
+    try {
+      result = await collectPayment({
+        institutionId: session.institutionId,
+        installmentId: installment.id,
+        installmentAmount: Number(installment.amount),
+        studentId: installment.studentId,
+        accountId,
+        amount,
+        method,
+        paidAt,
+        note,
+        recordedByAdminId: session.sub,
+      });
+    } catch (collectError) {
+      if (collectError instanceof OverCollectionError) {
+        return NextResponse.json({ error: collectError.message }, { status: 400 });
+      }
+      throw collectError;
     }
-
-    // Makbuz numarası kayıt ANINDA verilir — makbuz basılmasa bile her
-    // tahsilatın takip edilebilir bir numarası olsun (bkz. receipt-service).
-    const receiptNo = await nextReceiptNo(session.institutionId);
-
-    const [payment] = await prisma.$transaction([
-      prisma.payment.create({
-        data: {
-          institutionId: session.institutionId,
-          receiptNo,
-          studentId: installment.studentId,
-          installmentId: installment.id,
-          accountId,
-          amount,
-          method,
-          paidAt,
-          note,
-          recordedByAdminId: session.sub,
-        },
-      }),
-      prisma.installment.update({
-        where: { id: installment.id },
-        data: { status: amount >= remaining - 0.009 ? "PAID" : "PARTIALLY_PAID" },
-      }),
-    ]);
+    const { payment, receiptNo } = result;
 
     const student = await prisma.student.findUnique({
       where: { id: installment.studentId },

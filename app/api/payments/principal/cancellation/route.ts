@@ -9,6 +9,14 @@ import { computeAccountBalances } from "@/lib/server/payments/account-balance";
 
 export const dynamic = "force-dynamic";
 
+// Aynı öğrenciye ikinci bir iptal — kasıtlı mı, çift tıklama mı?
+// Ayırt etmek için açık onay istenir.
+class DuplicateCancellationError extends Error {
+  constructor(public at: Date) {
+    super("Bu öğrenci için zaten bir iptal kaydı var.");
+  }
+}
+
 // GET ?studentId= — kayıt iptali önizlemesi.
 //
 // İade önerisi ŞEFFAF bir orantıyla hesaplanır: plan kaç aya yayılmışsa,
@@ -134,6 +142,20 @@ async function handlePost(request: NextRequest) {
     const cancelledAmount = Math.round(open.reduce((s, i) => s + (Number(i.amount) - i.payments.reduce((x, p) => x + Number(p.amount), 0)), 0) * 100) / 100;
 
     const cancellation = await prisma.$transaction(async (tx) => {
+      // ⚠️ Öğrenci satırını KİLİTLE ve mevcut iptal kaydını İŞLEM İÇİNDE
+      // kontrol et. İade GERÇEK PARA ÇIKIŞIDIR; çift tıklamada iki
+      // istek de "iptal kaydı yok" görüp iki kez iade yazabilirdi.
+      //
+      // İkinci bir iptal MEŞRU olabilir (öğrenci ayrılıp tekrar kaydolur,
+      // sonra yine ayrılır) — bu yüzden yasaklanmaz, AÇIK ONAY istenir.
+      // Önizleme ekranı mevcut iptali zaten gösteriyor.
+      await tx.$queryRaw`SELECT id FROM "Student" WHERE id = ${studentId} FOR UPDATE`;
+      const existing = await tx.enrollmentCancellation.findFirst({
+        where: { institutionId: session.institutionId, studentId },
+        select: { id: true, createdAt: true },
+      });
+      if (existing && body?.confirmSecond !== true) throw new DuplicateCancellationError(existing.createdAt);
+
       if (open.length > 0) {
         await tx.installment.updateMany({ where: { id: { in: open.map((i) => i.id) } }, data: { status: "CANCELLED" } });
       }
@@ -170,6 +192,15 @@ async function handlePost(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    if (error instanceof DuplicateCancellationError) {
+      return NextResponse.json(
+        {
+          error: `Bu öğrenci için ${error.at.toLocaleDateString("tr-TR")} tarihinde zaten bir iptal kaydı var. Yeni bir iptal kaydetmek istiyorsanız onaylayın.`,
+          code: "DUPLICATE_CANCELLATION",
+        },
+        { status: 409 }
+      );
+    }
     if (error instanceof AuthError) return authErrorResponse(error);
     logger.error("cancellation_failed", { error: error instanceof Error ? error.message : String(error) });
     return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
