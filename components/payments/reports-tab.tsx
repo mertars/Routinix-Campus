@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Download, AlertTriangle, TrendingUp, TrendingDown, PieChart, Users, BadgePercent } from "lucide-react";
+import { Loader2, Download, AlertTriangle, TrendingUp, TrendingDown, PieChart, Users, BadgePercent, UserCheck, CalendarDays } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,9 @@ type ReportData = {
   monthlyTrend: { month: string; income: number; expense: number; net: number }[];
   methodBreakdown: { method: string; amount: number }[];
   expenseByCategory: { name: string; amount: number }[];
+  collectorPerformance: { adminId: string; name: string; amount: number; count: number; voidedCount: number }[];
+  dailyCollections: { date: string; amount: number }[];
+  todayTotal: number;
 };
 
 const METHOD_LABEL: Record<string, string> = { CASH: "Nakit", BANK_TRANSFER: "Havale/EFT", CREDIT_CARD: "Kredi Kartı" };
@@ -234,6 +237,66 @@ export function ReportsTab() {
           )}
         </div>
       </div>
+
+      {/* Günlük tahsilat — müdürün her gün sorduğu "bugün ne topladık" */}
+      <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+            <CalendarDays className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Günlük Tahsilat (son 30 gün)
+          </h3>
+          <p className="text-xs text-espresso-muted dark:text-cream/40">
+            Bugün: <span className="font-semibold text-emerald-700 dark:text-emerald-300">{formatTRY(data.todayTotal)}</span>
+          </p>
+        </div>
+        <div className="flex h-20 items-end gap-[3px]">
+          {data.dailyCollections.map((d, i) => {
+            const max = Math.max(1, ...data.dailyCollections.map((x) => x.amount));
+            const isToday = i === data.dailyCollections.length - 1;
+            return (
+              <div
+                key={d.date}
+                title={`${new Date(d.date).toLocaleDateString("tr-TR")}: ${formatTRY(d.amount)}`}
+                className={cn("flex-1 rounded-t transition-[height] duration-500", isToday ? "bg-emerald-600" : "bg-emerald-400/60")}
+                style={{ height: `${Math.max(2, (d.amount / max) * 100)}%` }}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Tahsilat performansı — veri zaten kayıtlıydı, ilk kez görünüyor */}
+      {data.collectorPerformance.length > 0 && (
+        <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
+          <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
+            <UserCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> Tahsilat Performansı
+          </h3>
+          <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">Son {data.months} ayda kim ne kadar tahsilat kaydetti.</p>
+          <div className="space-y-2">
+            {data.collectorPerformance.map((c) => (
+              <div key={c.adminId} className="flex items-center gap-2">
+                <span className="w-32 shrink-0 truncate text-[11px] text-espresso dark:text-cream">{c.name}</span>
+                <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-cream-card dark:bg-white/10">
+                  <span
+                    className="block h-full rounded-full bg-emerald-500"
+                    style={{ width: `${(c.amount / Math.max(1, data.collectorPerformance[0].amount)) * 100}%` }}
+                  />
+                </span>
+                <span className="w-24 shrink-0 text-right text-[11px] font-semibold text-espresso dark:text-cream">{formatTRY(c.amount)}</span>
+                <span className="w-20 shrink-0 text-right text-[10px] text-espresso-muted dark:text-cream/40">{c.count} işlem</span>
+                <span
+                  className={cn(
+                    "w-16 shrink-0 text-right text-[10px]",
+                    c.voidedCount > 0 ? "font-semibold text-rose-700 dark:text-rose-300" : "text-espresso-muted/50 dark:text-cream/25"
+                  )}
+                  title="İptal edilen tahsilat sayısı — yüksekse veri girişinde sorun olabilir"
+                >
+                  {c.voidedCount > 0 ? `${c.voidedCount} iptal` : "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Burs & indirim — "ne kadar burs dağıttık" */}
       {discounts && discounts.grantedTotal > 0 && (

@@ -35,7 +35,7 @@ async function handleGet(request: NextRequest) {
     const now = new Date();
     const trendStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
 
-    const [openInstallments, payments, expenses, categories] = await Promise.all([
+    const [openInstallments, payments, expenses, categories, admins, voidedByAdmin] = await Promise.all([
       prisma.installment.findMany({
         where: { institutionId, status: { in: ["PENDING", "PARTIALLY_PAID"] } },
         include: {
@@ -45,13 +45,23 @@ async function handleGet(request: NextRequest) {
       }),
       prisma.payment.findMany({
         where: { institutionId, status: "COMPLETED", paidAt: { gte: trendStart } },
-        select: { amount: true, method: true, paidAt: true },
+        select: { amount: true, method: true, paidAt: true, recordedByAdminId: true },
       }),
       prisma.expense.findMany({
         where: { institutionId, status: "PAID", paidAt: { gte: trendStart } },
         select: { amount: true, paidAt: true, categoryId: true },
       }),
       prisma.expenseCategory.findMany({ where: { institutionId }, select: { id: true, name: true } }),
+      // Tahsilat performansı — recordedByAdminId her tahsilatta zaten
+      // kaydediliyordu ama hiçbir ekranda görünmüyordu.
+      prisma.admin.findMany({ where: { institutionId }, select: { id: true, firstName: true, lastName: true } }),
+      // İptal edilen tahsilatlar kişi bazında: çok sayıda iptal, veri
+      // girişinde sorun olduğunun sinyalidir.
+      prisma.payment.groupBy({
+        by: ["recordedByAdminId"],
+        where: { institutionId, status: "VOIDED", paidAt: { gte: trendStart } },
+        _count: { _all: true },
+      }),
     ]);
 
     // --- 1) Alacak yaşlandırma + riskli öğrenciler ---
@@ -127,6 +137,41 @@ async function handleGet(request: NextRequest) {
       .map(([id, amount]) => ({ name: categoryNameById.get(id) ?? "Diğer", amount }))
       .sort((a, b) => b.amount - a.amount);
 
+    // --- 5) Tahsilat performansı (kişi bazında) ---
+    const adminName = new Map(admins.map((a) => [a.id, `${a.firstName} ${a.lastName}`]));
+    const voidCountByAdmin = new Map(voidedByAdmin.map((v) => [v.recordedByAdminId, v._count._all]));
+    const perfMap = new Map<string, { amount: number; count: number }>();
+    for (const p of payments) {
+      const cur = perfMap.get(p.recordedByAdminId) ?? { amount: 0, count: 0 };
+      cur.amount += Number(p.amount);
+      cur.count += 1;
+      perfMap.set(p.recordedByAdminId, cur);
+    }
+    const collectorPerformance = [...perfMap.entries()]
+      .map(([adminId, v]) => ({
+        adminId,
+        name: adminName.get(adminId) ?? "—",
+        amount: v.amount,
+        count: v.count,
+        voidedCount: voidCountByAdmin.get(adminId) ?? 0,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // --- 6) Günlük tahsilat (son 30 gün) — "bugün ne kadar topladık" ---
+    const dayMs = 86_400_000;
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dailyCollections = Array.from({ length: 30 }, (_, i) => {
+      const day = new Date(todayStart.getTime() - (29 - i) * dayMs);
+      return { date: day.toISOString().slice(0, 10), amount: 0 };
+    });
+    const dailyIndex = new Map(dailyCollections.map((d, i) => [d.date, i]));
+    for (const p of payments) {
+      const key = p.paidAt.toISOString().slice(0, 10);
+      const idx = dailyIndex.get(key);
+      if (idx != null) dailyCollections[idx].amount += Number(p.amount);
+    }
+    const todayTotal = dailyCollections[dailyCollections.length - 1]?.amount ?? 0;
+
     const periodIncome = payments.reduce((s, p) => s + Number(p.amount), 0);
     const periodExpense = expenses.reduce((s, e) => s + Number(e.amount), 0);
 
@@ -146,6 +191,9 @@ async function handleGet(request: NextRequest) {
       monthlyTrend,
       methodBreakdown,
       expenseByCategory,
+      collectorPerformance,
+      dailyCollections,
+      todayTotal,
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
