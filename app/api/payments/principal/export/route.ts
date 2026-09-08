@@ -84,8 +84,10 @@ async function handleGet(request: NextRequest) {
           recordedByAdmin: { select: { firstName: true, lastName: true } },
         },
       });
+      // "Fiş" sütunu mali müşavirin İLK soracağı şeydir: belgesi olmayan
+      // gideri ayıklamak için listeyi tek tek açmak zorunda kalmasın.
       csv = toCsv(
-        ["Ödeme Tarihi", "Kategori", "Açıklama", "Tedarikçi", "Hesap", "Tutar", "Kaydeden", "Not"],
+        ["Ödeme Tarihi", "Kategori", "Açıklama", "Tedarikçi", "Hesap", "Tutar", "Fiş", "Kaydeden", "Not"],
         expenses.map((e) => [
           csvDate(e.paidAt),
           e.category.name,
@@ -93,6 +95,7 @@ async function handleGet(request: NextRequest) {
           e.vendorName ?? "",
           e.account?.name ?? "",
           csvNumber(Number(e.amount)),
+          e.attachmentName ?? "YOK",
           `${e.recordedByAdmin.firstName} ${e.recordedByAdmin.lastName}`,
           e.note ?? "",
         ])

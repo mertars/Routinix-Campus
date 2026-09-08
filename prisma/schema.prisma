@@ -2841,6 +2841,10 @@ model Expense {
   dueDate           DateTime? // Son ödeme tarihi (PENDING giderler için)
   paidAt            DateTime?
   note              String?
+  // Fiş/fatura görseli. Bir gider kaydının arkasında BELGE olmadan
+  // yıl sonunda "bu 85.000 neydi?" sorusunun cevabı yoktur.
+  attachmentUrl     String?
+  attachmentName    String?
   recordedByAdminId String
   recordedByAdmin   Admin           @relation("ExpenseRecordedBy", fields: [recordedByAdminId], references: [id], onDelete: Restrict)
   payrollPeriods    PayrollPeriod[]

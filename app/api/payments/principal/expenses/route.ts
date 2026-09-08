@@ -39,6 +39,8 @@ async function handleGet(request: NextRequest) {
         dueDate: e.dueDate?.toISOString() ?? null,
         paidAt: e.paidAt?.toISOString() ?? null,
         isOverdue: e.status === "PENDING" && e.dueDate != null && e.dueDate < now,
+        attachmentUrl: e.attachmentUrl,
+        attachmentName: e.attachmentName,
       })),
     });
   } catch (error) {

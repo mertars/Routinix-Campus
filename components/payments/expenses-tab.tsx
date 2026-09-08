@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Loader2, CheckCircle2, Clock, AlertTriangle, Receipt } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Plus, Loader2, CheckCircle2, Clock, AlertTriangle, Receipt, Paperclip, X } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { RecurringExpensesCard } from "@/components/payments/recurring-expenses-card";
@@ -19,6 +19,8 @@ type ExpenseRow = {
   dueDate: string | null;
   paidAt: string | null;
   isOverdue: boolean;
+  attachmentUrl: string | null;
+  attachmentName: string | null;
 };
 
 function formatTRY(n: number) {
@@ -129,6 +131,7 @@ export function ExpensesTab({ accounts, onChanged }: { accounts: AccountRow[]; o
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
+                      <AttachmentButton expense={e} onChanged={refresh} />
                       <span className="text-sm font-semibold text-espresso dark:text-cream">{formatTRY(e.amount)}</span>
                       <select
                         defaultValue={accounts[0]?.id ?? ""}
@@ -166,7 +169,10 @@ export function ExpensesTab({ accounts, onChanged }: { accounts: AccountRow[]; o
                         {e.paidAt ? ` · ${new Date(e.paidAt).toLocaleDateString("tr-TR")}` : ""}
                       </p>
                     </div>
-                    <span className="shrink-0 text-sm font-semibold text-rose-700 dark:text-rose-300">−{formatTRY(e.amount)}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <AttachmentButton expense={e} onChanged={refresh} />
+                      <span className="text-sm font-semibold text-rose-700 dark:text-rose-300">−{formatTRY(e.amount)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -181,5 +187,97 @@ export function ExpensesTab({ accounts, onChanged }: { accounts: AccountRow[]; o
 
       <ExpenseModal isOpen={modalOpen} onClose={() => setModalOpen(false)} categories={categories} accounts={accounts} onCreated={refresh} />
     </div>
+  );
+}
+
+// Fiş/fatura eki düğmesi.
+//
+// Bir gider kaydının arkasında belge olmadan, yıl sonunda mali müşavir
+// "bu 85.000 neydi?" dediğinde elde yalnızca bir satır kalıyordu.
+// Yükleme gizli bir <input type="file"> üzerinden — ayrı bir modal, tek
+// dosyalık bir iş için fazla ağır olurdu.
+function AttachmentButton({ expense, onChanged }: { expense: ExpenseRow; onChanged: () => void }) {
+  const { showError, showSuccess } = useToast();
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function upload(file: File) {
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch(`/api/payments/principal/expenses/${expense.id}/attachment`, { method: "POST", body });
+      const d = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(d?.error);
+      showSuccess("Fiş eklendi.");
+      onChanged();
+    } catch (err) {
+      showError(err instanceof Error && err.message ? err.message : "Fiş yüklenemedi.");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm("Bu giderin fişi kaldırılacak. Onaylıyor musunuz?")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/payments/principal/expenses/${expense.id}/attachment`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      showSuccess("Fiş kaldırıldı.");
+      onChanged();
+    } catch {
+      showError("Fiş kaldırılamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (expense.attachmentUrl) {
+    return (
+      <span className="flex items-center gap-1">
+        <a
+          href={expense.attachmentUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={expense.attachmentName ?? "Fişi görüntüle"}
+          className="flex h-7 w-7 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+        >
+          <Paperclip className="h-3.5 w-3.5" />
+        </a>
+        <button
+          onClick={remove}
+          disabled={busy}
+          title="Fişi kaldır"
+          className="flex h-7 w-7 items-center justify-center rounded-lg border border-hairline text-espresso-muted transition hover:text-rose-600 disabled:opacity-50 dark:border-white/10 dark:text-cream/40"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) upload(f);
+        }}
+      />
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+        title="Fiş/fatura ekle"
+        className="flex h-7 w-7 items-center justify-center rounded-lg border border-hairline text-espresso-muted transition hover:bg-cream-card hover:text-espresso disabled:opacity-50 dark:border-white/10 dark:text-cream/40 dark:hover:bg-white/5"
+      >
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+      </button>
+    </>
   );
 }
