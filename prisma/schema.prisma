@@ -147,6 +147,7 @@ model Institution {
   studentDiscounts            StudentDiscount[]
   installmentAdjustments      InstallmentAdjustment[]
   paymentPromises             PaymentPromise[]
+  enrollmentCancellations     EnrollmentCancellation[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -284,6 +285,7 @@ model Student {
   discounts                    StudentDiscount[]
   installmentAdjustments       InstallmentAdjustment[]
   paymentPromises              PaymentPromise[]
+  enrollmentCancellations      EnrollmentCancellation[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -439,6 +441,7 @@ model Admin {
   voidedPayments               Payment[]                     @relation("PaymentVoidedBy")
   createdAdjustments           InstallmentAdjustment[]       @relation("AdjustmentCreatedBy")
   createdPromises              PaymentPromise[]              @relation("PromiseCreatedBy")
+  createdCancellations         EnrollmentCancellation[]      @relation("CancellationCreatedBy")
 
   @@index([institutionId])
 }
@@ -2261,18 +2264,19 @@ enum PaymentAccountType {
 }
 
 model PaymentAccount {
-  id            String             @id @default(cuid())
+  id            String                   @id @default(cuid())
   institutionId String
-  institution   Institution        @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  institution   Institution              @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   name          String // "Nakit Kasa", "Ziraat Bankası TL Hesabı"
   type          PaymentAccountType
-  isActive      Boolean            @default(true)
+  isActive      Boolean                  @default(true)
   payments      Payment[]
   expenses      Expense[]
-  transfersOut  AccountTransfer[]  @relation("TransferFrom")
-  transfersIn   AccountTransfer[]  @relation("TransferTo")
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  transfersOut  AccountTransfer[]        @relation("TransferFrom")
+  transfersIn   AccountTransfer[]        @relation("TransferTo")
+  refunds       EnrollmentCancellation[] @relation("RefundFrom")
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
 
   @@index([institutionId])
 }
@@ -2332,6 +2336,43 @@ enum PaymentStatus {
 enum PaymentSource {
   MANUAL
   ONLINE // ileride gerçek gateway entegrasyonu
+}
+
+// ----------------------------------------------------------------------------
+// Kayıt İptali & İade (Ödeme Takip Faz 11)
+// ----------------------------------------------------------------------------
+//
+// Öğrenci yıl ortasında ayrıldığında iki şey olmalı: (1) kalan taksitler
+// iptal edilmeli, (2) fazla ödenmişse iade hesaplanmalı.
+//
+// İade neden GİDER olarak kaydedilmiyor: iade bir işletme gideri değil,
+// GELİRİN GERİ ALINMASIDIR. Gider yazılsaydı kâr/zarar ve gider kategori
+// raporları bozulur, "bu ay kirası mı yüksek yoksa iademiz mi çok" sorusu
+// anlamsızlaşırdı. Bu yüzden virman gibi AYRI bir hareket: kasa
+// bakiyesinden düşer, gelir/gider tablosunu kirletmez.
+model EnrollmentCancellation {
+  id                        String          @id @default(cuid())
+  institutionId             String
+  institution               Institution     @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  studentId                 String
+  student                   Student         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  reason                    String
+  // İptal anındaki fotoğraf — sonradan "bu iade neye göre hesaplandı"
+  // sorusunun cevabı olsun diye hepsi kaydediliyor.
+  cancelledInstallmentCount Int
+  cancelledAmount           Decimal         @db.Decimal(12, 2) // iptal edilen kalan borç
+  totalPaid                 Decimal         @db.Decimal(12, 2) // o güne kadar tahsil edilen
+  refundAmount              Decimal         @default(0) @db.Decimal(12, 2)
+  // İade hangi kasadan/bankadan çıktı — bakiyeden buradan düşülür.
+  refundAccountId           String?
+  refundAccount             PaymentAccount? @relation("RefundFrom", fields: [refundAccountId], references: [id], onDelete: Restrict)
+  refundedAt                DateTime?
+  createdByAdminId          String
+  createdByAdmin            Admin           @relation("CancellationCreatedBy", fields: [createdByAdminId], references: [id], onDelete: Restrict)
+  createdAt                 DateTime        @default(now())
+
+  @@index([institutionId])
+  @@index([studentId])
 }
 
 // ----------------------------------------------------------------------------

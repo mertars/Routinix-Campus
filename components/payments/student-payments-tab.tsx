@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown, Ban, CalendarClock, Layers } from "lucide-react";
+import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown, Ban, CalendarClock, Layers, UserMinus } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import { InstallmentPlanModal } from "@/components/payments/installment-plan-modal";
 import { CollectPaymentModal } from "@/components/payments/collect-payment-modal";
 import { DiscountModal } from "@/components/payments/discount-modal";
 import { RestructureModal } from "@/components/payments/restructure-modal";
+import { CancellationModal } from "@/components/payments/cancellation-modal";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string; grade: number };
@@ -61,6 +62,7 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
   const [discountOpen, setDiscountOpen] = useState(false);
   const [history, setHistory] = useState<PaymentHistoryRow[] | null>(null);
   const [restructureOpen, setRestructureOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/payments/principal/students")
@@ -219,6 +221,13 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
                   <BadgePercent className="h-3.5 w-3.5" /> İndirim
                 </button>
                 <button
+                  onClick={() => setCancelOpen(true)}
+                  title="Öğrenci ayrıldı — kalan taksitleri iptal et ve iade hesapla"
+                  className="flex items-center gap-1.5 rounded-full border border-rose-400/25 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-500/10 dark:border-rose-400/20 dark:text-rose-400"
+                >
+                  <UserMinus className="h-3.5 w-3.5" /> Kayıt İptali
+                </button>
+                <button
                   onClick={() => setRestructureOpen(true)}
                   className="flex items-center gap-1.5 rounded-full border border-hairline px-3 py-2 text-xs font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
                 >
@@ -359,6 +368,13 @@ export function StudentPaymentsTab({ accounts, onChanged }: { accounts: AccountR
         </div>
       )}
 
+      <CancellationModal
+        isOpen={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        studentId={selectedStudent?.id ?? null}
+        accounts={accounts}
+        onDone={refresh}
+      />
       <RestructureModal
         isOpen={restructureOpen}
         onClose={() => setRestructureOpen(false)}
