@@ -7,6 +7,11 @@ import { prisma } from "@/lib/server/prisma";
 // (bkz. PayrollItem.hours).
 export const AVERAGE_WEEKS_PER_MONTH = 4.33;
 
+// Ödenen bordronun düştüğü gider kategorisi. Nakit akışı projeksiyonu bu
+// kategoriyi geçmiş ortalamadan DEĞİL, bordro taslağından tahmin eder
+// (ileriye dönük ve daha doğru) — bu yüzden ad tek yerde tanımlı olmalı.
+export const PAYROLL_CATEGORY = "Personel Maaş";
+
 export type StaffPayrollDraft = {
   teacherId: string | null;
   adminId: string | null;

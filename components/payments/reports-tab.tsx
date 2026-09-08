@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Download, AlertTriangle, TrendingUp, TrendingDown, PieChart, Users, BadgePercent, UserCheck, CalendarDays } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { CashflowCard } from "@/components/payments/cashflow-card";
 
 type ReportData = {
   months: number;
@@ -130,6 +131,10 @@ export function ReportsTab() {
           <Download className="h-3.5 w-3.5" /> Alacak Raporu (CSV)
         </button>
       </div>
+
+      {/* İleriye dönük görünüm en üstte — geri kalan rapor blokları
+          geçmişi anlatır, müdürün asıl kararı ise önündeki aylar için. */}
+      <CashflowCard />
 
       {/* Dönem özeti */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -3,11 +3,11 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { PAYROLL_CATEGORY } from "@/lib/server/payroll/payroll-service";
 
 export const dynamic = "force-dynamic";
 
 const MONTH_NAMES = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-const PAYROLL_CATEGORY = "Personel Maaş";
 
 // POST /api/payments/principal/payroll/[id]/pay — { accountId }
 // Bordroyu ödendi işaretler ve kasa/bankadan düşen TEK bir toplu Expense
