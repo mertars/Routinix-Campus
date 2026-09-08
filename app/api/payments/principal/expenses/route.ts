@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { assertSufficientFunds } from "@/lib/server/payments/assert-funds";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 
 export const dynamic = "force-dynamic";
@@ -67,11 +68,16 @@ async function handlePost(request: NextRequest) {
     const payNow = body?.payNow === true;
     const accountId = (body?.accountId as string | undefined) || null;
     const dueDate = body?.dueDate ? new Date(body.dueDate) : null;
+    // Geçmiş tarihli bir faturayı sonradan girmek YAYGIN bir durum; bu yol
+    // paidAt'i hiç okumadığı için her kaydı "bugün" damgalıyor ve aylık
+    // raporları kaydırıyordu. Ayrı /pay ucu zaten paidAt kabul ediyordu.
+    const paidAt = body?.paidAt ? new Date(body.paidAt) : new Date();
 
     if (!categoryId) return NextResponse.json({ error: "categoryId zorunludur." }, { status: 400 });
     if (!title) return NextResponse.json({ error: "title zorunludur." }, { status: 400 });
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "amount pozitif bir sayı olmalı." }, { status: 400 });
     if (dueDate && Number.isNaN(dueDate.getTime())) return NextResponse.json({ error: "dueDate geçerli bir tarih olmalı." }, { status: 400 });
+    if (Number.isNaN(paidAt.getTime())) return NextResponse.json({ error: "paidAt geçerli bir tarih olmalı." }, { status: 400 });
 
     const category = await prisma.expenseCategory.findUnique({ where: { id: categoryId }, select: { institutionId: true } });
     if (!category || category.institutionId !== session.institutionId) return NextResponse.json({ error: "Kategori bulunamadı." }, { status: 404 });
@@ -80,6 +86,9 @@ async function handlePost(request: NextRequest) {
       if (!accountId) return NextResponse.json({ error: "Ödenmiş gider için accountId zorunludur." }, { status: 400 });
       const account = await prisma.paymentAccount.findUnique({ where: { id: accountId }, select: { institutionId: true } });
       if (!account || account.institutionId !== session.institutionId) return NextResponse.json({ error: "Hesap bulunamadı." }, { status: 404 });
+
+      const funds = await assertSufficientFunds(session.institutionId, accountId, amount, body?.allowOverdraft === true);
+      if (!funds.ok) return NextResponse.json({ error: funds.error, code: "INSUFFICIENT_FUNDS", balance: funds.balance }, { status: 400 });
     }
 
     const expense = await prisma.expense.create({
@@ -93,7 +102,7 @@ async function handlePost(request: NextRequest) {
         dueDate,
         status: payNow ? "PAID" : "PENDING",
         accountId: payNow ? accountId : null,
-        paidAt: payNow ? new Date() : null,
+        paidAt: payNow ? paidAt : null,
         recordedByAdminId: session.sub,
       },
     });

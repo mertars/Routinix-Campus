@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { assertSufficientFunds } from "@/lib/server/payments/assert-funds";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 
@@ -18,7 +19,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     requireRole(session, "principal");
     await requirePaymentRole(session, "FULL");
 
-    const expense = await prisma.expense.findUnique({ where: { id: params.id }, select: { institutionId: true, status: true } });
+    const expense = await prisma.expense.findUnique({ where: { id: params.id }, select: { institutionId: true, status: true, amount: true } });
     if (!expense) return NextResponse.json({ error: "Gider bulunamadı." }, { status: 404 });
     requireInstitution(session, expense.institutionId);
     if (expense.status === "PAID") return NextResponse.json({ error: "Bu gider zaten ödenmiş." }, { status: 400 });
@@ -31,6 +32,9 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
 
     const account = await prisma.paymentAccount.findUnique({ where: { id: accountId }, select: { institutionId: true } });
     if (!account || account.institutionId !== session.institutionId) return NextResponse.json({ error: "Hesap bulunamadı." }, { status: 404 });
+
+    const funds = await assertSufficientFunds(session.institutionId, accountId, Number(expense.amount), body?.allowOverdraft === true);
+    if (!funds.ok) return NextResponse.json({ error: funds.error, code: "INSUFFICIENT_FUNDS", balance: funds.balance }, { status: 400 });
 
     const updated = await prisma.expense.update({
       where: { id: params.id },

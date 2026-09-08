@@ -21,10 +21,16 @@ async function handleGet() {
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // ⚠️ ÜST SINIR ŞART: yalnızca `gte: monthStart` yazıldığında İLERİ
+    // tarihli kayıtlar da "bu ay"a giriyordu — ileri tarihli bir tahsilat
+    // (ya da yıl yanlış yazılmış bir kayıt) bu ayın rakamını kalıcı
+    // olarak şişiriyordu.
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const thisMonth = { gte: monthStart, lt: monthEnd };
 
     const [accountRows, monthPayments, openInstallments, recentPayments, plannedTotal, collectedTotal, monthExpense, expenseByCategory, pendingExpenses] = await Promise.all([
       computeAccountBalances(institutionId),
-      prisma.payment.aggregate({ where: { institutionId, status: "COMPLETED", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
+      prisma.payment.aggregate({ where: { institutionId, status: "COMPLETED", paidAt: thisMonth }, _sum: { amount: true } }),
       prisma.installment.findMany({
         where: { institutionId, status: { in: ["PENDING", "PARTIALLY_PAID"] } },
         include: { student: { select: { firstName: true, lastName: true } }, payments: { where: { status: "COMPLETED" }, select: { amount: true } } },
@@ -39,8 +45,8 @@ async function handleGet() {
       // tahsil edilen toplam (iptal edilen taksitler plana dahil DEĞİL).
       prisma.installment.aggregate({ where: { institutionId, status: { not: "CANCELLED" } }, _sum: { amount: true } }),
       prisma.payment.aggregate({ where: { institutionId, status: "COMPLETED" }, _sum: { amount: true } }),
-      prisma.expense.aggregate({ where: { institutionId, status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
-      prisma.expense.groupBy({ by: ["categoryId"], where: { institutionId, status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
+      prisma.expense.aggregate({ where: { institutionId, status: "PAID", paidAt: thisMonth }, _sum: { amount: true } }),
+      prisma.expense.groupBy({ by: ["categoryId"], where: { institutionId, status: "PAID", paidAt: thisMonth }, _sum: { amount: true } }),
       prisma.expense.findMany({
         where: { institutionId, status: "PENDING" },
         include: { category: { select: { name: true } } },

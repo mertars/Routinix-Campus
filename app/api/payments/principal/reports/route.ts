@@ -36,6 +36,11 @@ async function handleGet(request: NextRequest) {
 
     const now = new Date();
     const trendStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    // Üst sınır, trend kovalarıyla AYNI aralığı kapsar: ileri tarihli
+    // bir tahsilat özet kartını şişirirken grafikte görünmüyordu —
+    // aynı ekranda iki farklı rakam çıkıyordu.
+    const trendEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const trendRange = { gte: trendStart, lt: trendEnd };
 
     const [openInstallments, payments, expenses, categories, admins, voidedByAdmin] = await Promise.all([
       prisma.installment.findMany({
@@ -46,11 +51,11 @@ async function handleGet(request: NextRequest) {
         },
       }),
       prisma.payment.findMany({
-        where: { institutionId, status: "COMPLETED", paidAt: { gte: trendStart } },
+        where: { institutionId, status: "COMPLETED", paidAt: trendRange },
         select: { amount: true, method: true, paidAt: true, recordedByAdminId: true },
       }),
       prisma.expense.findMany({
-        where: { institutionId, status: "PAID", paidAt: { gte: trendStart } },
+        where: { institutionId, status: "PAID", paidAt: trendRange },
         select: { amount: true, paidAt: true, categoryId: true },
       }),
       prisma.expenseCategory.findMany({ where: { institutionId }, select: { id: true, name: true } }),
@@ -61,7 +66,7 @@ async function handleGet(request: NextRequest) {
       // girişinde sorun olduğunun sinyalidir.
       prisma.payment.groupBy({
         by: ["recordedByAdminId"],
-        where: { institutionId, status: "VOIDED", paidAt: { gte: trendStart } },
+        where: { institutionId, status: "VOIDED", paidAt: trendRange },
         _count: { _all: true },
       }),
     ]);

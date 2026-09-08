@@ -207,19 +207,40 @@ export function PaymentsPrincipalPanel() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, tone }: { icon: typeof Wallet; label: string; value: string; tone: "emerald" | "amber" | "rose" | "sky" }) {
+// alert=true: rakam KÖTÜ bir durumu anlatıyor (eksi bakiye, gecikmiş
+// alacak). Ekrandaki en alarm verici sayının "her şey yolunda" rengiyle
+// çizilmesi, panelin en kötü tasarım hatasıydı — eksi bakiye pozitiften
+// ayırt edilemiyordu.
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  tone,
+  alert,
+}: {
+  icon: typeof Wallet;
+  label: string;
+  value: string;
+  tone: "emerald" | "amber" | "rose" | "sky";
+  alert?: boolean;
+}) {
   const toneClass = {
     emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
     rose: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
     sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
-  }[tone];
+  }[alert ? "rose" : tone];
   return (
-    <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
+    <div
+      className={cn(
+        "rounded-2xl border bg-white p-4 dark:bg-midnight-card/50",
+        alert ? "border-rose-400/40" : "border-hairline dark:border-white/5"
+      )}
+    >
       <div className={cn("mb-3 flex h-9 w-9 items-center justify-center rounded-lg", toneClass)}>
         <Icon className="h-4 w-4" />
       </div>
-      <p className="text-xl font-bold text-espresso dark:text-cream">{value}</p>
+      <p className={cn("text-xl font-bold", alert ? "text-rose-600 dark:text-rose-400" : "text-espresso dark:text-cream")}>{value}</p>
       <p className="text-xs text-espresso-muted dark:text-cream/40">{label}</p>
     </div>
   );
@@ -266,10 +287,10 @@ function DashboardTab({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard icon={Wallet} label="Toplam Bakiye" value={formatTRY(data.totalBalance)} tone="emerald" />
+        <StatCard icon={Wallet} label="Toplam Bakiye" value={formatTRY(data.totalBalance)} tone="emerald" alert={data.totalBalance < 0} />
         <StatCard icon={TrendingUp} label="Bu Ay Tahsilat" value={formatTRY(data.monthlyCollected)} tone="sky" />
         <StatCard icon={HandCoins} label="Bekleyen Toplam" value={formatTRY(data.pendingTotal)} tone="amber" />
-        <StatCard icon={AlertTriangle} label="Gecikmiş Toplam" value={formatTRY(data.overdueTotal)} tone="rose" />
+        <StatCard icon={AlertTriangle} label="Gecikmiş Toplam" value={formatTRY(data.overdueTotal)} tone="rose" alert={data.overdueTotal > 0} />
       </div>
 
       {/* Tahsilat oranı — planlanan tüm taksitlerin ne kadarı tahsil edildi.
@@ -303,7 +324,9 @@ function DashboardTab({
                 )}
                 <span className="min-w-0">
                   <span className="block truncate text-[10px] text-espresso-muted dark:text-cream/40">{a.name}</span>
-                  <span className="block text-xs font-semibold text-espresso dark:text-cream">{formatTRY(a.balance)}</span>
+                  <span className={cn("block text-xs font-semibold", a.balance < 0 ? "text-rose-600 dark:text-rose-400" : "text-espresso dark:text-cream")}>
+                    {formatTRY(a.balance)}
+                  </span>
                 </span>
               </div>
             ))}
@@ -479,12 +502,30 @@ function AccountsTab({
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {accounts.map((a) => (
-            <div key={a.id} className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/5 dark:bg-midnight-card/50">
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div
+              key={a.id}
+              className={cn(
+                "rounded-2xl border bg-white p-4 dark:bg-midnight-card/50",
+                a.balance < 0 ? "border-rose-400/40" : "border-hairline dark:border-white/5"
+              )}
+            >
+              <div
+                className={cn(
+                  "mb-3 flex h-9 w-9 items-center justify-center rounded-lg",
+                  a.balance < 0
+                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                )}
+              >
                 {a.type === "CASH" ? <Banknote className="h-4 w-4" /> : <Landmark className="h-4 w-4" />}
               </div>
               <p className="text-sm font-semibold text-espresso dark:text-cream">{a.name}</p>
-              <p className="mt-1 text-lg font-bold text-emerald-700 dark:text-emerald-300">{formatTRY(a.balance)}</p>
+              <p className={cn("mt-1 text-lg font-bold", a.balance < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-700 dark:text-emerald-300")}>
+                {formatTRY(a.balance)}
+              </p>
+              {a.balance < 0 && (
+                <p className="mt-1 text-[10px] font-medium text-rose-600 dark:text-rose-400">Hesap eksi bakiyede</p>
+              )}
             </div>
           ))}
         </div>

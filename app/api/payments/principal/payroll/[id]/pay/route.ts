@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { assertSufficientFunds } from "@/lib/server/payments/assert-funds";
 import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { PAYROLL_CATEGORY } from "@/lib/server/payroll/payroll-service";
@@ -41,6 +42,9 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     const category =
       (await prisma.expenseCategory.findFirst({ where: { institutionId: session.institutionId, name: PAYROLL_CATEGORY } })) ??
       (await prisma.expenseCategory.create({ data: { institutionId: session.institutionId, name: PAYROLL_CATEGORY } }));
+
+    const funds = await assertSufficientFunds(session.institutionId, accountId, Number(period.totalAmount), body?.allowOverdraft === true);
+    if (!funds.ok) return NextResponse.json({ error: funds.error, code: "INSUFFICIENT_FUNDS", balance: funds.balance }, { status: 400 });
 
     const label = `${MONTH_NAMES[period.month - 1]} ${period.year} Personel Bordrosu`;
     const now = new Date();
