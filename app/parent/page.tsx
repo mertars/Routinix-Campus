@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight, Megaphone, BookOpen, TrendingUp, LayoutDashboard } from "lucide-react";
+import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight, Megaphone, BookOpen, TrendingUp, LayoutDashboard, MessageSquareText } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { XRAY_MIN_GRADE } from "@/lib/mock-data";
@@ -12,6 +12,7 @@ import { ParentAttendanceTab } from "@/components/parent/attendance-tab";
 import { ParentHomeworkTab } from "@/components/parent/homework-tab";
 import { ParentAnnouncementsTab } from "@/components/parent/announcements-tab";
 import { ParentExamsTab } from "@/components/parent/exams-tab";
+import { ParentGuidanceTab } from "@/components/parent/guidance-tab";
 import { cn } from "@/lib/utils";
 
 // Veli panelinin sekmeleri.
@@ -24,6 +25,7 @@ const TABS = [
   { id: "attendance", label: "Devam", icon: CalendarCheck2 },
   { id: "exams", label: "Denemeler", icon: TrendingUp },
   { id: "homework", label: "Ödevler", icon: BookOpen },
+  { id: "guidance", label: "Rehberlik", icon: MessageSquareText },
   { id: "announcements", label: "Duyurular", icon: Megaphone },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -162,6 +164,7 @@ export default function ParentPage() {
                 {tab === "attendance" && <ParentAttendanceTab studentId={detail.id} />}
                 {tab === "exams" && <ParentExamsTab studentId={detail.id} />}
                 {tab === "homework" && <ParentHomeworkTab studentId={detail.id} />}
+                {tab === "guidance" && <ParentGuidanceTab studentId={detail.id} />}
                 {tab === "announcements" && <ParentAnnouncementsTab studentId={detail.id} />}
 
                 {tab === "overview" && (
