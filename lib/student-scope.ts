@@ -5,11 +5,21 @@ import { useLocalStorageState } from "./use-local-storage-state";
 import { type BranchSegment, type GradeLevel } from "./mock-data";
 
 // Öğrenci paneli, /api/auth/session'dan gelen GERÇEK oturum kimliğine göre
-// SADECE kendi verisini gösterir (bkz. app/api/students/[id]). Sınıf-duyarlı
-// iş kuralını (LGS/YKS/Genel akışları) TÜM yollarıyla gösterebilmek için
-// burada yalnızca arayüz amaçlı bir "demo sınıf" seçici tutuyoruz — gerçek
-// net/devam/branş verisi her zaman aynı öğrenciden (Postgres'ten) gelir,
-// sadece grade/segment (ve buna bağlı sınav geri sayımı/tercih robotu) değişir.
+// SADECE kendi verisini gösterir (bkz. app/api/students/[id]).
+//
+// ⚠️ SINIF SEVİYESİ GERÇEK ŞUBEDEN GELİR.
+//
+// Burada eskiden seviye YALNIZCA localStorage'daki demo seçicisinden
+// okunuyordu ve varsayılanı "grade12" idi. Sonuç: seçiciye hiç
+// dokunmayan bir 7. sınıf öğrencisi paneli 12. sınıf YKS adayı gibi
+// görüyordu — üniversite tercih robotu, YKS geri sayımı ve röntgen
+// kapısı hep yanlış seviyeye göre çalışıyordu. Ölçüldü: API grade 7
+// derken panel grade 12 kullanıyordu. Veli paneli aynı çocuk için
+// GERÇEK seviyeyi gösterdiği için veli ile öğrenci farklı şey
+// görüyordu.
+//
+// Demo seçici KALDIRILMADI ama artık yalnızca AÇIK BİR TERCİH olarak
+// çalışır: kullanıcı bir seçim yapmadıysa gerçek seviye kullanılır.
 export type AcademicTrack = "lgs" | "yks" | "genel";
 
 export type DemoGradeChoice = {
@@ -42,9 +52,34 @@ export type StudentReport = {
   actualNet: number;
   targetNet: number;
   attendanceRate: number;
+  /** Öğrencinin GERÇEK sınıf seviyesi (şubesinden). */
+  grade?: GradeLevel;
+  segment?: BranchSegment;
 };
 
 const EMPTY_REPORT: StudentReport = { id: "", name: "", branch: "", branchId: "", actualNet: 0, targetNet: 0, attendanceRate: 0 };
+
+
+// Öğrencinin panelde kullanılacak seviyesi.
+//
+// Saf fonksiyon: kararın kendisi testlenebilsin diye hook'tan
+// ayrıldı. Kural tek cümle — AÇIK bir demo seçimi yoksa GERÇEK şube
+// seviyesi kullanılır.
+export function resolveStudentLevel(
+  demoChoice: DemoGradeChoice | undefined,
+  reportGrade: GradeLevel | undefined,
+  reportSegment: BranchSegment | undefined
+): { grade: GradeLevel | undefined; segment: BranchSegment } {
+  if (demoChoice) return { grade: demoChoice.grade, segment: demoChoice.segment };
+
+  // Mezun şubesinin sınıf seviyesi TEMSİLÎDİR (şemada 12 tutulur);
+  // segment MEZUN ise seviye yok sayılır — sınıf atlatma kuralındaki
+  // aynı ayrım.
+  const grade = reportSegment === "MEZUN" ? undefined : reportGrade;
+  // Segment henüz yüklenmediyse YKS varsayılır: panelin çoğu akışı
+  // buna göre kurulu ve yükleme anı kısa sürer.
+  return { grade, segment: reportSegment ?? "YKS" };
+}
 
 export function useStudentScope() {
   const [studentId, setStudentId] = useState("");
@@ -83,6 +118,8 @@ export function useStudentScope() {
           actualNet: data.actualNet ?? 0,
           targetNet: data.targetNet ?? 0,
           attendanceRate: data.attendanceRate ?? 0,
+          grade: typeof data.grade === "number" ? (data.grade as GradeLevel) : undefined,
+          segment: data.segment as BranchSegment | undefined,
         });
       })
       .catch(() => {
@@ -93,11 +130,12 @@ export function useStudentScope() {
     };
   }, [studentId]);
 
-  const [demoGradeKey, setDemoGradeKey] = useLocalStorageState<string>(DEMO_GRADE_KEY, "grade12");
-  const demoChoice = DEMO_GRADE_CHOICES.find((choice) => choice.key === demoGradeKey) ?? DEMO_GRADE_CHOICES[2];
+  // Varsayılan BOŞ: "seçim yapılmadı" ile "12. sınıf seçildi" ayrı
+  // şeyler. Boşken gerçek şube seviyesi kullanılır.
+  const [demoGradeKey, setDemoGradeKey] = useLocalStorageState<string>(DEMO_GRADE_KEY, "");
+  const demoChoice = demoGradeKey ? DEMO_GRADE_CHOICES.find((choice) => choice.key === demoGradeKey) : undefined;
 
-  const grade = demoChoice.grade;
-  const segment = demoChoice.segment;
+  const { grade, segment } = resolveStudentLevel(demoChoice, report.grade, report.segment);
   const track = trackFromGrade(grade);
 
   return {

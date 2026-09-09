@@ -22,7 +22,7 @@ const PREF_LABELS: Record<keyof NotificationPrefs, string> = {
 };
 
 export function ProfileTab() {
-  const { studentName, branchName, demoGradeKey, setDemoGradeKey } = useStudentScope();
+  const { studentName, branchName, demoGradeKey, setDemoGradeKey, report } = useStudentScope();
   const { hex, setAccent, resetAccent } = useAccent();
   const isDefaultAccent = hex.toLowerCase() === DEFAULT_ACCENT_HEX.toLowerCase();
   const [prefs, setPrefs] = useLocalStorageState<NotificationPrefs>("routinix-kampus-student-notification-prefs", DEFAULT_PREFS);
@@ -125,12 +125,29 @@ export function ProfileTab() {
 
       <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-dashed border-brand-500/40 bg-brand-50/50 p-5 dark:border-brand-500/20 dark:bg-brand-600/5">
         <h2 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-          <GraduationCap className="h-4 w-4 text-brand-600" /> Demo: Sınıf Seviyesi Önizleme
+          <GraduationCap className="h-4 w-4 text-brand-600" /> Sınıf Seviyesi Önizleme
         </h2>
+        {/* Gerçek seviye AÇIKÇA yazılır. Eskiden burada yalnızca demo
+            seçici vardı ve varsayılanı 12. sınıftı; öğrenci kendi
+            seviyesinin ne olduğunu panelden anlayamıyordu. */}
+        <p className="mb-1 text-[11px] text-espresso dark:text-cream">
+          Kayıtlı seviyen: <span className="font-semibold">{branchName || "—"}</span>
+          {report.grade != null && ` (${report.grade}. sınıf)`}
+        </p>
         <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">
-          Bu seçici yalnızca LGS/YKS/Genel akışlarını önizlemek için bir demo aracıdır — net/devam verilerini değiştirmez.
+          Panel varsayılan olarak kayıtlı seviyeni kullanır. Aşağıdaki seçici yalnızca diğer akışları (LGS/YKS/Genel)
+          önizlemek içindir — net/devam verilerini değiştirmez.
         </p>
         <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setDemoGradeKey("")}
+            className={cn(
+              "col-span-2 min-h-[44px] rounded-xl px-3 text-xs font-medium transition",
+              demoGradeKey === "" ? "bg-espresso text-cream dark:bg-brand-600" : "bg-white text-espresso dark:bg-midnight-card dark:text-cream"
+            )}
+          >
+            Kayıtlı seviyemi kullan{report.grade != null && ` (${report.grade}. sınıf)`}
+          </button>
           {DEMO_GRADE_CHOICES.map((choice) => (
             <button
               key={choice.key}

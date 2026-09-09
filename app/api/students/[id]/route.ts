@@ -25,7 +25,7 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
         branchId: true,
         targetNet: true,
         weeklyStudyHours: true,
-        branch: { select: { name: true, grade: true } },
+        branch: { select: { name: true, grade: true, segment: true } },
       },
     });
     if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
@@ -57,6 +57,7 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
       branchId: student.branchId,
       branchName: student.branch.name,
       grade: student.branch.grade,
+      segment: student.branch.segment,
       targetNet: student.targetNet,
       weeklyStudyHours: student.weeklyStudyHours,
       actualNet,
