@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/server/prisma";
+import { toAttendanceDateKey } from "@/lib/attendance/date-key";
 
 // "Bugün hangi derslerde yoklama GİRİLMEDİ?"
 //
@@ -37,7 +38,8 @@ export type MissingAttendanceReport = {
 
 export async function findMissingAttendance(institutionId: string, date: Date): Promise<MissingAttendanceReport> {
   const dayName = turkishDayName(date);
-  const dayOnly = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  // Gün anahtarı tek yerden (bkz. lib/attendance/date-key.ts).
+  const dayOnly = toAttendanceDateKey(date);
 
   const slots = await prisma.lessonSlot.findMany({
     where: { branch: { institutionId }, day: dayName },
@@ -66,9 +68,13 @@ export async function findMissingAttendance(institutionId: string, date: Date): 
   });
 
   // Bir dersin yoklaması "girilmiş" sayılır: o şubede, o saat diliminde
-  // EN AZ BİR kayıt varsa. Kısmi giriş artık mümkün değil (öğretmen
-  // hepsini işaretlemeden kaydedemiyor), bu yüzden tek kayıt yeterli
-  // bir işarettir.
+  // EN AZ BİR kayıt varsa.
+  //
+  // Bu, kısmi girişin MÜMKÜN OLMAMASINA dayanır. Kural yazıldığında
+  // yalnızca arayüzdeydi ve sunucu 15 kişilik sınıfa tek kayıtlık
+  // gönderimi kabul ediyordu (ölçüldü) — yani bu varsayım yanlıştı ve
+  // kısmi bir gönderim dersi "girildi" gösteriyordu. Kural artık
+  // SUNUCUDA da zorunlu (bkz. app/api/attendance > roster kontrolü).
   const taken = new Set(records.map((r) => `${r.student.branchId}|${r.slot}`));
 
   const missing = slots

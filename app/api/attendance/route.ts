@@ -6,14 +6,11 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
 import { ATTENDANCE_STATUSES } from "@/lib/attendance/status";
+import { parseAttendanceDate } from "@/lib/attendance/date-key";
 
 export const dynamic = "force-dynamic";
 
-function parseDateOnly(value: string): Date {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
+// Tarih anahtarı tek yerden gelir (bkz. lib/attendance/date-key.ts).
 
 // POST /api/attendance — öğretmen bir şube+tarih+DERS SAATİ için tüm sınıfın
 // yoklamasını tek seferde kaydeder. Body: { teacherId, branchId, date
@@ -51,7 +48,7 @@ async function handlePost(request: NextRequest) {
       return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
     }
 
-    const day = parseDateOnly(date);
+    const day = parseAttendanceDate(date);
     const dayName = getTrDayNameForDate(day);
     const lessonSlot = dayName
       ? await prisma.lessonSlot.findUnique({
@@ -61,6 +58,52 @@ async function handlePost(request: NextRequest) {
       : null;
     if (!lessonSlot || lessonSlot.teacherId !== teacherId) {
       return NextResponse.json({ error: "Bu saatte bu şubede senin dersin görünmüyor — ders programını kontrol et." }, { status: 409 });
+    }
+
+    // ⚠️ KAYITLAR ŞUBE LİSTESİYLE DOĞRULANIR.
+    //
+    // Burada eskiden hiçbir kontrol yoktu ve iki ayrı açık doğuruyordu:
+    //
+    //  1) EKSİK GİRİŞ. "Bütün öğrenciler işaretlenmeden kaydedilemez"
+    //     kuralı YALNIZCA arayüzdeydi; sunucu 15 kişilik sınıfa tek
+    //     kayıtlık gönderimi 201 ile kabul ediyordu (ölçüldü). Üstelik
+    //     bu, eksik yoklama raporunu da yanıltıyordu: rapor "en az bir
+    //     kayıt varsa girilmiş sayılır" diye çalışıyor, yani kısmi
+    //     gönderim dersi "girildi" gösteriyordu.
+    //
+    //  2) YABANCI ÖĞRENCİ. Gönderilen studentId'nin bu şubede olup
+    //     olmadığına bakılmıyordu; başka şubedeki bir öğrenci bu dersten
+    //     "devamsız" yazılabiliyordu (ölçüldü). Devamsızlık kalıcı bir
+    //     kayıttır: velinin gördüğü orana, risk radarına ve hatırlatma
+    //     SMS'lerine işler.
+    //
+    // Liste AKTİF öğrencilerden kurulur — ayrılan öğrenci yoklamada
+    // istenmez (bkz. yoklama listesi ucundaki aynı süzgeç).
+    const roster = await prisma.student.findMany({
+      where: { branchId, isActive: true },
+      select: { id: true },
+    });
+    const rosterIds = new Set(roster.map((s) => s.id));
+    const submittedIds = new Set(records.map((r) => r.studentId));
+
+    const foreign = [...submittedIds].filter((id) => !rosterIds.has(id));
+    if (foreign.length > 0) {
+      return NextResponse.json(
+        { error: `Bu şubede olmayan ${foreign.length} öğrenci için yoklama gönderildi.` },
+        { status: 400 }
+      );
+    }
+
+    const missing = [...rosterIds].filter((id) => !submittedIds.has(id));
+    if (missing.length > 0) {
+      return NextResponse.json(
+        {
+          error: `${missing.length} öğrenci işaretlenmemiş. Yoklama ancak sınıfın tamamı işaretlenince kaydedilir.`,
+          missingCount: missing.length,
+          rosterCount: rosterIds.size,
+        },
+        { status: 400 }
+      );
     }
 
     await prisma.$transaction([
@@ -104,7 +147,7 @@ async function handleGet(request: NextRequest) {
       return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
     }
 
-    const day = parseDateOnly(date);
+    const day = parseAttendanceDate(date);
     // Pasif öğrenci yoklama listesinde çıkmamalı: öğretmen ayrılmış
     // birini işaretlemek zorunda kalıyordu ve "hepsi işaretlenmeden
     // kaydedilemez" kuralı yüzünden bu artık bir engel.

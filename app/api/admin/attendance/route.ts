@@ -5,6 +5,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { getAbsenceSummaries } from "@/lib/server/attendance/absence-summary";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { parseAttendanceDate, todayAttendanceKey } from "@/lib/attendance/date-key";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,14 @@ export const dynamic = "force-dynamic";
 // /api/attendance). Bu dosyada daha önce var olan POST /api/admin/attendance
 // (yöneticinin bir öğrencinin durumunu doğrudan düzeltebildiği uç) Part 4
 // isteğiyle BİLEREK KALDIRILDI — yönetici artık sadece görüntüler.
+// ⚠️ Okuma ucu YAZMA ucuyla AYNI anahtarı kullanmak zorunda.
+//
+// İkisi de eskiden setHours ile YEREL gece yarısına çekiyordu; aynı
+// kaymayı yaptıkları için birbirleriyle tutarlıydılar ve hata
+// görünmüyordu. Biri düzeltilip diğeri bırakılsaydı müdür yoklamaları
+// hiç göremezdi (bkz. lib/attendance/date-key.ts).
 function parseDateParam(value: string | null): Date {
-  const date = value ? new Date(value) : new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
+  return value ? parseAttendanceDate(value) : todayAttendanceKey();
 }
 
 const TO_LOWER: Record<string, "present" | "absent" | "late" | "excused"> = { PRESENT: "present", ABSENT: "absent", LATE: "late", EXCUSED: "excused" };
