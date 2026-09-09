@@ -63,6 +63,7 @@ import type { Segment } from "@/lib/mock-data";
 import { useAdminProfile } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 import { SetupWizard } from "@/components/principal/setup-wizard";
+import { TodayPanel } from "@/components/principal/today-panel";
 
 // Sol Ada: Akademik & Akış Modülleri — Sağ Ada: İdari & Yönetim Araçları
 const TABS = [
@@ -165,6 +166,14 @@ export default function PrincipalPage() {
               bitince kendiliğinden kaybolur. */}
           <motion.div variants={sectionVariants}>
             <SetupWizard onGoTab={(id) => setActiveTab(id as TabId)} />
+          </motion.div>
+
+          {/* "Bugün" paneli sekmelerin ÜSTÜNDE ve dışında: 32 sekmenin
+              hangisine gireceğine karar vermek yerine bekleyen işten
+              başlanır. Kurulum sihirbazı hâlâ görünüyorsa (yeni kurum)
+              önce o gelir — orada henüz "bugünkü iş" yoktur. */}
+          <motion.div variants={sectionVariants}>
+            <TodayPanel onGoTab={(id) => setActiveTab(id as TabId)} />
           </motion.div>
 
           <motion.div variants={sectionVariants} className="relative z-50 mb-6">

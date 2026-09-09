@@ -730,6 +730,12 @@ model AttendanceRecord {
   createdAt DateTime @default(now())
 
   @@unique([studentId, date, slot])
+  // Gün bazlı sorgular için: "bugün hangi derslerde yoklama girildi"
+  // raporu ve velinin aylık görünümü tarihe göre süzüyor. Bileşik
+  // benzersizlik anahtarı studentId ile BAŞLADIĞI için tek başına
+  // tarihe göre arama onu kullanamıyor ve tabloyu tarıyordu
+  // (ölçüldü: rapor 2,4 sn).
+  @@index([date])
 }
 
 // Bir öğretmenin belirli bir şube+tarih için yoklamayı "gönderdiği" olayın
@@ -1013,6 +1019,8 @@ model AppointmentRequest {
 
   @@index([teacherId])
   @@index([studentId])
+  // Kurum genelinde "kaç talep onay bekliyor" sayımı için.
+  @@index([status])
 }
 
 // Kurum geneli etüt süresi (dk) — Yönetici panelinden ayarlanır, varsayılan
