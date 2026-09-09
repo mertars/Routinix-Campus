@@ -8,6 +8,7 @@ import { computeAccountBalances } from "@/lib/server/payments/account-balance";
 import { computePayrollDraft, PAYROLL_CATEGORY } from "@/lib/server/payroll/payroll-service";
 import { projectCashflow, computeCollectionRate } from "@/lib/server/payments/cashflow";
 import { apiFailure } from "@/lib/server/api-failure";
+import { computeRemaining } from "@/lib/server/payments/student-debt";
 
 export const dynamic = "force-dynamic";
 
@@ -207,7 +208,7 @@ async function handleGet(request: NextRequest) {
       select: { amount: true, payments: { where: { status: "COMPLETED" }, select: { amount: true } } },
     });
     const overdueBacklog =
-      Math.round(overdue.reduce((sum, i) => sum + (Number(i.amount) - i.payments.reduce((s, p) => s + Number(p.amount), 0)), 0) * 100) / 100;
+      computeRemaining(overdue);
 
     return NextResponse.json({
       ...projection,

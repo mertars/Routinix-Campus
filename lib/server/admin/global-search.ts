@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/server/prisma";
+import { computeRemaining } from "@/lib/server/payments/student-debt";
 
 // Kurum genelinde tek kutudan arama.
 //
@@ -102,13 +103,7 @@ export async function globalSearch(institutionId: string, rawQuery: string): Pro
   const hits: SearchHit[] = [];
 
   for (const s of students) {
-    const openDebt =
-      Math.round(
-        s.installments.reduce(
-          (sum, i) => sum + (Number(i.amount) - i.payments.reduce((acc, p) => acc + Number(p.amount), 0)),
-          0
-        ) * 100
-      ) / 100;
+    const openDebt = computeRemaining(s.installments);
     hits.push({
       type: "STUDENT",
       id: s.id,

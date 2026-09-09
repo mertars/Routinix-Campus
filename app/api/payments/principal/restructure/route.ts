@@ -7,6 +7,7 @@ import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { splitIntoInstallments } from "@/lib/server/payments/installment-math";
 import { apiFailure } from "@/lib/server/api-failure";
+import { computeRemaining } from "@/lib/server/payments/student-debt";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ async function handleGet(request: NextRequest) {
       include: { payments: { where: { status: "COMPLETED" }, select: { amount: true } } },
     });
 
-    const remaining = open.reduce((sum, i) => sum + (Number(i.amount) - i.payments.reduce((s, p) => s + Number(p.amount), 0)), 0);
+    const remaining = computeRemaining(open);
     return NextResponse.json({
       openCount: open.length,
       remainingAmount: Math.round(remaining * 100) / 100,
@@ -77,7 +78,7 @@ async function handlePost(request: NextRequest) {
     });
     if (open.length === 0) return NextResponse.json({ error: "Yapılandırılacak açık taksit yok." }, { status: 400 });
 
-    const remaining = Math.round(open.reduce((sum, i) => sum + (Number(i.amount) - i.payments.reduce((s, p) => s + Number(p.amount), 0)), 0) * 100) / 100;
+    const remaining = computeRemaining(open);
     if (remaining <= 0) return NextResponse.json({ error: "Kalan borç bulunmuyor." }, { status: 400 });
 
     const amounts = splitIntoInstallments(remaining, installmentCount);

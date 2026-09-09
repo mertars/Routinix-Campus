@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/server/prisma";
 import { createInstallmentPlan } from "@/lib/server/payments/plan-service";
 import { academicYearOf, currentAcademicYear } from "@/lib/payments/academic-year";
+import { computeRemaining } from "@/lib/server/payments/student-debt";
 
 // Kayıt süresi bitmeden kaç gün önce "yenileme" listesinde görünsün.
 // 60 gün: veliyle konuşup fiyat belirlemeye ve sözleşme yenilemeye
@@ -110,13 +111,7 @@ export async function listRenewalCandidates(institutionId: string, windowDays = 
   });
 
   return rows.map((e): RenewalCandidate => {
-    const openDebt =
-      Math.round(
-        e.student.installments.reduce(
-          (sum, i) => sum + (Number(i.amount) - i.payments.reduce((s, p) => s + Number(p.amount), 0)),
-          0
-        ) * 100
-      ) / 100;
+    const openDebt = computeRemaining(e.student.installments);
     const daysLeft = Math.round(
       (new Date(e.endDate.getFullYear(), e.endDate.getMonth(), e.endDate.getDate()).getTime() -
         new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) /

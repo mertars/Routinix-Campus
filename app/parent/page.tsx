@@ -39,12 +39,21 @@ type StudentDetail = {
   targetNet: number | null;
   actualNet: number | null;
   attendanceRate: number;
+  openDebt: number;
+  overdueDebt: number;
+  nextDueDate: string | null;
+  nextDueAmount: number | null;
 };
+
+function formatTRY(n: number) {
+  return n.toLocaleString("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 });
+}
 
 export default function ParentPage() {
   const logout = useLogout();
   const router = useRouter();
   const [parentName, setParentName] = useState("");
+  const [totals, setTotals] = useState<{ open: number; overdue: number }>({ open: 0, overdue: 0 });
   const [students, setStudents] = useState<StudentDetail[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("overview");
@@ -66,6 +75,7 @@ export default function ParentPage() {
         if (cancelled) return;
         setParentName(data.name ?? "");
         setStudents(data.students ?? []);
+        setTotals({ open: data.totalOpenDebt ?? 0, overdue: data.totalOverdue ?? 0 });
         if (data.students?.[0]) setSelectedStudentId(data.students[0].id);
       })
       .catch(() => {
@@ -109,6 +119,43 @@ export default function ParentPage() {
           <p className="mb-8 text-sm text-espresso-muted dark:text-cream/60">
             Sisteme bağlı öğrencilerinizin akademik performansını görüntüleyin.
           </p>
+
+          {/* Kardeşli veli özeti.
+              "Bu ay toplam ne ödeyeceğim?" sorusunun cevabını almak
+              eskiden çocuk çocuk geçip ödeme ekranını tek tek açmayı
+              gerektiriyordu. Tek çocuklu velide bu şerit GÖSTERİLMEZ —
+              orada zaten tek rakam var, tekrar etmek gürültü olur. */}
+          {students.length > 1 && totals.open > 0 && (
+            <div className="mb-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5">
+              <p className="text-xs text-espresso-muted dark:text-cream/40">
+                {students.length} çocuk için toplam açık borç
+              </p>
+              <p className="text-3xl font-bold text-espresso dark:text-cream">{formatTRY(totals.open)}</p>
+              {totals.overdue > 0 && (
+                <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+                  Bunun {formatTRY(totals.overdue)} kadarı vadesi geçmiş.
+                </p>
+              )}
+              <div className="mt-3 space-y-1">
+                {students.map((s) => (
+                  <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-espresso dark:text-cream">
+                      {s.firstName} {s.lastName}
+                      <span className="ml-1 text-espresso-muted dark:text-cream/40">({s.branchName})</span>
+                    </span>
+                    <span className="font-medium text-espresso dark:text-cream">
+                      {formatTRY(s.openDebt)}
+                      {s.nextDueDate && (
+                        <span className="ml-1 font-normal text-espresso-muted dark:text-cream/40">
+                          · sıradaki vade {new Date(s.nextDueDate).toLocaleDateString("tr-TR")}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {students.length > 1 && (
             <div className="mb-8 rounded-2xl border border-hairline bg-white p-6 shadow-sm dark:border-white/5 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
@@ -238,10 +285,18 @@ function PerformanceCard({ detail }: { detail: StudentDetail }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Stat icon={Target} label="Güncel Net" value={detail.actualNet != null ? detail.actualNet.toString() : "—"} />
         <Stat icon={Target} label="Hedef Net" value={detail.targetNet != null ? detail.targetNet.toString() : "—"} />
         <Stat icon={CalendarCheck2} label="Devam Oranı" value={`%${Math.round(detail.attendanceRate)}`} />
+        {/* Borç, velinin en sık merak ettiği ikinci şey; ödeme modülüne
+            girmeden görünmeli. Borç yoksa "0 ₺" değil "yok" yazar —
+            sıfır rakamı gereksiz bir uyarı gibi okunur. */}
+        <Stat
+          icon={Wallet}
+          label={detail.overdueDebt > 0 ? "Açık Borç (gecikmiş)" : "Açık Borç"}
+          value={detail.openDebt > 0 ? formatTRY(detail.openDebt) : "Yok"}
+        />
       </div>
     </motion.div>
   );

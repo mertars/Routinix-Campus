@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/server/prisma";
 import { computeAccountBalances } from "@/lib/server/payments/account-balance";
+import { computeRemaining } from "@/lib/server/payments/student-debt";
 
 // tab: uyarının çözüleceği sekme. Uyarı ne olduğunu söyleyip nereye
 // gidileceğini söylemezse müdür yine sekme sekme aramak zorunda kalır.
@@ -58,10 +59,7 @@ export async function buildDigest(institutionId: string, institutionName: string
     }),
   ]);
 
-  const remaining = (rows: { amount: unknown; payments: { amount: unknown }[] }[]) =>
-    Math.round(
-      rows.reduce((sum, i) => sum + (Number(i.amount) - i.payments.reduce((s, p) => s + Number(p.amount), 0)), 0) * 100
-    ) / 100;
+  const remaining = computeRemaining;
 
   const totalBalance = Math.round(balances.reduce((sum, b) => sum + b.balance, 0) * 100) / 100;
   const overdueTotal = remaining(overdue);

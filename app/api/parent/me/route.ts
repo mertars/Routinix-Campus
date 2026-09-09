@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { computeAttendanceRateFromCounts } from "@/lib/attendance/status";
+import { getStudentDebts } from "@/lib/server/payments/student-debt";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
@@ -40,6 +41,11 @@ async function handleGet() {
   if (!parent) {
     return NextResponse.json({ error: "Veli kaydı bulunamadı." }, { status: 404 });
   }
+
+  // Tüm çocukların borcu TEK sorguda. İki çocuklu bir velide bu iki
+  // ayrı gidiş dönüş olurdu; velinin sorduğu soru zaten "toplam ne
+  // ödeyeceğim".
+  const debts = await getStudentDebts(parent.students.map(({ student }) => student.id));
 
   const students = await Promise.all(
     parent.students.map(async ({ student }) => {
@@ -90,14 +96,23 @@ async function handleGet() {
         targetNet: student.targetNet,
         actualNet,
         attendanceRate: computeAttendanceRateFromCounts(counts),
+        ...(debts.get(student.id) ?? { openDebt: 0, overdueDebt: 0, nextDueDate: null, nextDueAmount: null }),
       };
     })
   );
+
+  // Kardeşli velinin ilk sorusu: "bu ay toplam ne ödeyeceğim?" Eskiden
+  // bunu öğrenmenin tek yolu çocuk çocuk geçip ödeme ekranını tek tek
+  // açmaktı.
+  const totalOpenDebt = Math.round(students.reduce((sum, s) => sum + s.openDebt, 0) * 100) / 100;
+  const totalOverdue = Math.round(students.reduce((sum, s) => sum + s.overdueDebt, 0) * 100) / 100;
 
   return NextResponse.json({
     id: parent.id,
     name: `${parent.firstName} ${parent.lastName}`.trim(),
     students,
+    totalOpenDebt,
+    totalOverdue,
   });
 }
 
