@@ -5,6 +5,7 @@ import { Loader2, Users, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { runChunked } from "@/lib/client/chunked-import";
 
 type BulkStudent = { id: string; name: string; branchId: string; branchName: string; hasPlan: boolean };
 type Branch = { id: string; name: string; grade: number };
@@ -29,6 +30,7 @@ export function BulkPlanModal({ isOpen, onClose, onDone }: { isOpen: boolean; on
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [prefix, setPrefix] = useState("2026-2027 Eğitim Ücreti");
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number; percent: number } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -68,28 +70,47 @@ export function BulkPlanModal({ isOpen, onClose, onDone }: { isOpen: boolean; on
     if (!window.confirm(`${selected.size} öğrenciye ${n} taksitlik plan kurulacak.\n\nListe fiyatı: ${formatTRY(total)}\nİndirimler öğrenci bazında ayrıca uygulanır.\n\nOnaylıyor musunuz?`)) return;
 
     setSaving(true);
+    setProgress(null);
     try {
-      const res = await fetch("/api/payments/principal/installments/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentIds: [...selected],
-          totalAmount: total,
-          installmentCount: n,
-          startDate,
-          titlePrefix: prefix.trim() || undefined,
-        }),
-      });
-      const d = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(d?.error);
-      const extra = d.failed?.length > 0 ? ` ${d.failed.length} öğrencide hata oluştu.` : "";
-      showSuccess(`${d.createdCount} öğrenciye plan kuruldu.${extra}`);
+      // PARÇA PARÇA gönderilir. Tek istekte 100 öğrenci 31 saniye
+      // sürüyordu ve ekranda yalnızca dönen bir çember vardı; izin
+      // verilen üst sınırda (500) bu süre zaman aşımına giderdi.
+      // Parça büyüklüğü burada 20: her öğrenci için indirim hesabı +
+      // N taksit satırı yazılıyor, öğrenci başına maliyet içe
+      // aktarmadakinden yüksek.
+      let createdCount = 0;
+      const failures = await runChunked<string, { studentId: string; name: string; error: string }>(
+        [...selected],
+        20,
+        async (chunk) => {
+          const res = await fetch("/api/payments/principal/installments/bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              studentIds: chunk,
+              totalAmount: total,
+              installmentCount: n,
+              startDate,
+              titlePrefix: prefix.trim() || undefined,
+            }),
+          });
+          const d = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(d?.error);
+          createdCount += d.createdCount ?? 0;
+          return (d.failed ?? []) as { studentId: string; name: string; error: string }[];
+        },
+        setProgress
+      );
+
+      const extra = failures.length > 0 ? ` ${failures.length} öğrencide hata oluştu.` : "";
+      showSuccess(`${createdCount} öğrenciye plan kuruldu.${extra}`);
       onDone();
       onClose();
     } catch (e) {
       showError(e instanceof Error && e.message ? e.message : "Toplu plan kurulamadı.");
     } finally {
       setSaving(false);
+      setProgress(null);
     }
   }
 
@@ -185,6 +206,21 @@ export function BulkPlanModal({ isOpen, onClose, onDone }: { isOpen: boolean; on
               ayrıca uygulanır.
             </div>
 
+            {/* Borç yazmak uzun sürer; müdür "dondu mu?" diye sayfayı
+                yenilerse yarım kalmış bir plan kümesiyle karşılaşır. */}
+            {progress && (
+              <div className="mb-2">
+                <div className="mb-1 flex justify-between text-[11px] text-espresso-muted dark:text-cream/40">
+                  <span>Planlar kuruluyor...</span>
+                  <span>
+                    {progress.done}/{progress.total}
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-cream-card dark:bg-white/10">
+                  <div className="h-full rounded-full bg-emerald-600 transition-all" style={{ width: `${progress.percent}%` }} />
+                </div>
+              </div>
+            )}
             <button
               onClick={submit}
               disabled={saving || selected.size === 0}

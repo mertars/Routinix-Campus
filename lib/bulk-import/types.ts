@@ -24,7 +24,11 @@ export type ValidatedRow = {
 // "Öğrenci GSM" giriş ekranının tek kimlik doğrulama yolu olduğu için
 // zorunludur — kişisel telefonu olmayan öğrenciler için veli numarası
 // tekrar girilebilir.
-export const STUDENT_COLUMNS = ["T.C. No", "Ad Soyad", "Öğrenci GSM", "Şube", "Veli Ad Soyad", "Veli GSM", "Özel Not"] as const;
+// "SMS İzni": veli, kurumdan SMS almayı kabul etti mi (Evet/Hayır).
+// Sütun ŞABLONDA olmak zorunda — sunucu okusa bile şablonda görünmezse
+// kimse doldurmaz ve izin sessizce kapalı kalır (bkz. smsConsent
+// bulgusu). Boş bırakılırsa rıza VERİLMEMİŞ sayılır.
+export const STUDENT_COLUMNS = ["T.C. No", "Ad Soyad", "Öğrenci GSM", "Şube", "Veli Ad Soyad", "Veli GSM", "SMS İzni", "Özel Not"] as const;
 export const TEACHER_COLUMNS = ["T.C. No", "Ad Soyad", "Branş", "GSM", "E-posta", "Danışman Şube"] as const;
 // Segment: LGS | YKS | MEZUN — Sınıf Seviyesi: LGS için 5-8, YKS için 9-12,
 // MEZUN için temsili olarak 12 yazılabilir (bkz. lib/server/admin/branches.ts).

@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 import { columnsFor, type ImportRole } from "./types";
 
-const SAMPLE_STUDENT_ROW = ["12345678901", "Ayşe Yılmaz", "05559876543", "12-A VIP", "Mehmet Yılmaz", "05551234567", ""];
+const SAMPLE_STUDENT_ROW = ["12345678901", "Ayşe Yılmaz", "05559876543", "12-A VIP", "Mehmet Yılmaz", "05551234567", "Evet", ""];
 const SAMPLE_TEACHER_ROW = ["12345678901", "Ahmet Demir", "Matematik", "05551234567", "ahmet@ornek.com", "12-A VIP"];
 const SAMPLE_BRANCH_ROW = ["12-A VIP", "12", "YKS", "Sayısal"];
 

@@ -23,6 +23,14 @@ type RowResult = {
 
 import { bulkCreateStudents } from "@/lib/server/admin/bulk-students";
 
+
+// Dosyadan gelen "SMS İzni" sütununu okur. Türkçe dosyalarda bu alan
+// "Evet"/"Hayır" yazılır; boş bırakılırsa rıza VERİLMEMİŞ sayılır.
+function parseConsent(value: unknown): boolean {
+  const text = (value ?? "").toString().trim().toLocaleLowerCase("tr");
+  return ["evet", "e", "var", "1", "true", "x", "✓"].includes(text);
+}
+
 export async function runBulkImport(
   role: BulkImportRole,
   rows: RawRow[],
@@ -70,6 +78,9 @@ export async function runBulkImport(
         parentName: (row.parentName ?? row["Veli Ad Soyad"] ?? "").toString(),
         parentPhone: (row.parentPhone ?? row["Veli GSM"] ?? "").toString(),
         healthNote: (row.healthNote ?? row["Özel Not"])?.toString(),
+        // "SMS İzni" sütunu: Evet/E/1/true kabul edilir. Sütun yoksa
+        // izin KAPALI sayılır — rıza varsayılan olarak verilmez.
+        parentSmsConsent: parseConsent(row.parentSmsConsent ?? row["SMS İzni"]),
       })),
       institutionId,
       actorId
