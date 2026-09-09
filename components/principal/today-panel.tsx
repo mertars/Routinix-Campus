@@ -1,23 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { CheckCircle2, ArrowRight, RefreshCw, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToday, type TaskUrgency, type TodayTask } from "@/lib/today-context";
 
-type Urgency = "critical" | "attention" | "info";
-type Task = {
-  key: string;
-  title: string;
-  detail: string;
-  count: number;
-  urgency: Urgency;
-  tab?: string;
-  href?: string;
-};
-
-const STYLE: Record<Urgency, { dot: string; ring: string; label: string }> = {
+const STYLE: Record<TaskUrgency, { dot: string; ring: string; label: string }> = {
   critical: { dot: "bg-red-500", ring: "hover:border-red-400/50", label: "Bugün" },
   attention: { dot: "bg-amber-500", ring: "hover:border-amber-400/50", label: "Bu hafta" },
   info: { dot: "bg-brand-500", ring: "hover:border-brand-400/50", label: "Bilgi" },
@@ -25,7 +14,7 @@ const STYLE: Record<Urgency, { dot: string; ring: string; label: string }> = {
 
 // "Bugün ne yapmam lazım?" paneli.
 //
-// Müdür panelinde 19, ödeme panelinde 13 sekme var — toplam 32. Bunların
+// Müdür panelinde 18, ödeme panelinde 11 sekme var — toplam 29. Bunların
 // çoğu yılda ya da ayda bir açılıyor; günlük iş küçük bir alt küme.
 // Ekran özellik listesi gibi kurulmuştu, oysa müdürün sorusu "hangi
 // özellikler var" değil "bugün ne bekliyor".
@@ -36,36 +25,13 @@ const STYLE: Record<Urgency, { dot: string; ring: string; label: string }> = {
 // gürültüdür.
 export function TodayPanel({ onGoTab }: { onGoTab: (tab: string) => void }) {
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/today");
-      const d = res.ok ? await res.json() : null;
-      setTasks(d?.tasks ?? null);
-    } catch {
-      setTasks(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Sekmeye gidip iş yapıp dönen müdür güncel listeyi görsün.
-  useEffect(() => {
-    const onFocus = () => void load();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [load]);
+  // Veri TodayProvider'dan gelir — aynı sayıları yan menü adaları da
+  // rozet olarak çiziyor, uç nokta iki kez çağrılmasın.
+  const { tasks, loading, reload } = useToday();
 
   if (!tasks) return null;
 
-  function go(task: Task) {
+  function go(task: TodayTask) {
     if (task.href) router.push(task.href);
     else if (task.tab) onGoTab(task.tab);
   }
@@ -93,7 +59,7 @@ export function TodayPanel({ onGoTab }: { onGoTab: (tab: string) => void }) {
           </span>
         </h2>
         <button
-          onClick={load}
+          onClick={reload}
           aria-label="Yenile"
           className="text-espresso-muted transition hover:text-brand-600 dark:text-cream/40"
         >

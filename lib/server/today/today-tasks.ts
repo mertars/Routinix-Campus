@@ -5,7 +5,7 @@ import { RENEWAL_WINDOW_DAYS } from "@/lib/server/enrollment/enrollment-service"
 
 // "BUGÜN NE YAPMAM LAZIM?"
 //
-// Müdür panelinde 19, ödeme panelinde 13 sekme var. Ölçüldü: bunların
+// Müdür panelinde 18, ödeme panelinde 11 sekme var. Ölçüldü: bunların
 // çoğu yılda bir (sınıf atlatma) ya da ayda bir (bordro) açılıyor;
 // günlük iş küçük bir alt küme. Ekran ÖZELLİK LİSTESİ gibi kurulmuş,
 // oysa müdürün sorusu "hangi özellikler var" değil, "bugün ne

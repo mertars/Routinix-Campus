@@ -5,6 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LayoutDashboard, GraduationCap, ClipboardList, Grid3x3, X, Search } from "lucide-react";
 import type { NavTab } from "@/components/principal/floating-nav";
 import { cn } from "@/lib/utils";
+import { useToday } from "@/lib/today-context";
+import { topUrgency, type NavBadge, type TaskUrgency } from "@/lib/today-badges";
+
+const BADGE_TONE: Record<TaskUrgency, string> = {
+  critical: "bg-red-500 text-white",
+  attention: "bg-amber-500 text-espresso",
+  info: "bg-brand-500 text-white",
+};
 
 const AKADEMIK_IDS = ["students", "upload", "exam-seating", "live-tutoring"];
 const IDARI_IDS = ["attendance", "schedule-matrix", "campus", "risk"];
@@ -54,20 +62,52 @@ function BottomSheetShell({
   );
 }
 
-function ModuleGridButton({ tab, isActive, onClick }: { tab: NavTab; isActive: boolean; onClick: () => void }) {
+function ModuleGridButton({
+  tab,
+  isActive,
+  onClick,
+  badge,
+}: {
+  tab: NavTab;
+  isActive: boolean;
+  onClick: () => void;
+  badge?: NavBadge;
+}) {
   return (
     <button
       onClick={onClick}
       className={cn(
-        "flex min-h-[64px] flex-col items-start justify-center gap-1.5 rounded-2xl border px-3 py-2.5 text-left transition",
+        "relative flex min-h-[64px] flex-col items-start justify-center gap-1.5 rounded-2xl border px-3 py-2.5 text-left transition",
         isActive
           ? "border-brand-500/40 bg-brand-500/10 text-brand-700 dark:text-brand-300"
           : "border-hairline bg-cream-card text-espresso dark:border-white/10 dark:bg-white/5 dark:text-cream"
       )}
     >
+      {badge && (
+        <span
+          className={cn(
+            "absolute right-2 top-2 flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none tabular-nums",
+            BADGE_TONE[badge.urgency]
+          )}
+        >
+          {badge.count > 9 ? "9+" : badge.count}
+        </span>
+      )}
       <tab.icon className={cn("h-4 w-4", isActive ? "text-brand-600 dark:text-brand-400" : "text-brand-600")} />
       <span className="text-xs font-medium leading-tight">{tab.label}</span>
     </button>
+  );
+}
+
+/** Alt çubuktaki grup düğmesine düşen nokta — kapalı sayfadaki işi haber verir. */
+function GroupDot({ urgency }: { urgency: TaskUrgency }) {
+  return (
+    <span
+      className={cn(
+        "absolute right-[26%] top-2 h-2 w-2 rounded-full ring-2 ring-white dark:ring-midnight",
+        urgency === "critical" ? "bg-red-500" : urgency === "attention" ? "bg-amber-500" : "bg-brand-500"
+      )}
+    />
   );
 }
 
@@ -88,6 +128,17 @@ export function PrincipalMobileNav({
 
   const [openSheet, setOpenSheet] = useState<"akademik" | "idari" | "all" | null>(null);
   const [query, setQuery] = useState("");
+
+  // Bekleyen iş masaüstünde yan menü rozetinde görünüyor; mobilde de
+  // görünmezse aynı bilgi telefonda kaybolurdu.
+  const { badges } = useToday();
+  const otherIds = useMemo(
+    () => allTabs.map((t) => t.id).filter((id) => id !== "overview" && !AKADEMIK_IDS.includes(id) && !IDARI_IDS.includes(id)),
+    [allTabs]
+  );
+  const akademikUrgency = topUrgency(AKADEMIK_IDS, badges);
+  const idariUrgency = topUrgency(IDARI_IDS, badges);
+  const otherUrgency = topUrgency(otherIds, badges);
 
   function handleSelect(id: string) {
     onSelect(id);
@@ -127,6 +178,7 @@ export function PrincipalMobileNav({
           {isAkademikActive && (
             <motion.span layoutId="principalMobilePill" className="absolute inset-x-3 top-1 h-0.5 rounded-full bg-brand-600" transition={{ type: "spring", stiffness: 400, damping: 32 }} />
           )}
+          {akademikUrgency && <GroupDot urgency={akademikUrgency} />}
           <GraduationCap className={cn("h-5 w-5", isAkademikActive ? "text-brand-600" : "text-espresso/50 dark:text-cream/40")} />
           <span className={cn("text-[9px] leading-tight", isAkademikActive ? "font-semibold text-brand-600" : "text-espresso/50 dark:text-cream/40")}>
             Akademik
@@ -140,6 +192,7 @@ export function PrincipalMobileNav({
           {isIdariActive && (
             <motion.span layoutId="principalMobilePill" className="absolute inset-x-3 top-1 h-0.5 rounded-full bg-brand-600" transition={{ type: "spring", stiffness: 400, damping: 32 }} />
           )}
+          {idariUrgency && <GroupDot urgency={idariUrgency} />}
           <ClipboardList className={cn("h-5 w-5", isIdariActive ? "text-brand-600" : "text-espresso/50 dark:text-cream/40")} />
           <span className={cn("text-[9px] leading-tight", isIdariActive ? "font-semibold text-brand-600" : "text-espresso/50 dark:text-cream/40")}>
             İdari & Akış
@@ -153,6 +206,7 @@ export function PrincipalMobileNav({
           {isOtherActive && (
             <motion.span layoutId="principalMobilePill" className="absolute inset-x-3 top-1 h-0.5 rounded-full bg-brand-600" transition={{ type: "spring", stiffness: 400, damping: 32 }} />
           )}
+          {otherUrgency && <GroupDot urgency={otherUrgency} />}
           <Grid3x3 className={cn("h-5 w-5", isOtherActive ? "text-brand-600" : "text-espresso/50 dark:text-cream/40")} />
           <span className={cn("text-[9px] leading-tight", isOtherActive ? "font-semibold text-brand-600" : "text-espresso/50 dark:text-cream/40")}>
             Tüm Modüller
@@ -170,7 +224,7 @@ export function PrincipalMobileNav({
           </div>
           <div className="grid grid-cols-2 gap-2">
             {akademikTabs.map((tab) => (
-              <ModuleGridButton key={tab.id} tab={tab} isActive={tab.id === activeTab} onClick={() => handleSelect(tab.id)} />
+              <ModuleGridButton key={tab.id} tab={tab} isActive={tab.id === activeTab} onClick={() => handleSelect(tab.id)} badge={badges[tab.id]} />
             ))}
           </div>
         </div>
@@ -186,7 +240,7 @@ export function PrincipalMobileNav({
           </div>
           <div className="grid grid-cols-2 gap-2">
             {idariTabs.map((tab) => (
-              <ModuleGridButton key={tab.id} tab={tab} isActive={tab.id === activeTab} onClick={() => handleSelect(tab.id)} />
+              <ModuleGridButton key={tab.id} tab={tab} isActive={tab.id === activeTab} onClick={() => handleSelect(tab.id)} badge={badges[tab.id]} />
             ))}
           </div>
         </div>
@@ -218,7 +272,7 @@ export function PrincipalMobileNav({
               </p>
               <div className="mb-4 grid grid-cols-2 gap-2">
                 {filteredLeft.map((tab) => (
-                  <ModuleGridButton key={tab.id} tab={tab} isActive={tab.id === activeTab} onClick={() => handleSelect(tab.id)} />
+                  <ModuleGridButton key={tab.id} tab={tab} isActive={tab.id === activeTab} onClick={() => handleSelect(tab.id)} badge={badges[tab.id]} />
                 ))}
               </div>
             </>
@@ -230,7 +284,7 @@ export function PrincipalMobileNav({
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {filteredRight.map((tab) => (
-                  <ModuleGridButton key={tab.id} tab={tab} isActive={tab.id === activeTab} onClick={() => handleSelect(tab.id)} />
+                  <ModuleGridButton key={tab.id} tab={tab} isActive={tab.id === activeTab} onClick={() => handleSelect(tab.id)} badge={badges[tab.id]} />
                 ))}
               </div>
             </>
