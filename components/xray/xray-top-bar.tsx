@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Scan, ArrowLeft, LogOut, ShieldAlert, TrendingDown, ListTodo, Users, LayoutGrid, LayoutDashboard, ChevronDown } from "lucide-react";
+import { LogOut, ShieldAlert, TrendingDown, ListTodo, Users, LayoutGrid, LayoutDashboard, ChevronDown } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
 import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
 import { XrayAssignmentTrackingDashboard } from "@/components/xray/xray-assignment-tracking-dashboard";
@@ -17,12 +18,14 @@ import { XrayBranchAveragePanel } from "@/components/xray/xray-branch-average-pa
 import { XrayInstitutionOverviewPanel } from "@/components/xray/xray-institution-overview-panel";
 import { cn } from "@/lib/utils";
 
-// Akademik Röntgen (Hub'daki 2. modül) — BİLEREK ERP'nin TopBar'ından ayrı
-// bir bileşen. Hub'ın "3 ayrı modül" kurgusuna sadık kalmak için (bkz.
-// app/hub/page.tsx) bu modül kendi görsel kimliğine sahip: sıcak turuncu
-// marka rengi yerine SOĞUK mavi/camgöbeği ("röntgen filmi" hissi) — kurum
-// rozetindeki turuncu vurgu (InstitutionBadgeIcon/logo) ile KARIŞMASIN diye
-// bilinçli bir kontrast tercihi. Mobil/masaüstü için AYRI iki satır (bkz.
+// Akademik Röntgen (Hub'daki 2. modül). Soğuk mavi kimliği duruyor —
+// "röntgen filmi" hissi, kurum rozetindeki turuncuyla karışmasın diye —
+// ama artık modül kaydından geliyor (bkz. lib/modules.ts).
+//
+// ⚠️ Eski kurgu değişti: bu dosya "hub'ın '3 ayrı modül' kurgusuna sadık
+// kalmak için" ERP'den ayrı tutulmuştu. Artık istenen tersi — sol üstteki
+// "hub'a dön" oku yerini ModuleSwitcher'a bıraktı, modüller arası geçiş
+// çıkmadan yapılıyor. Mobil/masaüstü için AYRI iki satır (bkz.
 // principal/student/teacher top-bar.tsx'teki AYNI kurulmuş desen) — tek
 // satırı küçültmeye/truncate'e güvenmek yerine dar ekranda ne göründüğü
 // NET olsun diye.
@@ -83,17 +86,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
         {/* Mobil düzen: geri + kompakt rozet + tema + çıkış (ikon-only) */}
         <div className="flex items-center justify-between gap-2 md:hidden">
           <div className="flex min-w-0 items-center gap-2">
-            <button
-              onClick={() => router.push("/hub")}
-              aria-label="Hub'a dön"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-sky-700 shadow-sm backdrop-blur-sm dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-300">
-              <Scan className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate text-[11px] font-semibold">Röntgen</span>
-            </div>
+            <ModuleSwitcher current="xray" />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <ThemeToggle />
@@ -133,22 +126,12 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
         {/* Masaüstü düzen */}
         <div className="hidden items-center justify-between gap-3 md:flex">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/hub")}
-              aria-label="Hub'a dön"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
+            <ModuleSwitcher current="xray" />
             <div className="flex items-center gap-2 rounded-2xl border border-sky-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(14_165_233/0.25)] dark:border-sky-500/20 dark:bg-midnight-card/50">
               <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
               <span className={cn(spaceGrotesk.className, "whitespace-nowrap text-sm font-semibold text-espresso dark:text-cream")}>
                 Routinix Kampüs
               </span>
-            </div>
-            <div className="flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-sky-700 shadow-sm backdrop-blur-sm dark:border-sky-400/25 dark:bg-sky-400/10 dark:text-sky-300">
-              <Scan className="h-3.5 w-3.5" />
-              <span className="text-xs font-semibold">Akademik Röntgen</span>
             </div>
           </div>
 

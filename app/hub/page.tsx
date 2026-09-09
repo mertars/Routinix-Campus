@@ -3,70 +3,30 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Building2, Scan, FileBarChart, Clapperboard, Wallet, LogOut, type LucideIcon } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { AuroraOrbs, GlowLogo, spaceGrotesk, AURORA_GRID_STYLE } from "@/components/ui/aurora-brand";
 import { useLogout } from "@/lib/role-context";
 import { useToast } from "@/lib/toast-context";
+import { MODULES, moduleHref, type ModuleDef } from "@/lib/modules";
+import { useAgenda, type ModuleWork } from "@/lib/agenda-store";
 import { cn } from "@/lib/utils";
 
 type RoleId = "principal" | "teacher" | null;
 
 type SessionInfo = { name: string; roleId: RoleId; institutionName: string | null };
 
-type ModuleDef = {
-  id: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  active: boolean;
-};
-
-const MODULES: ModuleDef[] = [
-  {
-    id: "erp",
-    label: "Kampüs ERP & Finans",
-    description: "Kadro, şube, yoklama, ödev ve tüm mevcut yönetim araçları.",
-    icon: Building2,
-    active: true,
-  },
-  {
-    id: "xray",
-    label: "Akademik Röntgen",
-    description: "Öğrenci bazlı derin performans ve konu analizi.",
-    icon: Scan,
-    active: true,
-  },
-  {
-    id: "measurement",
-    label: "Ölçme Değerlendirme",
-    description: "Deneme sonuçlarını kazanım bazlı analiz et, Akademik Röntgen'i otomatik besle.",
-    icon: FileBarChart,
-    active: true,
-  },
-  {
-    id: "video",
-    label: "Video Ders Merkezi",
-    description: "Konu anlatım videolarını yükle, sınıf/ders/konuya göre grupla, öğrenciye tek tuşla ata.",
-    icon: Clapperboard,
-    active: true,
-  },
-  {
-    id: "payments",
-    label: "Ödeme Takip",
-    description: "Öğrenci taksit planı, tahsilat kaydı ve kasa/banka bakiyesi tek ekranda.",
-    icon: Wallet,
-    active: true,
-  },
-];
-
 function ModuleCard({
   module: mod,
   index,
   onSelect,
+  enabled,
+  work,
 }: {
   module: ModuleDef;
   index: number;
   onSelect: () => void;
+  enabled: boolean;
+  work: ModuleWork;
 }) {
   const Icon = mod.icon;
   return (
@@ -74,22 +34,35 @@ function ModuleCard({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.08, ease: "easeOut" }}
-      whileHover={mod.active ? { y: -4 } : undefined}
-      whileTap={mod.active ? { scale: 0.98 } : undefined}
+      whileHover={enabled ? { y: -4 } : undefined}
+      whileTap={enabled ? { scale: 0.98 } : undefined}
       onClick={onSelect}
       className={cn(
         "group relative flex min-h-[220px] flex-col items-center justify-center gap-3 overflow-hidden rounded-2xl border p-6 text-center shadow-xl backdrop-blur-sm transition-colors duration-300",
-        mod.active
+        enabled
           ? "border-white/10 bg-white/[0.04] hover:border-[#FF8C00]/40 cursor-pointer"
           : "border-white/5 bg-white/[0.02] cursor-not-allowed"
       )}
     >
-      {!mod.active && (
+      {!enabled && (
         <span className="absolute right-3 top-3 rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/50">
-          Yakında
+          Yalnızca yönetim
         </span>
       )}
-      {mod.active && (
+      {/* Hub artık sadece bir kapı değil: hangi modülde iş biriktiği
+          girmeden önce görünüyor. Sayı Gündem'in zaten hesapladığı
+          veriden gelir (bkz. lib/agenda-store.ts) — yeni sorgu yok. */}
+      {enabled && work.count > 0 && (
+        <span
+          className={cn(
+            "absolute right-3 top-3 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold",
+            work.critical > 0 ? "bg-red-500 text-white" : "bg-amber-500 text-[#2C221E]"
+          )}
+        >
+          {work.count} iş
+        </span>
+      )}
+      {enabled && (
         <div
           className="pointer-events-none absolute -inset-1 rounded-[1.5rem] bg-gradient-to-br from-[#FF6B00]/0 to-transparent opacity-0 blur-xl transition-opacity duration-300 group-hover:from-[#FF6B00]/40 group-hover:opacity-100"
           aria-hidden
@@ -98,7 +71,7 @@ function ModuleCard({
       <div
         className={cn(
           "relative flex h-14 w-14 items-center justify-center rounded-full border transition-transform duration-300",
-          mod.active
+          enabled
             ? "border-[#FF8C00]/20 bg-[#FF8C00]/10 text-[#FFA347] group-hover:scale-110"
             : "border-white/10 bg-white/[0.04] text-white/30"
         )}
@@ -106,8 +79,8 @@ function ModuleCard({
         <Icon className="h-7 w-7" />
       </div>
       <div className="relative">
-        <p className={cn("text-sm font-semibold", mod.active ? "text-white" : "text-white/50")}>{mod.label}</p>
-        <p className={cn("mt-1.5 text-xs leading-relaxed", mod.active ? "text-white/40" : "text-white/25")}>
+        <p className={cn("text-sm font-semibold", enabled ? "text-white" : "text-white/50")}>{mod.label}</p>
+        <p className={cn("mt-1.5 text-xs leading-relaxed", enabled ? "text-white/40" : "text-white/25")}>
           {mod.description}
         </p>
       </div>
@@ -128,22 +101,20 @@ export default function HubPage() {
       .catch(() => {});
   }, []);
 
+  const isTeacher = session.roleId === "teacher";
+  // Gündem uç noktası yönetici içindir; rol belli olana kadar da beklenir.
+  const { moduleWork } = useAgenda(session.roleId === "principal");
+
   function handleSelect(mod: ModuleDef) {
-    if (!mod.active) {
-      showToast("info", `${mod.label} yakında aktif olacak.`);
+    const href = moduleHref(mod, isTeacher);
+    // Ödeme Takip'in Faz 1'inde öğretmen görünümü YOK (finansal veri sadece
+    // yönetim + veli). Adres null gelirse middleware'in "yanlış rol"
+    // yönlendirmesine düşmek yerine burada net bir mesaj gösterilir.
+    if (!href) {
+      showToast("info", `${mod.label} yalnızca yönetici hesaplarına açıktır.`);
       return;
     }
-    const isTeacher = session.roleId === "teacher";
-    if (mod.id === "xray") router.push(isTeacher ? "/xray/teacher" : "/xray/principal");
-    else if (mod.id === "video") router.push(isTeacher ? "/videos/teacher" : "/videos/principal");
-    else if (mod.id === "measurement") router.push(isTeacher ? "/olcme/teacher" : "/olcme/principal");
-    // Ödeme Takip'in Faz 1'inde öğretmen görünümü YOK (finansal veri sadece
-    // yönetim + veli). Öğretmen tıklarsa middleware'in "yanlış rol"
-    // yönlendirmesine düşmek yerine burada net bir mesaj gösterilir.
-    else if (mod.id === "payments") {
-      if (isTeacher) showToast("info", "Ödeme Takip yalnızca yönetici hesaplarına açıktır.");
-      else router.push("/payments/principal");
-    } else router.push(isTeacher ? "/teacher" : "/principal");
+    router.push(href);
   }
 
   return (
@@ -174,7 +145,14 @@ export default function HubPage() {
 
       <div className="relative z-10 grid w-full max-w-4xl gap-4 sm:grid-cols-3">
         {MODULES.map((mod, index) => (
-          <ModuleCard key={mod.id} module={mod} index={index} onSelect={() => handleSelect(mod)} />
+          <ModuleCard
+            key={mod.id}
+            module={mod}
+            index={index}
+            enabled={moduleHref(mod, isTeacher) !== null}
+            work={moduleWork[mod.id]}
+            onSelect={() => handleSelect(mod)}
+          />
         ))}
       </div>
     </main>

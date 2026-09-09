@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Wallet, ArrowLeft, LogOut } from "lucide-react";
+import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -10,11 +11,11 @@ import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
 
-// Ödeme Takip (Hub'daki 5. modül) — diğer modüller gibi (bkz. video-top-bar.tsx
-// AYNI gerekçe) kendi görsel kimliği: zümrüt yeşili — ERP'nin turuncusu,
-// Röntgen'in mavisi ve Video'nun morundan AYRI, "para/gelir" çağrışımı için.
+// Ödeme Takip (Hub'daki 5. modül). Zümrüt yeşili kimliği duruyor ama artık
+// modül kaydından geliyor (bkz. lib/modules.ts) ve sol üstteki ok yerine
+// ModuleSwitcher var: müdür buradan çıkmadan başka modüle geçebiliyor.
 // backHref: veli tarafında (bkz. /parent geri dönüşü) hub'a değil, kendi
-// ana sayfasına dönmesi gerekiyor — bu yüzden sabit değil, prop.
+// ana sayfasına dönmesi gerekiyor — orada modül değiştirme de yok.
 export function PaymentsTopBar({ roleLabel, backHref = "/hub" }: { roleLabel: string; backHref?: string }) {
   const router = useRouter();
   const logout = useLogout();
@@ -29,21 +30,28 @@ export function PaymentsTopBar({ roleLabel, backHref = "/hub" }: { roleLabel: st
     >
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
-          <button
-            onClick={() => router.push(backHref)}
-            aria-label="Geri dön"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          {backHref === "/hub" ? (
+            <ModuleSwitcher current="payments" />
+          ) : (
+            // Veli tarafı: modül değiştirme yok, kendi ana sayfasına döner.
+            <button
+              onClick={() => router.push(backHref)}
+              aria-label="Geri dön"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+          )}
           <div className="hidden items-center gap-2 rounded-2xl border border-emerald-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(16_185_129/0.25)] dark:border-emerald-500/20 dark:bg-midnight-card/50 md:flex">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "whitespace-nowrap text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>
           </div>
-          <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-700 shadow-sm backdrop-blur-sm dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-300 md:px-3">
-            <Wallet className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate text-[11px] font-semibold md:text-xs">Ödeme Takip</span>
-          </div>
+          {backHref !== "/hub" && (
+            <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-700 shadow-sm backdrop-blur-sm dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-300 md:px-3">
+              <Wallet className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate text-[11px] font-semibold md:text-xs">Ödeme Takip</span>
+            </div>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 md:gap-3">

@@ -1,8 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Clapperboard, ArrowLeft, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
+import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 // menekşe vurgu — ERP'nin turuncusu ve Röntgen'in mavisiyle KARIŞMASIN
 // diye üçüncü, ayırt edici bir renk.
 export function VideoTopBar({ roleLabel }: { roleLabel: string }) {
-  const router = useRouter();
   const logout = useLogout();
   const institutionName = useInstitutionName();
 
@@ -28,20 +27,10 @@ export function VideoTopBar({ roleLabel }: { roleLabel: string }) {
     >
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
-          <button
-            onClick={() => router.push("/hub")}
-            aria-label="Hub'a dön"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          <ModuleSwitcher current="video" />
           <div className="hidden items-center gap-2 rounded-2xl border border-violet-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(139_92_246/0.25)] dark:border-violet-500/20 dark:bg-midnight-card/50 md:flex">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "whitespace-nowrap text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>
-          </div>
-          <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1.5 text-violet-700 shadow-sm backdrop-blur-sm dark:border-violet-400/25 dark:bg-violet-400/10 dark:text-violet-300 md:px-3">
-            <Clapperboard className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate text-[11px] font-semibold md:text-xs">Video Ders Merkezi</span>
           </div>
         </div>
 

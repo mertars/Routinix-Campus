@@ -1,26 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Menu, LogOut, ArrowLeft, Search, GraduationCap } from "lucide-react";
+import { Menu, LogOut, Search, GraduationCap } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
 import { MobileMenuPopup } from "@/components/principal/mobile-menu-popup";
 import { GlobalSearchModal } from "@/components/principal/global-search-modal";
+import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { useInstitutionCounts } from "@/lib/institution-counts";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
 
-// Denetim/kullanıcı bulgusu (2026-09-05) — ERP tek başına Hub'a dönüş
-// tuşu OLMAYAN modüldü (Röntgen/Video/Ölçme Değerlendirme'nin hepsinde
-// sol üstte var, bkz. video-top-bar.tsx'teki AYNI buton) — burada da
-// aynı yere, aynı görünümle eklendi.
+// Sol üstteki "hub'a dön" oku yerini ModuleSwitcher'a bıraktı (beş
+// modülde birden). Ok, modül değiştirmeyi önce ÇIKMAYA çeviriyordu;
+// panellerin ayrı sistemler gibi hissedilmesinin ana sebebi buydu.
 export function TopBar() {
-  const router = useRouter();
   const logout = useLogout();
   const institutionName = useInstitutionName();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -51,13 +49,7 @@ export function TopBar() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
         {/* Mobil düzen: sol geri tuşu + logo, sağda (küçülebilen) kurum rozeti + hamburger */}
         <div className="flex w-full items-center gap-2 md:hidden">
-          <button
-            onClick={() => router.push("/hub")}
-            aria-label="Hub'a dön"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          <ModuleSwitcher current="erp" />
           <div className="flex shrink-0 items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "whitespace-nowrap text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>
@@ -92,13 +84,7 @@ export function TopBar() {
 
         {/* Masaüstü düzen: sol geri tuşu eklendi, gerisi değişmedi */}
         <div className="hidden items-center justify-start gap-3 md:flex">
-          <button
-            onClick={() => router.push("/hub")}
-            aria-label="Hub'a dön"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          <ModuleSwitcher current="erp" />
           <div className="flex items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>

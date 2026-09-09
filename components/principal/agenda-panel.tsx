@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { CheckCircle2, ArrowRight, RefreshCw, ChevronDown, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocalStorageState } from "@/lib/use-local-storage-state";
-import { useAgenda } from "@/lib/agenda-context";
+import { useAgenda } from "@/lib/agenda-store";
 import {
   AREA_LABEL,
   DEFAULT_COLLAPSED,

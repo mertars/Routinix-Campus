@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Radio, Clock, Palette, LogOut, ArrowLeft } from "lucide-react";
+import { Radio, Clock, Palette, LogOut } from "lucide-react";
+import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { useLogout } from "@/lib/role-context";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
 import { useHideOnScroll } from "@/lib/use-hide-on-scroll";
@@ -16,7 +16,6 @@ import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
 
 export function TeacherTopBar() {
-  const router = useRouter();
   const handleLogout = useLogout();
   const institutionName = useInstitutionName();
   const { mySchedule } = useTeacherScope();
@@ -42,13 +41,7 @@ export function TeacherTopBar() {
         <div className="md:hidden">
           <div className="flex items-center justify-between gap-2">
             <div className="flex shrink-0 items-center gap-2">
-              <button
-                onClick={() => router.push("/hub")}
-                aria-label="Hub'a dön"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
+              <ModuleSwitcher current="erp" />
               <GlowLogo size="h-8 w-8" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             </div>
             <div className="ml-auto flex min-w-0 items-center gap-1.5">
@@ -92,13 +85,7 @@ export function TeacherTopBar() {
         {/* Masaüstü düzen: değişmedi */}
         <div className="hidden items-center justify-between gap-3 md:flex">
           <div className="flex items-center justify-start gap-3">
-            <button
-              onClick={() => router.push("/hub")}
-              aria-label="Hub'a dön"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
+            <ModuleSwitcher current="erp" />
             <div className="flex items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
               <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
               <span className={cn(spaceGrotesk.className, "text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>

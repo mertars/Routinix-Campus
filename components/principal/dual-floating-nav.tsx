@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { NavTab } from "./floating-nav";
-import { useAgenda } from "@/lib/agenda-context";
+import { useAgenda } from "@/lib/agenda-store";
 import type { NavBadge } from "@/lib/agenda-badges";
 import type { AgendaUrgency } from "@/lib/agenda-types";
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { FileBarChart, ArrowLeft, LogOut, History, Search, Loader2, LineChart } from "lucide-react";
+import { LogOut, History, Search, Loader2, LineChart } from "lucide-react";
+import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -36,7 +36,6 @@ export function OlcmeTopBar({
   onToggleAnalytics?: () => void;
   analyticsActive?: boolean;
 }) {
-  const router = useRouter();
   const logout = useLogout();
   const institutionName = useInstitutionName();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -67,20 +66,10 @@ export function OlcmeTopBar({
     >
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
-          <button
-            onClick={() => router.push("/hub")}
-            aria-label="Hub'a dön"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream dark:hover:bg-white/5"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+          <ModuleSwitcher current="olcme" />
           <div className="hidden items-center gap-2 rounded-2xl border border-emerald-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(16_185_129/0.25)] dark:border-emerald-500/20 dark:bg-midnight-card/50 md:flex">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <span className={cn(spaceGrotesk.className, "whitespace-nowrap text-sm font-semibold text-espresso dark:text-cream")}>Routinix Kampüs</span>
-          </div>
-          <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-emerald-700 shadow-sm backdrop-blur-sm dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-300 md:px-3">
-            <FileBarChart className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate text-[11px] font-semibold md:text-xs">Ölçme Değerlendirme</span>
           </div>
         </div>
 

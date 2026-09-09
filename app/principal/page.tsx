@@ -64,7 +64,6 @@ import { useAdminProfile } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 import { SetupWizard } from "@/components/principal/setup-wizard";
 import { AgendaPanel } from "@/components/principal/agenda-panel";
-import { AgendaProvider } from "@/lib/agenda-context";
 
 // Sol Ada: Akademik & Akış Modülleri — Sağ Ada: İdari & Yönetim Araçları
 const TABS = [
@@ -140,126 +139,121 @@ export default function PrincipalPage() {
   const { totalStudents, avgCompletion, riskyStudentCount } = stats;
 
   return (
-    // AgendaProvider iki yüzeyi birden besler: Genel Bakış'taki Gündem
-    // listesi ve yan menü adalarındaki bekleyen-iş rozetleri. Tek fetch,
-    // iki tüketici — 23 sayım sorgusu iki kez koşmasın.
-    <AgendaProvider>
-      <div className="relative min-h-screen overflow-x-hidden dark:bg-transparent bg-cream">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[640px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-500/10 via-transparent to-transparent"
-        />
+    <div className="relative min-h-screen overflow-x-hidden dark:bg-transparent bg-cream">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 h-[640px] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-brand-500/10 via-transparent to-transparent"
+      />
 
-        <DualFloatingNav
-          leftTabs={LEFT_TABS}
-          rightTabs={RIGHT_TABS}
-          activeTab={activeTab}
-          onSelect={(id) => setActiveTab(id as TabId)}
-        />
-        <PrincipalMobileNav leftTabs={LEFT_TABS} rightTabs={RIGHT_TABS} activeTab={activeTab} onSelect={(id) => setActiveTab(id as TabId)} />
+      <DualFloatingNav
+        leftTabs={LEFT_TABS}
+        rightTabs={RIGHT_TABS}
+        activeTab={activeTab}
+        onSelect={(id) => setActiveTab(id as TabId)}
+      />
+      <PrincipalMobileNav leftTabs={LEFT_TABS} rightTabs={RIGHT_TABS} activeTab={activeTab} onSelect={(id) => setActiveTab(id as TabId)} />
 
-        <TopBar />
+      <TopBar />
 
-        <motion.div variants={containerVariants} initial="hidden" animate="show" className="relative z-10 mx-auto max-w-6xl">
-          <motion.div variants={sectionVariants}>
-            <Hero name={adminName} title={adminTitle} />
-          </motion.div>
-
-          <main className="px-4 pb-24 pt-2 sm:px-6 md:pb-10 md:pl-32 md:pr-32">
-            {/* Kurulum sihirbazı EN ÜSTTE ve sekmelerin DIŞINDA durur:
-                hangi sekmede olursa olsun görünür, zorunlu adımlar
-                bitince kendiliğinden kaybolur. */}
-            <motion.div variants={sectionVariants}>
-              <SetupWizard onGoTab={(id) => setActiveTab(id as TabId)} />
-            </motion.div>
-
-            <motion.div variants={sectionVariants} className="relative z-50 mb-6">
-              <SegmentSelector selected={selectedSegment} onSelect={setSelectedSegment} />
-            </motion.div>
-
-            <motion.div variants={sectionVariants} className="mb-6">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={selectedSegment}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -14 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4"
-                >
-                  <StatCard
-                    label="Toplam Öğrenci"
-                    value={String(totalStudents)}
-                    icon={Users}
-                    tone="success"
-                    pulse
-                    onClick={() => setStatModal("students")}
-                  />
-                  <StatCard
-                    label="Aktif Şubeler"
-                    value={`${stats.activeBranches} Sınıf`}
-                    icon={Building2}
-                    tone="default"
-                    onClick={() => setStatModal("branches")}
-                  />
-                  <StatCard
-                    label="Aylık Görev Tamamlama"
-                    value={`%${avgCompletion}`}
-                    icon={TrendingUp}
-                    tone="default"
-                    progress={avgCompletion}
-                    onClick={() => setStatModal("completion")}
-                  />
-                  <StatCard
-                    label="Riskli Öğrenci Sayısı"
-                    value={String(riskyStudentCount)}
-                    icon={AlertTriangle}
-                    tone="warning"
-                    onClick={() => setStatModal("risk")}
-                  />
-                </motion.div>
-              </AnimatePresence>
-            </motion.div>
-
-            {/* Gündem, Genel Bakış'ın İLK bloğu — istatistik kartlarının
-                hemen altında. Kartlar "kurum ne durumda"yı söyler,
-                Gündem "şimdi ne yapmam lazım"ı; ikincisi eyleme dönük
-                olduğu için sekme içeriğinden ÖNCE gelir.
-
-                Yalnızca Genel Bakış'ta çizilir: başka bir sekmedeki
-                müdür zaten belirli bir işin başındadır, bekleyen iş
-                sinyalini orada yan menü ROZETLERİ taşır (bkz.
-                dual-floating-nav.tsx). */}
-            {activeTab === "overview" && (
-              <motion.div variants={sectionVariants}>
-                <AgendaPanel onGoTab={(id: string) => setActiveTab(id as TabId)} />
-              </motion.div>
-            )}
-
-            <motion.div variants={sectionVariants}>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`${activeTab}-${selectedSegment}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.25, ease: "easeOut" }}
-                >
-                  {activeTab === "overview" ? (
-                    <ExecutiveOverviewTab segment={selectedSegment} onNavigate={(id) => setActiveTab(id as TabId)} />
-                  ) : (
-                    <ActiveComponent />
-                  )}
-                </motion.div>
-              </AnimatePresence>
-            </motion.div>
-          </main>
+      <motion.div variants={containerVariants} initial="hidden" animate="show" className="relative z-10 mx-auto max-w-6xl">
+        <motion.div variants={sectionVariants}>
+          <Hero name={adminName} title={adminTitle} />
         </motion.div>
 
-        <Modal isOpen={!!activeStatModal} onClose={() => setStatModal(null)} title={activeStatModal?.title ?? ""}>
-          {activeStatModal && <activeStatModal.Content segment={selectedSegment} />}
-        </Modal>
-      </div>
-    </AgendaProvider>
+        <main className="px-4 pb-24 pt-2 sm:px-6 md:pb-10 md:pl-32 md:pr-32">
+          {/* Kurulum sihirbazı EN ÜSTTE ve sekmelerin DIŞINDA durur:
+              hangi sekmede olursa olsun görünür, zorunlu adımlar
+              bitince kendiliğinden kaybolur. */}
+          <motion.div variants={sectionVariants}>
+            <SetupWizard onGoTab={(id) => setActiveTab(id as TabId)} />
+          </motion.div>
+
+          <motion.div variants={sectionVariants} className="relative z-50 mb-6">
+            <SegmentSelector selected={selectedSegment} onSelect={setSelectedSegment} />
+          </motion.div>
+
+          <motion.div variants={sectionVariants} className="mb-6">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={selectedSegment}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -14 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-4"
+              >
+                <StatCard
+                  label="Toplam Öğrenci"
+                  value={String(totalStudents)}
+                  icon={Users}
+                  tone="success"
+                  pulse
+                  onClick={() => setStatModal("students")}
+                />
+                <StatCard
+                  label="Aktif Şubeler"
+                  value={`${stats.activeBranches} Sınıf`}
+                  icon={Building2}
+                  tone="default"
+                  onClick={() => setStatModal("branches")}
+                />
+                <StatCard
+                  label="Aylık Görev Tamamlama"
+                  value={`%${avgCompletion}`}
+                  icon={TrendingUp}
+                  tone="default"
+                  progress={avgCompletion}
+                  onClick={() => setStatModal("completion")}
+                />
+                <StatCard
+                  label="Riskli Öğrenci Sayısı"
+                  value={String(riskyStudentCount)}
+                  icon={AlertTriangle}
+                  tone="warning"
+                  onClick={() => setStatModal("risk")}
+                />
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+
+          {/* Gündem, Genel Bakış'ın İLK bloğu — istatistik kartlarının
+              hemen altında. Kartlar "kurum ne durumda"yı söyler,
+              Gündem "şimdi ne yapmam lazım"ı; ikincisi eyleme dönük
+              olduğu için sekme içeriğinden ÖNCE gelir.
+
+              Yalnızca Genel Bakış'ta çizilir: başka bir sekmedeki
+              müdür zaten belirli bir işin başındadır, bekleyen iş
+              sinyalini orada yan menü ROZETLERİ taşır (bkz.
+              dual-floating-nav.tsx). */}
+          {activeTab === "overview" && (
+            <motion.div variants={sectionVariants}>
+              <AgendaPanel onGoTab={(id: string) => setActiveTab(id as TabId)} />
+            </motion.div>
+          )}
+
+          <motion.div variants={sectionVariants}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${activeTab}-${selectedSegment}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+              >
+                {activeTab === "overview" ? (
+                  <ExecutiveOverviewTab segment={selectedSegment} onNavigate={(id) => setActiveTab(id as TabId)} />
+                ) : (
+                  <ActiveComponent />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+        </main>
+      </motion.div>
+
+      <Modal isOpen={!!activeStatModal} onClose={() => setStatModal(null)} title={activeStatModal?.title ?? ""}>
+        {activeStatModal && <activeStatModal.Content segment={selectedSegment} />}
+      </Modal>
+    </div>
   );
 }

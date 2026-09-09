@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LayoutDashboard, GraduationCap, ClipboardList, Grid3x3, X, Search } from "lucide-react";
 import type { NavTab } from "@/components/principal/floating-nav";
 import { cn } from "@/lib/utils";
-import { useAgenda } from "@/lib/agenda-context";
+import { useAgenda } from "@/lib/agenda-store";
 import { topUrgency, type NavBadge } from "@/lib/agenda-badges";
 import type { AgendaUrgency } from "@/lib/agenda-types";
 
