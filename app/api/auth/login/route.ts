@@ -8,6 +8,7 @@ import { assertLoginNotLocked, recordFailedLogin, resetLoginAttempts } from "@/l
 import { AuthError } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { checkLoginRateLimit, recordFailedLoginAttempt, extractClientIp } from "@/lib/server/rate-limit/general-rate-limit";
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -17,6 +18,16 @@ const bodySchema = z.object({
 
 async function handlePost(request: NextRequest) {
   try {
+    // IP bazlı giriş sınırı — telefon kilidine EK (bkz. platform/login).
+    const clientIp = extractClientIp(request);
+    const loginLimit = checkLoginRateLimit(clientIp);
+    if (!loginLimit.allowed) {
+      return NextResponse.json(
+        { error: `Çok fazla giriş denemesi. ${loginLimit.retryAfterSeconds} saniye sonra tekrar deneyin.`, code: "TOO_MANY_ATTEMPTS" },
+        { status: 429, headers: { "Retry-After": String(loginLimit.retryAfterSeconds) } }
+      );
+    }
+
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) {
       throw new AuthError("Telefon ve şifre zorunludur.", "MISSING_FIELDS", 400);
@@ -30,6 +41,7 @@ async function handlePost(request: NextRequest) {
     if (!account) {
       // Varlık sızdırmamak için şifre hatasıyla aynı mesaj döner (kilit
       // sayacı da yine de işletilir — telefon numarası taramasını yavaşlatır).
+      recordFailedLoginAttempt(clientIp);
       await recordFailedLogin(normalized);
       throw new AuthError("Telefon veya şifre hatalı.", "INVALID_CREDENTIALS", 401);
     }
@@ -46,6 +58,7 @@ async function handlePost(request: NextRequest) {
 
     const valid = await verifyPassword(password, account.passwordHash);
     if (!valid) {
+      recordFailedLoginAttempt(clientIp);
       await recordFailedLogin(normalized);
       throw new AuthError("Telefon veya şifre hatalı.", "INVALID_CREDENTIALS", 401);
     }

@@ -30,6 +30,23 @@ if (process.env.NODE_ENV !== "production") {
   globalForRateLimit.generalRateLimitBuckets = buckets;
 }
 
+// GİRİŞ uçları için AYRI ve çok daha dar bir IP sınırı.
+//
+// ⚠️ Telefon bazlı kilit (bkz. auth/rate-limit.ts) tek bir hesabı korur:
+// 5 hatalı denemeden sonra o numara 15 dakika kilitlenir. Ama ŞİFRE
+// PÜSKÜRTMEYİ durdurmaz — saldırgan tek bir yaygın şifreyi YÜZLERCE
+// FARKLI numarada dener, her numara yalnızca 1 hata aldığı için hiçbiri
+// kilitlenmez. Ölçüldü: 10 farklı numaraya yapılan denemenin hiçbiri
+// engellenmedi.
+//
+// Genel IP sınırı (dakikada 300) bunu durdurmaz çünkü sınıfça soru
+// çözen okulların NAT'lı tek IP'si için BİLEREK geniş tutulmuştur.
+//
+// Sınır BAŞARISIZ denemelere uygulanır (bkz. checkLoginRateLimit):
+// aynı IP'den dakikada 10 hatalı giriş normal kullanımda görülmez,
+// püskürtme saldırısında ise ilk saniyelerde aşılır.
+export const MAX_LOGIN_ATTEMPTS_PER_IP = 10;
+
 export type RateLimitResult = { allowed: true } | { allowed: false; retryAfterSeconds: number };
 
 export function checkGeneralRateLimit(key: string, max: number = MAX_REQUESTS_PER_IP): RateLimitResult {
@@ -63,4 +80,33 @@ export function extractClientIp(request: Request | undefined): string {
   const realIp = request?.headers.get("x-real-ip");
   if (realIp) return realIp.trim();
   return "unknown";
+}
+
+
+// Giriş uçlarında çağrılır.
+//
+// ⚠️ YALNIZCA BAŞARISIZ denemeler sayılır.
+//
+// İlk hâli her denemeyi sayıyordu ve bu, gerçek kullanımı kırardı:
+// dershanenin NAT'lı tek IP'si arkasından ders başında giriş yapan
+// 20 kişilik bir sınıfın 11'incisinden sonrası engellenirdi. Oysa
+// engellemek istediğimiz davranış "çok giriş" değil, "çok BAŞARISIZ
+// giriş" — bir sınıfın toplu girişi başarılıdır, püskürtme saldırısı
+// tanımı gereği başarısızdır.
+//
+// Bu yüzden kontrol OKUR ama artırmaz; sayaç yalnızca kimlik
+// doğrulama başarısız olduğunda recordFailedLoginAttempt ile artar.
+export function checkLoginRateLimit(clientIp: string): RateLimitResult {
+  const bucket = buckets.get(`login:${clientIp}`);
+  const now = Date.now();
+  if (!bucket || bucket.resetAt <= now) return { allowed: true };
+  if (bucket.count > MAX_LOGIN_ATTEMPTS_PER_IP) {
+    return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((bucket.resetAt - now) / 1000)) };
+  }
+  return { allowed: true };
+}
+
+// Kimlik doğrulama BAŞARISIZ olduğunda çağrılır.
+export function recordFailedLoginAttempt(clientIp: string): void {
+  checkGeneralRateLimit(`login:${clientIp}`, MAX_LOGIN_ATTEMPTS_PER_IP);
 }
