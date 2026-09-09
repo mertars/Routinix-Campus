@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, assertTeacherTeachesBranch } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
@@ -41,6 +41,8 @@ async function handlePost(request: NextRequest) {
     if (!branch || branch.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
     }
+    await assertTeacherTeachesBranch(teacherId, branchId);
+
     const created = await prisma.classbookNote.create({ data: { teacherId, branchId, note: note.trim() } });
     return NextResponse.json({ note: created }, { status: 201 });
   } catch (error) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, assertTeacherTeachesBranches } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
@@ -32,6 +32,8 @@ async function handlePost(request: NextRequest) {
     if (branchCount !== branchIds.length) {
       return NextResponse.json({ error: "Bir veya daha fazla şube bulunamadı." }, { status: 404 });
     }
+    // Kurumda olmak yetmez: öğretmen o şubelerde DERS VERİYOR olmalı.
+    await assertTeacherTeachesBranches(teacherId, branchIds);
 
     const homework = await prisma.homework.create({
       data: {

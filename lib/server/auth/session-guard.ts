@@ -100,6 +100,57 @@ export async function assertTeacherOwnsStudent(teacherId: string, studentId: str
   }
 }
 
+// Öğretmen bu ŞUBEDE ders veriyor mu?
+//
+// Sahiplik kaynakları assertTeacherOwnsStudent ile AYNI: şubenin
+// danışmanı olmak, teachingStaff listesinde bulunmak ya da DERS
+// PROGRAMINDA o şubede dersi olmak.
+//
+// ⚠️ Bu kontrol yokken öğretmen, ders VERMEDİĞİ şubelere ödev
+// atayabiliyor, karne defterine not yazabiliyor, materyal
+// yükleyebiliyor ve pop-quiz başlatabiliyordu (hepsi ölçüldü:
+// Matematik öğretmeni ders vermediği 8-A'ya ödev oluşturdu, 201).
+//
+// Pop-quiz özellikle yıkıcı: bir şubede aynı anda tek canlı quiz
+// olabildiği için yanlış şubede açılan bir quiz, O ŞUBENİN GERÇEK
+// öğretmenini "zaten canlı bir Pop-Quiz var" hatasıyla kilitliyordu.
+export async function assertTeacherTeachesBranch(teacherId: string, branchId: string): Promise<void> {
+  const branch = await prisma.branch.findFirst({
+    where: {
+      id: branchId,
+      OR: [
+        { advisorId: teacherId },
+        { teachingStaff: { some: { id: teacherId } } },
+        { lessonSlots: { some: { teacherId } } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!branch) {
+    throw new AuthError("Bu şubede dersiniz görünmüyor.", "NOT_FOUND", 404);
+  }
+}
+
+// Çoklu şube (örn. aynı ödevin birden fazla şubeye atanması). Biri bile
+// uygun değilse işlem tamamen reddedilir — kısmen atanmış bir ödev,
+// öğretmenin gördüğü listeyle öğrencilerin gördüğü liste arasında
+// sessiz bir fark yaratır.
+export async function assertTeacherTeachesBranches(teacherId: string, branchIds: string[]): Promise<void> {
+  const allowed = await prisma.branch.count({
+    where: {
+      id: { in: branchIds },
+      OR: [
+        { advisorId: teacherId },
+        { teachingStaff: { some: { id: teacherId } } },
+        { lessonSlots: { some: { teacherId } } },
+      ],
+    },
+  });
+  if (allowed !== new Set(branchIds).size) {
+    throw new AuthError("Ders vermediğiniz bir şube seçilmiş.", "NOT_FOUND", 404);
+  }
+}
+
 export async function assertParentOwnsStudent(parentId: string, studentId: string): Promise<void> {
   const link = await prisma.parentStudent.findFirst({
     where: { parentId, studentId },

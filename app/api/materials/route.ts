@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { saveTeacherMaterial, MAX_MATERIAL_BYTES } from "@/lib/server/uploads/save-teacher-material";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, assertTeacherTeachesBranch } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
@@ -49,6 +49,8 @@ async function handlePost(request: NextRequest) {
     if (!branch || branch.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
     }
+    // Kurumda olmak yetmez: öğretmen o şubede ders veriyor olmalı.
+    await assertTeacherTeachesBranch(teacherId, branchId);
 
     const { fileUrl, fileType, sizeLabel } = await saveTeacherMaterial(file);
     const material = await prisma.teacherMaterial.create({

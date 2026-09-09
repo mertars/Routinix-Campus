@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, assertTeacherTeachesBranch } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
@@ -32,6 +32,9 @@ async function handlePost(request: NextRequest) {
     if (!branch || branch.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
     }
+    // Yanlış şubede açılan bir quiz, o şubenin GERÇEK öğretmenini
+    // aşağıdaki "zaten canlı quiz var" kuralıyla kilitliyordu.
+    await assertTeacherTeachesBranch(teacherId, branchId);
 
     // Aynı şubede zaten canlı bir quiz varsa üzerine yenisini açma.
     const existingLive = await prisma.quiz.findFirst({ where: { branchId, stage: "LIVE" } });
