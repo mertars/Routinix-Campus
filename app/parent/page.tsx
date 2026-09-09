@@ -3,12 +3,30 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight } from "lucide-react";
+import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight, Megaphone, BookOpen, TrendingUp, LayoutDashboard } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { XRAY_MIN_GRADE } from "@/lib/mock-data";
 import { XrayParentSummaryCard } from "@/components/parent/xray-summary-card";
+import { ParentAttendanceTab } from "@/components/parent/attendance-tab";
+import { ParentHomeworkTab } from "@/components/parent/homework-tab";
+import { ParentAnnouncementsTab } from "@/components/parent/announcements-tab";
+import { ParentExamsTab } from "@/components/parent/exams-tab";
 import { cn } from "@/lib/utils";
+
+// Veli panelinin sekmeleri.
+//
+// Panel eskiden tek bir performans kartıydı: güncel net, hedef net,
+// devam ORANI. Oysa veliye açık uçların çoğu (duyuru, deneme detayı,
+// karne) panelde hiç okunmuyordu — ölçüldü: 22 uçtan 4'ü.
+const TABS = [
+  { id: "overview", label: "Genel", icon: LayoutDashboard },
+  { id: "attendance", label: "Devam", icon: CalendarCheck2 },
+  { id: "exams", label: "Denemeler", icon: TrendingUp },
+  { id: "homework", label: "Ödevler", icon: BookOpen },
+  { id: "announcements", label: "Duyurular", icon: Megaphone },
+] as const;
+type TabId = (typeof TABS)[number]["id"];
 
 type StudentDetail = {
   id: string;
@@ -27,6 +45,7 @@ export default function ParentPage() {
   const [parentName, setParentName] = useState("");
   const [students, setStudents] = useState<StudentDetail[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabId>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,6 +137,35 @@ export default function ParentPage() {
               <EmptyState msg="Sisteme bağlı bir öğrenci bulunamadı." />
             ) : detail ? (
               <div key={detail.id}>
+                {/* Sekme çubuğu — kaydırılabilir, mobilde de tek satır. */}
+                <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-xl bg-cream-card p-1 dark:bg-white/5">
+                  {TABS.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setTab(t.id)}
+                      className={cn(
+                        "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition",
+                        tab === t.id
+                          ? "bg-espresso text-cream dark:bg-brand-600"
+                          : "text-espresso-muted hover:bg-white/60 dark:text-cream/40 dark:hover:bg-white/5"
+                      )}
+                    >
+                      <t.icon className="h-3.5 w-3.5" />
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sekmeler TEMBEL yüklenir: her sekme kendi isteğini
+                    ancak açıldığında atar. Veli panelini açmak beş uca
+                    aynı anda gitmek demek olmasın. */}
+                {tab === "attendance" && <ParentAttendanceTab studentId={detail.id} />}
+                {tab === "exams" && <ParentExamsTab studentId={detail.id} />}
+                {tab === "homework" && <ParentHomeworkTab studentId={detail.id} />}
+                {tab === "announcements" && <ParentAnnouncementsTab studentId={detail.id} />}
+
+                {tab === "overview" && (
+                  <>
                 <PerformanceCard detail={detail} />
                 {detail.grade >= XRAY_MIN_GRADE && <XrayParentSummaryCard studentId={detail.id} />}
                 {/* Ödeme Takip (Hub'daki 5. modül) — velinin salt-okunur
@@ -138,6 +186,8 @@ export default function ParentPage() {
                   </span>
                   <ChevronRight className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 </button>
+                  </>
+                )}
               </div>
             ) : (
               <EmptyState msg="Öğrenci verisi yükleniyor…" />

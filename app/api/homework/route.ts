@@ -102,12 +102,29 @@ async function handleGet(request: NextRequest) {
       }
     }
 
+    // ⚠️ Gönderim listesi ROLE GÖRE daraltılır.
+    //
+    // branchId ile bu uç aynı kurumdaki HER oturuma açık (öğrenci kendi
+    // şubesini okusun diye). Ama gönderimler kısıtlanmadığında öğrenci
+    // ya da veli, şubedeki TÜM öğrencilerin ödev durumunu (studentId +
+    // status olarak) sayabiliyordu. İsimler görünmüyor ama "sınıfın
+    // kaçı yapmış, kimler yapmamış" bilgisi onların işi değil.
+    //
+    // Öğretmen/yönetici tam listeyi görmeye devam eder — ödev kontrol
+    // matrisi (6 sn'de bir polling yapan homework-check-matrix) buna
+    // dayanıyor.
+    // Öğrenci için session.sub ZATEN öğrenci kimliğidir, kendi
+    // gönderimini görür. Veli için session.sub VELİ kimliğidir; burada
+    // hiçbir gönderim eşleşmez ve bu bilinçlidir — velinin doğru adresi
+    // /api/parent/homework/[studentId] (kendi çocuğunun ödevleri, o
+    // çocuğun durumu ile).
+    const seesEveryone = session.role === "TEACHER" || session.role === "ADMIN";
+    const submissionFilter = seesEveryone ? {} : { where: { studentId: session.sub } };
+
     const homeworks = await prisma.homework.findMany({
       where: teacherId ? { teacherId } : { branchIds: { has: branchId! } },
       include: {
-        // Öğrenci (homework.tsx) ve öğretmen (6sn'de bir polling yapan
-        // homework-check-matrix.tsx) tarafı SADECE studentId+status okuyor.
-        submissions: { select: { studentId: true, status: true } },
+        submissions: { ...submissionFilter, select: { studentId: true, status: true } },
         teacher: { select: { firstName: true, lastName: true } },
       },
       orderBy: { createdAt: "desc" },
