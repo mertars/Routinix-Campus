@@ -62,6 +62,7 @@ import {
 import type { Segment } from "@/lib/mock-data";
 import { useAdminProfile } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
+import { SetupWizard } from "@/components/principal/setup-wizard";
 
 // Sol Ada: Akademik & Akış Modülleri — Sağ Ada: İdari & Yönetim Araçları
 const TABS = [
@@ -159,6 +160,13 @@ export default function PrincipalPage() {
         </motion.div>
 
         <main className="px-4 pb-24 pt-2 sm:px-6 md:pb-10 md:pl-32 md:pr-32">
+          {/* Kurulum sihirbazı EN ÜSTTE ve sekmelerin DIŞINDA durur:
+              hangi sekmede olursa olsun görünür, zorunlu adımlar
+              bitince kendiliğinden kaybolur. */}
+          <motion.div variants={sectionVariants}>
+            <SetupWizard onGoTab={(id) => setActiveTab(id as TabId)} />
+          </motion.div>
+
           <motion.div variants={sectionVariants} className="relative z-50 mb-6">
             <SegmentSelector selected={selectedSegment} onSelect={setSelectedSegment} />
           </motion.div>

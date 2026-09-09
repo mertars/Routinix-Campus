@@ -41,18 +41,46 @@ export async function onboardInstitution(input: {
     throw new AdminCreateError(`"${slug}" adında/kısa koduyla bir kurum zaten var. Farklı bir isim deneyin.`, 409);
   }
 
+  // ⚠️ YÖNETİCİ ÇAKIŞMALARI KURUM AÇILMADAN ÖNCE kontrol edilir.
+  //
+  // Eskiden önce kurum yaratılıyor, sonra yönetici deneniyordu. Yönetici
+  // adımı düşünce (aynı e-posta/telefon zaten kayıtlı olduğu için, ki en
+  // sık sebep budur) ortada GİRİŞİ İMKÂNSIZ, yöneticisiz bir kurum
+  // kalıyordu — üstelik kısa kodu işgal ettiği için aynı isimle yeniden
+  // denemek de "bu isimde kurum zaten var" hatası veriyordu. Gerçekten
+  // yaşandı: taramada bir yetim kurum bulundu.
+  const emailTaken = await prisma.admin.findFirst({ where: { email: input.adminEmail.trim() }, select: { id: true } });
+  if (emailTaken) throw new AdminCreateError("Bu e-posta ile kayıtlı bir yönetici zaten var.", 409);
+
   const institution = await prisma.institution.create({ data: { name, slug, isActive: true } });
-  await createDefaultScheduleSlots(institution.id);
 
-  const admin = await createAdminAccount({
-    institutionId: institution.id,
-    actorId: input.actorId,
-    fullName: input.adminName,
-    title: input.adminTitle,
-    mobilePhone: input.adminPhone,
-    email: input.adminEmail,
-    authorityLevel: "SUPER_ADMIN",
-  });
+  try {
+    await createDefaultScheduleSlots(institution.id);
 
-  return { institution, admin };
+    const admin = await createAdminAccount({
+      institutionId: institution.id,
+      actorId: input.actorId,
+      fullName: input.adminName,
+      title: input.adminTitle,
+      mobilePhone: input.adminPhone,
+      email: input.adminEmail,
+      authorityLevel: "SUPER_ADMIN",
+    });
+
+    return { institution, admin };
+  } catch (error) {
+    // Ön kontrolden geçip yine de düşen bir durum kaldıysa (telefon
+    // çakışması, ağ hatası) yarım kurum bırakılmaz: az önce açtığımız
+    // kurum ve ona bağlı varsayılan ders saatleri geri alınır.
+    //
+    // Temizlik kendisi de düşerse ASIL hata yutulmaz — müdürün görmesi
+    // gereken şey ilk hatadır.
+    try {
+      await prisma.scheduleSlotDefinition.deleteMany({ where: { institutionId: institution.id } });
+      await prisma.institution.delete({ where: { id: institution.id } });
+    } catch {
+      // yut — aşağıdaki asıl hata fırlatılacak
+    }
+    throw error;
+  }
 }
