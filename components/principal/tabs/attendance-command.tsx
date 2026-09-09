@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Loader2, CheckCheck, Users, History, Radio, AlertTriangle, CalendarSearch, Lock, BookOpen } from "lucide-react";
+import { Bell, Loader2, CheckCheck, Users, History, Radio, AlertTriangle, CalendarSearch, Lock, BookOpen, CheckCircle2 } from "lucide-react";
 import { type AttendanceStatus, ATTENDANCE_STATUS_LABEL } from "@/lib/mock-data";
 import { getTrDayNameForDate, parseSlotRange } from "@/lib/schedule-time";
 import { Modal } from "@/components/ui/modal";
@@ -128,6 +128,74 @@ function NotifyButton({ row }: { row: AttendanceRow }) {
 // dersler listelenir, bir derse tıklanınca o dersin yoklaması (değiştirilemez)
 // görünür. Durumu SADECE dersi işleyen öğretmen değiştirebilir (bkz. POST
 // /api/attendance) — bu ekranda artık HİÇBİR "Geldi/Geç/Yok" butonu yok.
+
+// "Bugün hangi derste yoklama girilmedi?" kartı.
+//
+// Yoklama ekranı öğretmeni her öğrenciyi işaretlemeye zorluyor ama bu
+// kural ekranı HİÇ AÇMAYAN öğretmen için bir şey söylemez. Ders
+// programı o gün ne olması gerektiğini bildiği için eksikler
+// hesaplanabiliyor (bkz. lib/server/attendance/missing-attendance.ts).
+function MissingAttendanceCard({ date }: { date: string }) {
+  const [report, setReport] = useState<{
+    dayName: string;
+    scheduledLessons: number;
+    missing: { branchId: string; branchName: string; subject: string; slot: string; teacherName: string; studentCount: number }[];
+  } | null>(null);
+
+  useEffect(() => {
+    const params = date ? `?date=${date}` : "";
+    fetch(`/api/admin/attendance/missing${params}`)
+      .then((res) => res.json())
+      .then((data) => setReport(data?.missing ? data : null))
+      .catch(() => setReport(null));
+  }, [date]);
+
+  if (!report || report.scheduledLessons === 0) return null;
+
+  const done = report.scheduledLessons - report.missing.length;
+  const allDone = report.missing.length === 0;
+
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border p-4",
+        allDone
+          ? "border-green-500/40 bg-green-50 dark:bg-green-500/10"
+          : "border-amber-500/40 bg-amber-50 dark:bg-amber-500/10"
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {allDone ? (
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+        ) : (
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+        )}
+        <p className={cn("text-sm font-medium", allDone ? "text-green-900 dark:text-green-300" : "text-amber-900 dark:text-amber-300")}>
+          {report.dayName} · {done}/{report.scheduledLessons} derste yoklama girildi
+        </p>
+      </div>
+
+      {!allDone && (
+        <div className="mt-2 space-y-1">
+          {report.missing.map((m) => (
+            <div
+              key={`${m.branchId}-${m.slot}`}
+              className="flex flex-wrap items-center gap-2 rounded-lg bg-white/70 px-2.5 py-1.5 text-[11px] dark:bg-white/5"
+            >
+              <span className="font-mono text-espresso-muted dark:text-cream/40">{m.slot}</span>
+              <span className="font-medium text-espresso dark:text-cream">{m.branchName}</span>
+              <span className="text-espresso-muted dark:text-cream/40">{m.subject}</span>
+              <span className="ml-auto text-espresso-muted dark:text-cream/40">
+                {m.teacherName} · {m.studentCount} öğrenci
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AttendanceCommandTab() {
   const { showError } = useToast();
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -223,6 +291,7 @@ export function AttendanceCommandTab() {
 
   return (
     <div className="space-y-4">
+      <MissingAttendanceCard date={selectedDate} />
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={selectedBranchId}
