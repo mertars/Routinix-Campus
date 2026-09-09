@@ -41,31 +41,36 @@ export async function findMissingAttendance(institutionId: string, date: Date): 
   // Gün anahtarı tek yerden (bkz. lib/attendance/date-key.ts).
   const dayOnly = toAttendanceDateKey(date);
 
-  const slots = await prisma.lessonSlot.findMany({
-    where: { branch: { institutionId }, day: dayName },
-    select: {
-      branchId: true,
-      subject: true,
-      slot: true,
-      teacherId: true,
-      branch: { select: { name: true, _count: { select: { students: { where: { isActive: true } } } } } },
-      teacher: { select: { firstName: true, lastName: true } },
-    },
-  });
+  // ⚠️ İki sorgu da yalnızca (kurum, gün) bilgisine dayanır; ikincisi
+  // birincinin sonucunu KULLANMAZ. Ardışık atıldıklarında rapor tam iki
+  // ağ turu sürüyordu (ölçüldü: 133 ms, tek tur 70 ms). Paralel.
+  const [slots, records] = await Promise.all([
+    prisma.lessonSlot.findMany({
+      where: { branch: { institutionId }, day: dayName },
+      select: {
+        branchId: true,
+        subject: true,
+        slot: true,
+        teacherId: true,
+        branch: { select: { name: true, _count: { select: { students: { where: { isActive: true } } } } } },
+        teacher: { select: { firstName: true, lastName: true } },
+      },
+    }),
+
+    // O güne ait TÜM yoklama kayıtları tek sorguda; ders başına sorgu
+    // atmak 60 dersli bir günde 60 gidiş-geliş demekti.
+    prisma.attendanceRecord.findMany({
+      where: {
+        date: dayOnly,
+        student: { institutionId },
+      },
+      select: { slot: true, student: { select: { branchId: true } } },
+    }),
+  ]);
 
   if (slots.length === 0) {
     return { date: dayOnly.toISOString(), dayName, scheduledLessons: 0, missing: [] };
   }
-
-  // O güne ait TÜM yoklama kayıtları tek sorguda; ders başına sorgu
-  // atmak 60 dersli bir günde 60 gidiş-geliş demekti.
-  const records = await prisma.attendanceRecord.findMany({
-    where: {
-      date: dayOnly,
-      student: { institutionId },
-    },
-    select: { slot: true, student: { select: { branchId: true } } },
-  });
 
   // Bir dersin yoklaması "girilmiş" sayılır: o şubede, o saat diliminde
   // EN AZ BİR kayıt varsa.

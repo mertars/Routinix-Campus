@@ -66,9 +66,15 @@ function formatTRY(n: number) {
 
 const METHOD_LABEL: Record<string, string> = { CASH: "Nakit", BANK_TRANSFER: "Havale/EFT", CREDIT_CARD: "Kredi Kartı" };
 
-export function PaymentsPrincipalPanel() {
+// initialTab: Genel Bakış'taki Gündem, "3 taksitin vadesi geçti" gibi bir
+// maddeden buraya ?tab= ile iner. Müdürü ödeme panelinin kapısına bırakıp
+// 11 sekme arasında aratmak, "tıkla ve işin başına git" vaadini bozardı.
+export function PaymentsPrincipalPanel({ initialTab }: { initialTab?: string } = {}) {
   const { showError } = useToast();
-  const [tab, setTab] = useState<TabId>("dashboard");
+  // Bilinmeyen bir ?tab= değeri sessizce yok sayılır (elle yazılmış URL).
+  const [tab, setTab] = useState<TabId>(
+    TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : "dashboard"
+  );
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);

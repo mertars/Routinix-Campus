@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { toBadges, type TodayTask } from "./today-badges";
+import { toBadges } from "./agenda-badges";
+import type { AgendaItem } from "./agenda-types";
 
-function task(overrides: Partial<TodayTask>): TodayTask {
-  return { key: "k", title: "", detail: "", count: 1, urgency: "info", ...overrides };
+function task(overrides: Partial<AgendaItem>): AgendaItem {
+  return { key: "k", horizon: "today", area: "finance", title: "", detail: "", count: 1, urgency: "info", ...overrides };
 }
 
 describe("toBadges", () => {

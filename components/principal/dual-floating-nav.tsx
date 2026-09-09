@@ -4,7 +4,9 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { NavTab } from "./floating-nav";
-import { useToday, type NavBadge, type TaskUrgency } from "@/lib/today-context";
+import { useAgenda } from "@/lib/agenda-context";
+import type { NavBadge } from "@/lib/agenda-badges";
+import type { AgendaUrgency } from "@/lib/agenda-types";
 
 type Side = "left" | "right";
 
@@ -15,10 +17,12 @@ type Side = "left" | "right";
 const COLLAPSED_WIDTH = 64;
 const EXPANDED_WIDTH = 284;
 
-const BADGE_TONE: Record<TaskUrgency, string> = {
+// Renkler Gündem panelindeki nokta renkleriyle AYNI olmalı: aynı
+// aciliyetin iki yerde iki farklı rengi olması okuyanı yanıltır.
+const BADGE_TONE: Record<AgendaUrgency, string> = {
   critical: "bg-red-500 text-white",
   attention: "bg-amber-500 text-espresso",
-  info: "bg-brand-500 text-white",
+  info: "bg-sky-500 text-white",
 };
 
 function IslandButton({
@@ -149,7 +153,7 @@ export function DualFloatingNav({
   activeTab: string;
   onSelect: (id: string) => void;
 }) {
-  const { badges } = useToday();
+  const { badges } = useAgenda();
 
   return (
     <>

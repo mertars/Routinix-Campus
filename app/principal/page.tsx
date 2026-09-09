@@ -63,8 +63,8 @@ import type { Segment } from "@/lib/mock-data";
 import { useAdminProfile } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 import { SetupWizard } from "@/components/principal/setup-wizard";
-import { TodayPanel } from "@/components/principal/today-panel";
-import { TodayProvider } from "@/lib/today-context";
+import { AgendaPanel } from "@/components/principal/agenda-panel";
+import { AgendaProvider } from "@/lib/agenda-context";
 
 // Sol Ada: Akademik & Akış Modülleri — Sağ Ada: İdari & Yönetim Araçları
 const TABS = [
@@ -140,9 +140,10 @@ export default function PrincipalPage() {
   const { totalStudents, avgCompletion, riskyStudentCount } = stats;
 
   return (
-    // TodayProvider iki yüzeyi birden besler: "Bugün" panelinin listesi ve
-    // yan menü adalarındaki bekleyen-iş rozetleri. Tek fetch, iki tüketici.
-    <TodayProvider>
+    // AgendaProvider iki yüzeyi birden besler: Genel Bakış'taki Gündem
+    // listesi ve yan menü adalarındaki bekleyen-iş rozetleri. Tek fetch,
+    // iki tüketici — 23 sayım sorgusu iki kez koşmasın.
+    <AgendaProvider>
       <div className="relative min-h-screen overflow-x-hidden dark:bg-transparent bg-cream">
         <div
           aria-hidden
@@ -170,14 +171,6 @@ export default function PrincipalPage() {
                 bitince kendiliğinden kaybolur. */}
             <motion.div variants={sectionVariants}>
               <SetupWizard onGoTab={(id) => setActiveTab(id as TabId)} />
-            </motion.div>
-
-            {/* "Bugün" paneli sekmelerin ÜSTÜNDE ve dışında: 32 sekmenin
-                hangisine gireceğine karar vermek yerine bekleyen işten
-                başlanır. Kurulum sihirbazı hâlâ görünüyorsa (yeni kurum)
-                önce o gelir — orada henüz "bugünkü iş" yoktur. */}
-            <motion.div variants={sectionVariants}>
-              <TodayPanel onGoTab={(id) => setActiveTab(id as TabId)} />
             </motion.div>
 
             <motion.div variants={sectionVariants} className="relative z-50 mb-6">
@@ -228,6 +221,21 @@ export default function PrincipalPage() {
               </AnimatePresence>
             </motion.div>
 
+            {/* Gündem, Genel Bakış'ın İLK bloğu — istatistik kartlarının
+                hemen altında. Kartlar "kurum ne durumda"yı söyler,
+                Gündem "şimdi ne yapmam lazım"ı; ikincisi eyleme dönük
+                olduğu için sekme içeriğinden ÖNCE gelir.
+
+                Yalnızca Genel Bakış'ta çizilir: başka bir sekmedeki
+                müdür zaten belirli bir işin başındadır, bekleyen iş
+                sinyalini orada yan menü ROZETLERİ taşır (bkz.
+                dual-floating-nav.tsx). */}
+            {activeTab === "overview" && (
+              <motion.div variants={sectionVariants}>
+                <AgendaPanel onGoTab={(id: string) => setActiveTab(id as TabId)} />
+              </motion.div>
+            )}
+
             <motion.div variants={sectionVariants}>
               <AnimatePresence mode="wait">
                 <motion.div
@@ -252,6 +260,6 @@ export default function PrincipalPage() {
           {activeStatModal && <activeStatModal.Content segment={selectedSegment} />}
         </Modal>
       </div>
-    </TodayProvider>
+    </AgendaProvider>
   );
 }

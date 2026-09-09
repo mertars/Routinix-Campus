@@ -5,13 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LayoutDashboard, GraduationCap, ClipboardList, Grid3x3, X, Search } from "lucide-react";
 import type { NavTab } from "@/components/principal/floating-nav";
 import { cn } from "@/lib/utils";
-import { useToday } from "@/lib/today-context";
-import { topUrgency, type NavBadge, type TaskUrgency } from "@/lib/today-badges";
+import { useAgenda } from "@/lib/agenda-context";
+import { topUrgency, type NavBadge } from "@/lib/agenda-badges";
+import type { AgendaUrgency } from "@/lib/agenda-types";
 
-const BADGE_TONE: Record<TaskUrgency, string> = {
+const BADGE_TONE: Record<AgendaUrgency, string> = {
   critical: "bg-red-500 text-white",
   attention: "bg-amber-500 text-espresso",
-  info: "bg-brand-500 text-white",
+  info: "bg-sky-500 text-white",
 };
 
 const AKADEMIK_IDS = ["students", "upload", "exam-seating", "live-tutoring"];
@@ -100,12 +101,12 @@ function ModuleGridButton({
 }
 
 /** Alt çubuktaki grup düğmesine düşen nokta — kapalı sayfadaki işi haber verir. */
-function GroupDot({ urgency }: { urgency: TaskUrgency }) {
+function GroupDot({ urgency }: { urgency: AgendaUrgency }) {
   return (
     <span
       className={cn(
         "absolute right-[26%] top-2 h-2 w-2 rounded-full ring-2 ring-white dark:ring-midnight",
-        urgency === "critical" ? "bg-red-500" : urgency === "attention" ? "bg-amber-500" : "bg-brand-500"
+        urgency === "critical" ? "bg-red-500" : urgency === "attention" ? "bg-amber-500" : "bg-sky-500"
       )}
     />
   );
@@ -131,7 +132,7 @@ export function PrincipalMobileNav({
 
   // Bekleyen iş masaüstünde yan menü rozetinde görünüyor; mobilde de
   // görünmezse aynı bilgi telefonda kaybolurdu.
-  const { badges } = useToday();
+  const { badges } = useAgenda();
   const otherIds = useMemo(
     () => allTabs.map((t) => t.id).filter((id) => id !== "overview" && !AKADEMIK_IDS.includes(id) && !IDARI_IDS.includes(id)),
     [allTabs]
