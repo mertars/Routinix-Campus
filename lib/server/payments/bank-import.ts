@@ -68,6 +68,13 @@ export async function importBankStatement(input: {
   };
 }
 
+export type OpenInstallment = {
+  id: string;
+  title: string;
+  dueDate: string;
+  remaining: number;
+};
+
 export type UnmatchedRow = {
   id: string;
   transactionDate: string;
@@ -78,14 +85,21 @@ export type UnmatchedRow = {
   candidates: MatchCandidate[];
 };
 
+export type UnmatchedPayload = {
+  rows: UnmatchedRow[];
+  /** Aday öğrencilerin açık taksitleri — arayüz öğrenci başına ayrı
+   *  istek atmasın diye tek seferde gelir. */
+  installmentsByStudent: Record<string, OpenInstallment[]>;
+};
+
 // Eşleşmemiş satırlar + her biri için aday öğrenciler.
-export async function listUnmatched(institutionId: string, limit = 100): Promise<UnmatchedRow[]> {
+export async function listUnmatched(institutionId: string, limit = 100): Promise<UnmatchedPayload> {
   const transactions = await prisma.bankTransaction.findMany({
     where: { institutionId, status: "UNMATCHED" },
     orderBy: { transactionDate: "desc" },
     take: limit,
   });
-  if (transactions.length === 0) return [];
+  if (transactions.length === 0) return { rows: [], installmentsByStudent: {} };
 
   // Öğrenci listesi ve borçları TEK seferde çekilir; satır başına
   // sorgu atmak 100 satırlık bir ekstrede 100 gidiş dönüş olurdu.
@@ -112,7 +126,7 @@ export async function listUnmatched(institutionId: string, limit = 100): Promise
     parentNames: s.parents.map((p) => `${p.parent.firstName} ${p.parent.lastName}`),
   }));
 
-  return transactions.map((t) => {
+  const rows = transactions.map((t) => {
     const outcome = matchBankRow(matchable, t.description, Number(t.amount));
     return {
       id: t.id,
@@ -124,6 +138,37 @@ export async function listUnmatched(institutionId: string, limit = 100): Promise
       candidates: outcome.candidates,
     };
   });
+
+  // Aday olarak GEÇEN öğrencilerin açık taksitleri TEK sorguda. Onay
+  // için taksit kimliği gerekiyor; arayüz her aday için ayrı istek
+  // atsaydı 100 satırlık bir ekstrede yüzlerce gidiş dönüş olurdu.
+  const candidateIds = [...new Set(rows.flatMap((r) => r.candidates.map((c) => c.studentId)))];
+  const installmentsByStudent: Record<string, OpenInstallment[]> = {};
+
+  if (candidateIds.length > 0) {
+    const open = await prisma.installment.findMany({
+      where: { studentId: { in: candidateIds }, status: { in: ["PENDING", "PARTIALLY_PAID"] } },
+      select: {
+        id: true,
+        studentId: true,
+        title: true,
+        dueDate: true,
+        amount: true,
+        payments: { where: { status: "COMPLETED" }, select: { amount: true } },
+      },
+      orderBy: { dueDate: "asc" },
+    });
+    for (const i of open) {
+      const remaining = Math.round((Number(i.amount) - i.payments.reduce((s, p) => s + Number(p.amount), 0)) * 100) / 100;
+      if (remaining <= 0) continue;
+      installmentsByStudent[i.studentId] = [
+        ...(installmentsByStudent[i.studentId] ?? []),
+        { id: i.id, title: i.title, dueDate: i.dueDate.toISOString(), remaining },
+      ];
+    }
+  }
+
+  return { rows, installmentsByStudent };
 }
 
 export type ConfirmResult = { transactionId: string; ok: boolean; reason?: string; receiptNo?: number };

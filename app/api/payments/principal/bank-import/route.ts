@@ -22,8 +22,8 @@ async function handleGet() {
     requireRole(session, "principal");
     await requirePaymentRole(session, "COLLECTOR");
 
-    const rows = await listUnmatched(session.institutionId);
-    return NextResponse.json({ rows, count: rows.length });
+    const payload = await listUnmatched(session.institutionId);
+    return NextResponse.json({ ...payload, count: payload.rows.length });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     return apiFailure("bank_import_list_failed", error);
