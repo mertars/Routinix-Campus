@@ -132,6 +132,7 @@ model Institution {
   examGroups                  ExamGroup[]
   osymReferenceTables         OsymReferenceTable[]
   paymentAccounts             PaymentAccount[]
+  bankTransactions            BankTransaction[]
   installments                Installment[]
   payments                    Payment[]
   expenseCategories           ExpenseCategory[]
@@ -286,6 +287,7 @@ model Student {
   studyGoals                   StudyGoal[]
   installments                 Installment[]
   payments                     Payment[]
+  bankTransactions             BankTransaction[]
   contracts                    StudentContract[]
   discounts                    StudentDiscount[]
   installmentAdjustments       InstallmentAdjustment[]
@@ -2308,6 +2310,7 @@ model PaymentAccount {
   transfersIn   AccountTransfer[]        @relation("TransferTo")
   refunds       EnrollmentCancellation[] @relation("RefundFrom")
   cashCounts    CashCount[]
+  bankTransactions BankTransaction[]
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
 
@@ -2899,6 +2902,8 @@ model Payment {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
+  bankTransaction   BankTransaction?
+
   @@unique([institutionId, receiptNo])
   @@index([institutionId])
   @@index([studentId])
@@ -3086,4 +3091,60 @@ enum TemplateModule {
   HOMEWORK         // ödev
   SCHEDULE         // haftalık ders programı
   MESSAGE          // toplu SMS / bildirim metni
+}
+
+
+// Bankadan gelen HAM ekstre satırı.
+//
+// Dershaneler tahsilatın büyük kısmını havale/EFT ile alıyor ve bugün
+// bunu elle eşleştiriyor: sekreter ekstreyi açıyor, açıklamaya bakıp
+// hangi öğrenci olduğunu tahmin ediyor, sonra tahsilatı elle giriyor.
+// Yüz öğrencili bir kurumda bu, ay başında saatler demek.
+//
+// Bu tablo o ham satırları TUTAR ve bir öğrenciye/taksite bağlanana
+// kadar bekletir. Tahsilatın kendisi buradan DEĞİL, her zaman
+// collectPayment üzerinden yazılır — böylece fazla tahsilat kilidi,
+// makbuz numarası ve denetim izi gibi tüm korumalar aynen geçerli olur.
+//
+// ⚠️ MÜKERRERLİK: aynı ekstre iki kez yüklenirse para iki kez
+// yazılmamalı. fingerprint, satırın kendisinden türetilen bir imzadır
+// (hesap + tarih + tutar + açıklama + bankanın kendi referansı) ve
+// kurum içinde benzersizdir; ikinci yükleme aynı satırları sessizce
+// atlar.
+model BankTransaction {
+  id            String                @id @default(cuid())
+  institutionId String
+  institution   Institution           @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  accountId     String
+  account       PaymentAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  transactionDate DateTime
+  amount          Decimal             @db.Decimal(12, 2)
+  description     String
+  // Bankanın kendi işlem referansı (varsa). Sanal IBAN'a geçildiğinde
+  // öğrenci referans numarası da burada taşınacak.
+  bankReference   String?
+
+  status        BankTransactionStatus @default(UNMATCHED)
+  // Eşleştirildiyse hangi öğrenciye ve hangi tahsilat kaydına.
+  matchedStudentId String?
+  matchedStudent   Student?           @relation(fields: [matchedStudentId], references: [id], onDelete: SetNull)
+  paymentId        String?            @unique
+  payment          Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  // Yok sayıldıysa sebebi (kurumun kendi gideri, iade, banka masrafı...).
+  ignoredReason String?
+
+  fingerprint   String
+  importedAt    DateTime              @default(now())
+  importedById  String?
+
+  @@unique([institutionId, fingerprint])
+  @@index([institutionId, status])
+  @@index([matchedStudentId])
+}
+
+enum BankTransactionStatus {
+  UNMATCHED // henüz kimseye bağlanmadı
+  MATCHED   // bir öğrenciye bağlandı ve tahsilat oluşturuldu
+  IGNORED   // bu satır bir öğrenci ödemesi değil (masraf, iade vb.)
 }
