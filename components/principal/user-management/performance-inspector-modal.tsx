@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { TrendingUp, CalendarCheck, FileCheck2, MessageSquareText, Download, Loader2, Rocket, Users, Gauge } from "lucide-react";
+import { TrendingUp, CalendarCheck, FileCheck2, MessageSquareText, Download, Loader2, Rocket, Users, Gauge, Plus, Send } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { TemplateBar } from "@/components/ui/template-bar";
+import { currentPeriodLabel } from "@/lib/payments/academic-year";
 
 type Target = { id: string; role: "STUDENT" | "TEACHER"; name: string } | null;
 
@@ -74,9 +76,10 @@ export function PerformanceInspectorModal({ target, onClose }: { target: Target;
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  useEffect(() => {
+  // Not eklendikten sonra listenin tazelenmesi gerektiği için dışarı
+  // alındı (eskiden effect'in içine gömülüydü).
+  const load = useCallback(() => {
     if (!target) return;
-    setAnalytics(null);
     setLoading(true);
     fetch(`/api/admin/users/${target.id}/analytics?role=${target.role}`)
       .then((res) => res.json())
@@ -86,11 +89,16 @@ export function PerformanceInspectorModal({ target, onClose }: { target: Target;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target]);
 
+  useEffect(() => {
+    setAnalytics(null);
+    load();
+  }, [load]);
+
   async function downloadReportCard() {
     if (!target) return;
     setDownloading(true);
     try {
-      const res = await fetch(`/api/report-cards/${target.id}?donem=${encodeURIComponent("2025-2026 Güncel Dönem")}`);
+      const res = await fetch(`/api/report-cards/${target.id}?donem=${encodeURIComponent(currentPeriodLabel())}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res.ok || !contentType.includes("application/pdf")) {
         const data = contentType.includes("application/json") ? await res.json() : null;
@@ -168,6 +176,11 @@ export function PerformanceInspectorModal({ target, onClose }: { target: Target;
               ))}
               {analytics.guidanceNotes.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Not bulunmuyor.</p>}
             </div>
+
+            {/* Not EKLEME buradaydı eksik: notlar görülebiliyor ama
+                yalnızca otomatik sevklerle oluşuyordu — "veli görüşmesi
+                yaptım, not düşeyim" diyen müdürün gidecek yeri yoktu. */}
+            <NoteComposer studentId={analytics.id} onSaved={load} />
           </div>
 
           <button
@@ -228,5 +241,106 @@ export function PerformanceInspectorModal({ target, onClose }: { target: Target;
         </div>
       )}
     </Modal>
+  );
+}
+
+
+// Serbest rehberlik notu yazma alanı.
+//
+// Yazar adı BURADAN GÖNDERİLMEZ; sunucu oturumdan türetir
+// (bkz. app/api/guidance-notes/route.ts).
+function NoteComposer({ studentId, onSaved }: { studentId: string; onSaved: () => void }) {
+  const { showError, showSuccess } = useToast();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [category, setCategory] = useState("ACADEMIC");
+  const [confidentialityLevel, setConfidentialityLevel] = useState("RESTRICTED");
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    if (!note.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/guidance-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, note: note.trim(), category, confidentialityLevel }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Not kaydedilemedi.");
+      showSuccess("Not kaydedildi.");
+      setNote("");
+      setOpen(false);
+      onSaved();
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Not kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-2 flex items-center gap-1.5 rounded-lg border border-dashed border-hairline px-3 py-1.5 text-[11px] font-medium text-espresso-muted transition hover:border-brand-600 hover:text-brand-600 dark:border-white/20 dark:text-cream/40"
+      >
+        <Plus className="h-3 w-3" /> Rehberlik notu ekle
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2 rounded-xl border border-hairline p-2.5 dark:border-white/10">
+      <TemplateBar
+        module="GUIDANCE_NOTE"
+        onApply={(p) => {
+          if (typeof p.note === "string") setNote(p.note);
+          if (typeof p.category === "string") setCategory(p.category);
+          if (typeof p.confidentialityLevel === "string") setConfidentialityLevel(p.confidentialityLevel);
+        }}
+        getCurrent={() => (note.trim() ? { note: note.trim(), category, confidentialityLevel } : null)}
+      />
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={5}
+        placeholder="Görüşme notu..."
+        className="w-full rounded-lg border border-hairline bg-white px-3 py-2 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+      />
+      <div className="flex flex-wrap items-center gap-1.5">
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="rounded-lg border border-hairline bg-white px-2 py-1 text-[11px] text-espresso outline-none dark:border-white/10 dark:bg-midnight dark:text-cream"
+        >
+          <option value="ACADEMIC">Akademik</option>
+          <option value="PSYCHOLOGICAL">Psikolojik</option>
+          <option value="DISCIPLINARY">Disiplin</option>
+        </select>
+        <select
+          value={confidentialityLevel}
+          onChange={(e) => setConfidentialityLevel(e.target.value)}
+          className="rounded-lg border border-hairline bg-white px-2 py-1 text-[11px] text-espresso outline-none dark:border-white/10 dark:bg-midnight dark:text-cream"
+        >
+          <option value="RESTRICTED">Kuruma özel</option>
+          <option value="CONFIDENTIAL">Gizli</option>
+          <option value="PUBLIC">Veliyle paylaşılabilir</option>
+        </select>
+        <button
+          onClick={submit}
+          disabled={saving || !note.trim()}
+          className="ml-auto flex items-center gap-1.5 rounded-lg bg-espresso px-3 py-1.5 text-[11px] font-medium text-cream disabled:opacity-40 dark:bg-brand-600"
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} Kaydet
+        </button>
+        <button
+          onClick={() => setOpen(false)}
+          className="rounded-lg border border-hairline px-2.5 py-1.5 text-[11px] font-medium text-espresso-muted dark:border-white/10 dark:text-cream/40"
+        >
+          Vazgeç
+        </button>
+      </div>
+    </div>
   );
 }

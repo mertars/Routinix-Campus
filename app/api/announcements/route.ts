@@ -17,19 +17,23 @@ async function handlePost(request: NextRequest) {
     requireRole(session, "principal", "teacher");
 
     const body = await request.json();
-    const { title, content, category, scopeType, scopeValue, authorName, authorRole } = body as {
+    const { title, content, category, scopeType, scopeValue } = body as {
       title?: string;
       content?: string;
       category?: AnnouncementCategory;
       scopeType?: NotificationScopeType;
       scopeValue?: string;
-      authorName?: string;
-      authorRole?: AnnouncementAuthorRole;
     };
 
-    if (!title?.trim() || !content?.trim() || !authorName?.trim() || !authorRole) {
-      return NextResponse.json({ error: "title, content, authorName ve authorRole zorunludur." }, { status: 400 });
+    if (!title?.trim() || !content?.trim()) {
+      return NextResponse.json({ error: "title ve content zorunludur." }, { status: 400 });
     }
+
+    // ⚠️ İmza İSTEMCİDEN ALINMAZ (bkz. guidance-notes'taki aynı gerekçe).
+    // Panel burada sabit "Mert Yönetici" gönderiyordu; hangi kurumun
+    // hangi müdürü yazarsa yazsın duyurunun altında o isim çıkıyordu.
+    const authorName = session.name?.trim() || "Kurum Yönetimi";
+    const authorRole: AnnouncementAuthorRole = session.role === "TEACHER" ? "TEACHER" : "ADMIN";
 
     const announcement = await prisma.announcement.create({
       data: {

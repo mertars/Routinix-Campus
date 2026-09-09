@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import type { AccountRow } from "@/components/payments/payments-principal-panel";
+import { TemplateBar } from "@/components/ui/template-bar";
 
 export type ExpenseCategory = { id: string; name: string };
 
@@ -87,6 +88,27 @@ export function ExpenseModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Yeni Gider" variant="center" widthClassName="max-w-sm">
       <div className="space-y-3.5">
+        {/* TUTAR şablona girmez — her ay değişir ve şablondan gelen bir
+            rakam gözden kaçıp yanlış tutarla gider kaydına yol açar.
+            Şablon "ne" olduğunu taşır, "ne kadar" olduğunu değil. */}
+        <TemplateBar
+          module="EXPENSE"
+          onApply={(p) => {
+            if (typeof p.title === "string") setTitle(p.title);
+            // categoryHint: şablon kategori ID'si taşıyamaz (kurumdan
+            // kuruma değişir), adına göre eşleşen varsa seçilir.
+            if (typeof p.categoryHint === "string") {
+              const hint = p.categoryHint.toLocaleLowerCase("tr-TR");
+              const match = categories.find((c) => c.name.toLocaleLowerCase("tr-TR").includes(hint));
+              if (match) setCategoryId(match.id);
+            }
+          }}
+          getCurrent={() => {
+            if (!title.trim()) return null;
+            const cat = categories.find((c) => c.id === categoryId);
+            return { title: title.trim(), categoryHint: cat?.name ?? undefined, vendorName: vendorName.trim() || undefined };
+          }}
+        />
         <div>
           <label className="mb-1.5 block text-xs font-medium text-espresso dark:text-cream">Kategori</label>
           <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>

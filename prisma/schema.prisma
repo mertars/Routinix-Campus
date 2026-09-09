@@ -137,6 +137,7 @@ model Institution {
   expenseCategories           ExpenseCategory[]
   expenses                    Expense[]
   contractTemplates           ContractTemplate[]
+  templates                   Template[]
   studentContracts            StudentContract[]
   staffSalaryProfiles         StaffSalaryProfile[]
   payrollPeriods              PayrollPeriod[]
@@ -3039,4 +3040,50 @@ model StudentEnrollment {
   @@unique([studentId, academicYear])
   @@index([institutionId, endDate])
   @@index([studentId])
+}
+
+
+// Modül bağımsız ŞABLON deposu.
+//
+// Kurum bu sistemde aynı işi defalarca yapıyor: her dönem aynı
+// duyuruyu yazmak, aynı taksit planını kurmak, aynı gideri girmek.
+// Şablon, "geçen sefer ne yapmıştım"ı tek tuşa indirir.
+//
+// ⚠️ HAZIR şablonlar burada DURMAZ — kodda durur
+// (bkz. lib/templates/catalog.ts). Sebep: hazır şablonların her kuruma
+// tek tek kopyalanması gerekseydi, hem yeni kurum açılışı hem de bir
+// hazır şablonu düzeltmek göç (migration) işi olurdu. Kodda durunca
+// sürümle birlikte güncellenirler ve veritabanı yalnızca kurumun
+// GERÇEKTEN kendi oluşturduğunu tutar.
+//
+// payload, hedef formun alanlarını taşıyan serbest JSON'dur; her
+// modül kendi şeklini bilir (bkz. catalog.ts'teki tipler).
+model Template {
+  id               String         @id @default(cuid())
+  institutionId    String
+  institution      Institution    @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  module           TemplateModule
+  name             String
+  description      String?
+  payload          Json
+  // Kaç kez uygulandığı — sık kullanılan şablon listede öne çıkar.
+  usageCount       Int            @default(0)
+  createdByAdminId String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  // Aynı modülde aynı isimde iki şablon kafa karıştırır.
+  @@unique([institutionId, module, name])
+  @@index([institutionId])
+  @@index([institutionId, module])
+}
+
+enum TemplateModule {
+  ANNOUNCEMENT     // duyuru / etkinlik / acil bildirim
+  INSTALLMENT_PLAN // taksit planı kurulumu
+  EXPENSE          // gider kaydı
+  GUIDANCE_NOTE    // rehberlik görüşme notu
+  HOMEWORK         // ödev
+  SCHEDULE         // haftalık ders programı
+  MESSAGE          // toplu SMS / bildirim metni
 }

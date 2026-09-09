@@ -6,6 +6,10 @@ import { Plus, Share2, FileDown, Loader2, Send, Clock, CheckCircle2 } from "luci
 import { useToast } from "@/lib/toast-context";
 import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { cn } from "@/lib/utils";
+import { TemplateBar } from "@/components/ui/template-bar";
+import { useInstitutionName } from "@/lib/institution-scope";
+import { fillPlaceholders } from "@/lib/templates/catalog";
+import { currentPeriodLabel } from "@/lib/payments/academic-year";
 
 type AnnouncementCategory = "GENERAL" | "EXAM" | "HOLIDAY" | "EVENT" | "EMERGENCY";
 type ScopeType = "ALL_SCHOOL" | "GRADE" | "BRANCH";
@@ -148,7 +152,7 @@ function TransparentReportGenerator() {
     if (!selectedId || !student) return;
     setPdfState("loading");
     try {
-      const res = await fetch(`/api/report-cards/${selectedId}?donem=${encodeURIComponent("2025-2026 Güncel Dönem")}`);
+      const res = await fetch(`/api/report-cards/${selectedId}?donem=${encodeURIComponent(currentPeriodLabel())}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res.ok || !contentType.includes("application/pdf")) throw new Error();
       const blob = await res.blob();
@@ -257,6 +261,7 @@ export function AnnouncementsTab() {
   const [content, setContent] = useState("");
   const [category, setCategory] = useState<AnnouncementCategory>("GENERAL");
   const [scopeType, setScopeType] = useState<ScopeType>("ALL_SCHOOL");
+  const institutionName = useInstitutionName();
   const [scopeGrade, setScopeGrade] = useState(String(GRADE_OPTIONS[0]));
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [scopeBranchId, setScopeBranchId] = useState("");
@@ -300,8 +305,6 @@ export function AnnouncementsTab() {
           category,
           scopeType,
           scopeValue: scopeType === "GRADE" ? scopeGrade : scopeType === "BRANCH" ? scopeBranchId : undefined,
-          authorName: "Mert Yönetici",
-          authorRole: "ADMIN",
         }),
       });
       const data = await res.json();
@@ -344,6 +347,23 @@ export function AnnouncementsTab() {
               exit={{ opacity: 0, height: 0 }}
               className="mb-4 overflow-hidden rounded-xl border border-hairline bg-cream-card p-3 dark:border-white/10 dark:bg-white/5"
             >
+              <TemplateBar
+                module="ANNOUNCEMENT"
+                className="mb-2"
+                onApply={(p) => {
+                  // Kurum adı gibi bilinen yer tutucular doldurulur;
+                  // bilinmeyenler ({{tarih}} gibi) metinde KALIR ki
+                  // müdür neyi doldurması gerektiğini görsün.
+                  const values = { kurum: institutionName };
+                  if (typeof p.title === "string") setTitle(fillPlaceholders(p.title, values));
+                  if (typeof p.content === "string") setContent(fillPlaceholders(p.content, values));
+                  if (typeof p.category === "string") setCategory(p.category as AnnouncementCategory);
+                  if (typeof p.scopeType === "string") setScopeType(p.scopeType as ScopeType);
+                }}
+                getCurrent={() =>
+                  title.trim() || content.trim() ? { title: title.trim(), content: content.trim(), category, scopeType } : null
+                }
+              />
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}

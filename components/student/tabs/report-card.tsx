@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 import { FileText, Download, TrendingUp, CalendarCheck, AlertCircle, Loader2, Share2, Copy, Check } from "lucide-react";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
+import { currentPeriodLabel } from "@/lib/payments/academic-year";
 
-const PERIOD_LABEL = "2025-2026 Güncel Dönem";
+const PERIOD_LABEL = currentPeriodLabel();
 
 export function ReportCardTab() {
   const { studentId, studentName, report } = useStudentScope();

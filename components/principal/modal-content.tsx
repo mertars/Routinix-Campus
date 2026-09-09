@@ -161,7 +161,6 @@ export function RiskyStudentsContent({ segment = "ALL" }: { segment?: Segment })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentId: entry.id,
-          authorName: "Yönetici",
           category: "ACADEMIC",
           confidentialityLevel: "RESTRICTED",
           note: "Risk kutusu üzerinden yönetici tarafından sevk edildi.",

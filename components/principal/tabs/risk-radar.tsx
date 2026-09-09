@@ -67,7 +67,6 @@ export function RiskRadarTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentId: entry.id,
-          authorName: "Yönetici",
           category: "ACADEMIC",
           confidentialityLevel: "RESTRICTED",
           note: "Risk radarı üzerinden yönetici tarafından sevk edildi.",

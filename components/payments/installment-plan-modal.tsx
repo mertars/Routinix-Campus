@@ -5,6 +5,7 @@ import { Loader2, CalendarPlus, BadgePercent } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { currentAcademicYear, academicYearOptions } from "@/lib/payments/academic-year";
+import { TemplateBar } from "@/components/ui/template-bar";
 
 // Toplu taksit planı — kullanıcı geri bildirimi: yarın demo var, öğrenci
 // başına tek tek taksit girmek yerine "toplam tutar + taksit sayısı" ile
@@ -85,6 +86,21 @@ export function InstallmentPlanModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Taksit Planı Oluştur — ${studentName}`} variant="center" widthClassName="max-w-sm">
       <div className="space-y-4">
+        {/* Taksit YAPISI şablondan gelir; TUTAR gelmez — o öğrenciye
+            özeldir ve şablondan gelen bir rakam yanlışlıkla borç
+            yazılmasına yol açabilir. */}
+        <TemplateBar
+          module="INSTALLMENT_PLAN"
+          onApply={(p) => {
+            if (typeof p.installmentCount === "number") setInstallmentCount(String(p.installmentCount));
+            if (typeof p.titlePrefix === "string") setTitlePrefix(p.titlePrefix);
+          }}
+          getCurrent={() => {
+            const count = Number(installmentCount);
+            if (!Number.isInteger(count) || count < 1) return null;
+            return { installmentCount: count, titlePrefix: titlePrefix.trim() || "Eğitim Ücreti" };
+          }}
+        />
         <div>
           <label className="mb-1.5 block text-xs font-medium text-espresso dark:text-cream">Liste Fiyatı (₺)</label>
           <input

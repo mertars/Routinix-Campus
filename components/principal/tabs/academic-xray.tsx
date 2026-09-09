@@ -23,6 +23,7 @@ import { STUDENT_TOPIC_ANALYSIS, RISK_REASON_LABEL, type RiskReason } from "@/li
 import { useAdminProfile } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
+import { currentPeriodLabel } from "@/lib/payments/academic-year";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string };
 
@@ -117,7 +118,6 @@ export function AcademicXrayTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentId: selectedId,
-          authorName: adminName,
           category: "ACADEMIC",
           confidentialityLevel: "RESTRICTED",
           note: "Yönetici tarafından röntgen karnesi üzerinden tavsiye edildi.",
@@ -141,7 +141,7 @@ export function AcademicXrayTab() {
       const res = await fetch(`/api/report-cards/${selectedId}/share`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ donem: "2025-2026 Güncel Dönem" }),
+        body: JSON.stringify({ donem: currentPeriodLabel() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Paylaşım linki oluşturulamadı.");
@@ -169,7 +169,7 @@ export function AcademicXrayTab() {
     if (!selectedId || !analytics) return;
     setDownloading(true);
     try {
-      const res = await fetch(`/api/report-cards/${selectedId}?donem=${encodeURIComponent("2025-2026 Güncel Dönem")}`);
+      const res = await fetch(`/api/report-cards/${selectedId}?donem=${encodeURIComponent(currentPeriodLabel())}`);
       const contentType = res.headers.get("content-type") ?? "";
       if (!res.ok || !contentType.includes("application/pdf")) {
         const data = contentType.includes("application/json") ? await res.json() : null;

@@ -18,17 +18,26 @@ async function handlePost(request: NextRequest) {
     requireRole(session, "teacher", "principal");
 
     const body = await request.json();
-    const { studentId, authorName, category, confidentialityLevel, note } = body as {
+    const { studentId, category, confidentialityLevel, note } = body as {
       studentId?: string;
-      authorName?: string;
       category?: GuidanceCategory;
       confidentialityLevel?: ConfidentialityLevel;
       note?: string;
     };
 
-    if (!studentId || !authorName?.trim() || !note?.trim()) {
-      return NextResponse.json({ error: "studentId, authorName ve note zorunludur." }, { status: 400 });
+    if (!studentId || !note?.trim()) {
+      return NextResponse.json({ error: "studentId ve note zorunludur." }, { status: 400 });
     }
+
+    // ⚠️ Yazar adı İSTEMCİDEN ALINMAZ, oturumdan türetilir.
+    //
+    // Önce istemci bu alanı serbestçe gönderiyordu ve paneller sabit
+    // metin yazıyordu ("Yönetici"), yani notun altındaki isim gerçek
+    // yazarı göstermiyordu. Rehberlik notu hassas ve kalıcı bir kayıt;
+    // altındaki imzanın doğru olması işin esası. Aynı zamanda bir
+    // kimliğe bürünme açığını da kapatır: bir öğretmen notu başkasının
+    // adına yazamaz.
+    const authorName = session.name?.trim() || "Bilinmeyen kullanıcı";
 
     const student = await prisma.student.findUnique({ where: { id: studentId }, select: { id: true, institutionId: true } });
     if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });

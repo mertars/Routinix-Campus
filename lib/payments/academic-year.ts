@@ -30,3 +30,12 @@ export function academicYearOptions(reference: Date = new Date()): string[] {
   const startYear = Number(current.split("-")[0]);
   return [`${startYear - 1}-${startYear}`, current, `${startYear + 1}-${startYear + 2}`];
 }
+
+// Karne/rapor başlıklarında görünen dönem etiketi.
+//
+// Bu da elle yazılmıştı ("2025-2026 Güncel Dönem") ve beş ayrı yerde
+// duruyordu; 2026-2027 dönemi başladığında veliye giden HER karnenin
+// üstünde bir önceki yıl yazıyordu.
+export function currentPeriodLabel(reference: Date = new Date()): string {
+  return `${academicYearOf(reference)} Güncel Dönem`;
+}
