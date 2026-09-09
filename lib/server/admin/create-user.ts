@@ -34,6 +34,8 @@ export async function createStudentAccount(input: {
   parentName: string;
   parentPhone: string;
   healthNote?: string;
+  /** Veli SMS bilgilendirmelerini almayı kabul etti mi (kayıt sırasında sorulur). */
+  parentSmsConsent?: boolean;
 }): Promise<CreatedAccount> {
   const { firstName, lastName } = splitFullName(input.fullName);
   if (!lastName) throw new AdminCreateError("Ad ve soyadı birlikte girin.");
@@ -123,6 +125,11 @@ export async function createStudentAccount(input: {
             lastName: pLast || "Veli",
             relationship: "GUARDIAN",
             mobilePhone: parentPhone,
+            // ⚠️ Bu alan HER YERDE okunuyordu ama HİÇBİR YERDE
+            // yazılmıyordu: varsayılanı false olduğu için uygulamadan
+            // kaydedilen her velinin izni kapalı kalıyor ve "tüm okula
+            // SMS" kimseye ulaşmıyordu. Kayıt sırasında sorulur.
+            smsConsent: input.parentSmsConsent ?? false,
           },
         });
       })());

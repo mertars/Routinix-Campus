@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   MessageSquareText,
@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   XCircle,
   Users,
+  AlertTriangle,
+  ShieldCheck,
 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -24,6 +26,76 @@ type BatchProgress = { total: number; pending: number; sent: number; failed: num
 
 function hasConsentingParent(student: StudentOption): boolean {
   return student.parents.some((p) => p.smsConsent);
+}
+
+// SMS izni olmayan veliler için uyarı şeridi.
+//
+// smsConsent kayıt akışında hiç sorulmuyordu ve varsayılanı kapalı;
+// sonuç olarak müdür "tüm okula gönder" deyip hiç kimseye ulaşmıyor,
+// sebebini de göremiyordu. Şerit hem sayıyı söyler hem düzeltir.
+function ConsentBanner({ onChanged }: { onChanged: () => void }) {
+  const { showError, showSuccess } = useToast();
+  const [status, setStatus] = useState<{ total: number; consenting: number; missing: number } | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/sms/consent");
+      const data = await res.json();
+      if (res.ok) setStatus(data);
+    } catch {
+      // sessiz — şerit yardımcı bir katman, gönderim ekranını engellemez
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function grantAll() {
+    setWorking(true);
+    try {
+      const res = await fetch("/api/admin/sms/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "İşlem başarısız.");
+      showSuccess(`${data.updated} velinin SMS izni açıldı.`);
+      await load();
+      onChanged();
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "İşlem başarısız.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  if (!status || status.missing === 0) return null;
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-500/40 bg-amber-50 p-4 dark:bg-amber-500/10">
+      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-amber-900 dark:text-amber-300">
+          {status.total} veliden {status.missing} tanesinin SMS izni kapalı
+        </p>
+        <p className="text-[11px] text-amber-800/80 dark:text-amber-300/70">
+          İzni kapalı velilere gönderim YAPILMAZ — ne toplu SMS ne ödeme hatırlatması. Velilerden izni fiilen
+          aldıysanız tek tuşla açabilirsiniz; yeni kayıtlarda izin kayıt ekranında soruluyor.
+        </p>
+      </div>
+      <button
+        onClick={grantAll}
+        disabled={working}
+        className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+      >
+        {working ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+        Tümünün iznini aç
+      </button>
+    </div>
+  );
 }
 
 // Şablon ekleme formu — schedule-matrix.tsx'teki SlotManagerModal'la AYNI
@@ -170,13 +242,20 @@ export function BulkSmsTab() {
       .catch(() => showError("Şablonlar yüklenemedi."));
   }
 
-  useEffect(() => {
-    loadCredits();
-    loadTemplates();
+  // İzin toplu açıldıktan sonra listenin rozetleri tazelensin diye
+  // dışarı alındı.
+  const loadStudents = useCallback(() => {
     fetch("/api/admin/users/directory?role=STUDENT")
       .then((res) => res.json())
       .then((data) => setStudents(data.students ?? []))
       .catch(() => showError("Öğrenci listesi yüklenemedi."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    loadCredits();
+    loadTemplates();
+    loadStudents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -309,6 +388,7 @@ export function BulkSmsTab() {
         whileHover={{ scale: 1.005, y: -2 }}
         className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
+        <ConsentBanner onChanged={loadStudents} />
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
             <Users className="h-4 w-4 text-brand-600" /> Alıcılar

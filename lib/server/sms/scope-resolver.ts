@@ -22,7 +22,15 @@ export async function resolveScope(
   const studentWhere = buildStudentWhere(scopeType, scopeValue, institutionId);
 
   const students = await prisma.student.findMany({
-    where: studentWhere,
+    // ⚠️ isActive KAPSAMIN ÜSTÜNE eklenir, kapsamın kendisine değil.
+    //
+    // buildStudentWhere yalnızca "kime" sorusunu (tüm okul / kademe /
+    // şube / seçili liste) yanıtlar; "hâlâ öğrencimiz mi" sorusu ondan
+    // bağımsız ve HER kapsamda geçerlidir. Bu süzgeç yokken "tüm okula
+    // duyuru" kurumdan AYRILMIŞ öğrencilerin velilerine de SMS
+    // gönderiyordu — para harcanan, rahatsızlık veren ve kurumu zor
+    // durumda bırakan bir hata.
+    where: { ...studentWhere, isActive: true },
     include: { parents: { include: { parent: true } } },
   });
 

@@ -25,6 +25,7 @@ type CreateBody = {
   phone?: string;
   parentName?: string;
   parentPhone?: string;
+  parentSmsConsent?: boolean;
   healthNote?: string;
   // öğretmen
   subject?: string;
@@ -86,6 +87,7 @@ async function handlePost(request: NextRequest) {
         phone: body.phone ?? "",
         parentName: body.parentName ?? "",
         parentPhone: body.parentPhone ?? "",
+        parentSmsConsent: body.parentSmsConsent === true,
         healthNote: body.healthNote,
       });
       // Plan kurulumu hesabı oluşturduktan SONRA yapılır; buraya kadar

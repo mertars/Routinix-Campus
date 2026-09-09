@@ -23,7 +23,8 @@ async function handleGet(request: NextRequest) {
     }
 
     const [students, arrangement] = await Promise.all([
-      prisma.student.findMany({ where: { branchId }, select: { id: true, firstName: true, lastName: true }, orderBy: [{ firstName: "asc" }, { lastName: "asc" }] }),
+      // Ayrılan öğrenciye sınıfta sıra ayrılmaz.
+      prisma.student.findMany({ where: { branchId, isActive: true }, select: { id: true, firstName: true, lastName: true }, orderBy: [{ firstName: "asc" }, { lastName: "asc" }] }),
       prisma.seatingArrangement.findUnique({ where: { branchId } }),
     ]);
 

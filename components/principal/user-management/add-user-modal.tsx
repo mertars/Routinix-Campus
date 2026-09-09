@@ -62,6 +62,11 @@ export function AddUserModal({
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [healthNote, setHealthNote] = useState("");
+  // Varsayılan AÇIK: veli kaydını yaptıran zaten kurumla iletişim
+  // kurmayı bekliyor; müdür istemezse kutuyu kaldırır. Kapalı
+  // varsayılan, kimsenin fark etmediği ve toplu SMS'i sessizce
+  // işlevsiz bırakan durumu üretiyordu.
+  const [parentSmsConsent, setParentSmsConsent] = useState(true);
   const [subject, setSubject] = useState(SUBJECT_OPTIONS[0]);
   const [customSubject, setCustomSubject] = useState("");
   const [mobilePhone, setMobilePhone] = useState("");
@@ -154,7 +159,7 @@ export function AddUserModal({
 
       const body =
         role === "STUDENT"
-          ? { role, fullName, nationalId, branchId, phone: studentPhone, parentName, parentPhone, healthNote, ...paymentPart }
+          ? { role, fullName, nationalId, branchId, phone: studentPhone, parentName, parentPhone, parentSmsConsent, healthNote, ...paymentPart }
           : role === "TEACHER"
             ? { role, fullName, nationalId, subject: subject === "Diğer" ? customSubject : subject, mobilePhone, email, advisorBranchId: advisorBranchId || undefined, ...salaryPart }
             : { role, fullName, title, mobilePhone, email, authorityLevel, ...salaryPart };
@@ -240,6 +245,20 @@ export function AddUserModal({
               <input value={parentName} onChange={(e) => setParentName(e.target.value)} placeholder="Veli Ad Soyad" className={inputClass} />
               <input value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} placeholder="Veli Telefonu" className={inputClass} />
             </div>
+            <label className="flex items-start gap-2 rounded-lg bg-cream-card px-3 py-2 text-[11px] text-espresso dark:bg-white/5 dark:text-cream">
+              <input
+                type="checkbox"
+                checked={parentSmsConsent}
+                onChange={(e) => setParentSmsConsent(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 accent-brand-600"
+              />
+              <span>
+                Veli, kurumdan SMS bilgilendirmesi almayı kabul ediyor.
+                <span className="block text-espresso-muted dark:text-cream/40">
+                  İşaretlenmezse bu veli toplu SMS ve ödeme hatırlatmalarının hiçbirini almaz.
+                </span>
+              </span>
+            </label>
             <textarea value={healthNote} onChange={(e) => setHealthNote(e.target.value)} placeholder="Tıbbi / özel not (isteğe bağlı)" rows={2} className={inputClass} />
 
             {canSetPayment && (

@@ -13,6 +13,8 @@ export type StudentImportRow = {
   parentName: string;
   parentPhone: string;
   healthNote?: string;
+  /** Dosyadaki "SMS İzni" sütunu — yoksa kapalı sayılır. */
+  parentSmsConsent?: boolean;
 };
 
 export type StudentImportResult = {
@@ -98,6 +100,7 @@ export async function bulkCreateStudents(
     password: string;
     parentPhone: string;
     parentName: string;
+    parentSmsConsent: boolean;
   };
   const prepared: Prepared[] = [];
 
@@ -145,6 +148,7 @@ export async function bulkCreateStudents(
       password: generateTemporaryPassword(),
       parentPhone,
       parentName,
+      parentSmsConsent: row.parentSmsConsent ?? false,
     });
   }
 
@@ -159,6 +163,7 @@ export async function bulkCreateStudents(
   const newParentPhones = [...new Set(prepared.map((p) => p.parentPhone))].filter((ph) => !parentIdByPhone.has(ph));
   if (newParentPhones.length > 0) {
     const nameByPhone = new Map(prepared.map((p) => [p.parentPhone, p.parentName]));
+    const consentByPhone = new Map(prepared.map((p) => [p.parentPhone, p.parentSmsConsent ?? false]));
     const created = await prisma.parent.createManyAndReturn({
       data: newParentPhones.map((ph) => {
         const { firstName, lastName } = splitFullName(nameByPhone.get(ph) ?? "Veli");
@@ -169,6 +174,9 @@ export async function bulkCreateStudents(
           lastName: lastName || "Veli",
           relationship: "GUARDIAN" as const,
           mobilePhone: ph,
+          // Dosyada "SMS İzni" sütunu varsa oradan; yoksa kapalı
+          // (bkz. create-user.ts'teki aynı gerekçe).
+          smsConsent: consentByPhone.get(ph) ?? false,
         };
       }),
       select: { id: true, mobilePhone: true },

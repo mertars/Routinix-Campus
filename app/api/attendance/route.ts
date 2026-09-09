@@ -105,7 +105,10 @@ async function handleGet(request: NextRequest) {
     }
 
     const day = parseDateOnly(date);
-    const students = await prisma.student.findMany({ where: { branchId }, select: { id: true } });
+    // Pasif öğrenci yoklama listesinde çıkmamalı: öğretmen ayrılmış
+    // birini işaretlemek zorunda kalıyordu ve "hepsi işaretlenmeden
+    // kaydedilemez" kuralı yüzünden bu artık bir engel.
+    const students = await prisma.student.findMany({ where: { branchId, isActive: true }, select: { id: true } });
     const records = await prisma.attendanceRecord.findMany({
       where: { date: day, slot, studentId: { in: students.map((s) => s.id) } },
       select: { studentId: true, status: true },
