@@ -4,6 +4,7 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { checkHeaders } from "@/lib/bulk-import/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,15 @@ async function handlePost(request: NextRequest) {
     }
     if (rows.length > 500) {
       return NextResponse.json({ error: "Tek seferde en fazla 500 satır işlenebilir." }, { status: 400 });
+    }
+
+    // Sütun BAŞLIKLARI önce kontrol edilir: başlık yanlışsa her satır
+    // aynı hatayı verir ve müdür bunu bir SATIR sorunu sanır
+    // (bkz. lib/bulk-import/headers.ts). Tek cümlelik dosya hatası,
+    // 100 tane özdeş satır hatasından anlaşılırdır.
+    const headers = checkHeaders(role, rows);
+    if (!headers.ok) {
+      return NextResponse.json({ error: headers.message, missingColumns: headers.missing }, { status: 400 });
     }
 
     const outcome = await runBulkImport(role, rows, session.institutionId, session.sub);

@@ -26,6 +26,7 @@ import { downloadImportTemplate } from "@/lib/bulk-import/template";
 import { parseXlsxFile, parseCsvFile } from "@/lib/bulk-import/parse-spreadsheet";
 import { parsePdfFile } from "@/lib/bulk-import/parse-pdf";
 import { validateRows } from "@/lib/bulk-import/validate";
+import { checkHeaders } from "@/lib/bulk-import/headers";
 import type { ImportRole, RawRow, ValidatedRow } from "@/lib/bulk-import/types";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { runChunked, DEFAULT_CHUNK_SIZE, type ChunkProgress } from "@/lib/client/chunked-import";
@@ -154,6 +155,12 @@ export function BulkImportWizard({
       else throw new Error("Desteklenmeyen dosya türü — .xlsx, .csv veya .pdf yükleyin.");
 
       if (rows.length === 0) throw new Error("Dosyada okunabilir satır bulunamadı.");
+
+      // Başlık kontrolü SATIR doğrulamasından önce: sütun adı yanlışsa
+      // her satır aynı hatayı verir ve müdür bunu satır sorunu sanar.
+      // Dosya en baştan reddedilir, doğrulama ekranına hiç geçilmez.
+      const headers = checkHeaders(role, rows);
+      if (!headers.ok) throw new Error(headers.message);
 
       setRawRows(rows);
       setValidatedRows(validateRows(role, rows, branchNames));
