@@ -4,6 +4,8 @@ import { generatePrefixedId } from "@/lib/server/ids";
 import { splitFullName } from "@/lib/server/admin/create-user";
 import { normalizePhone } from "@/lib/server/auth/otp";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
+import { currentAcademicYear } from "@/lib/payments/academic-year";
+import { defaultEndDate } from "@/lib/server/enrollment/enrollment-service";
 
 export type StudentImportRow = {
   fullName: string;
@@ -204,6 +206,30 @@ export async function bulkCreateStudents(
     data: prepared
       .map((p) => ({ parentId: parentIdByPhone.get(p.parentPhone)!, studentId: p.id }))
       .filter((l) => Boolean(l.parentId)),
+    skipDuplicates: true,
+  });
+
+  // --- 6) Kayıt dönemi ---
+  //
+  // Tekil kayıt yolu bunu açıyordu ama TOPLU yol açmıyordu; oysa yeni
+  // bir kurum öğrencilerini tam olarak buradan yüklüyor. Sonuç: sıfırdan
+  // kurulan her kurum, 100 öğrencisinin hiçbirinin kayıt dönemi olmadan
+  // başlıyor — yenileme listesi kalıcı olarak boş kalıyordu. (Yeniden
+  // testte ölçüldü: 100 öğrencinin 99'unda kayıt dönemi yoktu.)
+  //
+  // Ücret BİLİNMEZ: toplu aktarma dosyasında ücret sütunu yok, plan
+  // ayrıca kuruluyor. Dönem kaydı bu yüzden tutarsız değil, sadece
+  // ücretsiz açılır — müdür yenilerken girer.
+  const academicYear = currentAcademicYear();
+  await prisma.studentEnrollment.createMany({
+    data: prepared.map((p) => ({
+      institutionId,
+      studentId: p.id,
+      academicYear,
+      startDate: new Date(),
+      endDate: defaultEndDate(academicYear),
+      createdByAdminId: actorId,
+    })),
     skipDuplicates: true,
   });
 
