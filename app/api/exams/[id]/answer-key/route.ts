@@ -59,16 +59,47 @@ async function handlePut(request: NextRequest, { params }: { params: { id: strin
     const validSubtopicIds = new Set((CURRICULUM_TREE[subject] ?? []).flatMap((topic) => topic.subtopics.map((s) => s.id)));
 
     const data: { examId: string; subject: string; questionNumber: number; subtopicId: string | null; subtopicLabel: string; correctAnswer: string | null }[] = [];
+    // Atlanan satırların SEBEBİ toplanır.
+    //
+    // Eskiden geçersiz satırlar sessizce atlanıyor ve hiçbiri geçmezse
+    // yalnızca "Geçerli hiçbir soru satırı yok." deniyordu. Kullanıcı
+    // neyin eksik olduğunu göremiyordu — en sık sebep konu etiketinin
+    // (subtopicLabel) boş olmasıydı, ki bu zorunlu olduğu hiçbir yerde
+    // yazmıyordu.
+    const skipped = { numarasiz: 0, etiketsiz: 0 };
+
     for (const q of rawQuestions) {
       const questionNumber = Number(q?.questionNumber);
       const subtopicLabel = typeof q?.subtopicLabel === "string" ? q.subtopicLabel.trim() : "";
-      if (!Number.isInteger(questionNumber) || questionNumber < 1 || !subtopicLabel) continue;
+      if (!Number.isInteger(questionNumber) || questionNumber < 1) {
+        skipped.numarasiz++;
+        continue;
+      }
+      if (!subtopicLabel) {
+        skipped.etiketsiz++;
+        continue;
+      }
       const subtopicId = typeof q?.subtopicId === "string" && validSubtopicIds.has(q.subtopicId) ? q.subtopicId : null;
       const rawAnswer = typeof q?.correctAnswer === "string" ? q.correctAnswer.trim().toUpperCase() : "";
       const correctAnswer = /^[A-E]$/.test(rawAnswer) ? rawAnswer : null;
       data.push({ examId: params.id, subject, questionNumber, subtopicId, subtopicLabel, correctAnswer });
     }
-    if (data.length === 0) return NextResponse.json({ error: "Geçerli hiçbir soru satırı yok." }, { status: 400 });
+    if (data.length === 0) {
+      const sebepler: string[] = [];
+      if (skipped.etiketsiz > 0) {
+        sebepler.push(`${skipped.etiketsiz} soruda konu etiketi (subtopicLabel) boş — her soru bir konuya bağlanmalı`);
+      }
+      if (skipped.numarasiz > 0) sebepler.push(`${skipped.numarasiz} soruda geçerli bir soru numarası yok`);
+      return NextResponse.json(
+        {
+          error:
+            sebepler.length > 0
+              ? `Geçerli soru satırı yok: ${sebepler.join("; ")}.`
+              : "Geçerli hiçbir soru satırı yok.",
+        },
+        { status: 400 }
+      );
+    }
 
     await prisma.$transaction([
       prisma.examQuestion.deleteMany({ where: { examId: params.id, subject } }),

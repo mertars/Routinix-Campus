@@ -67,6 +67,17 @@ async function handlePost(request: NextRequest) {
       })
       .filter((b: unknown): b is { subject: string; start: number; length: number; order: number } => b !== null);
 
+    // Ders bloğu olmayan bir format hiçbir şeyi puanlayamaz. Eskiden
+    // kaydedilebiliyordu ve işe yaramadığı ancak optik dosya yüklenirken
+    // ("Bu formatta hiç ders bloğu tanımlı değil") anlaşılıyordu — hata
+    // tanımlandığı yerde değil, kullanıldığı yerde çıkıyordu.
+    if (subjectBlocks.length === 0) {
+      return NextResponse.json(
+        { error: "En az bir ders bloğu tanımlayın (ders adı + başlangıç sütunu + uzunluk)." },
+        { status: 400 }
+      );
+    }
+
     const format = await prisma.opticalFormat.create({
       data: {
         institutionId: session.institutionId,
