@@ -33,7 +33,16 @@ async function handleGet(request: NextRequest) {
     requireInstitution(session, branch.institutionId);
     if (session.role === "TEACHER") {
       const owns = await prisma.branch.findFirst({
-        where: { id: branchId, OR: [{ advisorId: session.sub }, { teachingStaff: { some: { id: session.sub } } }] },
+        // Ders programı da sahiplik kaynağıdır (bkz. session-guard.ts >
+        // assertTeacherOwnsStudent'taki aynı düzeltme).
+        where: {
+          id: branchId,
+          OR: [
+            { advisorId: session.sub },
+            { teachingStaff: { some: { id: session.sub } } },
+            { lessonSlots: { some: { teacherId: session.sub } } },
+          ],
+        },
         select: { id: true },
       });
       if (!owns) return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });

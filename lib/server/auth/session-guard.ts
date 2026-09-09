@@ -66,6 +66,21 @@ export function assertOwnsSelf(session: Session, targetId: string): void {
 // danışman öğretmeni olmak, öğrencinin şubesinin danışmanı olmak, ya da o
 // şubede ders veren branş öğretmenlerinden biri olmak (teachingBranches —
 // bkz. prisma/schema.prisma > Branch.teachingStaff notu).
+// Öğretmen bu öğrenciye erişebilir mi?
+//
+// ⚠️ DERS PROGRAMI da bir sahiplik kaynağıdır.
+//
+// Burada eskiden üç koşul vardı: öğrencinin özel danışmanı olmak,
+// şubenin danışmanı olmak, ya da şubenin teachingStaff listesinde
+// bulunmak. Üçü de o öğretmenin GERÇEKTE ders verdiği şubeleri
+// kapsamıyordu — teachingStaff ilişkisi pratikte yalnızca danışman
+// şubesiyle doluyor (bkz. lib/server/teachers/taught-branches.ts'teki
+// aynı gerekçe).
+//
+// Ölçüldü: 12 öğretmenli bir kurumda öğretmenler toplam 1.062 öğrenciye
+// ders veriyor ama bu kontrol yalnızca 108'ine izin veriyordu — %90'ı
+// reddediliyordu. Öğretmen kendi dersine girdiği öğrencinin kaydını
+// açamıyor, notunu göremiyor, rehberlik notu yazamıyordu.
 export async function assertTeacherOwnsStudent(teacherId: string, studentId: string): Promise<void> {
   const student = await prisma.student.findFirst({
     where: {
@@ -74,6 +89,8 @@ export async function assertTeacherOwnsStudent(teacherId: string, studentId: str
         { advisorTeacherId: teacherId },
         { branch: { advisorId: teacherId } },
         { branch: { teachingStaff: { some: { id: teacherId } } } },
+        // Programda o şubede dersi olan öğretmen o şubenin öğrencilerine erişir.
+        { branch: { lessonSlots: { some: { teacherId } } } },
       ],
     },
     select: { id: true },

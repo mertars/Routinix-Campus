@@ -805,30 +805,7 @@ export const POP_QUIZ_QUESTIONS: string[] = [
   "Bir küpün hacmi 27 cm³ ise bir kenarı kaç cm'dir?",
 ];
 
-export type TopicHeatmapRow = { topic: string; scores: number[] };
 
-export const TOPIC_HEATMAP: Record<string, TopicHeatmapRow[]> = {
-  Matematik: [
-    { topic: "Fonksiyonlar", scores: [92, 78, 65, 88, 55, 70] },
-    { topic: "Limit", scores: [85, 60, 72, 90, 48, 66] },
-    { topic: "Türev", scores: [70, 55, 40, 82, 35, 58] },
-    { topic: "İntegral", scores: [60, 45, 30, 75, 28, 50] },
-  ],
-  Fizik: [
-    { topic: "Kuvvet ve Hareket", scores: [88, 70, 60, 80, 50, 65] },
-    { topic: "Vektörler", scores: [75, 58, 45, 70, 40, 55] },
-    { topic: "Optik", scores: [55, 40, 30, 62, 25, 45] },
-    { topic: "Elektrik", scores: [65, 50, 42, 72, 33, 48] },
-  ],
-  Türkçe: [
-    { topic: "Paragraf", scores: [90, 80, 70, 85, 60, 75] },
-    { topic: "Dil Bilgisi", scores: [70, 55, 48, 68, 40, 52] },
-  ],
-  "LGS Branş": [
-    { topic: "Sözel Mantık", scores: [80, 65, 58, 74, 50, 62] },
-    { topic: "Sayısal Mantık", scores: [68, 52, 44, 70, 38, 55] },
-  ],
-};
 
 export type RemediationTask = { id: string; studentName: string; topic: string; taskDescription: string; assignedAt: string };
 
