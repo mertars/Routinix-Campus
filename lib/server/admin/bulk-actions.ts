@@ -38,6 +38,27 @@ export type BulkAction = (typeof BULK_ACTIONS)[number];
 // Öğretmenlerde anlamı olmayan işlemler — şube/kayıt dönemi öğrenciye özgü.
 const STUDENT_ONLY: BulkAction[] = ["CHANGE_BRANCH", "PROMOTE_GRADE", "RENEW_ENROLLMENT"];
 
+// GERİ ALINABİLİR işlemler.
+//
+// Liste bilerek kısa ve dürüst:
+//   • DEACTIVATE/REACTIVATE — tek alan, tersi uygulanır.
+//   • CHANGE_BRANCH/PROMOTE_GRADE — eski şube kaydedilir, geri konur.
+//
+// Geri alınamayanlar ve SEBEPLERİ:
+//   • RESET_PASSWORD — bcrypt tek yönlü; eski şifre hiçbir yerde
+//     durmuyor, "geri alma" diye bir şey yok.
+//   • DELETE — kayıt fiziksel olarak silindi.
+//   • RENEW_ENROLLMENT — yeni dönem + taksit planı üretti; bunları
+//     geri sarmak tahsil edilmiş bir ödemeyi de etkileyebilir.
+//     Yanlışlıkla yenilenen kayıt, ödeme panelinden bilinçli olarak
+//     iptal edilmeli.
+export const UNDOABLE_ACTIONS: BulkAction[] = ["DEACTIVATE", "REACTIVATE", "CHANGE_BRANCH", "PROMOTE_GRADE"];
+
+// Geri alma penceresi. "Eyvah, yanlış seçmişim" demeye yetecek kadar
+// uzun; dünya ilerledikten sonra geçmişi değiştirmeye izin vermeyecek
+// kadar kısa.
+export const UNDO_WINDOW_MINUTES = 30;
+
 export type BulkItemResult = { id: string; name: string; ok: boolean; reason?: string };
 
 export type BulkCredential = { fullName: string; username: string; password: string; phone?: string; institutionalCode?: string };
@@ -50,6 +71,9 @@ export type BulkResult = {
   items: BulkItemResult[];
   /** Yalnızca RESET_PASSWORD: yeni geçici şifreler (bir kez döner). */
   credentials?: BulkCredential[];
+  /** Geri alma için denetim kaydı kimliği — yalnızca geri alınabilir işlemlerde. */
+  undoId?: string;
+  undoable: boolean;
 };
 
 export type BulkInput = {
@@ -106,7 +130,15 @@ async function loadScoped(input: BulkInput) {
 
 function summarize(action: BulkAction, items: BulkItemResult[], credentials?: BulkCredential[]): BulkResult {
   const succeeded = items.filter((i) => i.ok).length;
-  return { action, total: items.length, succeeded, failed: items.length - succeeded, items, credentials };
+  return {
+    action,
+    total: items.length,
+    succeeded,
+    failed: items.length - succeeded,
+    items,
+    credentials,
+    undoable: UNDOABLE_ACTIONS.includes(action),
+  };
 }
 
 export async function runBulkAction(input: BulkInput): Promise<BulkResult> {
@@ -120,12 +152,21 @@ export async function runBulkAction(input: BulkInput): Promise<BulkResult> {
   }
 
   const { rows, missing } = await loadScoped(input);
+
+  // Geri alma için ESKİ DURUM işlem öncesinde okunur — sonrasında
+  // okunsaydı zaten değişmiş olurdu. Yalnızca şube taşımalarında
+  // gerekli; aktiflik işlemlerinin tersi zaten kendisidir.
+  const previousBranchById: Record<string, string> =
+    input.action === "CHANGE_BRANCH" || input.action === "PROMOTE_GRADE"
+      ? Object.fromEntries((rows as StudentRow[]).map((r) => [r.id, r.branchId]))
+      : {};
+
   const result = await dispatch(input, rows as never[], missing);
 
   // Toplu işlem TEK denetim kaydı bırakır — 100 satır yerine "100
   // öğrenci pasifleştirildi". Tek tek kimin etkilendiği items içinde
   // döndüğü için ekranda zaten görünür.
-  await recordAuditLog({
+  const auditId = await recordAuditLog({
     institutionId: input.institutionId,
     actorId: input.actorId,
     actorRole: "ADMIN",
@@ -139,10 +180,14 @@ export async function runBulkAction(input: BulkInput): Promise<BulkResult> {
       failed: result.failed,
       // Şifreler ASLA loglanmaz — yalnızca kimin şifresinin sıfırlandığı.
       ids: result.items.filter((i) => i.ok).map((i) => i.id),
+      previousBranchById,
     },
   });
 
-  return result;
+  // Denetim kaydı yazılamadıysa geri alma da sunulmaz: geri alınacak
+  // "eski durum" bir yerde durmuyor demektir. Sessizce çalışmayan bir
+  // "Geri Al" düğmesi göstermektense hiç göstermemek doğrudur.
+  return { ...result, undoId: result.undoable && auditId ? auditId : undefined };
 }
 
 type StudentRow = { id: string; firstName: string; lastName: string; isActive: boolean; studentNumber: string; phone: string | null; branchId: string };
@@ -460,4 +505,91 @@ async function deleteAll(input: BulkInput, rows: AnyRow[]): Promise<BulkItemResu
     }
   }
   return results;
+}
+
+export type UndoResult = { action: BulkAction; reverted: number };
+
+// Toplu işlemi geri alır.
+//
+// Kaynak: işlem sırasında yazılan denetim kaydı. Kayıt hem NE
+// yapıldığını hem KİMLERE yapıldığını hem de (şube taşımalarında) ESKİ
+// DEĞERİ taşıyor.
+//
+// Üç kapı var ve üçü de gerekli:
+//   1) kayıt bu kuruma ait mi,
+//   2) işlem geri alınabilir türden mi,
+//   3) süre penceresi geçmemiş mi.
+export async function undoBulkAction(institutionId: string, auditLogId: string): Promise<UndoResult> {
+  const log = await prisma.auditLog.findUnique({
+    where: { id: auditLogId },
+    select: { institutionId: true, action: true, createdAt: true, metadata: true },
+  });
+  if (!log || log.institutionId !== institutionId || log.action !== "BULK_ACTION_APPLIED") {
+    throw new AdminCreateError("Geri alınacak işlem bulunamadı.", 404);
+  }
+
+  const ageMinutes = (Date.now() - log.createdAt.getTime()) / 60_000;
+  if (ageMinutes > UNDO_WINDOW_MINUTES) {
+    throw new AdminCreateError(
+      `Geri alma süresi doldu (${UNDO_WINDOW_MINUTES} dakika). Değişikliği elle düzeltmeniz gerekiyor.`,
+      400
+    );
+  }
+
+  const meta = (log.metadata ?? {}) as {
+    bulkAction?: BulkAction;
+    role?: "STUDENT" | "TEACHER";
+    ids?: string[];
+    previousBranchById?: Record<string, string>;
+  };
+  const action = meta.bulkAction;
+  const ids = meta.ids ?? [];
+
+  if (!action || !UNDOABLE_ACTIONS.includes(action)) {
+    throw new AdminCreateError("Bu işlem geri alınamaz.", 400);
+  }
+  if (ids.length === 0) return { action, reverted: 0 };
+
+  let reverted = 0;
+
+  if (action === "DEACTIVATE" || action === "REACTIVATE") {
+    // Tersini uygula. Kurum süzgeci burada da var: denetim kaydı
+    // doğrulanmış olsa bile yazma işlemi kurum dışına taşamaz.
+    const target = action === "DEACTIVATE";
+    const where = { id: { in: ids }, institutionId };
+    const res =
+      meta.role === "TEACHER"
+        ? await prisma.teacher.updateMany({ where, data: { isActive: target } })
+        : await prisma.student.updateMany({ where, data: { isActive: target } });
+    reverted = res.count;
+  } else {
+    // Şube taşıması: her öğrenci KENDİ eski şubesine döner, hepsi tek
+    // bir şubeye değil. Eski şube başına tek updateMany.
+    const previous = meta.previousBranchById ?? {};
+    const byBranch = new Map<string, string[]>();
+    for (const id of ids) {
+      const branchId = previous[id];
+      if (!branchId) continue;
+      byBranch.set(branchId, [...(byBranch.get(branchId) ?? []), id]);
+    }
+    for (const [branchId, studentIds] of byBranch) {
+      const res = await prisma.student.updateMany({
+        where: { id: { in: studentIds }, institutionId },
+        data: { branchId },
+      });
+      reverted += res.count;
+    }
+  }
+
+  await recordAuditLog({
+    institutionId,
+    actorId: "system",
+    actorRole: "ADMIN",
+    action: "BULK_ACTION_APPLIED",
+    targetType: meta.role === "TEACHER" ? "Teacher" : "Student",
+    targetId: `${reverted} kayıt geri alındı`,
+    metadata: { undoOf: auditLogId, bulkAction: action, reverted },
+  });
+
+  return { action, reverted };
 }

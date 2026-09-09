@@ -13,10 +13,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   Download,
+  Undo2,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { runChunked, DEFAULT_CHUNK_SIZE } from "@/lib/client/chunked-import";
+import { refreshInstitutionCounts } from "@/lib/institution-counts";
 import { cn } from "@/lib/utils";
 
 type BulkAction = "DEACTIVATE" | "REACTIVATE" | "RESET_PASSWORD" | "CHANGE_BRANCH" | "PROMOTE_GRADE" | "RENEW_ENROLLMENT" | "DELETE";
@@ -83,6 +85,8 @@ export function BulkActionsModal({
   const [doneCount, setDoneCount] = useState(0);
   const [results, setResults] = useState<ItemResult[] | null>(null);
   const [credentials, setCredentials] = useState<Credential[] | null>(null);
+  const [undoId, setUndoId] = useState<string | null>(null);
+  const [undone, setUndone] = useState(false);
 
   const available = ACTIONS.filter((a) => role === "STUDENT" || !a.studentOnly);
   const spec = ACTIONS.find((a) => a.action === action) ?? null;
@@ -96,6 +100,8 @@ export function BulkActionsModal({
     setRenewCount("");
     setResults(null);
     setCredentials(null);
+    setUndoId(null);
+    setUndone(false);
     setPercent(0);
     setDoneCount(0);
   }
@@ -129,6 +135,7 @@ export function BulkActionsModal({
     setRunning(true);
     setResults(null);
     const collectedCredentials: Credential[] = [];
+    const collectedUndoIds: string[] = [];
 
     const branchMap =
       action === "PROMOTE_GRADE"
@@ -162,6 +169,10 @@ export function BulkActionsModal({
           const data = await res.json();
           if (!res.ok) throw new Error(data?.error ?? "İşlem başarısız.");
           if (Array.isArray(data.credentials)) collectedCredentials.push(...data.credentials);
+          // ⚠️ Her parça KENDİ denetim kaydını yazar. Tek bir id
+          // tutulsaydı 100 kayıtlık bir işlemin yalnızca son 25'i geri
+          // alınırdı — hepsi toplanıp sırayla geri sarılıyor.
+          if (data.undoId) collectedUndoIds.push(data.undoId as string);
           return (data.items ?? []) as ItemResult[];
         },
         (p) => {
@@ -172,11 +183,40 @@ export function BulkActionsModal({
 
       setResults(items);
       if (collectedCredentials.length > 0) setCredentials(collectedCredentials);
+      // Pasifleştirme/silme aktif sayıyı değiştirir; üst bardaki sayaç
+      // eski değeri göstermesin.
+      refreshInstitutionCounts();
+      if (collectedUndoIds.length > 0) setUndoId(collectedUndoIds.join(","));
       const ok = items.filter((i) => i.ok).length;
       if (ok === items.length) showSuccess(`${ok} kayıt işlendi.`);
       else showError(`${ok} kayıt işlendi, ${items.length - ok} tanesi yapılamadı — sebepleri aşağıda.`);
     } catch (error) {
       showError(error instanceof Error ? error.message : "İşlem başarısız.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+
+  // Geri alma. Parçalı gönderim yüzünden birden fazla denetim kaydı
+  // olabilir; hepsi sırayla geri sarılır.
+  async function undo() {
+    if (!undoId) return;
+    setRunning(true);
+    try {
+      let total = 0;
+      for (const id of undoId.split(",")) {
+        const res = await fetch(`/api/admin/users/bulk-action?undo=${encodeURIComponent(id)}`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "Geri alınamadı.");
+        total += data.reverted ?? 0;
+      }
+      showSuccess(`${total} kayıt eski haline döndürüldü.`);
+      setUndone(true);
+      refreshInstitutionCounts();
+      onDone();
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Geri alınamadı.");
     } finally {
       setRunning(false);
     }
@@ -374,6 +414,18 @@ export function BulkActionsModal({
                 {results.filter((r) => r.ok).length} başarılı
                 {results.some((r) => !r.ok) && `, ${results.filter((r) => !r.ok).length} yapılamadı`}
               </p>
+              {undoId && !undone && (
+                <button
+                  onClick={undo}
+                  disabled={running}
+                  className="ml-auto flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-white disabled:opacity-50 dark:border-white/10 dark:text-cream dark:hover:bg-white/10"
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Geri Al
+                </button>
+              )}
+              {undone && (
+                <span className="ml-auto text-xs font-medium text-green-700 dark:text-green-400">Geri alındı</span>
+              )}
               {credentials && (
                 <button
                   onClick={downloadCredentials}

@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Menu, LogOut, ArrowLeft, Search } from "lucide-react";
+import { Menu, LogOut, ArrowLeft, Search, GraduationCap } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
 import { MobileMenuPopup } from "@/components/principal/mobile-menu-popup";
 import { GlobalSearchModal } from "@/components/principal/global-search-modal";
+import { useInstitutionCounts } from "@/lib/institution-counts";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ export function TopBar() {
   const institutionName = useInstitutionName();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const counts = useInstitutionCounts();
 
   // ⌘K / Ctrl+K ile her ekrandan açılır — müdürün aradığı kişiye
   // ulaşmak için hangi sekmede olduğunu hatırlaması gerekmesin.
@@ -65,6 +67,11 @@ export function TopBar() {
             <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
               <InstitutionBadgeIcon className="h-3.5 w-3.5" />
               <span className="truncate text-[10px] font-semibold">{institutionName}</span>
+              {counts && (
+                <span className="shrink-0 border-l border-brand-500/30 pl-1.5 text-[10px] font-semibold">
+                  {counts.activeStudents}
+                </span>
+              )}
             </div>
             <button
               onClick={() => setIsSearchOpen(true)}
@@ -101,6 +108,25 @@ export function TopBar() {
             <InstitutionBadgeIcon className="h-3.5 w-3.5" />
             <span className="text-xs font-semibold">{institutionName}</span>
           </div>
+
+          {/* Aktif öğrenci sayısı HER ekranda görünür (madde 12): üst bar
+              ERP'nin tüm sekmelerinde ortak. Sayı tek kaynaktan gelir,
+              her ekran kendi hesabını yapmaz. */}
+          {counts && (
+            <div
+              className="flex items-center gap-1.5 rounded-full border border-hairline bg-white/60 px-3 py-1.5 text-espresso dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
+              title={`${counts.activeStudents} aktif öğrenci · ${counts.activeTeachers} öğretmen · ${counts.branches} şube${counts.departedWithDebt > 0 ? ` · ${counts.departedWithDebt} ayrılmış öğrencinin borcu açık` : ""}`}
+            >
+              <GraduationCap className="h-3.5 w-3.5 text-brand-600" />
+              <span className="text-xs font-semibold">{counts.activeStudents}</span>
+              <span className="text-[10px] text-espresso-muted dark:text-cream/40">aktif öğrenci</span>
+              {counts.departedWithDebt > 0 && (
+                <span className="ml-1 rounded-full bg-amber-100 px-1.5 text-[10px] font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                  +{counts.departedWithDebt} borçlu ayrılan
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="hidden items-center gap-2 sm:gap-3 md:flex">

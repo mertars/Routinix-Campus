@@ -29,6 +29,7 @@ import { validateRows } from "@/lib/bulk-import/validate";
 import type { ImportRole, RawRow, ValidatedRow } from "@/lib/bulk-import/types";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { runChunked, DEFAULT_CHUNK_SIZE, type ChunkProgress } from "@/lib/client/chunked-import";
+import { refreshInstitutionCounts } from "@/lib/institution-counts";
 
 export type PrintableCredential = { fullName: string; username: string; password: string; phone?: string; institutionalCode?: string };
 
@@ -202,6 +203,7 @@ export function BulkImportWizard({
       // Satır numaraları her parçada sıfırdan başlar; sonuçları
       // birleştirirken dosyadaki gerçek sıraya göre yeniden numaralanır.
       setResults(collected.map((r, i) => ({ ...r, rowIndex: i })));
+      refreshInstitutionCounts();
       onImported();
     } catch (error) {
       showError(error instanceof Error ? error.message : "İçe aktarma başarısız.");

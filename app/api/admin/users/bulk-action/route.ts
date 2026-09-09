@@ -8,6 +8,7 @@ import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import {
   runBulkAction,
   previewGradePromotion,
+  undoBulkAction,
   BULK_ACTIONS,
   type BulkAction,
 } from "@/lib/server/admin/bulk-actions";
@@ -24,6 +25,15 @@ async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
     requireRole(session, "principal");
+
+    // POST ?undo=<denetim kaydı id> — geri alınabilir bir toplu işlemi
+    // geri sarar (bkz. UNDOABLE_ACTIONS ve UNDO_WINDOW_MINUTES).
+    // Gövde okunmadan ÖNCE bakılır: geri alma isteği gövde taşımaz.
+    const undoId = request.nextUrl.searchParams.get("undo");
+    if (undoId) {
+      const undone = await undoBulkAction(session.institutionId, undoId);
+      return NextResponse.json(undone);
+    }
 
     const body = await request.json().catch(() => null);
     const action = body?.action as BulkAction | undefined;

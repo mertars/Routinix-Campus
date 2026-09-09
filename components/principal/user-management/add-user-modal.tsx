@@ -8,6 +8,7 @@ import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 import type { NewUserCredentials } from "./credentials-card-modal";
 import { currentAcademicYear, academicYearOptions } from "@/lib/payments/academic-year";
+import { refreshInstitutionCounts } from "@/lib/institution-counts";
 
 type BranchOption = { id: string; name: string };
 
@@ -173,6 +174,7 @@ export function AddUserModal({
       if (!res.ok) throw new Error(data?.error ?? "Kullanıcı oluşturulamadı.");
 
       const phone = role === "STUDENT" ? studentPhone : mobilePhone;
+      refreshInstitutionCounts();
       onCreated({
         name: fullName.trim(),
         username: data.username,

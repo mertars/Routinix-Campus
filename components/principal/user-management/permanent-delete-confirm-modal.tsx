@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertOctagon, Loader2, Trash2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
+import { refreshInstitutionCounts } from "@/lib/institution-counts";
 
 export type PermanentDeleteTarget = { id: string; role: "STUDENT" | "TEACHER"; name: string } | null;
 
@@ -47,6 +48,7 @@ export function PermanentDeleteConfirmModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Silinemedi.");
       showSuccess(`${target.name} kalıcı olarak silindi.`);
+      refreshInstitutionCounts();
       onDeleted();
       handleClose();
     } catch (error) {

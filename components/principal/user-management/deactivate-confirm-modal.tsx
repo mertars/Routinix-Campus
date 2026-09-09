@@ -5,6 +5,7 @@ import { AlertTriangle, Loader2, UserX, UserCheck } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { refreshInstitutionCounts } from "@/lib/institution-counts";
 
 export type DeactivateTarget = { id: string; role: "STUDENT" | "TEACHER"; name: string; isActive: boolean } | null;
 
@@ -39,6 +40,7 @@ export function DeactivateConfirmModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "İşlem başarısız.");
       showSuccess(target.isActive ? `${target.name} pasifleştirildi.` : `${target.name} tekrar aktif edildi.`);
+      refreshInstitutionCounts();
       onChanged();
       onClose();
     } catch (error) {
