@@ -29,11 +29,30 @@ export const POSITIVE_STATUSES: readonly AttendanceStatus[] = ["PRESENT", "LATE"
 // 8'inde gelen öğrencinin devam oranı %100'dür.
 export const EXCLUDED_FROM_RATE: readonly AttendanceStatus[] = ["EXCUSED"];
 
+// Durum → adet eşlemesinden devam oranı.
+//
+// Bu varyant var çünkü oranı hesaplamak için satırların KENDİSİ gerekmez,
+// yalnızca sayıları gerekir. Veli paneli bir öğrencinin ÜÇ YILLIK tüm
+// yoklama kayıtlarını (ölçüldü: 1.925 satır) sadece bu oranı bulmak için
+// çekiyordu. groupBy ile aynı sonuç, sabit maliyetle elde edilir.
+//
+// Kural TEK yerde kalsın diye satır tabanlı sürüm de buraya delege eder.
+export function computeAttendanceRateFromCounts(counts: Record<string, number>): number {
+  let counted = 0;
+  let positive = 0;
+  for (const [status, n] of Object.entries(counts)) {
+    if (EXCLUDED_FROM_RATE.includes(status as AttendanceStatus)) continue;
+    counted += n;
+    if (POSITIVE_STATUSES.includes(status as AttendanceStatus)) positive += n;
+  }
+  if (counted === 0) return 100;
+  return Math.round((positive / counted) * 100);
+}
+
 export function computeAttendanceRate(records: { status: string }[]): number {
-  const counted = records.filter((r) => !EXCLUDED_FROM_RATE.includes(r.status as AttendanceStatus));
-  if (counted.length === 0) return 100;
-  const positive = counted.filter((r) => POSITIVE_STATUSES.includes(r.status as AttendanceStatus)).length;
-  return Math.round((positive / counted.length) * 100);
+  const counts: Record<string, number> = {};
+  for (const r of records) counts[r.status] = (counts[r.status] ?? 0) + 1;
+  return computeAttendanceRateFromCounts(counts);
 }
 
 export function isValidAttendanceStatus(value: unknown): value is AttendanceStatus {

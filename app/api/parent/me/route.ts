@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { computeAttendanceRate } from "@/lib/server/report-card/analyzer";
+import { computeAttendanceRateFromCounts } from "@/lib/attendance/status";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
@@ -43,14 +43,43 @@ async function handleGet() {
 
   const students = await Promise.all(
     parent.students.map(async ({ student }) => {
-      const [attendanceRecords, netResults] = await Promise.all([
-        prisma.attendanceRecord.findMany({ where: { studentId: student.id }, select: { status: true } }),
-        prisma.examNetResult.findMany({ where: { studentId: student.id }, select: { examId: true, net: true }, orderBy: { examId: "desc" } }),
+      const [attendanceCounts, latestExam] = await Promise.all([
+        // ⚠️ Satırlar DEĞİL, sayılar çekilir.
+        //
+        // Burada eskiden öğrencinin TÜM yoklama kayıtları çekiliyordu.
+        // Ölçüldü: 3 eğitim yılı = 1.925 satır ve bu tek uç 630-960 ms
+        // sürüyordu — üstelik veli panelinin gördüğü TEK uç bu. Üç
+        // çocuklu bir veli üç saniye bekliyordu. Oran için satırların
+        // kendisi gerekmiyor (bkz. computeAttendanceRateFromCounts).
+        prisma.attendanceRecord.groupBy({
+          by: ["status"],
+          where: { studentId: student.id },
+          _count: { _all: true },
+        }),
+        // ⚠️ "Son deneme" SINAV TARİHİNE göre bulunur, examId'ye göre değil.
+        //
+        // Eskiden `orderBy: { examId: "desc" }` yazıyordu; examId bir
+        // cuid ve OLUŞTURULMA sırasıyla korelasyonlu — sınav TARİHİYLE
+        // değil. Müdür eski tarihli bir denemenin sonuçlarını sonradan
+        // girdiğinde o deneme "son deneme" gibi görünüyordu.
+        prisma.exam.findFirst({
+          where: { results: { some: { studentId: student.id } } },
+          orderBy: { examDate: "desc" },
+          select: { id: true },
+        }),
       ]);
-      const latestExamId = netResults[0]?.examId ?? null;
-      const actualNet = latestExamId
-        ? Math.round(netResults.filter((r) => r.examId === latestExamId).reduce((sum, r) => sum + r.net, 0) * 100) / 100
+
+      // Yalnızca SON denemenin satırları toplanır; tüm geçmiş değil.
+      const netAgg = latestExam
+        ? await prisma.examNetResult.aggregate({
+            where: { studentId: student.id, examId: latestExam.id },
+            _sum: { net: true },
+          })
         : null;
+      const actualNet = netAgg?._sum.net != null ? Math.round(netAgg._sum.net * 100) / 100 : null;
+
+      const counts: Record<string, number> = {};
+      for (const row of attendanceCounts) counts[row.status] = row._count._all;
 
       return {
         id: student.id,
@@ -60,7 +89,7 @@ async function handleGet() {
         grade: student.branch.grade,
         targetNet: student.targetNet,
         actualNet,
-        attendanceRate: computeAttendanceRate(attendanceRecords),
+        attendanceRate: computeAttendanceRateFromCounts(counts),
       };
     })
   );

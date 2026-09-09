@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { computeAttendanceRate } from "@/lib/server/report-card/analyzer";
+import { computeAttendanceRateFromCounts } from "@/lib/attendance/status";
 import { requireSession, requireInstitution, assertOwnsSelf, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
@@ -36,7 +36,8 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
     else if (session.role === "PARENT") await assertParentOwnsStudent(session.sub, student.id);
 
     const [attendanceRecords, netResults] = await Promise.all([
-      prisma.attendanceRecord.findMany({ where: { studentId: student.id }, select: { status: true } }),
+      // Satırlar değil sayılar (bkz. parent/me'deki aynı düzeltme).
+      prisma.attendanceRecord.groupBy({ by: ["status"], where: { studentId: student.id }, _count: { _all: true } }),
       // orderBy ilişkiyi SQL JOIN'iyle sıralar, include GEREKTİRMEZ — exam
       // objesinin kendisi hiç okunmuyordu (sadece examId/net kullanılıyor).
       prisma.examNetResult.findMany({ where: { studentId: student.id }, select: { examId: true, net: true }, orderBy: { exam: { examDate: "desc" } } }),
@@ -59,7 +60,9 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
       targetNet: student.targetNet,
       weeklyStudyHours: student.weeklyStudyHours,
       actualNet,
-      attendanceRate: computeAttendanceRate(attendanceRecords),
+      attendanceRate: computeAttendanceRateFromCounts(
+        Object.fromEntries(attendanceRecords.map((r) => [r.status, r._count._all]))
+      ),
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

@@ -1,7 +1,7 @@
 import { getTaughtBranches } from "@/lib/server/teachers/taught-branches";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { computeAttendanceRate } from "@/lib/server/report-card/analyzer";
+import { computeAttendanceRateFromCounts } from "@/lib/attendance/status";
 import { computeRisk } from "@/lib/server/risk/compute-risk";
 import { computeActivityScore } from "@/lib/server/teacher-activity";
 import { requireSession, requireRole, requireInstitution, assertTeacherOwnsStudent } from "@/lib/server/auth/session-guard";
@@ -35,8 +35,11 @@ async function studentAnalytics(studentId: string, institutionId: string) {
       select: { subject: true, net: true, exam: { select: { name: true } } },
       orderBy: { exam: { examDate: "asc" } },
     }),
-    prisma.attendanceRecord.findMany({ where: { studentId }, select: { status: true } }),
-    prisma.homeworkSubmission.findMany({ where: { studentId }, select: { status: true } }),
+    // Satırlar değil SAYILAR: oran için satırların kendisi gerekmiyor.
+    // Üç yıllık bir öğrencide yoklama ~1.900 satır (ölçüldü) ve bu ekran
+    // müdürün her öğrenciye tıkladığında açılıyor.
+    prisma.attendanceRecord.groupBy({ by: ["status"], where: { studentId }, _count: { _all: true } }),
+    prisma.homeworkSubmission.groupBy({ by: ["status"], where: { studentId }, _count: { _all: true } }),
     prisma.guidanceNote.findMany({
       where: { studentId, confidentialityLevel: { not: "CONFIDENTIAL" } },
       select: { id: true, category: true, note: true, createdAt: true },
@@ -47,9 +50,12 @@ async function studentAnalytics(studentId: string, institutionId: string) {
   ]);
 
   const netTrend = netResults.map((r) => ({ examName: r.exam.name, subject: r.subject, net: r.net }));
-  const attendanceRate = computeAttendanceRate(attendanceRecords);
-  const homeworkTotal = homeworkSubmissions.length;
-  const homeworkDone = homeworkSubmissions.filter((s) => s.status === "DONE").length;
+  const attendanceCounts: Record<string, number> = {};
+  for (const row of attendanceRecords) attendanceCounts[row.status] = row._count._all;
+  const attendanceRate = computeAttendanceRateFromCounts(attendanceCounts);
+
+  const homeworkTotal = homeworkSubmissions.reduce((sum, r) => sum + r._count._all, 0);
+  const homeworkDone = homeworkSubmissions.find((r) => r.status === "DONE")?._count._all ?? 0;
   const homeworkSuccessRate = homeworkTotal === 0 ? null : Math.round((homeworkDone / homeworkTotal) * 100);
   const { riskScore, reason: riskReason } = computeRisk({
     attendanceRate,
@@ -86,7 +92,6 @@ async function teacherAnalytics(teacherId: string, institutionId: string) {
       firstName: true,
       lastName: true,
       subject: true,
-      teachingBranches: { select: { id: true, name: true } },
     },
   });
   if (!teacher || teacher.institutionId !== institutionId) return null;
@@ -96,18 +101,26 @@ async function teacherAnalytics(teacherId: string, institutionId: string) {
   // gerçek "ders veriyor" ilişkisinden, yani DERS PROGRAMINDAN hesaplanır
   // (bkz. taught-branches; eskiden teachingBranches okunuyordu ve o
   // ilişki yalnızca danışman şubesiyle doluyordu).
-  const branchIds = (await getTaughtBranches(teacher.id)).map((b) => b.id);
+  const taughtBranches = await getTaughtBranches(teacher.id);
+  const branchIds = taughtBranches.map((b) => b.id);
 
   const [classNetResults, attendanceSubmissionCount, homeworkCount, quizCount] = await Promise.all([
     branchIds.length > 0
-      ? prisma.examNetResult.findMany({ where: { student: { branchId: { in: branchIds } } }, select: { net: true } })
-      : Promise.resolve([]),
+      ? // ⚠️ Ortalama VERİTABANINDA alınır.
+        //
+        // Burada eskiden öğretmenin verdiği TÜM şubelerdeki TÜM öğrencilerin
+        // TÜM deneme netleri çekilip bellekte ortalanıyordu. 12 şube × 100
+        // öğrenci × 80 sonuç/yıl × 3 yıl ≈ 288.000 satır — tek bir öğretmen
+        // kartını açmak için.
+        prisma.examNetResult.aggregate({ where: { student: { branchId: { in: branchIds } } }, _avg: { net: true } })
+      : Promise.resolve(null),
     prisma.attendanceSubmission.count({ where: { teacherId } }),
     prisma.homework.count({ where: { teacherId } }),
     prisma.quiz.count({ where: { teacherId } }),
   ]);
 
-  const classAverageNet = classNetResults.length === 0 ? null : Math.round((classNetResults.reduce((sum, r) => sum + r.net, 0) / classNetResults.length) * 100) / 100;
+  const avgNet = classNetResults?._avg.net ?? null;
+  const classAverageNet = avgNet === null ? null : Math.round(avgNet * 100) / 100;
 
   const activityScore = computeActivityScore({ attendanceSubmissionCount, homeworkCount, quizCount });
 
@@ -117,7 +130,11 @@ async function teacherAnalytics(teacherId: string, institutionId: string) {
     firstName: teacher.firstName,
     lastName: teacher.lastName,
     subject: teacher.subject,
-    branchNames: teacher.teachingBranches.map((b) => b.name),
+    // ⚠️ Gösterilen şubeler de ORTALAMANIN hesaplandığı şubelerle AYNI
+    // kaynaktan gelir. Eskiden ad listesi teachingBranches ilişkisinden,
+    // ortalama ise ders programından geliyordu; ölçüldü: ilişki 1 şube
+    // derken program 8-11 şube diyordu — aynı kartta iki farklı gerçek.
+    branchNames: taughtBranches.map((b) => b.name),
     classAverageNet,
     attendanceSubmissionCount,
     homeworkCount,
