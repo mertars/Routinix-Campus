@@ -8,6 +8,7 @@ import { LiveSyncProvider } from "@/lib/live-sync-context";
 import { ToastProvider } from "@/lib/toast-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { PanelAurora } from "@/components/ui/aurora-brand";
+import { Student360Sheet } from "@/components/shared/student-360-sheet";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -99,6 +100,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <LiveSyncProvider>
                 <ToastProvider>
                   <ErrorBoundary>{children}</ErrorBoundary>
+                  {/* Öğrenci 360 kartı TEK yerde mount edilir; açma çağrısı
+                      uygulamanın herhangi bir köşesinden (arama sonucu,
+                      öğrenci listesi, ödeme satırı) depoyla gelir. Ortak bir
+                      React atası olmadığı için sağlayıcı zinciriyle
+                      çözülemezdi — bkz. lib/student-360-store.ts. */}
+                  <Student360Sheet />
                 </ToastProvider>
               </LiveSyncProvider>
             </RoleProvider>

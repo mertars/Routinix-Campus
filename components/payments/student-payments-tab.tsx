@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown, Ban, CalendarClock, Layers, UserMinus } from "lucide-react";
+import { Search, CalendarPlus, HandCoins, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, BadgePercent, Receipt, FileDown, Ban, CalendarClock, Layers, UserMinus, Orbit } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
+import { openStudent360 } from "@/lib/student-360-store";
 import { cn } from "@/lib/utils";
 import { InstallmentPlanModal } from "@/components/payments/installment-plan-modal";
 import { CollectPaymentModal } from "@/components/payments/collect-payment-modal";
@@ -271,6 +272,16 @@ export function StudentPaymentsTab({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {/* Borç tek başına anlam taşımaz: devamsızlığı artmış mı,
+                    denemesi düşmüş mü, velisine ulaşılabiliyor mu? Öğrenci
+                    360 bu soruların hepsini modül değiştirmeden yanıtlar. */}
+                <button
+                  onClick={() => openStudent360(selectedStudent.id)}
+                  title="Öğrencinin beş modüldeki durumu"
+                  className="flex items-center gap-1.5 rounded-full border border-hairline px-3 py-2 text-xs font-semibold text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+                >
+                  <Orbit className="h-3.5 w-3.5" /> 360
+                </button>
                 {/* Veli görüşmesinde masaya konan belge — plan, ödenenler ve
                     kalan borcun tek sayfalık dökümü. */}
                 <a

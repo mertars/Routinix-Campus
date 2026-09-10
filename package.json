@@ -23,7 +23,8 @@
     "create-platform-owner": "tsx --env-file=.env.local scripts/create-platform-owner.ts",
     "load-test": "tsx scripts/load-test.ts",
     "agenda:show": "tsx --env-file=.env.local scripts/show-agenda.ts",
-    "agenda:measure": "tsx --env-file=.env.local scripts/measure-agenda.ts"
+    "agenda:measure": "tsx --env-file=.env.local scripts/measure-agenda.ts",
+    "student360:measure": "tsx --env-file=.env.local scripts/measure-student-360.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1126.0",

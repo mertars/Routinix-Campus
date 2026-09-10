@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState, memo } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil, UserX, UserCheck, Trash2, ListChecks, FileDown } from "lucide-react";
+import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil, UserX, UserCheck, Trash2, ListChecks, FileDown, Orbit } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import type { EditTarget } from "@/components/principal/user-management/edit-user-modal";
 import type { NewUserCredentials } from "@/components/principal/user-management/credentials-card-modal";
 import type { DeactivateTarget } from "@/components/principal/user-management/deactivate-confirm-modal";
 import type { PermanentDeleteTarget } from "@/components/principal/user-management/permanent-delete-confirm-modal";
+import { openStudent360 } from "@/lib/student-360-store";
 import { cn } from "@/lib/utils";
 
 type BranchOption = { id: string; name: string };
@@ -100,6 +101,17 @@ const StudentRowCard = memo(function StudentRowCard({
           </p>
           <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">{student.branchName} · No: {student.studentNumber}</p>
         </div>
+      </button>
+      {/* Öğrenci 360 — beş modülün bu öğrenci hakkında bildiği her şey.
+          Düzenle/pasifleştir/sil işlem tuşları; bu ise BAKMA tuşu, o yüzden
+          en başta. */}
+      <button
+        onClick={() => openStudent360(student.id)}
+        aria-label={`${fullName} — 360 kartı`}
+        title="Öğrenci 360"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-brand-600 dark:text-cream/40 dark:hover:bg-white/10"
+      >
+        <Orbit className="h-3.5 w-3.5" />
       </button>
       {student.isActive && (
         <button

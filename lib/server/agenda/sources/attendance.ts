@@ -1,4 +1,5 @@
 import { findMissingAttendance } from "@/lib/server/attendance/missing-attendance";
+import { trPossessive } from "@/lib/tr-suffix";
 import type { AgendaSource } from "../agenda-types";
 
 // Yoklama günün en zamana duyarlı işi: ders geçtikten sonra girilen
@@ -17,7 +18,7 @@ export const ATTENDANCE_SOURCES: AgendaSource[] = [
       return {
         count: report.missing.length,
         title: `${report.missing.length} derste yoklama girilmedi`,
-        detail: `${report.dayName} · ${report.scheduledLessons} dersin ${report.missing.length}'i eksik · ${students} öğrenci`,
+        detail: `${report.dayName} · ${report.scheduledLessons} dersin ${trPossessive(report.missing.length)} eksik · ${students} öğrenci`,
       };
     },
   },

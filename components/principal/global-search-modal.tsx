@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Loader2, GraduationCap, UserCog2, Users, X } from "lucide-react";
+import { openStudent360 } from "@/lib/student-360-store";
 import { cn } from "@/lib/utils";
 
 type SearchHit = {
@@ -107,12 +108,27 @@ export function GlobalSearchModal({ isOpen, onClose }: { isOpen: boolean; onClos
           )}
           {hits.map((hit) => {
             const Icon = ICONS[hit.type];
+            const openable = hit.type === "STUDENT";
             return (
               <div
                 key={`${hit.type}-${hit.id}`}
+                role={openable ? "button" : undefined}
+                tabIndex={openable ? 0 : undefined}
+                onClick={() => {
+                  if (!openable) return;
+                  onClose();
+                  openStudent360(hit.id);
+                }}
+                onKeyDown={(event) => {
+                  if (!openable || (event.key !== "Enter" && event.key !== " ")) return;
+                  event.preventDefault();
+                  onClose();
+                  openStudent360(hit.id);
+                }}
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-2.5",
-                  !hit.isActive && "opacity-50"
+                  !hit.isActive && "opacity-50",
+                  openable && "cursor-pointer transition hover:bg-cream-card dark:hover:bg-white/5"
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0 text-brand-600" />

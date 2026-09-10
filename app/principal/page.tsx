@@ -117,6 +117,23 @@ export default function PrincipalPage() {
   const { name: adminName, title: adminTitle } = useAdminProfile("Mert", "Kurum Müdürü");
   const { showError } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+
+  // Başka bir modülden gelen "şu sekmeye git" isteği.
+  //
+  // ERP'de sekme seçimi bileşen state'inde tutuluyor, adreste değil — bu
+  // yüzden Öğrenci 360 kartı gibi dışarıdaki yüzeyler hedefi sessionStorage
+  // üzerinden bırakır. Okunduğu anda silinir: yenilemede aynı sekmeye
+  // yapışıp kalmasın.
+  useEffect(() => {
+    try {
+      const wanted = window.sessionStorage.getItem("routinix-erp-tab");
+      if (!wanted) return;
+      window.sessionStorage.removeItem("routinix-erp-tab");
+      if (TABS.some((tab) => tab.id === wanted)) setActiveTab(wanted as TabId);
+    } catch {
+      // yoksay
+    }
+  }, []);
   const [statModal, setStatModal] = useState<StatModalId | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<Segment>("ALL");
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? ExecutiveOverviewTab;
