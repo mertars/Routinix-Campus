@@ -11,6 +11,7 @@ import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { ModuleSwitcher } from "@/components/ui/module-switcher";
+import { CommandPaletteTrigger } from "@/components/ui/command-palette-trigger";
 import { XrayMonthlyScreeningPanel } from "@/components/xray/xray-monthly-screening-panel";
 import { XrayInstitutionInsights } from "@/components/xray/xray-institution-insights";
 import { XrayAssignmentTrackingDashboard } from "@/components/xray/xray-assignment-tracking-dashboard";
@@ -87,6 +88,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
         <div className="flex items-center justify-between gap-2 md:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <ModuleSwitcher current="xray" />
+            <CommandPaletteTrigger compact />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <ThemeToggle />
@@ -127,6 +129,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
         <div className="hidden items-center justify-between gap-3 md:flex">
           <div className="flex items-center gap-3">
             <ModuleSwitcher current="xray" />
+            <CommandPaletteTrigger compact />
             <div className="flex items-center gap-2 rounded-2xl border border-sky-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(14_165_233/0.25)] dark:border-sky-500/20 dark:bg-midnight-card/50">
               <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
               <span className={cn(spaceGrotesk.className, "whitespace-nowrap text-sm font-semibold text-espresso dark:text-cream")}>

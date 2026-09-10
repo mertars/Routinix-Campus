@@ -27,8 +27,9 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import { fetchDashboard } from "@/lib/client/fetch-dashboard";
-import { type NavTab } from "@/components/principal/floating-nav";
 import { DualFloatingNav } from "@/components/principal/dual-floating-nav";
+import { ERP_TABS, ERP_LEFT_TABS, ERP_RIGHT_TABS, type ErpTabId } from "@/lib/erp-tabs";
+import { consumePendingErpTab, subscribeErpTab } from "@/lib/erp-tab-store";
 import { SegmentSelector } from "@/components/principal/segment-selector";
 import { PrincipalMobileNav } from "@/components/principal/principal-mobile-nav";
 import { TopBar } from "@/components/principal/top-bar";
@@ -65,31 +66,31 @@ import { useToast } from "@/lib/toast-context";
 import { SetupWizard } from "@/components/principal/setup-wizard";
 import { AgendaPanel } from "@/components/principal/agenda-panel";
 
-// Sol Ada: Akademik & Akış Modülleri — Sağ Ada: İdari & Yönetim Araçları
-const TABS = [
-  { id: "overview", label: "Genel Bakış", icon: LayoutDashboard, Component: ExecutiveOverviewTab, side: "left" },
-  { id: "students", label: "Kullanıcı Yönetimi & Performans", icon: GraduationCap, Component: BranchStaffTab, side: "left" },
-  { id: "academic-xray", label: "Akademik Röntgen Karnesi", icon: Scan, Component: AcademicXrayTab, side: "left" },
-  { id: "upload", label: "Sınav & Optik Yükleme", icon: ScanLine, Component: ExamResultsImportTab, side: "left" },
-  { id: "exam-seating", label: "Kelebek Sınav Oturma Planı", icon: Shuffle, Component: ExamSeatingTab, side: "left" },
-  { id: "live-tutoring", label: "Canlı Birebir Etüt & Randevu", icon: Radio, Component: LiveTutoringTab, side: "left" },
-  { id: "guidance-program", label: "Rehberlik & A4 Program Yapıcı", icon: NotebookPen, Component: GuidanceProgramTab, side: "left" },
-  { id: "attendance", label: "Yoklama Takibi & Devamsızlık", icon: ClipboardCheck, Component: AttendanceCommandTab, side: "left" },
-  { id: "teachers", label: "Öğretmen Performansı", icon: UserCog, Component: TeacherPerformanceTab, side: "left" },
-  { id: "preference-robot", label: "YKS / LGS Tercih Robotu", icon: Wand2, Component: PreferenceRobotTab, side: "right" },
-  { id: "schedule-matrix", label: "Çakışmasız Ders Programı", icon: Table2, Component: ScheduleMatrixTab, side: "right" },
-  { id: "etut-management", label: "Etüt Yönetimi Merkezi", icon: CalendarCheck, Component: EtutManagementTab, side: "right" },
-  { id: "campus", label: "Kampüs Pano & Toplu Duyuru", icon: Megaphone, Component: AnnouncementsTab, side: "right" },
-  { id: "bulk-sms", label: "Toplu SMS", icon: MessageSquareText, Component: BulkSmsTab, side: "right" },
-  { id: "alumni", label: "Mezun Takip (Alumnus)", icon: Trophy, Component: AlumniNetworkTab, side: "right" },
-  { id: "risk", label: "Risk Radarı", icon: Radar, Component: RiskRadarTab, side: "right" },
-  { id: "calendar", label: "Etkinlik Takvimi", icon: CalendarDays, Component: CampusCalendarTab, side: "right" },
-  { id: "settings", label: "Nudge & Sistem Ayarları", icon: Settings2, Component: SystemSettingsTab, side: "right" },
-] as const satisfies readonly (NavTab & { Component: () => JSX.Element; side: "left" | "right" })[];
+// Sekme listesi (ad, ikon, ada) lib/erp-tabs.ts'te — komut paleti de
+// oradan okuyor. Burada yalnızca hangi sekmenin hangi bileşeni çizdiği
+// tutulur: bileşen referansları istemci paketine bağlı, kayıt ise saf veri.
+const TAB_COMPONENTS: Record<ErpTabId, () => JSX.Element> = {
+  overview: ExecutiveOverviewTab as () => JSX.Element,
+  students: BranchStaffTab,
+  "academic-xray": AcademicXrayTab,
+  upload: ExamResultsImportTab,
+  "exam-seating": ExamSeatingTab,
+  "live-tutoring": LiveTutoringTab,
+  "guidance-program": GuidanceProgramTab,
+  attendance: AttendanceCommandTab,
+  teachers: TeacherPerformanceTab,
+  "preference-robot": PreferenceRobotTab,
+  "schedule-matrix": ScheduleMatrixTab,
+  "etut-management": EtutManagementTab,
+  campus: AnnouncementsTab,
+  "bulk-sms": BulkSmsTab,
+  alumni: AlumniNetworkTab,
+  risk: RiskRadarTab,
+  calendar: CampusCalendarTab,
+  settings: SystemSettingsTab,
+};
 
-type TabId = (typeof TABS)[number]["id"];
-const LEFT_TABS = TABS.filter((tab) => tab.side === "left");
-const RIGHT_TABS = TABS.filter((tab) => tab.side === "right");
+type TabId = ErpTabId;
 
 const STAT_MODALS = {
   students: { title: "Toplam Öğrenci", Content: StudentsListContent },
@@ -118,25 +119,17 @@ export default function PrincipalPage() {
   const { showError } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>("overview");
 
-  // Başka bir modülden gelen "şu sekmeye git" isteği.
-  //
-  // ERP'de sekme seçimi bileşen state'inde tutuluyor, adreste değil — bu
-  // yüzden Öğrenci 360 kartı gibi dışarıdaki yüzeyler hedefi sessionStorage
-  // üzerinden bırakır. Okunduğu anda silinir: yenilemede aynı sekmeye
-  // yapışıp kalmasın.
+  // Başka bir yüzeyden gelen "şu sekmeye git" isteği (Öğrenci 360 kartı,
+  // komut paleti). İki durum da lib/erp-tab-store.ts'te tarif edildi.
   useEffect(() => {
-    try {
-      const wanted = window.sessionStorage.getItem("routinix-erp-tab");
-      if (!wanted) return;
-      window.sessionStorage.removeItem("routinix-erp-tab");
-      if (TABS.some((tab) => tab.id === wanted)) setActiveTab(wanted as TabId);
-    } catch {
-      // yoksay
-    }
+    const pending = consumePendingErpTab();
+    if (pending && ERP_TABS.some((tab) => tab.id === pending)) setActiveTab(pending as TabId);
+    return subscribeErpTab((tab) => setActiveTab(tab));
   }, []);
+
   const [statModal, setStatModal] = useState<StatModalId | null>(null);
   const [selectedSegment, setSelectedSegment] = useState<Segment>("ALL");
-  const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? ExecutiveOverviewTab;
+  const ActiveComponent = TAB_COMPONENTS[activeTab];
   const activeStatModal = statModal ? STAT_MODALS[statModal] : null;
 
   const [stats, setStats] = useState<DashboardStats>(EMPTY_STATS);
@@ -163,12 +156,12 @@ export default function PrincipalPage() {
       />
 
       <DualFloatingNav
-        leftTabs={LEFT_TABS}
-        rightTabs={RIGHT_TABS}
+        leftTabs={ERP_LEFT_TABS}
+        rightTabs={ERP_RIGHT_TABS}
         activeTab={activeTab}
         onSelect={(id) => setActiveTab(id as TabId)}
       />
-      <PrincipalMobileNav leftTabs={LEFT_TABS} rightTabs={RIGHT_TABS} activeTab={activeTab} onSelect={(id) => setActiveTab(id as TabId)} />
+      <PrincipalMobileNav leftTabs={ERP_LEFT_TABS} rightTabs={ERP_RIGHT_TABS} activeTab={activeTab} onSelect={(id) => setActiveTab(id as TabId)} />
 
       <TopBar />
 

@@ -9,6 +9,7 @@ import { ToastProvider } from "@/lib/toast-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { PanelAurora } from "@/components/ui/aurora-brand";
 import { Student360Sheet } from "@/components/shared/student-360-sheet";
+import { CommandPalette } from "@/components/shared/command-palette";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -106,6 +107,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                       React atası olmadığı için sağlayıcı zinciriyle
                       çözülemezdi — bkz. lib/student-360-store.ts. */}
                   <Student360Sheet />
+                  {/* ⌘K her ekranda — dinleyiciyi paletin kendisi kurar,
+                      altı üst çubuğun ayrı ayrı kısayol tanımlaması gerekmez. */}
+                  <CommandPalette />
                 </ToastProvider>
               </LiveSyncProvider>
             </RoleProvider>

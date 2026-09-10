@@ -76,7 +76,6 @@ export const AREA_LABEL: Record<AgendaArea, string> = {
   schedule: "Program",
 };
 
-/** Ödeme modülünün ilgili sekmesine doğrudan iner — müdür 11 sekme arasında aramasın. */
-export function paymentsHref(tab: string): string {
-  return `/payments/principal?tab=${tab}`;
-}
+// Ödeme sekmesine adres — tanım modül kaydında (lib/modules.ts), burada
+// yalnızca gündem kaynaklarının kolay erişimi için yeniden dışa verilir.
+export { paymentsHref } from "@/lib/modules";

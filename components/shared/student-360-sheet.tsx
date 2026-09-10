@@ -6,6 +6,8 @@ import { ArrowRight, GraduationCap, Loader2, Phone, ShieldAlert, UserRound } fro
 import { Modal } from "@/components/ui/modal";
 import { useStudent360 } from "@/lib/student-360-store";
 import { MODULE_BY_ID } from "@/lib/modules";
+import { requestErpTab } from "@/lib/erp-tab-store";
+import type { ErpTabId } from "@/lib/erp-tabs";
 import { cn } from "@/lib/utils";
 import type { Student360Section, Student360Tone } from "@/lib/student-360-types";
 
@@ -92,17 +94,9 @@ export function Student360Sheet() {
       router.push(section.href);
       return;
     }
-    // ERP sekmesi: müdür panelinde sekme seçimi bileşen state'inde tutuluyor,
-    // adresle taşınmıyor. Sayfaya git ve hangi sekmenin istendiğini bırak —
-    // ERP sayfası açılışta bunu okuyup o sekmeye geçer.
-    if (section.tab) {
-      try {
-        window.sessionStorage.setItem("routinix-erp-tab", section.tab);
-      } catch {
-        // yoksay
-      }
-      router.push("/principal");
-    }
+    // ERP sekmesi: sayfa açıksa anında geçilir, değilse istek bırakılıp
+    // yönlendirilir (bkz. lib/erp-tab-store.ts).
+    if (section.tab && !requestErpTab(section.tab as ErpTabId)) router.push("/principal");
   }
 
   return (

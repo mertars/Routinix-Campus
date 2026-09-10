@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Menu, LogOut, Search, GraduationCap } from "lucide-react";
+import { Menu, LogOut, GraduationCap } from "lucide-react";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
 import { MobileMenuPopup } from "@/components/principal/mobile-menu-popup";
-import { GlobalSearchModal } from "@/components/principal/global-search-modal";
 import { ModuleSwitcher } from "@/components/ui/module-switcher";
+import { CommandPaletteTrigger } from "@/components/ui/command-palette-trigger";
 import { useInstitutionCounts } from "@/lib/institution-counts";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
@@ -22,21 +22,7 @@ export function TopBar() {
   const logout = useLogout();
   const institutionName = useInstitutionName();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const counts = useInstitutionCounts();
-
-  // ⌘K / Ctrl+K ile her ekrandan açılır — müdürün aradığı kişiye
-  // ulaşmak için hangi sekmede olduğunu hatırlaması gerekmesin.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setIsSearchOpen(true);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   return (
     <>
@@ -65,13 +51,7 @@ export function TopBar() {
                 </span>
               )}
             </div>
-            <button
-              onClick={() => setIsSearchOpen(true)}
-              aria-label="Ara"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
-            >
-              <Search className="h-4 w-4" />
-            </button>
+            <CommandPaletteTrigger compact className="h-10 w-10" />
             <button
               onClick={() => setIsMenuOpen(true)}
               aria-label="Menüyü aç"
@@ -116,14 +96,7 @@ export function TopBar() {
         </div>
 
         <div className="hidden items-center gap-2 sm:gap-3 md:flex">
-          <button
-            onClick={() => setIsSearchOpen(true)}
-            className="flex items-center gap-2 rounded-lg border border-hairline bg-white/70 px-3 py-1.5 text-xs text-espresso-muted transition hover:bg-cream-card dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream/40 dark:hover:bg-white/5"
-          >
-            <Search className="h-3.5 w-3.5" />
-            <span>Ara</span>
-            <kbd className="rounded border border-hairline px-1 text-[10px] dark:border-white/20">⌘K</kbd>
-          </button>
+          <CommandPaletteTrigger />
           <AccentPicker />
           <ThemeToggle />
           <button
@@ -136,7 +109,6 @@ export function TopBar() {
       </div>
     </motion.header>
     <MobileMenuPopup isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
-    <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </>
   );
 }

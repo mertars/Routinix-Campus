@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit, FileStack, ChevronDown, History } from "lucide-react";
+import { Search, Scan, AlertCircle, CircleSlash, Download, Share2, Loader2, Gauge, ListChecks, Flame, CalendarClock, LineChart, Users, Maximize2, FileEdit, FileStack, ChevronDown, History, Orbit } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tooltip } from "@/components/ui/tooltip";
@@ -20,6 +20,7 @@ import { MasterySparkline, MasteryTrendDrilldown, type MasteryHistoryResponse } 
 import { XraySetGoalButton } from "@/components/xray/xray-set-goal-button";
 import { XrayAverageDetailModal, XrayRedZoneModal, XrayUntestedTopicsModal, XrayHistoryTimelineModal } from "@/components/xray/xray-stat-detail-modals";
 import { XraySubtopicDetailModal } from "@/components/xray/xray-subtopic-detail-modal";
+import { openStudent360 } from "@/lib/student-360-store";
 import { cn } from "@/lib/utils";
 
 const TOPIC_PREVIEW_COUNT = 4;
@@ -413,6 +414,15 @@ export function XrayResultsPanel({
                     </p>
                   </div>
                   <div className="ml-auto flex items-center gap-2">
+                    <Tooltip label="Öğrenci 360 — beş modüldeki durumu">
+                      <button
+                        onClick={() => openStudent360(selectedId)}
+                        aria-label="Öğrenci 360"
+                        className="flex h-9 w-9 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso-muted transition hover:text-sky-600 dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream/50"
+                      >
+                        <Orbit className="h-4 w-4" />
+                      </button>
+                    </Tooltip>
                     <Tooltip label="Hedef Belirle">
                       <XraySetGoalButton studentId={selectedId} studentName={`${selectedStudent.firstName} ${selectedStudent.lastName}`} subject={subject} />
                     </Tooltip>

@@ -130,7 +130,7 @@ export async function globalSearch(institutionId: string, rawQuery: string): Pro
       type: "PARENT",
       id: p.id,
       title: `${p.firstName} ${p.lastName}`,
-      subtitle: kids ? `Veli · ${kids}` : "Veli",
+      subtitle: kids || "Bağlı öğrenci yok",
       isActive: true,
     });
   }

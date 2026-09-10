@@ -151,3 +151,13 @@ export function moduleFromPathname(pathname: string): ModuleId {
 export function moduleHref(mod: ModuleDef, isTeacher: boolean): string | null {
   return isTeacher ? mod.teacherHref : mod.principalHref;
 }
+
+/**
+ * Ödeme modülünün belirli bir sekmesine adres.
+ *
+ * Yönlendirme bilgisi modül kaydına aittir; gündem kaynakları ve komut
+ * paleti aynı fonksiyonu kullanır (bkz. lib/agenda-types.ts re-export).
+ */
+export function paymentsHref(tab: string): string {
+  return `/payments/principal?tab=${tab}`;
+}

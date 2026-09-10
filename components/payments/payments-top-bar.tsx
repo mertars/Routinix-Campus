@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Wallet, ArrowLeft, LogOut } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ui/module-switcher";
+import { CommandPaletteTrigger } from "@/components/ui/command-palette-trigger";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -31,7 +32,10 @@ export function PaymentsTopBar({ roleLabel, backHref = "/hub" }: { roleLabel: st
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
           {backHref === "/hub" ? (
-            <ModuleSwitcher current="payments" />
+            <>
+              <ModuleSwitcher current="payments" />
+              <CommandPaletteTrigger compact />
+            </>
           ) : (
             // Veli tarafı: modül değiştirme yok, kendi ana sayfasına döner.
             <button

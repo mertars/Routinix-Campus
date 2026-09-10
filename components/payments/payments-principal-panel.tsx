@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarClock, FileSpreadsheet, LayoutDashboard, Users, Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Receipt, Send, BarChart3, FileSignature, Users2, Package, Target, ArrowLeftRight, Handshake } from "lucide-react";
+import { Landmark, Plus, AlertTriangle, TrendingUp, TrendingDown, Wallet, Loader2, HandCoins, Banknote, Send, ArrowLeftRight, Handshake } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
+import { PAYMENT_TABS, type PaymentTabId } from "@/lib/payment-tabs";
 import { canAccessTab, PAYMENT_ROLE_LABEL, type PaymentRole } from "@/lib/payments/payment-roles";
 import { CashCountCard } from "@/components/payments/cash-count-card";
 import { StaffRolesCard } from "@/components/payments/staff-roles-card";
@@ -45,20 +46,9 @@ type DashboardData = {
   recentPayments: { id: string; studentName: string; accountName: string; amount: number; method: string; paidAt: string }[];
 };
 
-const TABS = [
-  { id: "dashboard", label: "Kontrol Paneli", icon: LayoutDashboard },
-  { id: "students", label: "Öğrenci Ödemeleri", icon: Users },
-  { id: "expenses", label: "Giderler", icon: Receipt },
-  { id: "accounts", label: "Kasa & Banka", icon: Landmark },
-  { id: "bank-import", label: "Banka Ekstresi", icon: FileSpreadsheet },
-  { id: "products", label: "Ürün & Etkinlik", icon: Package },
-  { id: "payroll", label: "Bordro", icon: Users2 },
-  { id: "contracts", label: "Sözleşmeler", icon: FileSignature },
-  { id: "renewals", label: "Kayıt Yenileme", icon: CalendarClock },
-  { id: "budget", label: "Bütçe", icon: Target },
-  { id: "reports", label: "Raporlar", icon: BarChart3 },
-] as const;
-type TabId = (typeof TABS)[number]["id"];
+// Sekme listesi lib/payment-tabs.ts'te — komut paleti de oradan okuyor.
+const TABS = PAYMENT_TABS;
+type TabId = PaymentTabId;
 
 function formatTRY(n: number) {
   return n.toLocaleString("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 });
