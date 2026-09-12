@@ -74,7 +74,7 @@ export function ClassbookTab() {
 
   // Yıllık plan
   const [weekLabel, setWeekLabel] = useState("");
-  const [subtopicName, setSubtopicName] = useState(allSubtopics[0]?.name ?? "");
+  const [subtopicName, setSubtopicName] = useState("");
   const [planNotes, setPlanNotes] = useState("");
   const [downloadingPlanPdf, setDownloadingPlanPdf] = useState(false);
   // Sınıf seviyesi başına ayrı plan — kullanıcı bulgusu: tek öğretmenin
@@ -395,17 +395,30 @@ export function ClassbookTab() {
               placeholder="Hafta (örn. 1. Hafta)"
               className="rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
             />
-            <select
+            {/* ⚠️ GERÇEK HATA (Mert bildirdi, 2026-09-13): bu alan eskiden
+                CURRICULUM_TREE'nin sabit konu listesinden seçtiren bir
+                <select>'ti. Röntgen/Ölçme'nin müfredat ağacı sadece 10 ders
+                için dolu (bkz. lib/mock-data.ts) — İngilizce, Geometri,
+                Edebiyat gibi derslerde tree BOŞTU, seçenek YOKTU,
+                subtopicName hep "" kalıyordu ve addPlanRow'un boş-alan
+                kontrolü kaydı SESSİZCE engelliyordu ("yeni kaydedince
+                çalışmıyor" tam olarak buydu). Yıllık Plan öğretmenin KENDİ
+                serbest haftalık planı — Röntgen'in sabit kazanım listesine
+                bağlı olmasının bir anlamı yok, serbest metne çevrildi. */}
+            <input
               value={subtopicName}
               onChange={(event) => setSubtopicName(event.target.value)}
+              placeholder="Konu (örn. Türev Kuralları)"
+              list="yearly-plan-subtopic-suggestions"
               className="rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
-            >
-              {allSubtopics.map((sub) => (
-                <option key={sub.id} value={sub.name}>
-                  {sub.name}
-                </option>
-              ))}
-            </select>
+            />
+            {allSubtopics.length > 0 && (
+              <datalist id="yearly-plan-subtopic-suggestions">
+                {allSubtopics.map((sub) => (
+                  <option key={sub.id} value={sub.name} />
+                ))}
+              </datalist>
+            )}
             <input
               value={planNotes}
               onChange={(event) => setPlanNotes(event.target.value)}
