@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { CheckCircle2, Circle, ShieldCheck, AlertOctagon, CalendarClock, Save, CheckCheck, Loader2 } from "lucide-react";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
+import { HomeworkSearchPicker } from "@/components/teacher/homework-search-picker";
 import { cn } from "@/lib/utils";
 
 type HomeworkStatus = "NOT_DONE" | "HALF" | "DONE" | "LATE";
@@ -174,18 +175,7 @@ export function HomeworkCheckMatrixTab() {
               </option>
             ))}
           </select>
-          <select
-            value={homeworkId}
-            onChange={(event) => setHomeworkId(event.target.value)}
-            className="min-h-[44px] rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
-          >
-            {branchAssignments.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-            {branchAssignments.length === 0 && <option value="">Atanan ödev yok</option>}
-          </select>
+          <HomeworkSearchPicker homeworks={branchAssignments} selectedId={homeworkId} onSelect={setHomeworkId} />
         </div>
         {homework?.dueAt && (
           <span className="flex w-fit items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 dark:bg-brand-600/15 dark:text-brand-300">
