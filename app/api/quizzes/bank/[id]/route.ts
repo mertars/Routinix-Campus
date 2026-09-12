@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { unlink } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { deleteObject, publicUrlToKey } from "@/lib/server/r2";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +22,9 @@ async function handleDelete(_request: NextRequest, { params }: { params: { id: s
 
     await prisma.quizBankQuestion.delete({ where: { id: params.id } });
 
-    if (question.imageUrl?.startsWith("/uploads/")) {
-      await unlink(path.join(process.cwd(), "public", question.imageUrl)).catch((error) =>
+    const key = question.imageUrl ? publicUrlToKey(question.imageUrl) : null;
+    if (key) {
+      await deleteObject(key).catch((error) =>
         logger.error("quiz_bank_image_delete_failed", { questionId: params.id, error: error instanceof Error ? error.message : String(error) })
       );
     }

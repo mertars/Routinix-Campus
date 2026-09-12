@@ -1,8 +1,5 @@
-import { mkdir, writeFile, unlink } from "fs/promises";
-import path from "path";
 import { randomUUID } from "crypto";
-
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "expenses");
+import { putObject, getPublicUrl, deleteObject, publicUrlToKey } from "@/lib/server/r2";
 
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
@@ -21,27 +18,23 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Gider eki kaydeder.
-//
-// Projedeki mevcut yükleme deseniyle AYNI (bkz. save-teacher-material.ts):
-// dosya public/uploads altına yazılır, gerçek üretimde bu fonksiyonun
-// gövdesi bir S3/R2 istemcisiyle değiştirilir, çağıran route değişmeden
-// kalır.
+// Gider eki kaydeder — R2'ye (kalıcı, herkese açık okunur kova) yazar.
+// ⚠️ ESKİDEN public/uploads/expenses altına yerel diske yazıyordu — bu
+// yalnızca `next dev`'de çalışıyordu, Vercel üretiminde dosya hiç kalıcı
+// olmuyordu (bkz. lib/server/r2.ts üstündeki 2026-09-13 notu).
 //
 // Dosya adı RASTGELE üretilir; kullanıcının verdiği ad veritabanında
 // ayrıca saklanır. Sebep: yüklenen adı doğrudan yola koymak yol
 // gezinme (../) ve çakışma riski taşır.
 export async function saveExpenseAttachment(file: File): Promise<{ url: string; name: string; sizeLabel: string }> {
-  await mkdir(UPLOAD_DIR, { recursive: true });
-
   const originalName = file.name || "fis";
   const extension = (originalName.split(".").pop() ?? "bin").replace(/[^a-z0-9]/gi, "").slice(0, 6) || "bin";
-  const filename = `${randomUUID()}.${extension}`;
+  const key = `expenses/${randomUUID()}.${extension}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOAD_DIR, filename), buffer);
+  await putObject(key, buffer, file.type || "application/octet-stream");
 
   return {
-    url: `/uploads/expenses/${filename}`,
+    url: getPublicUrl(key),
     name: originalName,
     sizeLabel: formatFileSize(buffer.byteLength),
   };
@@ -50,13 +43,11 @@ export async function saveExpenseAttachment(file: File): Promise<{ url: string; 
 // Ek değiştirilirken/silinirken eski dosyayı temizler.
 //
 // Silme başarısız olursa İŞLEM DURMAZ: veritabanı kaydı doğru olduğu
-// sürece diskte artık bir dosya kalması, kullanıcının ek
+// sürece kovada artık bir nesne kalması, kullanıcının ek
 // güncelleyememesinden daha küçük bir sorundur.
 export async function deleteExpenseAttachment(url: string | null): Promise<void> {
-  if (!url || !url.startsWith("/uploads/expenses/")) return;
-  try {
-    await unlink(path.join(process.cwd(), "public", url));
-  } catch {
-    // yoksayılır
-  }
+  if (!url) return;
+  const key = publicUrlToKey(url);
+  if (!key) return;
+  await deleteObject(key).catch(() => {});
 }

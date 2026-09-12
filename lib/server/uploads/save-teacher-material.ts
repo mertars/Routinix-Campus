@@ -1,8 +1,5 @@
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { randomUUID } from "crypto";
-
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "materials");
+import { putObject, getPublicUrl } from "@/lib/server/r2";
 
 export const MAX_MATERIAL_BYTES = 20 * 1024 * 1024;
 
@@ -24,19 +21,19 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Gerçek üretimde bu fonksiyonun gövdesi bir S3/Cloud Storage istemcisiyle
-// değiştirilir — çağıran API route değişmeden kalır (bkz. save-question-image.ts).
+// Görseli/dokümanı R2'ye (kalıcı, herkese açık okunur kova) yazar.
+// ⚠️ ESKİDEN public/uploads/materials altına yerel diske yazıyordu — bu
+// yalnızca `next dev`'de çalışıyordu, Vercel üretiminde dosya hiç kalıcı
+// olmuyordu (bkz. lib/server/r2.ts üstündeki 2026-09-13 notu).
 export async function saveTeacherMaterial(file: File): Promise<{ fileUrl: string; fileType: "pdf" | "doc" | "slide"; sizeLabel: string }> {
-  await mkdir(UPLOAD_DIR, { recursive: true });
-
   const originalName = file.name || "materyal";
   const extension = (originalName.split(".").pop() ?? "bin").replace(/[^a-z0-9]/gi, "").slice(0, 6) || "bin";
-  const filename = `${randomUUID()}.${extension}`;
+  const key = `materials/${randomUUID()}.${extension}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(path.join(UPLOAD_DIR, filename), buffer);
+  await putObject(key, buffer, file.type || "application/octet-stream");
 
   return {
-    fileUrl: `/uploads/materials/${filename}`,
+    fileUrl: getPublicUrl(key),
     fileType: inferMaterialFileType(originalName),
     sizeLabel: formatFileSize(buffer.byteLength),
   };
