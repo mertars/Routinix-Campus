@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, X, Clock, Bell, Loader2, CheckCheck, Radio, Archive, BarChart2, Send, CheckCircle2, FileText, AlertTriangle, RotateCcw } from "lucide-react";
+import { Check, X, Clock, Bell, Loader2, CheckCheck, Radio, Archive, BarChart2, Send, CheckCircle2, FileText, AlertTriangle, RotateCcw, ChevronRight } from "lucide-react";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
 import { getTodayTrDayName, parseSlotRange } from "@/lib/schedule-time";
 import { useToast } from "@/lib/toast-context";
@@ -117,25 +117,78 @@ function NotifyButton({ studentId, status }: { studentId: string; status: "ABSEN
   );
 }
 
+// Kullanıcı bulgusu: eski hâlde her kayıt zaten TÜM öğrencileri renkli
+// rozet olarak açık gösteriyordu ama satırın kendisi TIKLANAMIYORDU (hiç
+// onClick yoktu) — Mert bunu "detaylara tıklayınca görsün, yok yapılmamış"
+// diye bildirdi. Artık satırlar KAPALI başlıyor (sadece özet sayaç), tıklayınca
+// AÇILIP gönderim saati + duruma göre gruplanmış tam liste görünüyor —
+// "tıkla, detayı gör" akışı gerçekten var.
+const STATUS_SUMMARY_ORDER: AttendanceStatus[] = ["ABSENT", "LATE", "EXCUSED", "PRESENT"];
+
+function ArchiveEntryRow({ entry }: { entry: ArchiveEntry }) {
+  const [expanded, setExpanded] = useState(false);
+  const counts = entry.records.reduce(
+    (acc, r) => ({ ...acc, [r.status]: (acc[r.status] ?? 0) + 1 }),
+    {} as Partial<Record<AttendanceStatus, number>>
+  );
+  const grouped = STATUS_SUMMARY_ORDER.map((status) => ({
+    status,
+    students: entry.records.filter((r) => r.status === status).map((r) => r.studentName),
+  })).filter((g) => g.students.length > 0);
+
+  return (
+    <div className="rounded-xl bg-cream-card dark:bg-white/5">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full min-h-[44px] items-center justify-between gap-2 px-3 py-2.5 text-left"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-espresso dark:text-cream">
+            {entry.branchName} <span className="text-espresso-muted dark:text-cream/40">· {entry.date}</span>
+          </span>
+          <span className="mt-0.5 flex flex-wrap gap-1.5 text-[10px] text-espresso-muted dark:text-cream/40">
+            {STATUS_SUMMARY_ORDER.filter((s) => counts[s]).map((s) => (
+              <span key={s}>
+                {ATTENDANCE_LABEL[s]}: {counts[s]}
+              </span>
+            ))}
+            {entry.records.length === 0 && <span>Kayıt yok</span>}
+          </span>
+        </span>
+        <ChevronRight className={cn("h-4 w-4 shrink-0 text-espresso-muted transition-transform dark:text-cream/40", expanded && "rotate-90")} />
+      </button>
+      {expanded && (
+        <div className="space-y-2 border-t border-hairline px-3 pb-3 pt-2 dark:border-white/10">
+          <p className="text-[10px] text-espresso-muted dark:text-cream/40">
+            Gönderim: {new Date(entry.submittedAt).toLocaleString("tr-TR")} · {entry.teacherName}
+          </p>
+          {grouped.map((g) => (
+            <div key={g.status}>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+                {ATTENDANCE_LABEL[g.status]} ({g.students.length})
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {g.students.map((name) => (
+                  <span key={name} className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_STYLES[g.status])}>
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ArchiveModal({ isOpen, onClose, entries }: { isOpen: boolean; onClose: () => void; entries: ArchiveEntry[] }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Geçmiş Yoklama Arşivi" variant="center">
-      <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">Salt okunur — geçmiş kayıtlar değiştirilemez.</p>
+      <p className="mb-3 text-[11px] text-espresso-muted dark:text-cream/40">Salt okunur — bir kayda tıklayarak detaylarını görebilirsiniz.</p>
       <div className="space-y-2">
         {entries.map((entry) => (
-          <div key={entry.id} className="rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5">
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-sm font-medium text-espresso dark:text-cream">{entry.branchName}</p>
-              <span className="text-[10px] text-espresso-muted dark:text-cream/40">{entry.date}</span>
-            </div>
-            <div className="flex flex-wrap gap-1">
-              {entry.records.map((record) => (
-                <span key={record.studentName} className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_STYLES[record.status])}>
-                  {record.studentName}
-                </span>
-              ))}
-            </div>
-          </div>
+          <ArchiveEntryRow key={entry.id} entry={entry} />
         ))}
         {entries.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Arşivde kayıt yok.</p>}
       </div>
