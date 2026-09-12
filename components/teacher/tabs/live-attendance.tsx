@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, X, Clock, Bell, Loader2, CheckCheck, Radio, Archive, BarChart2, Send, CheckCircle2, FileText, AlertTriangle } from "lucide-react";
+import { Check, X, Clock, Bell, Loader2, CheckCheck, Radio, Archive, BarChart2, Send, CheckCircle2, FileText, AlertTriangle, RotateCcw } from "lucide-react";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
 import { getTodayTrDayName, parseSlotRange } from "@/lib/schedule-time";
 import { useToast } from "@/lib/toast-context";
@@ -35,16 +35,61 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function NotifyButton() {
-  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+type NotifyState = "idle" | "sending" | "sent" | "no-recipient" | "failed";
+
+// ⚠️ Bu düğme eskiden SAHTEYDİ: hiçbir istek atmıyor, 1 saniye bekleyip
+// "Ulaştı" gösteriyordu — öğretmen veliye gerçekten haber verildiğini
+// sanıyor, kimseye bir şey gitmiyordu. Yönetici tarafındaki AYNI düğmeyle
+// (attendance-command.tsx) birebir aynı davranışa getirildi: gerçek istek,
+// gerçek "SMS izni yok" ve "gönderilemedi" durumları.
+function NotifyButton({ studentId, status }: { studentId: string; status: "ABSENT" | "LATE" }) {
+  const [state, setState] = useState<NotifyState>("idle");
+
+  async function handleNotify() {
+    setState("sending");
+    try {
+      const res = await fetch("/api/teacher/notify-absence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, status }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (typeof data?.error === "string" && data.error.includes("SMS onayı")) {
+          setState("no-recipient");
+          return;
+        }
+        throw new Error(data?.error ?? "Gönderilemedi.");
+      }
+      setState(data.recipientCount > 0 ? "sent" : "no-recipient");
+    } catch {
+      setState("failed");
+    }
+  }
+
+  if (state === "no-recipient") {
+    return (
+      <span className="flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-medium text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+        <AlertTriangle className="h-3 w-3" /> Veli SMS onayı yok
+      </span>
+    );
+  }
+  if (state === "failed") {
+    return (
+      <button
+        onClick={handleNotify}
+        className="flex items-center gap-1.5 rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-medium text-rose-700 transition hover:bg-rose-200 dark:bg-rose-500/15 dark:text-rose-300"
+      >
+        <RotateCcw className="h-3 w-3" /> Tekrar dene
+      </button>
+    );
+  }
+
   return (
     <motion.button
       initial={{ opacity: 0, x: -6 }}
       animate={{ opacity: 1, x: 0 }}
-      onClick={() => {
-        setState("sending");
-        setTimeout(() => setState("sent"), 1000);
-      }}
+      onClick={handleNotify}
       disabled={state !== "idle"}
       className={cn(
         "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition disabled:cursor-default",
@@ -441,7 +486,7 @@ export function LiveAttendanceTab() {
                 </div>
                 {(status === "ABSENT" || status === "LATE") && (
                   <div className="mt-2 flex justify-start sm:mt-0 sm:min-w-[100px] sm:justify-end">
-                    <NotifyButton key={student.id + status} />
+                    <NotifyButton key={student.id + status} studentId={student.id} status={status as "ABSENT" | "LATE"} />
                   </div>
                 )}
               </motion.div>
