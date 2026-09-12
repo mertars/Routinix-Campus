@@ -50,6 +50,15 @@ export function ResultsTable({ examId }: { examId: string }) {
     return sortAsc ? sorted : sorted.reverse();
   }, [data, query, sortKey, sortAsc]);
 
+  // Kullanıcı talebi: "deneme sonuçlarında fen sosyal değil bu alt dersler
+  // ve sonuçları yazmalı" — sütunları `data.groups`'tan (subjects ile AYNI
+  // sırada, PDF'lerle AYNI computeSubjectColumnGroups fonksiyonu) düzleştir.
+  // Standalone bir ders TEK sütun (subColumns=[""]); aggregate bir ders
+  // (Fen Bilimleri gibi) gerçek alt-derslerine (Fizik/Kimya/Biyoloji)
+  // bölünür — Fen/Sosyal aggregate net'i artık AYRI bir sütun olarak
+  // gösterilmiyor, PDF'lerdeki davranışla birebir.
+  const columnKeys = useMemo(() => (data ? data.groups.flatMap((g) => g.subColumns.map((label) => ({ subject: g.subject, label }))) : []), [data]);
+
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc((v) => !v);
     else {
@@ -214,30 +223,55 @@ export function ResultsTable({ examId }: { examId: string }) {
           <table className="w-full text-[11.5px]">
             <thead className="sticky top-0 z-10 bg-cream-card text-left text-[9.5px] uppercase tracking-wide text-espresso-muted dark:bg-midnight-card dark:text-cream/40">
               <tr>
-                <th className="w-12 px-3 py-2.5">
+                <th rowSpan={2} className="w-12 px-3 py-2.5 align-bottom">
                   <button onClick={() => toggleSort("rank")} className="flex items-center gap-1 font-semibold transition hover:text-espresso dark:hover:text-cream">
                     Sıra <ArrowUpDown className="h-2.5 w-2.5" />
                   </button>
                 </th>
-                <th className="px-3 py-2.5">
+                <th rowSpan={2} className="px-3 py-2.5 align-bottom">
                   <button onClick={() => toggleSort("name")} className="flex items-center gap-1 font-semibold transition hover:text-espresso dark:hover:text-cream">
                     Öğrenci <ArrowUpDown className="h-2.5 w-2.5" />
                   </button>
                 </th>
-                <th className="px-3 py-2.5">
+                <th rowSpan={2} className="px-3 py-2.5 align-bottom">
                   <button onClick={() => toggleSort("branch")} className="flex items-center gap-1 font-semibold transition hover:text-espresso dark:hover:text-cream">
                     Şube <ArrowUpDown className="h-2.5 w-2.5" />
                   </button>
                 </th>
-                {data.subjects.map((s) => (
-                  <th key={s} className="whitespace-nowrap px-3 py-2.5 text-right">
-                    <button onClick={() => toggleSort(s)} className="ml-auto flex items-center gap-1 font-semibold transition hover:text-espresso dark:hover:text-cream">
-                      {s} <ArrowUpDown className="h-2.5 w-2.5" />
-                    </button>
-                  </th>
-                ))}
-                <th className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-espresso dark:text-cream">Toplam</th>
-                <th className="w-16 px-2 py-2.5 text-center font-semibold text-espresso dark:text-cream">Karne</th>
+                {/* Alt-dersi olan (Fen/Sosyal gibi) dersler ÜST satırda tüm
+                    alt-derslerinin genişliğine yayılır (colSpan), ALT
+                    satırda gerçek alt-ders adları listelenir — standalone
+                    bir ders rowSpan=2 ile tek başına iki satırı da kaplar. */}
+                {data.groups.map((g, gi) =>
+                  g.subColumns.length > 1 ? (
+                    <th
+                      key={gi}
+                      colSpan={g.subColumns.length}
+                      className="whitespace-nowrap border-l border-hairline px-3 py-2 text-center font-semibold normal-case text-espresso dark:border-white/10 dark:text-cream"
+                    >
+                      {g.subject}
+                    </th>
+                  ) : (
+                    <th key={gi} rowSpan={2} className="whitespace-nowrap px-3 py-2.5 text-right align-bottom">
+                      <button onClick={() => toggleSort(g.subject)} className="ml-auto flex items-center gap-1 font-semibold transition hover:text-espresso dark:hover:text-cream">
+                        {g.subject} <ArrowUpDown className="h-2.5 w-2.5" />
+                      </button>
+                    </th>
+                  )
+                )}
+                <th rowSpan={2} className="whitespace-nowrap px-3 py-2.5 text-right align-bottom font-semibold text-espresso dark:text-cream">Toplam</th>
+                <th rowSpan={2} className="w-16 px-2 py-2.5 text-center align-bottom font-semibold text-espresso dark:text-cream">Karne</th>
+              </tr>
+              <tr>
+                {data.groups.flatMap((g, gi) =>
+                  g.subColumns.length > 1
+                    ? g.subColumns.map((label, li) => (
+                        <th key={`${gi}-${li}`} className="whitespace-nowrap border-l border-hairline px-3 py-1.5 text-right text-[9px] font-medium normal-case text-espresso-muted dark:border-white/10 dark:text-cream/40">
+                          {label}
+                        </th>
+                      ))
+                    : []
+                )}
               </tr>
             </thead>
             <tbody>
@@ -270,8 +304,8 @@ export function ResultsTable({ examId }: { examId: string }) {
                     {s.branchName}
                     <span className="ml-1 text-[10px] opacity-60">({s.branchRank}.)</span>
                   </td>
-                  {s.subjects.map((sub, i) => (
-                    <td key={data.subjects[i]} className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                  {s.subColumnCells.map((sub, i) => (
+                    <td key={`${columnKeys[i]?.subject}-${columnKeys[i]?.label}`} className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
                       {sub ? (
                         <>
                           <span className="font-semibold text-espresso dark:text-cream">{sub.net}</span>

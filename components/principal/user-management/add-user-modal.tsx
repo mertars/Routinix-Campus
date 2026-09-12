@@ -20,7 +20,7 @@ const ROLE_TABS: { id: Role; label: string; icon: typeof GraduationCap }[] = [
   { id: "ADMIN", label: "Yönetici", icon: ShieldCheck },
 ];
 
-const SUBJECT_OPTIONS = ["Matematik", "Fizik", "Kimya", "Biyoloji", "Türkçe", "Tarih", "Coğrafya", "İngilizce", "LGS Branş", "Rehberlik", "Diğer"];
+const SUBJECT_OPTIONS = ["Matematik", "Fizik", "Kimya", "Biyoloji", "Türkçe", "Tarih", "Coğrafya", "Felsefe", "Din Kültürü ve Ahlak Bilgisi", "İngilizce", "LGS Branş", "Rehberlik", "Diğer"];
 
 const AUTHORITY_OPTIONS: { id: string; label: string }[] = [
   { id: "BRANCH_MANAGER", label: "Şube Müdürü" },

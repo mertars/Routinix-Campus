@@ -4,12 +4,11 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
-import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { computeExamResults } from "@/lib/server/exams/exam-results";
-import { computeExamSubtopicBreakdown } from "@/lib/server/exams/subtopic-breakdown";
+import { computeExamSubtopicBreakdown, computeSubjectColumnGroups } from "@/lib/server/exams/subtopic-breakdown";
 import { estimateRanking } from "@/lib/server/exams/osym-reference";
 import { TRACK_SUBJECTS } from "@/lib/server/exams/track-mapping";
-import { PdfExamRanking, type RankingParentGroup, type RankingCell, type RankingStudentRow } from "@/components/pdf/pdf-exam-ranking";
+import { PdfExamRanking, type RankingCell, type RankingStudentRow } from "@/components/pdf/pdf-exam-ranking";
 
 export const dynamic = "force-dynamic";
 
@@ -33,47 +32,17 @@ async function handleGet(request: NextRequest, { params }: { params: { id: strin
     const scopedSubjects = track ? results.subjects.filter((s) => (TRACK_SUBJECTS[track] ?? []).includes(s)) : results.subjects;
     if (track && scopedSubjects.length === 0) return NextResponse.json({ error: "Bu denemede bu alan bulunamadı." }, { status: 400 });
 
-    // Hangi dersler alt-ders kırılımına sahip (bkz. karne route'taki AYNI
-    // mantık) — CURRICULUM_TREE'de olmayan VE birden fazla gerçek kazanım
-    // etiketi olan dersler. SORGUYU ders başına BİR KEZ yapıyoruz (öğrenci
-    // sayısı kadar değil), sonra her öğrenci için computeExamSubtopicBreakdown
-    // çağırıyoruz.
-    // findMany + questionNumber sırası (groupBy DEĞİL) — alt-ders sütunları
-    // fiziksel soru sırasıyla (Tarih→Coğrafya→Felsefe→Din Kültürü) çıksın,
-    // groupBy'ın TANIMSIZ satır sırasına bağlı kalmasın.
-    const orderedQuestions = await prisma.examQuestion.findMany({
-      where: { examId: params.id, subject: { in: scopedSubjects } },
-      select: { subject: true, subtopicLabel: true },
-      orderBy: { questionNumber: "asc" },
-    });
-    const labelsBySubject = new Map<string, Set<string>>();
-    for (const q of orderedQuestions) {
-      if (!q.subtopicLabel || q.subtopicLabel === "Kazanım atanmadı") continue;
-      const set = labelsBySubject.get(q.subject) ?? new Set<string>();
-      set.add(q.subtopicLabel);
-      labelsBySubject.set(q.subject, set);
-    }
-    const subDersSubjects = scopedSubjects.filter((s) => !(s in CURRICULUM_TREE) && (labelsBySubject.get(s)?.size ?? 0) > 1);
-
     // Kolon grupları — kullanıcı kararı: "sosyal ve feni başlıklarına
     // ayır, üstte fen yazsın altında fizik kimya biyoloji yazsın" — ÜÇ
     // katmanlı başlık: DERS ADI (Fen Bilimleri) tüm alt-derslerinin
     // genişliğine yayılır, altında ALT-DERS ADLARI (Fizik/Kimya/Biyoloji),
     // en altta her biri için D/Y/B/N (bkz. pdf-exam-ranking.tsx). Standalone
     // bir ders için subColumns=[""] — orta satır boş kalır, ders adı zaten
-    // üst satırda.
-    const groups: RankingParentGroup[] = [];
-    const columnKeys: { subject: string; label: string }[] = []; // subject + (alt-ders varsa) label
-    for (const subject of scopedSubjects) {
-      if (subDersSubjects.includes(subject)) {
-        const labels = [...(labelsBySubject.get(subject) ?? [])];
-        groups.push({ subject, subColumns: labels });
-        for (const label of labels) columnKeys.push({ subject, label });
-      } else {
-        groups.push({ subject, subColumns: [""] });
-        columnKeys.push({ subject, label: "" });
-      }
-    }
+    // üst satırda. Mantık artık paylaşılan computeSubjectColumnGroups'ta
+    // (bkz. o fonksiyonun yorumu) — sonuç ekranıyla (results/route.ts) AYNI
+    // fonksiyon, ikisi sessizce sapmasın diye.
+    const { groups, columnKeys } = await computeSubjectColumnGroups(params.id, scopedSubjects);
+    const subDersSubjects = groups.filter((g) => g.subColumns.length > 1).map((g) => g.subject);
 
     const relevantStudentIds = track ? (results.trackRankings.find((t) => t.track === track)?.students.map((s) => s.studentId) ?? []) : results.students.map((s) => s.studentId);
     const relevantStudents = results.students.filter((s) => relevantStudentIds.includes(s.studentId));

@@ -66,6 +66,11 @@ export type ResultStudent = {
   branchRank: number;
   gradeRank: number;
   subjects: (SubjectScore | null)[];
+  // Aggregate bir dersin (örn. Fen Bilimleri) gerçek alt-derslere (Fizik/
+  // Kimya/Biyoloji) kırılmış hâli — `groups`/`columnKeys` ile AYNI sırada
+  // düzleştirilmiş (bkz. ExamResults.groups). Standalone bir ders için
+  // `subjects` dizisindekiyle BİREBİR aynı hücre tekrar eder.
+  subColumnCells: (SubjectScore | null)[];
   trackResult: TrackResult;
 };
 
@@ -75,9 +80,18 @@ export type TrackRanking = {
   students: { studentId: string; firstName: string; lastName: string; branchName: string; trackNet: number; rank: number }[];
 };
 
+export type SubjectColumnGroup = { subject: string; subColumns: string[] };
+
 export type ExamResults = {
   exam: { id: string; name: string; examDate: string };
   subjects: string[];
+  // `subjects` ile AYNI sırada — kullanıcı talebi: "deneme sonuçlarında
+  // fen sosyal değil bu alt dersler ve sonuçları yazmalı". CURRICULUM_
+  // TREE'de olmayan (Sosyal Bilimler, Fen Bilimleri gibi) dersler, cevap
+  // anahtarında birden fazla gerçek kazanım etiketi varsa (Tarih/Coğrafya/
+  // Felsefe/Din ya da Fizik/Kimya/Biyoloji) subColumns'a bunları taşır;
+  // standalone bir ders için subColumns=[""] (tek, etiketsiz sütun).
+  groups: SubjectColumnGroup[];
   subjectStats: { subject: string; questionCount: number; averageNet: number }[];
   stats: { studentCount: number; subjectCount: number; averageNet: number; highestNet: number; lowestNet: number };
   students: ResultStudent[];

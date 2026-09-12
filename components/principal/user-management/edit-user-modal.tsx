@@ -11,7 +11,7 @@ import type { NewUserCredentials } from "./credentials-card-modal";
 type BranchOption = { id: string; name: string };
 export type EditTarget = { id: string; role: "STUDENT" | "TEACHER"; name: string } | null;
 
-const SUBJECT_OPTIONS = ["Matematik", "Fizik", "Kimya", "Biyoloji", "Türkçe", "Tarih", "Coğrafya", "İngilizce", "LGS Branş", "Rehberlik", "Diğer"];
+const SUBJECT_OPTIONS = ["Matematik", "Fizik", "Kimya", "Biyoloji", "Türkçe", "Tarih", "Coğrafya", "Felsefe", "Din Kültürü ve Ahlak Bilgisi", "İngilizce", "LGS Branş", "Rehberlik", "Diğer"];
 
 const inputClass =
   "w-full rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream";

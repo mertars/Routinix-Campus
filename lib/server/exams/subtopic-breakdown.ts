@@ -57,6 +57,50 @@ export async function computeExamSubtopicBreakdown(examId: string, studentId: st
     .sort((a, b) => a.percent - b.percent);
 }
 
+export type SubjectColumnGroup = { subject: string; subColumns: string[] };
+export type SubjectColumnCell = { correct: number; wrong: number; blank: number; net: number } | null;
+
+// Ölçme ekranının VE PDF'lerin (ranking-pdf, karne, sonuç tablosu) ORTAK
+// "hangi dersler alt-ders kırılımına sahip" mantığı — kullanıcı kararı:
+// "sosyal ve feni başlıklarına ayır" (bkz. ranking-pdf/route.tsx'teki asıl
+// yorum). CURRICULUM_TREE'de OLMAYAN (Sosyal Bilimler, Fen Bilimleri gibi
+// aggregate dersler) VE cevap anahtarında birden fazla GERÇEK kazanım
+// etiketi taşıyan (örn. Fizik/Kimya/Biyoloji) dersler için alt-ders
+// sütunları üretilir. Tek yerde tutulmazsa ekran ile PDF birbirinden
+// sessizce sapar — bu yüzden ranking-pdf DE bu fonksiyonu çağırır.
+export async function computeSubjectColumnGroups(
+  examId: string,
+  subjects: string[]
+): Promise<{ groups: SubjectColumnGroup[]; columnKeys: { subject: string; label: string }[] }> {
+  const orderedQuestions = await prisma.examQuestion.findMany({
+    where: { examId, subject: { in: subjects } },
+    select: { subject: true, subtopicLabel: true },
+    orderBy: { questionNumber: "asc" },
+  });
+  const labelsBySubject = new Map<string, Set<string>>();
+  for (const q of orderedQuestions) {
+    if (!q.subtopicLabel || q.subtopicLabel === "Kazanım atanmadı") continue;
+    const set = labelsBySubject.get(q.subject) ?? new Set<string>();
+    set.add(q.subtopicLabel);
+    labelsBySubject.set(q.subject, set);
+  }
+  const subDersSubjects = subjects.filter((s) => !(s in CURRICULUM_TREE) && (labelsBySubject.get(s)?.size ?? 0) > 1);
+
+  const groups: SubjectColumnGroup[] = [];
+  const columnKeys: { subject: string; label: string }[] = [];
+  for (const subject of subjects) {
+    if (subDersSubjects.includes(subject)) {
+      const labels = [...(labelsBySubject.get(subject) ?? [])];
+      groups.push({ subject, subColumns: labels });
+      for (const label of labels) columnKeys.push({ subject, label });
+    } else {
+      groups.push({ subject, subColumns: [""] });
+      columnKeys.push({ subject, label: "" });
+    }
+  }
+  return { groups, columnKeys };
+}
+
 export type ClassSubtopicSummaryRow = { subtopicId: string | null; subtopicLabel: string; averagePercent: number; studentCount: number };
 
 // Ölçme Değerlendirme modülü — sınıf/kurum geneli "en zayıf kazanımlar"

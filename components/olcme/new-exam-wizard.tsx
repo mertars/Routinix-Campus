@@ -25,7 +25,7 @@ const TEMPLATE_PRESETS: TemplatePreset[] = [
   // (diğerleri boş/0 net kaldığı) gerçek senaryo — bkz. track-mapping.ts.
   // Bu şablonla oluşturulan denemede sıralama otomatik alan bazlı çıkar.
   { label: "AYT Karma (Tüm Alanlar)", suggestedSubjects: [...new Set(Object.values(TRACK_SUBJECTS).flat())] },
-  { label: "Sınıf Seviye Değerlendirme (Lise)", suggestedSubjects: ["Türkçe", "Matematik", "Fizik", "Kimya", "Biyoloji", "Tarih", "Coğrafya"] },
+  { label: "Sınıf Seviye Değerlendirme (Lise)", suggestedSubjects: ["Türkçe", "Matematik", "Fizik", "Kimya", "Biyoloji", "Tarih", "Coğrafya", "Felsefe", "Din Kültürü ve Ahlak Bilgisi"] },
   { label: "Sınıf Seviye Değerlendirme (Ortaokul)", suggestedSubjects: ["Türkçe", "Matematik", "Fen Bilimleri", "Sosyal Bilgiler", "İngilizce"] },
 ];
 

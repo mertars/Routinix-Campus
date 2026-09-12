@@ -773,6 +773,378 @@ export const CURRICULUM_TREE: Record<string, CurriculumTopic[]> = {
       ],
     },
   ],
+
+  // Faz Röntgen-Granülerlik — kullanıcı talebi: "lise de sosyal ve fen
+  // derslerinin içeriğini ayır tarih coğrafya felsefe din fizik kimya
+  // biyoloji". CURRICULUM_TREE'de bu 6 dersin HİÇ girdisi yoktu — bu YÜZDEN
+  // syncExamResultToRoentgen (bkz. lib/server/exams/subtopic-breakdown.ts)
+  // bu derslerde HER ZAMAN sessizce erken dönüyordu (subject in
+  // CURRICULUM_TREE kontrolü) ve XRAY_SUBJECTS (aşağıda, bu objeden
+  // türetiliyor) bu dersleri hiç listelemiyordu — bir Biyoloji öğretmeninin
+  // Röntgen ekranında SEÇEBİLECEĞİ "Biyoloji" diye bir seçenek bile yoktu,
+  // varsayılan olarak Matematik'e düşüyordu. Diğer derslerle (Fizik/Türkçe)
+  // AYNI hafiflikte — MEB lise müfredatının gerçek ünite adları, kazanım
+  // düzeyinde DEĞİL ünite/konu düzeyinde (Matematik'teki gibi kaynaklı tam
+  // kırılım burada yok, ileride derinleştirilebilir). Hepsi covered:false —
+  // bu id'lere henüz gerçek bir sınıf defteri/ustalık kaydı bağlı değil.
+  Kimya: [
+    {
+      id: "km9-kimya-bilimi",
+      name: "Kimya Bilimi",
+      grade: 9,
+      subtopics: [
+        { id: "km9-kimya-bilimi-1", name: "Kimya Nedir, Kapsamı ve Uygulama Alanları", covered: false },
+        { id: "km9-kimya-bilimi-2", name: "Simyadan Kimyaya Tarihsel Gelişim", covered: false },
+      ],
+    },
+    {
+      id: "km9-atom-periyodik",
+      name: "Atom ve Periyodik Sistem",
+      grade: 9,
+      subtopics: [
+        { id: "km9-atom-periyodik-1", name: "Atom Modellerinin Gelişimi", covered: false },
+        { id: "km9-atom-periyodik-2", name: "Periyodik Sistemde Yerleşim ve Özellikler", covered: false },
+      ],
+    },
+    {
+      id: "km10-asit-baz-tuz",
+      name: "Asitler, Bazlar ve Tuzlar",
+      grade: 10,
+      subtopics: [
+        { id: "km10-asit-baz-tuz-1", name: "Asit-Baz Kuramları", covered: false },
+        { id: "km10-asit-baz-tuz-2", name: "pH ve pOH Kavramları", covered: false },
+        { id: "km10-asit-baz-tuz-3", name: "Tuzların Özellikleri ve Kullanım Alanları", covered: false },
+      ],
+    },
+    {
+      id: "km11-modern-atom",
+      name: "Modern Atom Teorisi",
+      grade: 11,
+      subtopics: [
+        { id: "km11-modern-atom-1", name: "Kuantum Modeli ve Kuantum Sayıları", covered: false },
+        { id: "km11-modern-atom-2", name: "Orbitaller ve Elektron Dizilimi", covered: false },
+      ],
+    },
+    {
+      id: "km11-gazlar",
+      name: "Gazlar",
+      grade: 11,
+      subtopics: [
+        { id: "km11-gazlar-1", name: "Gaz Yasaları", covered: false },
+        { id: "km11-gazlar-2", name: "İdeal Gaz Denklemi ve Karışımları", covered: false },
+      ],
+    },
+    {
+      id: "km12-tepkimelerde-denge",
+      name: "Kimyasal Tepkimelerde Denge",
+      grade: 12,
+      subtopics: [
+        { id: "km12-tepkimelerde-denge-1", name: "Dinamik Denge Kavramı", covered: false },
+        { id: "km12-tepkimelerde-denge-2", name: "Denge Sabiti Hesaplamaları", covered: false },
+      ],
+    },
+    {
+      id: "km12-elektrokimya",
+      name: "Elektrokimya",
+      grade: 12,
+      subtopics: [
+        { id: "km12-elektrokimya-1", name: "Redoks Tepkimeleri", covered: false },
+        { id: "km12-elektrokimya-2", name: "Elektroliz ve Endüstriyel Uygulamalar", covered: false },
+      ],
+    },
+  ],
+  Biyoloji: [
+    {
+      id: "bi9-yasam-bilimi",
+      name: "Yaşam Bilimi Biyoloji",
+      grade: 9,
+      subtopics: [
+        { id: "bi9-yasam-bilimi-1", name: "Canlıların Ortak Özellikleri", covered: false },
+        { id: "bi9-yasam-bilimi-2", name: "Bilimsel Bilginin Doğası ve Canlıların Sınıflandırılması", covered: false },
+      ],
+    },
+    {
+      id: "bi9-hucre",
+      name: "Hücre",
+      grade: 9,
+      subtopics: [
+        { id: "bi9-hucre-1", name: "Hücre Zarından Madde Geçişi", covered: false },
+        { id: "bi9-hucre-2", name: "Hücre Organelleri ve Görevleri", covered: false },
+      ],
+    },
+    {
+      id: "bi10-canlilar-dunyasi",
+      name: "Canlılar Dünyası",
+      grade: 10,
+      subtopics: [
+        { id: "bi10-canlilar-dunyasi-1", name: "Canlıların Sınıflandırılması ve Âlemler", covered: false },
+        { id: "bi10-canlilar-dunyasi-2", name: "Bitkiler ve Hayvanlar Âlemi", covered: false },
+      ],
+    },
+    {
+      id: "bi11-insan-fizyolojisi",
+      name: "İnsan Fizyolojisi",
+      grade: 11,
+      subtopics: [
+        { id: "bi11-insan-fizyolojisi-1", name: "Sindirim Sistemi", covered: false },
+        { id: "bi11-insan-fizyolojisi-2", name: "Dolaşım ve Bağışıklık Sistemi", covered: false },
+        { id: "bi11-insan-fizyolojisi-3", name: "Solunum ve Boşaltım Sistemi", covered: false },
+      ],
+    },
+    {
+      id: "bi12-genden-proteine",
+      name: "Genden Proteine",
+      grade: 12,
+      subtopics: [
+        { id: "bi12-genden-proteine-1", name: "DNA Yapısı ve Genetik Şifre", covered: false },
+        { id: "bi12-genden-proteine-2", name: "Protein Sentezi", covered: false },
+      ],
+    },
+    {
+      id: "bi12-enerji-donusumleri",
+      name: "Canlılarda Enerji Dönüşümleri",
+      grade: 12,
+      subtopics: [
+        { id: "bi12-enerji-donusumleri-1", name: "Fotosentez", covered: false },
+        { id: "bi12-enerji-donusumleri-2", name: "Hücresel Solunum", covered: false },
+      ],
+    },
+  ],
+  Tarih: [
+    {
+      id: "ta9-tarih-bilimi",
+      name: "Tarih Bilimi",
+      grade: 9,
+      subtopics: [
+        { id: "ta9-tarih-bilimi-1", name: "Tarih ve Zaman Kavramı", covered: false },
+        { id: "ta9-tarih-bilimi-2", name: "İlk Çağ Uygarlıkları", covered: false },
+      ],
+    },
+    {
+      id: "ta9-islam-medeniyeti",
+      name: "İlk ve Orta Çağlarda Türk Dünyası",
+      grade: 9,
+      subtopics: [
+        { id: "ta9-islam-medeniyeti-1", name: "İslamiyet'in Doğuşu", covered: false },
+        { id: "ta9-islam-medeniyeti-2", name: "İlk Türk-İslam Devletleri", covered: false },
+      ],
+    },
+    {
+      id: "ta10-kurulustan-yukselise",
+      name: "Beylikten Devlete Osmanlı",
+      grade: 10,
+      subtopics: [
+        { id: "ta10-kurulustan-yukselise-1", name: "Osmanlı Devleti'nin Kuruluşu", covered: false },
+        { id: "ta10-kurulustan-yukselise-2", name: "Fetihler ve Yükseliş Dönemi", covered: false },
+      ],
+    },
+    {
+      id: "ta10-dunya-gucu-osmanli",
+      name: "Dünya Gücü Osmanlı",
+      grade: 10,
+      subtopics: [
+        { id: "ta10-dunya-gucu-osmanli-1", name: "Klasik Çağ Devlet Düzeni", covered: false },
+        { id: "ta10-dunya-gucu-osmanli-2", name: "Değişen Dünya Dengeleri", covered: false },
+      ],
+    },
+    {
+      id: "ta11-degisim-caginda-osmanli",
+      name: "Değişim Çağında Osmanlı",
+      grade: 11,
+      subtopics: [
+        { id: "ta11-degisim-caginda-osmanli-1", name: "Islahat Hareketleri", covered: false },
+        { id: "ta11-degisim-caginda-osmanli-2", name: "Meşrutiyet Dönemi", covered: false },
+      ],
+    },
+    {
+      id: "ta11-xx-yuzyilda-osmanli",
+      name: "XX. Yüzyıl Başlarında Osmanlı Devleti",
+      grade: 11,
+      subtopics: [
+        { id: "ta11-xx-yuzyilda-osmanli-1", name: "I. Dünya Savaşı", covered: false },
+        { id: "ta11-xx-yuzyilda-osmanli-2", name: "Mondros Ateşkesi ve İşgaller", covered: false },
+      ],
+    },
+    {
+      id: "ta12-milli-mucadele",
+      name: "Milli Mücadele",
+      grade: 12,
+      subtopics: [
+        { id: "ta12-milli-mucadele-1", name: "Kurtuluş Savaşı Cepheleri", covered: false },
+        { id: "ta12-milli-mucadele-2", name: "Atatürk İlke ve İnkılapları", covered: false },
+      ],
+    },
+    {
+      id: "ta12-soguk-savas",
+      name: "Soğuk Savaş Dönemi ve Türkiye",
+      grade: 12,
+      subtopics: [
+        { id: "ta12-soguk-savas-1", name: "İki Kutuplu Dünya Düzeni", covered: false },
+        { id: "ta12-soguk-savas-2", name: "Türkiye'nin Dış Politikası", covered: false },
+      ],
+    },
+  ],
+  Coğrafya: [
+    {
+      id: "cg9-dogal-sistemler",
+      name: "Doğal Sistemler",
+      grade: 9,
+      subtopics: [
+        { id: "cg9-dogal-sistemler-1", name: "Dünya'nın Şekli ve Hareketlerinin Sonuçları", covered: false },
+        { id: "cg9-dogal-sistemler-2", name: "İklim Bilgisi", covered: false },
+        { id: "cg9-dogal-sistemler-3", name: "Yer Kabuğunun Yapısı ve Yerin Şekillenmesi", covered: false },
+      ],
+    },
+    {
+      id: "cg10-beseri-sistemler",
+      name: "Beşeri Sistemler",
+      grade: 10,
+      subtopics: [
+        { id: "cg10-beseri-sistemler-1", name: "Nüfus Politikaları ve Dağılışı", covered: false },
+        { id: "cg10-beseri-sistemler-2", name: "Göç ve Etkileri", covered: false },
+        { id: "cg10-beseri-sistemler-3", name: "Yerleşme ve Yerleşme Türleri", covered: false },
+      ],
+    },
+    {
+      id: "cg11-kuresel-ortam",
+      name: "Küresel Ortam: Bölgeler ve Ülkeler",
+      grade: 11,
+      subtopics: [
+        { id: "cg11-kuresel-ortam-1", name: "Ekonomik Faaliyetlerin Dağılışı", covered: false },
+        { id: "cg11-kuresel-ortam-2", name: "Bölgesel Kalkınma Projeleri", covered: false },
+      ],
+    },
+    {
+      id: "cg12-cevre-toplum",
+      name: "Çevre ve Toplum",
+      grade: 12,
+      subtopics: [
+        { id: "cg12-cevre-toplum-1", name: "Doğal Afetler ve Toplum Üzerindeki Etkileri", covered: false },
+        { id: "cg12-cevre-toplum-2", name: "Çevre Sorunları ve Sürdürülebilirlik", covered: false },
+      ],
+    },
+  ],
+  Felsefe: [
+    {
+      id: "fe10-felsefeyle-tanisma",
+      name: "Felsefeyle Tanışma",
+      grade: 10,
+      subtopics: [
+        { id: "fe10-felsefeyle-tanisma-1", name: "Felsefe Nedir, Felsefi Düşüncenin Doğası", covered: false },
+        { id: "fe10-felsefeyle-tanisma-2", name: "Felsefi Düşüncenin Doğuşu", covered: false },
+      ],
+    },
+    {
+      id: "fe10-bilgi-felsefesi",
+      name: "Bilgi Felsefesi",
+      grade: 10,
+      subtopics: [
+        { id: "fe10-bilgi-felsefesi-1", name: "Bilginin Kaynağı ve Değeri", covered: false },
+        { id: "fe10-bilgi-felsefesi-2", name: "Doğruluk ve Gerçeklik Tartışmaları", covered: false },
+      ],
+    },
+    {
+      id: "fe11-varlik-felsefesi",
+      name: "Varlık Felsefesi",
+      grade: 11,
+      subtopics: [
+        { id: "fe11-varlik-felsefesi-1", name: "Varlığın Anlamı Üzerine Görüşler", covered: false },
+        { id: "fe11-varlik-felsefesi-2", name: "Metafizik Yaklaşımlar", covered: false },
+      ],
+    },
+    {
+      id: "fe11-ahlak-felsefesi",
+      name: "Ahlak Felsefesi",
+      grade: 11,
+      subtopics: [
+        { id: "fe11-ahlak-felsefesi-1", name: "Ahlaki Yargıların Niteliği", covered: false },
+        { id: "fe11-ahlak-felsefesi-2", name: "Özgürlük ve Sorumluluk", covered: false },
+      ],
+    },
+    {
+      id: "fe12-din-felsefesi",
+      name: "Din Felsefesi",
+      grade: 12,
+      subtopics: [
+        { id: "fe12-din-felsefesi-1", name: "Tanrı'nın Varlığına İlişkin Kanıtlamalar", covered: false },
+        { id: "fe12-din-felsefesi-2", name: "Din-Bilim İlişkisi", covered: false },
+      ],
+    },
+    {
+      id: "fe12-siyaset-felsefesi",
+      name: "Siyaset Felsefesi",
+      grade: 12,
+      subtopics: [
+        { id: "fe12-siyaset-felsefesi-1", name: "Devlet ve İktidar Kavramları", covered: false },
+        { id: "fe12-siyaset-felsefesi-2", name: "Toplum Sözleşmesi Kuramları", covered: false },
+      ],
+    },
+  ],
+  "Din Kültürü ve Ahlak Bilgisi": [
+    {
+      id: "dk9-bilgi-inanc",
+      name: "Bilgi ve İnanç",
+      grade: 9,
+      subtopics: [
+        { id: "dk9-bilgi-inanc-1", name: "Bilgi Türleri ve Din", covered: false },
+        { id: "dk9-bilgi-inanc-2", name: "İman Esasları", covered: false },
+      ],
+    },
+    {
+      id: "dk9-ibadet",
+      name: "İbadet",
+      grade: 9,
+      subtopics: [
+        { id: "dk9-ibadet-1", name: "İbadetin Anlamı ve Önemi", covered: false },
+        { id: "dk9-ibadet-2", name: "Namaz ve Oruç İbadeti", covered: false },
+      ],
+    },
+    {
+      id: "dk10-din-ve-hayat",
+      name: "Din ve Hayat",
+      grade: 10,
+      subtopics: [
+        { id: "dk10-din-ve-hayat-1", name: "İslam Düşüncesinde Yorum Biçimleri", covered: false },
+        { id: "dk10-din-ve-hayat-2", name: "Din ve Ahlak İlişkisi", covered: false },
+      ],
+    },
+    {
+      id: "dk11-allah-insan-iliskisi",
+      name: "Allah-İnsan İlişkisi",
+      grade: 11,
+      subtopics: [
+        { id: "dk11-allah-insan-iliskisi-1", name: "Kur'an'a Göre Allah-İnsan İlişkisi", covered: false },
+        { id: "dk11-allah-insan-iliskisi-2", name: "Sünnete Göre Temel Değerler", covered: false },
+      ],
+    },
+    {
+      id: "dk11-dunya-ahiret",
+      name: "Dünya ve Ahiret",
+      grade: 11,
+      subtopics: [
+        { id: "dk11-dunya-ahiret-1", name: "Ahiret İnancı", covered: false },
+        { id: "dk11-dunya-ahiret-2", name: "Ölüm ve Sonrası", covered: false },
+      ],
+    },
+    {
+      id: "dk12-guncel-meseleler",
+      name: "Güncel Dini Meseleler",
+      grade: 12,
+      subtopics: [
+        { id: "dk12-guncel-meseleler-1", name: "İslam Düşüncesinde Yorum Farklılıkları", covered: false },
+        { id: "dk12-guncel-meseleler-2", name: "Güncel Dini Meselelere Yaklaşımlar", covered: false },
+      ],
+    },
+    {
+      id: "dk12-islam-ve-bilim",
+      name: "İslam ve Bilim",
+      grade: 12,
+      subtopics: [
+        { id: "dk12-islam-ve-bilim-1", name: "İslam Medeniyetinde Bilim", covered: false },
+        { id: "dk12-islam-ve-bilim-2", name: "Bilim-Din İlişkisi", covered: false },
+      ],
+    },
+  ],
 };
 
 // Akademik Röntgen'in kullanabileceği dersler — SADECE en az bir lise
