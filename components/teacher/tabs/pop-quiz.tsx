@@ -23,10 +23,10 @@ import { useToast } from "@/lib/toast-context";
 import { Modal } from "@/components/ui/modal";
 import { cn } from "@/lib/utils";
 
-type PrepQuestion = { id: string; imageLabel: string; answer: string };
+type PrepQuestion = { id: string; imageLabel: string; imageUrl?: string; answer: string };
 type Stage = "prep" | "live" | "done";
 type LiveResult = { studentName: string; correct: number; wrong: number };
-type BankQuestion = { id: string; imageLabel: string; answer: string };
+type BankQuestion = { id: string; imageLabel: string; imageUrl?: string | null; answer: string };
 type QuizDetail = {
   id: string;
   name: string;
@@ -61,9 +61,13 @@ function StudentPreviewModal({ isOpen, onClose, questions }: { isOpen: boolean; 
               <Timer className="h-3 w-3" /> {String(Math.floor(seconds / 60)).padStart(2, "0")}:{String(seconds % 60).padStart(2, "0")}
             </span>
           </div>
-          <div className="mb-3 flex h-40 items-center justify-center rounded-2xl bg-cream-card text-sm text-espresso-muted dark:bg-white/5 dark:text-cream/40">
-            🖼️ {question.imageLabel}
-          </div>
+          {question.imageUrl ? (
+            <img src={question.imageUrl} alt="Soru fotoğrafı" className="mb-3 max-h-56 w-full rounded-2xl bg-white object-contain dark:bg-midnight" />
+          ) : (
+            <div className="mb-3 flex h-40 items-center justify-center rounded-2xl bg-cream-card text-sm text-espresso-muted dark:bg-white/5 dark:text-cream/40">
+              🖼️ {question.imageLabel}
+            </div>
+          )}
           <input
             value={answers[index] ?? ""}
             onChange={(event) => setAnswers((prev) => ({ ...prev, [index]: event.target.value }))}
@@ -123,6 +127,7 @@ export function PopQuizTab() {
 
   const [currentQuiz, setCurrentQuiz] = useState<QuizDetail | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     if (assignedBranches.length > 0 && !branchId) setBranchId(assignedBranches[0].id);
@@ -140,12 +145,33 @@ export function PopQuizTab() {
       });
   }, [staffRecord.id]);
 
-  function addQuestionPhoto(file: File) {
-    setQuestions((prev) => [...prev, { id: crypto.randomUUID(), imageLabel: file.name, answer: "" }]);
+  // ⚠️ Eskiden burada dosyanın SADECE adı (file.name) saklanıyordu — görsel
+  // hiç yüklenmiyordu, öğrenci ekranında "🖼️ IMG_2384.jpg" yazısı çıkıyordu.
+  // Artık lib/server/uploads/save-question-image.ts'in (Soru Çözüm'ün zaten
+  // kullandığı GERÇEK yükleme yardımcısı) sarmalayıcısı /api/uploads/
+  // question-image'a gerçekten yükleniyor.
+  async function addQuestionPhoto(file: File) {
+    setUploadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append("image", file);
+      const res = await fetch("/api/uploads/question-image", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Fotoğraf yüklenemedi.");
+      setQuestions((prev) => [...prev, { id: crypto.randomUUID(), imageLabel: file.name, imageUrl: data.imageUrl, answer: "" }]);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Fotoğraf yüklenemedi.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   }
 
-  function addFromBank(imageLabel: string, answer: string) {
-    setQuestions((prev) => (prev.some((q) => q.imageLabel === imageLabel) ? prev : [...prev, { id: crypto.randomUUID(), imageLabel, answer }]));
+  function addFromBank(item: BankQuestion) {
+    setQuestions((prev) =>
+      prev.some((q) => q.imageLabel === item.imageLabel)
+        ? prev
+        : [...prev, { id: crypto.randomUUID(), imageLabel: item.imageLabel, imageUrl: item.imageUrl ?? undefined, answer: item.answer }]
+    );
   }
 
   function updateAnswer(id: string, answer: string) {
@@ -168,7 +194,7 @@ export function PopQuizTab() {
           branchId: branch.id,
           name: quizName,
           durationSeconds: durationMinutes * 60,
-          questions: questions.map((q) => ({ imageLabel: q.imageLabel, answer: q.answer })),
+          questions: questions.map((q) => ({ imageLabel: q.imageLabel, imageUrl: q.imageUrl, answer: q.answer })),
         }),
       });
       const data = await res.json();
@@ -287,6 +313,11 @@ export function PopQuizTab() {
                 {questions.map((q, index) => (
                   <div key={q.id} className="flex items-center gap-2 rounded-xl bg-cream-card px-3 py-2 dark:bg-white/5">
                     <span className="text-xs font-semibold text-espresso-muted dark:text-cream/40">{index + 1}.</span>
+                    {q.imageUrl ? (
+                      <img src={q.imageUrl} alt="" className="h-8 w-8 shrink-0 rounded-md object-cover" />
+                    ) : (
+                      <ImagePlus className="h-4 w-4 shrink-0 text-espresso-muted dark:text-cream/40" />
+                    )}
                     <span className="flex-1 truncate text-xs text-espresso dark:text-cream">{q.imageLabel}</span>
                     <input
                       value={q.answer}
@@ -302,9 +333,11 @@ export function PopQuizTab() {
               </div>
               <button
                 onClick={() => fileInput.current?.click()}
-                className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-hairline py-3 text-xs font-medium text-espresso-muted transition hover:border-brand-600/40 hover:text-brand-600 dark:border-white/10 dark:text-cream/40"
+                disabled={uploadingPhoto}
+                className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-hairline py-3 text-xs font-medium text-espresso-muted transition hover:border-brand-600/40 hover:text-brand-600 disabled:opacity-60 dark:border-white/10 dark:text-cream/40"
               >
-                <ImagePlus className="h-4 w-4" /> Soru Fotoğrafı Ekle
+                {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                {uploadingPhoto ? "Yükleniyor..." : "Soru Fotoğrafı Ekle"}
               </button>
               <input
                 ref={fileInput}
@@ -326,7 +359,7 @@ export function PopQuizTab() {
                     {myBank.map((item) => (
                       <button
                         key={item.id}
-                        onClick={() => addFromBank(item.imageLabel, item.answer)}
+                        onClick={() => addFromBank(item)}
                         className="rounded-full bg-cream-card px-2.5 py-1 text-[11px] font-medium text-espresso transition hover:bg-brand-50 hover:text-brand-700 dark:bg-white/5 dark:text-cream dark:hover:bg-brand-600/15"
                       >
                         {item.imageLabel}

@@ -28,7 +28,7 @@ export function VideoTopBar({ roleLabel }: { roleLabel: string }) {
     >
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
-          <ModuleSwitcher current="video" />
+          <ModuleSwitcher current="video" locked={roleLabel === "Öğretmen"} />
           <CommandPaletteTrigger compact />
           <div className="hidden items-center gap-2 rounded-2xl border border-violet-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(139_92_246/0.25)] dark:border-violet-500/20 dark:bg-midnight-card/50 md:flex">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />

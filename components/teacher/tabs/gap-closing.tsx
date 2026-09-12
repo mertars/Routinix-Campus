@@ -6,6 +6,7 @@ import { Puzzle, Send, Link2, UploadCloud, Loader2 } from "lucide-react";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
+import { StudentSearchPicker } from "@/components/teacher/student-search-picker";
 
 type RosterStudent = { id: string; firstName: string; lastName: string; branchName: string };
 type TaskEntry = { id: string; topic: string; taskDescription: string; assignedAt: string };
@@ -91,17 +92,7 @@ export function GapClosingTab() {
         </h2>
 
         <div className="mb-3 grid gap-3 sm:grid-cols-2">
-          <select
-            value={studentId}
-            onChange={(event) => setStudentId(event.target.value)}
-            className="rounded-lg border border-hairline bg-white px-3 py-2 text-sm text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
-          >
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.firstName} {s.lastName} — {s.branchName}
-              </option>
-            ))}
-          </select>
+          <StudentSearchPicker students={students} selectedId={studentId} onSelect={setStudentId} />
           <select
             value={topic}
             onChange={(event) => setTopic(event.target.value)}

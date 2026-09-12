@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type ActiveQuizQuestion = { id: string; imageLabel: string };
+export type ActiveQuizQuestion = { id: string; imageLabel: string; imageUrl: string | null };
 export type ActiveQuiz = {
   id: string;
   name: string;

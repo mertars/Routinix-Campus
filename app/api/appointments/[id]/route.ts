@@ -4,12 +4,19 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { getTeacherDaySlots } from "@/lib/server/etut/get-teacher-day-slots";
+import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { withApiLogging, logger } from "@/lib/logger";
 
-const VALID_STATUSES = new Set<AppointmentStatus>(["APPROVED", "REJECTED"]);
+const DECISION_STATUSES = new Set<AppointmentStatus>(["APPROVED", "REJECTED"]);
+// Onaylanmış bir etüt GERÇEKLEŞTİKTEN SONRA geriye dönük işaretlenir —
+// kullanıcı talebi: "yapıldı/yapılmadı olarak işaretleme, yapılmadıysa
+// açıklama yazılsın, yönetici paneline gönderilsin."
+const COMPLETION_STATUSES = new Set<AppointmentStatus>(["COMPLETED", "NO_SHOW"]);
 
-// PATCH /api/appointments/:id — SADECE randevunun atandığı öğretmen talebi
-// onaylar/reddeder.
+// PATCH /api/appointments/:id — SADECE randevunun atandığı öğretmen, İKİ
+// AYRI geçiş yapabilir: (1) PENDING→APPROVED/REJECTED (talep kararı), (2)
+// APPROVED→COMPLETED/NO_SHOW (gerçekleşme kaydı, sadece onaylanmış bir
+// randevu için anlamlı).
 async function handlePatch(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await requireSession();
@@ -17,13 +24,39 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
 
     const body = await request.json();
     const status = (body as { status?: AppointmentStatus }).status;
-    if (!status || !VALID_STATUSES.has(status)) {
-      return NextResponse.json({ error: "status 'APPROVED' veya 'REJECTED' olmalı." }, { status: 400 });
+    const completionNote = typeof (body as { completionNote?: unknown })?.completionNote === "string" ? (body as { completionNote: string }).completionNote.trim() : "";
+
+    if (!status || !(DECISION_STATUSES.has(status) || COMPLETION_STATUSES.has(status))) {
+      return NextResponse.json({ error: "Geçersiz status." }, { status: 400 });
+    }
+    if (status === "NO_SHOW" && !completionNote) {
+      return NextResponse.json({ error: "\"Yapılmadı\" için kısa bir açıklama zorunludur." }, { status: 400 });
     }
 
     const existing = await prisma.appointmentRequest.findUnique({ where: { id: params.id } });
     if (!existing || existing.teacherId !== session.sub) {
       return NextResponse.json({ error: "Randevu talebi bulunamadı." }, { status: 404 });
+    }
+
+    if (COMPLETION_STATUSES.has(status) && existing.status !== "APPROVED") {
+      return NextResponse.json({ error: "Sadece onaylanmış bir etüt tamamlandı/yapılmadı olarak işaretlenebilir." }, { status: 400 });
+    }
+
+    if (COMPLETION_STATUSES.has(status)) {
+      const appointment = await prisma.appointmentRequest.update({
+        where: { id: params.id },
+        data: { status, completedAt: new Date(), completionNote: status === "NO_SHOW" ? completionNote : null },
+      });
+      await recordAuditLog({
+        institutionId: session.institutionId,
+        actorId: session.sub,
+        actorRole: session.role,
+        action: "APPOINTMENT_COMPLETION_RECORDED",
+        targetType: "AppointmentRequest",
+        targetId: params.id,
+        metadata: { status, completionNote: status === "NO_SHOW" ? completionNote : undefined },
+      });
+      return NextResponse.json({ appointment });
     }
 
     // Onay bir İŞLEM içinde ve KİLİTLE yapılır.

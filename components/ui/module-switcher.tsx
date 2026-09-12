@@ -34,7 +34,13 @@ function WorkBadge({ count, critical }: { count: number; critical: number }) {
   );
 }
 
-export function ModuleSwitcher({ current }: { current?: ModuleId }) {
+// Kullanıcı kararı: "öğretmen hala modül değişikliği yapabiliyor yapamasın
+// sadece kampüs erp modülünde kalacak hatta modül değiştiriciyi de
+// kaldır" — `locked` true iken AYNI görsel rozet kalır ama dropdown/onClick
+// TAMAMEN yok, sadece aktif modülün adını gösteren statik bir etiket olur.
+// `lib/modules.ts`/bu bileşenin admin tarafı DEĞİŞMİYOR — sadece çağıran
+// (teacher'ın 4 üst çubuğu) `locked` geçiriyor.
+export function ModuleSwitcher({ current, locked = false }: { current?: ModuleId; locked?: boolean }) {
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const activeId = current ?? moduleFromPathname(pathname);
@@ -43,7 +49,7 @@ export function ModuleSwitcher({ current }: { current?: ModuleId }) {
 
   // Gündem uç noktası yönetici içindir; öğretmen ekranında boşuna
   // istek atılmaz, rozetler de çizilmez.
-  const { moduleWork } = useAgenda(!isTeacher);
+  const { moduleWork } = useAgenda(!isTeacher && !locked);
 
   // Tetikleyicideki uyarı BAŞKA modüllerdeki işi anlatır: bulunduğun
   // modülün işi zaten ekranında (Gündem paneli / yan menü rozetleri).
@@ -56,6 +62,22 @@ export function ModuleSwitcher({ current }: { current?: ModuleId }) {
   );
 
   const ActiveIcon = active.icon;
+
+  if (locked) {
+    return (
+      <span
+        className={cn(
+          "flex h-9 items-center gap-2 rounded-full border px-2.5 shadow-sm",
+          active.accent.border,
+          active.accent.bg,
+          active.accent.text
+        )}
+      >
+        <ActiveIcon className="h-4 w-4 shrink-0" />
+        <span className="hidden max-w-[130px] truncate text-xs font-semibold sm:inline">{active.shortLabel}</span>
+      </span>
+    );
+  }
 
   return (
     <DropdownMenu

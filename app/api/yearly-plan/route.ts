@@ -21,7 +21,11 @@ async function handleGet(request: NextRequest) {
     if (!teacher || teacher.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Öğretmen bulunamadı." }, { status: 404 });
     }
-    const rows = await prisma.yearlyPlanRow.findMany({ where: { teacherId }, orderBy: { createdAt: "desc" } });
+    // ⚠️ Eskiden `createdAt desc` kullanılıyordu — en son eklenen satır
+    // (genelde en yüksek hafta numarası) en üste çıkıyor, 1. hafta dibe
+    // batıyordu (bkz. weekOrder alanının şema yorumu). Artık ekleniş
+    // SIRASINA (weekOrder asc) göre — hafta 1 üstte, son hafta altta.
+    const rows = await prisma.yearlyPlanRow.findMany({ where: { teacherId }, orderBy: { weekOrder: "asc" } });
     return NextResponse.json({ rows });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
@@ -36,16 +40,31 @@ async function handlePost(request: NextRequest) {
     const teacherId = session.sub;
 
     const body = await request.json();
-    const { weekLabel, subtopicName, notes } = body as {
+    const { weekLabel, subtopicName, notes, grade } = body as {
       weekLabel?: string;
       subtopicName?: string;
       notes?: string;
+      grade?: number;
     };
     if (!weekLabel?.trim() || !subtopicName?.trim()) {
       return NextResponse.json({ error: "weekLabel ve subtopicName zorunludur." }, { status: 400 });
     }
+
+    // weekOrder — ekleniş sırasını KALICI olarak tutar (bkz. GET'teki
+    // orderBy notu). Bu öğretmenin şu ana kadarki en yüksek sırasının
+    // bir fazlası.
+    const last = await prisma.yearlyPlanRow.findFirst({ where: { teacherId }, orderBy: { weekOrder: "desc" }, select: { weekOrder: true } });
+    const nextWeekOrder = (last?.weekOrder ?? 0) + 1;
+
     const created = await prisma.yearlyPlanRow.create({
-      data: { teacherId, weekLabel: weekLabel.trim(), subtopicName: subtopicName.trim(), notes: notes?.trim() || null },
+      data: {
+        teacherId,
+        weekLabel: weekLabel.trim(),
+        subtopicName: subtopicName.trim(),
+        notes: notes?.trim() || null,
+        grade: typeof grade === "number" ? grade : null,
+        weekOrder: nextWeekOrder,
+      },
     });
     return NextResponse.json({ row: created }, { status: 201 });
   } catch (error) {

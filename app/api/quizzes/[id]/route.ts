@@ -75,7 +75,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
     await prisma.$transaction([
       prisma.quiz.update({ where: { id: params.id }, data: { stage: "ENDED", endedAt: new Date() } }),
       prisma.quizBankQuestion.createMany({
-        data: quiz.questions.map((q) => ({ teacherId: quiz.teacherId, imageLabel: q.imageLabel, answer: q.answer })),
+        data: quiz.questions.map((q) => ({ teacherId: quiz.teacherId, imageLabel: q.imageLabel, imageUrl: q.imageUrl, answer: q.answer })),
       }),
     ]);
 

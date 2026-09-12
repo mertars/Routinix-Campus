@@ -129,6 +129,7 @@ async function handleGet(request: NextRequest) {
           subject: q.subject,
           imageUrl: q.imageUrl,
           answerText: q.answerText,
+          answerImageUrl: q.answerImageUrl,
           answeredAt: q.answeredAt,
           studentDisplayName: toDisplayName(q.student.firstName, q.student.lastName),
           branchName: q.student.branch.name,

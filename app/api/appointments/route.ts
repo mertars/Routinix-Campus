@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { getTeacherDaySlots } from "@/lib/server/etut/get-teacher-day-slots";
 import { withApiLogging } from "@/lib/logger";
@@ -65,6 +65,31 @@ async function handleGet(request: NextRequest) {
     const session = await requireSession();
     const studentId = request.nextUrl.searchParams.get("studentId");
     const teacherId = request.nextUrl.searchParams.get("teacherId");
+    const isFeed = request.nextUrl.searchParams.get("feed") === "true";
+
+    // ?feed=true — yönetici canlı akışı: son işaretlenen etüt tamamlamaları
+    // (bkz. components/principal/live-teacher-feed.tsx > "Etüt Tamamlama").
+    if (isFeed) {
+      requireRole(session, "principal");
+      const limit = Math.min(20, Number(request.nextUrl.searchParams.get("limit") ?? "4") || 4);
+      const rows = await prisma.appointmentRequest.findMany({
+        where: { teacher: { institutionId: session.institutionId }, status: { in: ["COMPLETED", "NO_SHOW"] } },
+        orderBy: { completedAt: "desc" },
+        take: limit,
+        include: { student: { select: { firstName: true, lastName: true } }, teacher: { select: { firstName: true, lastName: true } } },
+      });
+      return NextResponse.json({
+        appointments: rows.map((r) => ({
+          id: r.id,
+          studentName: `${r.student.firstName} ${r.student.lastName}`,
+          teacherName: `${r.teacher.firstName} ${r.teacher.lastName}`,
+          status: r.status,
+          completionNote: r.completionNote,
+          decidedAt: r.completedAt?.toISOString() ?? r.requestedAt.toISOString(),
+        })),
+      });
+    }
+
     if (!studentId && !teacherId) {
       return NextResponse.json({ error: "studentId veya teacherId parametrelerinden biri zorunludur." }, { status: 400 });
     }

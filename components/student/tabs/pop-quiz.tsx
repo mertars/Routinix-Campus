@@ -47,9 +47,6 @@ function QuizTakingModal({
     }
   }, [isOpen]);
 
-  if (!quiz) return null;
-  const question = quiz.questions[index];
-
   async function finish() {
     if (!quiz) return;
     setSubmitting(true);
@@ -73,6 +70,23 @@ function QuizTakingModal({
     }
   }
 
+  // ⚠️ Eskiden süre dolunca ekran sadece "süresi doldu" gösteriyordu — o
+  // ana kadar işaretlenen cevaplar `finish()` HİÇ çağrılmadığı için asla
+  // sunucuya gitmiyordu, sessizce kayboluyordu. Kullanıcı talebi: "süre
+  // dolunca test de bitmeli AMA o zamana kadar işaretlediği sorular kabul
+  // edilmeli" — süre 0'a düştüğü an, henüz gönderilmemişse otomatik olarak
+  // AYNI finish() çağrılır (elle "Sınavı Bitir"e basmışçasına). Bu effect
+  // (Rules of Hooks gereği) `quiz` null olsa bile HER render'da çağrılmalı
+  // — bu yüzden `if (!quiz) return null` KONTROLÜNDEN ÖNCE duruyor.
+  useEffect(() => {
+    if (!isOpen || !quiz || submitted || submitting || secondsLeft > 0) return;
+    finish();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secondsLeft, isOpen, quiz, submitted, submitting]);
+
+  if (!quiz) return null;
+  const question = quiz.questions[index];
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={quiz.name}>
       {submitted ? (
@@ -91,9 +105,13 @@ function QuizTakingModal({
               <Timer className="h-3 w-3" /> {String(Math.floor(secondsLeft / 60)).padStart(2, "0")}:{String(secondsLeft % 60).padStart(2, "0")}
             </span>
           </div>
-          <div className="mb-3 flex h-40 items-center justify-center rounded-2xl bg-cream-card text-sm text-espresso-muted dark:bg-white/5 dark:text-cream/40">
-            🖼️ {question.imageLabel}
-          </div>
+          {question.imageUrl ? (
+            <img src={question.imageUrl} alt="Soru fotoğrafı" className="mb-3 max-h-56 w-full rounded-2xl bg-white object-contain dark:bg-midnight" />
+          ) : (
+            <div className="mb-3 flex h-40 items-center justify-center rounded-2xl bg-cream-card text-sm text-espresso-muted dark:bg-white/5 dark:text-cream/40">
+              🖼️ {question.imageLabel}
+            </div>
+          )}
           <input
             value={answers[index] ?? ""}
             onChange={(event) => setAnswers((prev) => ({ ...prev, [index]: event.target.value }))}

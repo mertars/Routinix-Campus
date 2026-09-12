@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Check, X, Clock, Bell, Loader2, CheckCheck, Radio, Archive, BarChart2, Send, CheckCircle2, FileText, AlertTriangle, RotateCcw } from "lucide-react";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
@@ -203,8 +203,21 @@ export function LiveAttendanceTab() {
   const { showError, showSuccess } = useToast();
   const suggestedBranchId = assignedBranches.find((b) => b.name === lesson.branchName)?.id ?? assignedBranches[0]?.id ?? "";
   const [selectedBranchId, setSelectedBranchId] = useState("");
+  // ⚠️ Eskiden bu efekt SADECE ilk yüklemede çalışıyordu (`current ||
+  // suggestedBranchId` — bir kez dolunca bir daha asla üzerine yazmıyordu).
+  // Öğretmen sekmeyi açık bıraktığında yarım saat sonra başka bir şubede
+  // dersi başlasa bile ekran eski şubede donuyordu. `lastAutoAppliedRef`,
+  // en son OTOMATİK uygulanan öneriyi izler — öğretmen elle FARKLI bir şube
+  // seçtiyse (selectedBranchId, son otomatik önerinin dışına çıktıysa) bu
+  // manuel seçim korunur; öğretmen elle değiştirmediyse yeni aktif ders
+  // her değiştiğinde seçim onu takip eder.
+  const lastAutoAppliedRef = useRef("");
   useEffect(() => {
-    setSelectedBranchId((current) => current || suggestedBranchId);
+    setSelectedBranchId((current) => {
+      if (current && current !== lastAutoAppliedRef.current) return current;
+      lastAutoAppliedRef.current = suggestedBranchId;
+      return suggestedBranchId;
+    });
   }, [suggestedBranchId]);
   const [roster, setRoster] = useState<RosterStudent[]>([]);
   const [statuses, setStatuses] = useState<Record<string, AttendanceStatus | "unmarked">>({});
@@ -232,14 +245,22 @@ export function LiveAttendanceTab() {
     [mySchedule, todayDayName, selectedBranchId]
   );
   const [selectedSlot, setSelectedSlot] = useState("");
+  // Şube seçimindeki AYNI "manuel seçimi ez" hatası burada da vardı:
+  // `current` bugünün ders saatlerinden biri olduğu sürece efekt onu hep
+  // korurdu — yeni bir ders saati aktif hâle gelse bile (öğretmen elle
+  // değiştirmediyse) ekran eski saatte kalırdı. `lastAutoAppliedSlotRef` ile
+  // AYNI "elle mi seçildi, otomatik mi" ayrımı uygulanıyor.
+  const lastAutoAppliedSlotRef = useRef("");
   useEffect(() => {
+    const live = todaysLessonsForBranch.find((row) => row.slot === lesson.slot);
+    const nextAuto = live?.slot ?? todaysLessonsForBranch[0]?.slot ?? "";
     setSelectedSlot((current) => {
-      if (todaysLessonsForBranch.some((row) => row.slot === current)) return current;
-      const live = todaysLessonsForBranch.find((row) => row.slot === lesson.slot);
-      return live?.slot ?? todaysLessonsForBranch[0]?.slot ?? "";
+      const isManualOverride = current && current !== lastAutoAppliedSlotRef.current;
+      if (isManualOverride && todaysLessonsForBranch.some((row) => row.slot === current)) return current;
+      lastAutoAppliedSlotRef.current = nextAuto;
+      return nextAuto;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todaysLessonsForBranch]);
+  }, [todaysLessonsForBranch, lesson.slot]);
 
   useEffect(() => {
     if (!selectedBranchId) return;
@@ -356,6 +377,20 @@ export function LiveAttendanceTab() {
           className="flex items-center gap-2 rounded-xl border border-green-300 bg-green-50 px-4 py-2.5 text-xs font-medium text-green-700 dark:border-green-500/30 dark:bg-green-500/10 dark:text-green-300"
         >
           <Radio className="h-4 w-4 animate-pulse" /> Şu an {branch.name} {lesson.subject} dersindesiniz — sınıf otomatik seçildi.
+        </motion.div>
+      )}
+      {/* Kullanıcı talebi: "ders saati dışında aktif dersiniz şuan yok
+          demeli" — aşağıdaki şube/saat seçicileri BİLEREK kapatılmıyor (aynı
+          gün birden fazla ders saatine yoklama girme esnekliği korunuyor,
+          bkz. üstteki yorum), sadece şu an OTOMATİK seçilenin canlı bir ders
+          olmadığı açıkça belirtiliyor. */}
+      {!lesson.isLive && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2 rounded-xl border border-hairline bg-cream-card px-4 py-2.5 text-xs font-medium text-espresso-muted dark:border-white/10 dark:bg-white/5 dark:text-cream/40"
+        >
+          <Clock className="h-4 w-4" /> Şu an aktif dersiniz yok — aşağıdan istediğiniz şube/ders saati için yoklama girebilirsiniz.
         </motion.div>
       )}
 

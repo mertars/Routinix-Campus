@@ -847,22 +847,26 @@ enum QuestionStatus {
 }
 
 model Question {
-  id          String         @id @default(cuid())
-  studentId   String
-  student     Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  teacherId   String
+  id             String         @id @default(cuid())
+  studentId      String
+  student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId      String
   // ⚠️ Cascade — Question.teacherId NOT NULL olduğundan SetNull mümkün
   // değil; öğretmen tamamen silindiğinde ona yöneltilmiş sorular da gider
   // (bkz. "tamamen sil" özelliğinin genel gerekçesi, Student için de aynı).
-  teacher     Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subject     String // Ders/Branş adı — öğretmenin branşından bağımsız olarak öğrencinin seçtiği ders
-  imageUrl    String // Yüklenen soru fotoğrafının yolu (bkz. lib/server/uploads)
-  studentNote String? // "3. adımı anlamadım" vb.
-  status      QuestionStatus @default(PENDING)
-  answerText  String?
-  answeredAt  DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  teacher        Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject        String // Ders/Branş adı — öğretmenin branşından bağımsız olarak öğrencinin seçtiği ders
+  imageUrl       String // Yüklenen soru fotoğrafının yolu (bkz. lib/server/uploads)
+  studentNote    String? // "3. adımı anlamadım" vb.
+  status         QuestionStatus @default(PENDING)
+  answerText     String?
+  // Öğretmen artık yazı yerine/yanında bir fotoğraf da yükleyebilir (bkz.
+  // saveQuestionImage — soru fotoğrafının kullandığı AYNI gerçek yükleme
+  // yardımcısı). İkisi de opsiyonel, ikisi birden de dolu olabilir.
+  answerImageUrl String?
+  answeredAt     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([studentId])
   @@index([teacherId])
@@ -939,10 +943,11 @@ model Quiz {
 }
 
 model QuizQuestion {
-  id         String @id @default(cuid())
+  id         String  @id @default(cuid())
   quizId     String
-  quiz       Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quiz       Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
   imageLabel String
+  imageUrl   String?
   answer     String
   position   Int
 }
@@ -966,7 +971,14 @@ model QuizBankQuestion {
   id         String   @id @default(cuid())
   teacherId  String
   teacher    Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  // ⚠️ imageLabel ESKİDEN sadece dosya adı METNİYDİ (file.name) — gerçek
+  // bir görsel HİÇ yüklenmiyordu, öğrenci/öğretmen ekranında sadece
+  // "🖼️ IMG_2384.jpg" yazısı görünüyordu. imageUrl artık lib/server/
+  // uploads/save-question-image.ts (Soru Çözüm'ün zaten kullandığı GERÇEK
+  // yükleme yardımcısı) ile kaydedilen gerçek dosya yolu. imageLabel
+  // geriye dönük eski kayıtlar için KALDI (yeni kayıtlarda boş).
   imageLabel String
+  imageUrl   String?
   answer     String
   addedAt    DateTime @default(now())
 
@@ -995,6 +1007,12 @@ enum AppointmentStatus {
   PENDING
   APPROVED
   REJECTED
+  // Onaylanmış bir etüt GERÇEKLEŞTİKTEN sonra öğretmenin geriye dönük
+  // işaretlediği durum — "dolu slot" hesaplamasını (bkz. get-teacher-day-
+  // slots.ts > blockingStatuses, sabit ["PENDING","APPROVED"] listesi)
+  // ETKİLEMEZ, sadece kayıt/raporlama amaçlıdır.
+  COMPLETED
+  NO_SHOW
 }
 
 // AppointmentRequest'in day/slot alanları (String, "HH:MM-HH:MM") Etüt Randevu
@@ -1005,17 +1023,24 @@ enum AppointmentStatus {
 // slotu "dolu" sayar — bir öğrenci talep GÖNDERDİĞİ anda (öğretmen henüz
 // onaylamadan) o saat başka bir öğrenciye teklif edilmez.
 model AppointmentRequest {
-  id          String            @id @default(cuid())
-  studentId   String
-  student     Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  teacherId   String
-  teacher     Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  topic       String
-  day         String
-  slot        String
-  status      AppointmentStatus @default(PENDING)
-  requestedAt DateTime          @default(now())
-  decidedAt   DateTime?
+  id             String            @id @default(cuid())
+  studentId      String
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId      String
+  teacher        Teacher           @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  topic          String
+  day            String
+  slot           String
+  status         AppointmentStatus @default(PENDING)
+  requestedAt    DateTime          @default(now())
+  decidedAt      DateTime?
+  // status=NO_SHOW iken ZORUNLU (öğretmen kısa bir açıklama yazmalı) —
+  // COMPLETED'de opsiyonel/kullanılmaz.
+  completionNote String?
+  // decidedAt onay/red kararının zamanı — completedAt AYRI tutulur, aksi
+  // halde "yapıldı/yapılmadı" işaretlemesi eski onay zamanını EZER ve
+  // yönetici akışındaki "son tamamlananlar" sıralaması yanlış çıkar.
+  completedAt    DateTime?
 
   @@index([teacherId])
   @@index([studentId])
@@ -1213,13 +1238,18 @@ model ReportCardTeacherComment {
 // ----------------------------------------------------------------------------
 
 model ClassbookNote {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   teacherId String
-  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher   Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   branchId  String
-  branch    Branch   @relation(fields: [branchId], references: [id])
+  branch    Branch    @relation(fields: [branchId], references: [id])
   note      String
-  createdAt DateTime @default(now())
+  // "Zaman ekle" — öğretmen notu GEÇMİŞ bir tarih/saate ait olarak
+  // girebilir (bkz. teacher isteği). Boş bırakılırsa (eski davranış AYNEN
+  // korunur) API `now()` kullanır — bu alan asla client tarafından
+  // ZORUNLU hâle getirilmedi.
+  noteDate  DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([branchId])
 }
@@ -1231,6 +1261,19 @@ model YearlyPlanRow {
   weekLabel    String
   subtopicName String
   notes        String?
+  // Kullanıcı bulgusu: liste/PDF `createdAt desc` ile sıralanıyordu — en
+  // son eklenen (genelde en yüksek hafta) en üste çıkıyor, hafta 1 dibe
+  // batıyordu. weekOrder, satır eklenme SIRASINI (hafta numarası değil,
+  // "kaçıncı eklendi") ayrı ve KALICI bir alanda tutar — sıralama artık
+  // buna göre yapılır. Mevcut satırlar migration sonrası bir kerelik
+  // script ile createdAt asc sırasına göre dolduruldu (bkz. scripts/).
+  weekOrder    Int?
+  // Sınıf seviyesi başına ayrı plan — önceden yoktu, tek öğretmenin TÜM
+  // ders/sınıfları için TEK ortak plan vardı. Mevcut satırlar migration
+  // sonrası null kalır (geriye dönük "sınıf seçilmemiş" plan olarak
+  // gösterilir), yeni satırlar UI'dan seçilen sınıfla birlikte kaydedilir.
+  grade        Int?
+  covered      Boolean  @default(false)
   createdAt    DateTime @default(now())
 
   @@index([teacherId])
@@ -1463,6 +1506,7 @@ enum AuditAction {
   GUIDANCE_NOTE_CREATED
   GUIDANCE_REFERRAL_CREATED
   GUIDANCE_REFERRAL_STATUS_CHANGED
+  APPOINTMENT_COMPLETION_RECORDED
   PASSWORD_CHANGED
   BRANCH_CREATED
   PASSWORD_RESET_BY_ADMIN
@@ -2307,21 +2351,21 @@ enum PaymentAccountType {
 }
 
 model PaymentAccount {
-  id            String                   @id @default(cuid())
-  institutionId String
-  institution   Institution              @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  name          String // "Nakit Kasa", "Ziraat Bankası TL Hesabı"
-  type          PaymentAccountType
-  isActive      Boolean                  @default(true)
-  payments      Payment[]
-  expenses      Expense[]
-  transfersOut  AccountTransfer[]        @relation("TransferFrom")
-  transfersIn   AccountTransfer[]        @relation("TransferTo")
-  refunds       EnrollmentCancellation[] @relation("RefundFrom")
-  cashCounts    CashCount[]
+  id               String                   @id @default(cuid())
+  institutionId    String
+  institution      Institution              @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  name             String // "Nakit Kasa", "Ziraat Bankası TL Hesabı"
+  type             PaymentAccountType
+  isActive         Boolean                  @default(true)
+  payments         Payment[]
+  expenses         Expense[]
+  transfersOut     AccountTransfer[]        @relation("TransferFrom")
+  transfersIn      AccountTransfer[]        @relation("TransferTo")
+  refunds          EnrollmentCancellation[] @relation("RefundFrom")
+  cashCounts       CashCount[]
   bankTransactions BankTransaction[]
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
 
   @@index([institutionId])
 }
@@ -2911,7 +2955,7 @@ model Payment {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
-  bankTransaction   BankTransaction?
+  bankTransaction BankTransaction?
 
   @@unique([institutionId, receiptNo])
   @@index([institutionId])
@@ -3056,7 +3100,6 @@ model StudentEnrollment {
   @@index([studentId])
 }
 
-
 // Modül bağımsız ŞABLON deposu.
 //
 // Kurum bu sistemde aynı işi defalarca yapıyor: her dönem aynı
@@ -3093,15 +3136,14 @@ model Template {
 }
 
 enum TemplateModule {
-  ANNOUNCEMENT     // duyuru / etkinlik / acil bildirim
+  ANNOUNCEMENT // duyuru / etkinlik / acil bildirim
   INSTALLMENT_PLAN // taksit planı kurulumu
-  EXPENSE          // gider kaydı
-  GUIDANCE_NOTE    // rehberlik görüşme notu
-  HOMEWORK         // ödev
-  SCHEDULE         // haftalık ders programı
-  MESSAGE          // toplu SMS / bildirim metni
+  EXPENSE // gider kaydı
+  GUIDANCE_NOTE // rehberlik görüşme notu
+  HOMEWORK // ödev
+  SCHEDULE // haftalık ders programı
+  MESSAGE // toplu SMS / bildirim metni
 }
-
 
 // Bankadan gelen HAM ekstre satırı.
 //
@@ -3121,31 +3163,31 @@ enum TemplateModule {
 // kurum içinde benzersizdir; ikinci yükleme aynı satırları sessizce
 // atlar.
 model BankTransaction {
-  id            String                @id @default(cuid())
+  id            String         @id @default(cuid())
   institutionId String
-  institution   Institution           @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  institution   Institution    @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   accountId     String
-  account       PaymentAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  account       PaymentAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
 
   transactionDate DateTime
-  amount          Decimal             @db.Decimal(12, 2)
+  amount          Decimal  @db.Decimal(12, 2)
   description     String
   // Bankanın kendi işlem referansı (varsa). Sanal IBAN'a geçildiğinde
   // öğrenci referans numarası da burada taşınacak.
   bankReference   String?
 
-  status        BankTransactionStatus @default(UNMATCHED)
+  status           BankTransactionStatus @default(UNMATCHED)
   // Eşleştirildiyse hangi öğrenciye ve hangi tahsilat kaydına.
   matchedStudentId String?
-  matchedStudent   Student?           @relation(fields: [matchedStudentId], references: [id], onDelete: SetNull)
-  paymentId        String?            @unique
-  payment          Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  matchedStudent   Student?              @relation(fields: [matchedStudentId], references: [id], onDelete: SetNull)
+  paymentId        String?               @unique
+  payment          Payment?              @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   // Yok sayıldıysa sebebi (kurumun kendi gideri, iade, banka masrafı...).
-  ignoredReason String?
+  ignoredReason    String?
 
-  fingerprint   String
-  importedAt    DateTime              @default(now())
-  importedById  String?
+  fingerprint  String
+  importedAt   DateTime @default(now())
+  importedById String?
 
   @@unique([institutionId, fingerprint])
   @@index([institutionId, status])
@@ -3154,6 +3196,6 @@ model BankTransaction {
 
 enum BankTransactionStatus {
   UNMATCHED // henüz kimseye bağlanmadı
-  MATCHED   // bir öğrenciye bağlandı ve tahsilat oluşturuldu
-  IGNORED   // bu satır bir öğrenci ödemesi değil (masraf, iade vb.)
+  MATCHED // bir öğrenciye bağlandı ve tahsilat oluşturuldu
+  IGNORED // bu satır bir öğrenci ödemesi değil (masraf, iade vb.)
 }

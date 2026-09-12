@@ -2,20 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, X, Clock, CalendarCheck, Coffee, Plus, Trash2, Loader2, UserCog } from "lucide-react";
+import { Check, X, Clock, CalendarCheck, Coffee, Plus, Trash2, Loader2, UserCog, CheckCircle2, UserX } from "lucide-react";
 import { SCHEDULE_DAYS, type ScheduleDay } from "@/lib/mock-data";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useEtutAdminManaged } from "@/lib/institution-scope";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
-type AppointmentStatus = "PENDING" | "APPROVED" | "REJECTED";
+type AppointmentStatus = "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED" | "NO_SHOW";
 type AppointmentEntry = {
   id: string;
   topic: string;
   day: string;
   slot: string;
   status: AppointmentStatus;
+  completionNote?: string | null;
   student: { firstName: string; lastName: string };
 };
 type AvailabilityRange = { id: string; day: string; startTime: string; endTime: string };
@@ -24,6 +25,16 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
   PENDING: "bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300",
   APPROVED: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400",
   REJECTED: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+  COMPLETED: "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400",
+  NO_SHOW: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300",
+};
+
+const STATUS_LABEL: Record<AppointmentStatus, string> = {
+  PENDING: "Bekliyor",
+  APPROVED: "Onaylandı",
+  REJECTED: "Reddedildi",
+  COMPLETED: "Yapıldı",
+  NO_SHOW: "Yapılmadı",
 };
 
 function AddRangeRow({ day, onAdd }: { day: ScheduleDay; onAdd: (start: string, end: string) => Promise<void> }) {
@@ -114,6 +125,78 @@ const PendingRequestCard = memo(function PendingRequestCard({
   );
 });
 
+// Onaylanmış bir etüt GERÇEKLEŞTİKTEN sonra "Yapıldı"/"Yapılmadı" işaretleme
+// — kullanıcı talebi. "Yapılmadı" seçilince zorunlu bir açıklama alanı açılır.
+const ApprovedAppointmentCard = memo(function ApprovedAppointmentCard({
+  request,
+  isDeciding,
+  onComplete,
+}: {
+  request: AppointmentEntry;
+  isDeciding: boolean;
+  onComplete: (id: string, status: "COMPLETED" | "NO_SHOW", completionNote?: string) => void;
+}) {
+  const [notingNoShow, setNotingNoShow] = useState(false);
+  const [note, setNote] = useState("");
+
+  return (
+    <div className="rounded-xl bg-green-50 px-3 py-2.5 dark:bg-green-500/10">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-espresso dark:text-cream">
+            {request.student.firstName} {request.student.lastName}
+          </p>
+          <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">{request.topic}</p>
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-green-700 dark:text-green-400">{request.day} · {request.slot}</span>
+      </div>
+      {notingNoShow ? (
+        <div className="mt-2 space-y-1.5">
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            rows={2}
+            placeholder="Neden yapılmadı? (zorunlu)"
+            className="w-full rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+          />
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              onClick={() => setNotingNoShow(false)}
+              className="flex min-h-[36px] items-center justify-center rounded-full border border-hairline text-[11px] font-medium text-espresso dark:border-white/10 dark:text-cream"
+            >
+              Vazgeç
+            </button>
+            <button
+              onClick={() => onComplete(request.id, "NO_SHOW", note.trim())}
+              disabled={!note.trim() || isDeciding}
+              className="flex min-h-[36px] items-center justify-center gap-1 rounded-full bg-amber-600 text-[11px] font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
+            >
+              {isDeciding ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserX className="h-3 w-3" />} Gönder
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <button
+            onClick={() => onComplete(request.id, "COMPLETED")}
+            disabled={isDeciding}
+            className="flex min-h-[36px] items-center justify-center gap-1 rounded-full bg-green-600 text-[11px] font-medium text-white transition hover:bg-green-700 disabled:opacity-60"
+          >
+            {isDeciding ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />} Yapıldı
+          </button>
+          <button
+            onClick={() => setNotingNoShow(true)}
+            disabled={isDeciding}
+            className="flex min-h-[36px] items-center justify-center gap-1 rounded-full bg-amber-100 text-[11px] font-medium text-amber-800 transition hover:bg-amber-200 disabled:opacity-60 dark:bg-amber-500/15 dark:text-amber-300"
+          >
+            <UserX className="h-3 w-3" /> Yapılmadı
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});
+
 export function AppointmentApprovalTab() {
   const { staffRecord } = useTeacherScope();
   const isAdminManaged = useEtutAdminManaged();
@@ -176,6 +259,30 @@ export function AppointmentApprovalTab() {
   }, [showError, showSuccess]);
   const approveRequest = useCallback((id: string) => updateStatus(id, "APPROVED"), [updateStatus]);
   const rejectRequest = useCallback((id: string) => updateStatus(id, "REJECTED"), [updateStatus]);
+
+  // Onaylanmış bir etüt GERÇEKLEŞTİKTEN sonra "Yapıldı"/"Yapılmadı" olarak
+  // işaretleme — kullanıcı talebi. "Yapılmadı" bir açıklama zorunlu kılar.
+  const markCompletion = useCallback(
+    async (id: string, status: "COMPLETED" | "NO_SHOW", completionNote?: string) => {
+      setDecidingId(id);
+      try {
+        const res = await fetch(`/api/appointments/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status, completionNote }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "İşaretlenemedi.");
+        setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status, completionNote: completionNote ?? null } : r)));
+        showSuccess(status === "COMPLETED" ? "Etüt yapıldı olarak işaretlendi." : "Etüt yapılmadı olarak işaretlendi, yönetici paneline iletildi.");
+      } catch (error) {
+        showError(error instanceof Error ? error.message : "İşaretlenemedi.");
+      } finally {
+        setDecidingId(null);
+      }
+    },
+    [showError, showSuccess]
+  );
 
   async function addRange(day: ScheduleDay, start: string, end: string) {
     try {
@@ -332,13 +439,7 @@ export function AppointmentApprovalTab() {
         </h2>
         <div className="space-y-2">
           {approved.map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2.5 dark:bg-green-500/10">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-espresso dark:text-cream">{r.student.firstName} {r.student.lastName}</p>
-                <p className="truncate text-[11px] text-espresso-muted dark:text-cream/40">{r.topic}</p>
-              </div>
-              <span className="shrink-0 text-xs font-semibold text-green-700 dark:text-green-400">{r.day} · {r.slot}</span>
-            </div>
+            <ApprovedAppointmentCard key={r.id} request={r} isDeciding={decidingId === r.id} onComplete={markCompletion} />
           ))}
           {approved.length === 0 && <p className="text-xs text-espresso-muted dark:text-cream/40">Henüz onaylanmış etüt yok.</p>}
         </div>
@@ -357,9 +458,12 @@ export function AppointmentApprovalTab() {
               <div>
                 <p className="text-sm font-medium text-espresso dark:text-cream">{request.student.firstName} {request.student.lastName}</p>
                 <p className="text-[11px] text-espresso-muted dark:text-cream/40">{request.topic} · {request.day} {request.slot}</p>
+                {request.status === "NO_SHOW" && request.completionNote && (
+                  <p className="mt-0.5 text-[11px] italic text-amber-700 dark:text-amber-400">&quot;{request.completionNote}&quot;</p>
+                )}
               </div>
-              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_BADGE[request.status])}>
-                {request.status === "APPROVED" ? "Onaylandı" : "Reddedildi"}
+              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", STATUS_BADGE[request.status])}>
+                {STATUS_LABEL[request.status]}
               </span>
             </div>
           ))}

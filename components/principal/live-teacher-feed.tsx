@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Radio, LifeBuoy, Rocket, AlertOctagon } from "lucide-react";
+import { Radio, LifeBuoy, Rocket, AlertOctagon, CalendarCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type AttendanceEntry = { id: string; teacherName: string; branchName: string; records: unknown[]; submittedAt: string };
 type QuizFeedEntry = { id: string; quizName: string; branchName: string; responseCount: number; sentAt: string };
 type LateSubmission = { studentName: string; updatedAt: string };
+type AppointmentCompletionEntry = { id: string; studentName: string; teacherName: string; status: "COMPLETED" | "NO_SHOW"; completionNote: string | null; decidedAt: string };
 type GuidanceFeedEntry = { id: string; authorName: string; studentName: string; createdAt: string };
 type GuidanceReferralEntry = { id: string; teacherName: string; studentName: string; status: "PENDING" | "REVIEWED"; createdAt: string };
 // İki AYRI kaynağın (bkz. o dosyaların üstündeki BİLEREK-ayrı-tablo notu:
@@ -21,27 +23,31 @@ export function LiveTeacherFeed() {
   const [quizResults, setQuizResults] = useState<QuizFeedEntry[]>([]);
   const [lateSubmissions, setLateSubmissions] = useState<LateSubmission[]>([]);
   const [guidanceNotices, setGuidanceNotices] = useState<GuidanceFeedItem[]>([]);
+  const [appointmentCompletions, setAppointmentCompletions] = useState<AppointmentCompletionEntry[]>([]);
 
   useEffect(() => {
     async function load() {
       try {
-        const [attendanceRes, quizRes, homeworkRes, guidanceNotesRes, guidanceReferralsRes] = await Promise.all([
+        const [attendanceRes, quizRes, homeworkRes, guidanceNotesRes, guidanceReferralsRes, appointmentsRes] = await Promise.all([
           fetch("/api/attendance/archive?limit=4"),
           fetch("/api/quizzes?feed=true&limit=4"),
           fetch("/api/homework?late=true&limit=4"),
           fetch("/api/guidance-notes?feed=true&limit=4"),
           fetch("/api/guidance-referrals?status=PENDING&limit=4"),
+          fetch("/api/appointments?feed=true&limit=4"),
         ]);
-        const [attendanceData, quizData, homeworkData, guidanceNotesData, guidanceReferralsData] = await Promise.all([
+        const [attendanceData, quizData, homeworkData, guidanceNotesData, guidanceReferralsData, appointmentsData] = await Promise.all([
           attendanceRes.json(),
           quizRes.json(),
           homeworkRes.json(),
           guidanceNotesRes.json(),
           guidanceReferralsRes.json(),
+          appointmentsRes.json(),
         ]);
         setAttendanceLog(attendanceData.entries ?? []);
         setQuizResults(quizData.results ?? []);
         setLateSubmissions(homeworkData.submissions ?? []);
+        setAppointmentCompletions(appointmentsData.appointments ?? []);
 
         const notes: GuidanceFeedEntry[] = guidanceNotesData.notes ?? [];
         const referrals: GuidanceReferralEntry[] = guidanceReferralsData.referrals ?? [];
@@ -133,6 +139,27 @@ export function LiveTeacherFeed() {
               </div>
             ))}
             {lateSubmissions.length === 0 && <p className="text-[11px] text-espresso-muted dark:text-cream/40">Geç teslim bildirimi yok.</p>}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+            <CalendarCheck className="h-3 w-3" /> Etüt Tamamlama
+          </p>
+          <div className="space-y-1.5">
+            {appointmentCompletions.slice(0, 4).map((entry) => (
+              <div
+                key={entry.id}
+                className={cn("rounded-lg px-2.5 py-1.5 text-xs", entry.status === "COMPLETED" ? "bg-green-50 dark:bg-green-500/10" : "bg-amber-50 dark:bg-amber-500/10")}
+              >
+                <span className="font-medium text-espresso dark:text-cream">{entry.teacherName}</span>{" "}
+                <span className="text-espresso-muted dark:text-cream/40">
+                  , {entry.studentName} ile etüdü {entry.status === "COMPLETED" ? "yaptı" : "yapamadı"}
+                  {entry.completionNote ? ` (${entry.completionNote})` : ""} · {new Date(entry.decidedAt).toLocaleString("tr-TR")}
+                </span>
+              </div>
+            ))}
+            {appointmentCompletions.length === 0 && <p className="text-[11px] text-espresso-muted dark:text-cream/40">Henüz işaretlenen etüt yok.</p>}
           </div>
         </div>
       </div>

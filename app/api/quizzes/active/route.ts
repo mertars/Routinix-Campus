@@ -25,7 +25,7 @@ async function handleGet(request: NextRequest) {
 
     const quiz = await prisma.quiz.findFirst({
       where: { branchId, stage: "LIVE" },
-      include: { questions: { orderBy: { position: "asc" }, select: { id: true, imageLabel: true } } },
+      include: { questions: { orderBy: { position: "asc" }, select: { id: true, imageLabel: true, imageUrl: true } } },
     });
 
     if (!quiz) return NextResponse.json({ quiz: null });

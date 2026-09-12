@@ -17,12 +17,9 @@ type HomeworkEntry = {
   submissions: { studentId: string; status: HomeworkStatus }[];
 };
 
-const NEXT_STATE: Record<HomeworkStatus, HomeworkStatus> = {
-  NOT_DONE: "HALF",
-  HALF: "DONE",
-  DONE: "LATE",
-  LATE: "NOT_DONE",
-};
+// Sıra bilinçli: en sık kullanılan solda (bkz. live-attendance.tsx'teki AYNI
+// gerekçe — tipik durumda çoğu öğrenci "Yapıldı").
+const STATE_ORDER: HomeworkStatus[] = ["DONE", "HALF", "LATE", "NOT_DONE"];
 
 const STATE_STYLES: Record<HomeworkStatus, string> = {
   NOT_DONE: "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300",
@@ -120,10 +117,8 @@ export function HomeworkCheckMatrixTab() {
     return map;
   }, [homework]);
 
-  function cycle(studentId: string) {
-    if (!homework) return;
-    const current = draft[studentId] ?? statusByStudent.get(studentId) ?? "NOT_DONE";
-    setDraft((prev) => ({ ...prev, [studentId]: NEXT_STATE[current] }));
+  function setStudentStatus(studentId: string, status: HomeworkStatus) {
+    setDraft((prev) => ({ ...prev, [studentId]: status }));
   }
 
   async function handleSave() {
@@ -208,7 +203,6 @@ export function HomeworkCheckMatrixTab() {
             <div className="mb-3 grid gap-2 sm:grid-cols-2">
               {roster.map((student, index) => {
                 const status = draft[student.id] ?? statusByStudent.get(student.id) ?? "NOT_DONE";
-                const Icon = STATE_ICON[status];
                 return (
                   <motion.div
                     key={student.id}
@@ -218,20 +212,34 @@ export function HomeworkCheckMatrixTab() {
                     className="rounded-2xl bg-cream-card p-3 dark:bg-white/5"
                   >
                     <p className="mb-2 truncate text-sm font-medium text-espresso dark:text-cream">{student.firstName} {student.lastName}</p>
-                    <button
-                      onClick={() => cycle(student.id)}
-                      className={cn(
-                        "flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition active:scale-[0.98]",
-                        STATE_STYLES[status]
-                      )}
-                    >
-                      <Icon className="h-3.5 w-3.5" /> {STATE_LABEL[status]}
-                    </button>
+                    {/* Kullanıcı geri bildirimi — döngüsel tek buton yerine
+                        4 AYRI buton: hangi duruma basıldıysa doğrudan o
+                        set edilir, art arda tıklayıp doğru duruma "denk
+                        getirmeye" gerek kalmaz. */}
+                    <div className="grid grid-cols-4 gap-1">
+                      {STATE_ORDER.map((state) => {
+                        const Icon = STATE_ICON[state];
+                        const isActive = status === state;
+                        return (
+                          <button
+                            key={state}
+                            onClick={() => setStudentStatus(student.id, state)}
+                            title={STATE_LABEL[state]}
+                            className={cn(
+                              "flex min-h-[40px] flex-col items-center justify-center gap-0.5 rounded-lg text-[9.5px] font-semibold transition active:scale-[0.98]",
+                              isActive ? STATE_STYLES[state] : "bg-white text-espresso-muted opacity-50 hover:opacity-100 dark:bg-white/5 dark:text-cream/40"
+                            )}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                            {STATE_LABEL[state]}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </motion.div>
                 );
               })}
             </div>
-            <p className="mb-3 text-center text-[10px] text-espresso-muted dark:text-cream/40">Duruma dokunarak değiştirin</p>
             <button
               onClick={handleSave}
               disabled={saving}

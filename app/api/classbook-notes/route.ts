@@ -18,7 +18,12 @@ async function handleGet(request: NextRequest) {
     if (!branch || branch.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
     }
-    const notes = await prisma.classbookNote.findMany({ where: { branchId }, orderBy: { createdAt: "desc" } });
+    const notes = await prisma.classbookNote.findMany({ where: { branchId } });
+    // "Zaman ekle" ile geçmişe dönük eklenmiş bir not, GERÇEK tarihine göre
+    // sıralanabilsin diye — noteDate varsa o, yoksa createdAt (eski
+    // davranış) — sıralama Prisma'da hesaplanmış bir alan üzerinden
+    // yapılamadığından burada elle yapılır.
+    notes.sort((a, b) => new Date(b.noteDate ?? b.createdAt).getTime() - new Date(a.noteDate ?? a.createdAt).getTime());
     return NextResponse.json({ notes });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
@@ -33,9 +38,16 @@ async function handlePost(request: NextRequest) {
     const teacherId = session.sub;
 
     const body = await request.json();
-    const { branchId, note } = body as { branchId?: string; note?: string };
+    const { branchId, note, noteDate } = body as { branchId?: string; note?: string; noteDate?: string };
     if (!branchId || !note?.trim()) {
       return NextResponse.json({ error: "branchId ve note zorunludur." }, { status: 400 });
+    }
+    // "Zaman ekle" — öğretmen bu notu GEÇMİŞ bir tarih/saate ait olarak
+    // girebilir (kullanıcı talebi). Boş/geçersizse eski davranış AYNEN
+    // korunur: sunucu saati (createdAt varsayılanı) kullanılır.
+    const parsedNoteDate = noteDate ? new Date(noteDate) : null;
+    if (noteDate && (!parsedNoteDate || Number.isNaN(parsedNoteDate.getTime()))) {
+      return NextResponse.json({ error: "noteDate geçersiz bir tarih." }, { status: 400 });
     }
     const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { institutionId: true } });
     if (!branch || branch.institutionId !== session.institutionId) {
@@ -43,7 +55,9 @@ async function handlePost(request: NextRequest) {
     }
     await assertTeacherTeachesBranch(teacherId, branchId);
 
-    const created = await prisma.classbookNote.create({ data: { teacherId, branchId, note: note.trim() } });
+    const created = await prisma.classbookNote.create({
+      data: { teacherId, branchId, note: note.trim(), noteDate: parsedNoteDate },
+    });
     return NextResponse.json({ note: created }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

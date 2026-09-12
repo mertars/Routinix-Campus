@@ -11,6 +11,7 @@ type FeedQuestion = {
   subject: string;
   imageUrl: string;
   answerText: string | null;
+  answerImageUrl: string | null;
   answeredAt: string | null;
   studentDisplayName: string;
   branchName: string;
@@ -97,6 +98,10 @@ export function GlobalQuestionFeed() {
                 <p className="mb-1.5 flex items-start gap-1.5 rounded-lg bg-green-50 px-2.5 py-2 text-xs text-green-700 dark:bg-green-500/10 dark:text-green-400">
                   <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {q.answerText}
                 </p>
+              )}
+              {q.answerImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={q.answerImageUrl} alt="Öğretmen yanıtı" className="mb-1.5 max-h-40 w-full rounded-lg border border-hairline object-contain dark:border-white/10" />
               )}
               <p className="text-[10px] text-espresso-muted dark:text-cream/40">
                 {q.teacher.firstName} {q.teacher.lastName} · {q.teacher.subject}

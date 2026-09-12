@@ -18,7 +18,7 @@ async function handlePost(request: NextRequest) {
       branchId?: string;
       name?: string;
       durationSeconds?: number;
-      questions?: { imageLabel: string; answer: string }[];
+      questions?: { imageLabel: string; imageUrl?: string; answer: string }[];
     };
 
     if (!branchId || !name?.trim() || !durationSeconds || !Array.isArray(questions) || questions.length < 5) {
@@ -48,7 +48,9 @@ async function handlePost(request: NextRequest) {
         branchId,
         name: name.trim(),
         durationSeconds,
-        questions: { create: questions.map((q, i) => ({ imageLabel: q.imageLabel.trim(), answer: q.answer.trim(), position: i })) },
+        questions: {
+          create: questions.map((q, i) => ({ imageLabel: q.imageLabel.trim(), imageUrl: q.imageUrl?.trim() || null, answer: q.answer.trim(), position: i })),
+        },
       },
       include: { questions: true },
     });

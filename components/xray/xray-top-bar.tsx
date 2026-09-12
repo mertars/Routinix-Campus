@@ -87,7 +87,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
         {/* Mobil düzen: geri + kompakt rozet + tema + çıkış (ikon-only) */}
         <div className="flex items-center justify-between gap-2 md:hidden">
           <div className="flex min-w-0 items-center gap-2">
-            <ModuleSwitcher current="xray" />
+            <ModuleSwitcher current="xray" locked={roleLabel === "Öğretmen"} />
             <CommandPaletteTrigger compact />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
@@ -128,7 +128,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
         {/* Masaüstü düzen */}
         <div className="hidden items-center justify-between gap-3 md:flex">
           <div className="flex items-center gap-3">
-            <ModuleSwitcher current="xray" />
+            <ModuleSwitcher current="xray" locked={roleLabel === "Öğretmen"} />
             <CommandPaletteTrigger compact />
             <div className="flex items-center gap-2 rounded-2xl border border-sky-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(14_165_233/0.25)] dark:border-sky-500/20 dark:bg-midnight-card/50">
               <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />

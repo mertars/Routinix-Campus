@@ -47,7 +47,7 @@ export function TeacherTopBar() {
         <div className="md:hidden">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 shrink items-center gap-2">
-              <ModuleSwitcher current="erp" />
+              <ModuleSwitcher current="erp" locked />
               <CommandPaletteTrigger compact />
             </div>
             <button
@@ -79,7 +79,7 @@ export function TeacherTopBar() {
         {/* Masaüstü düzen: değişmedi */}
         <div className="hidden items-center justify-between gap-3 md:flex">
           <div className="flex items-center justify-start gap-3">
-            <ModuleSwitcher current="erp" />
+            <ModuleSwitcher current="erp" locked />
               <CommandPaletteTrigger compact />
             <div className="flex items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
               <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />

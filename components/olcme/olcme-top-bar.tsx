@@ -67,7 +67,7 @@ export function OlcmeTopBar({
     >
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
-          <ModuleSwitcher current="olcme" />
+          <ModuleSwitcher current="olcme" locked={roleLabel === "Öğretmen"} />
           <CommandPaletteTrigger compact />
           <div className="hidden items-center gap-2 rounded-2xl border border-emerald-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(16_185_129/0.25)] dark:border-emerald-500/20 dark:bg-midnight-card/50 md:flex">
             <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />

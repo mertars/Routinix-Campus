@@ -27,4 +27,44 @@ async function handleGet() {
   }
 }
 
+// POST /api/quizzes/bank — { questions: [{ imageUrl, imageLabel, answer? }] }.
+// Kullanıcı talebi: "soru bankası için soru ekleme kısmı yok... 20 30 40
+// soru fotoğrafını seçip yükleyebilsin" — bankaya elle/toplu ekleme akışının
+// ilk kez açıldığı uç (öncesinde sadece bir quiz bittiğinde OTOMATİK
+// doluyordu). Fotoğraflar önce /api/uploads/question-image ile GERÇEKTEN
+// yüklenmiş olmalı (bkz. components/teacher/tabs/material-library.tsx),
+// burada sadece o URL'ler DB'ye yazılır — dosya işlemi burada YOK.
+async function handlePost(request: NextRequest) {
+  try {
+    const session = await requireSession();
+    requireRole(session, "teacher");
+
+    const body = await request.json().catch(() => null);
+    const questions: unknown[] = Array.isArray(body?.questions) ? body.questions : [];
+    const valid = questions.filter(
+      (q: unknown): q is { imageUrl: string; imageLabel?: string; answer?: string } =>
+        typeof q === "object" && q !== null && typeof (q as { imageUrl?: unknown }).imageUrl === "string" && (q as { imageUrl: string }).imageUrl.trim().length > 0
+    );
+    if (valid.length === 0) {
+      return NextResponse.json({ error: "En az bir geçerli soru (imageUrl) zorunludur." }, { status: 400 });
+    }
+
+    const created = await prisma.quizBankQuestion.createMany({
+      data: valid.map((q) => ({
+        teacherId: session.sub,
+        imageUrl: q.imageUrl.trim(),
+        imageLabel: q.imageLabel?.trim() || "Soru fotoğrafı",
+        answer: q.answer?.trim() || "",
+      })),
+    });
+
+    return NextResponse.json({ count: created.count }, { status: 201 });
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    logger.error("quiz_bank_create_failed", { error: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({ error: "Beklenmeyen hata" }, { status: 500 });
+  }
+}
+
 export const GET = withApiLogging("GET /api/quizzes/bank", handleGet);
+export const POST = withApiLogging("POST /api/quizzes/bank", handlePost);

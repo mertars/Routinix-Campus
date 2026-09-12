@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { HelpCircle, CheckCircle2, Send, RotateCcw, Loader2 } from "lucide-react";
+import { HelpCircle, CheckCircle2, Send, RotateCcw, Loader2, ImagePlus, X } from "lucide-react";
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ type QuestionEntry = {
   studentNote: string | null;
   status: QuestionStatus;
   answerText: string | null;
+  answerImageUrl: string | null;
   createdAt: string;
   student: { firstName: string; lastName: string };
 };
@@ -28,32 +29,65 @@ const STATUS_BADGE: Record<QuestionStatus, string> = {
 
 const STATUS_LABEL: Record<QuestionStatus, string> = { PENDING: "Bekliyor", ANSWERED: "Yanıtlandı", SOLVED: "Çözüldü" };
 
-function AnswerBox({ onSubmit }: { onSubmit: (text: string) => Promise<void> }) {
+// Kullanıcı talebi: "cevabı öğretmen ... fotoğraf veya direkt yazarak
+// anlatabilir" — eskiden SADECE metin girişi vardı. İkisi birden de
+// gönderilebilir; en az biri zorunlu.
+function AnswerBox({ onSubmit }: { onSubmit: (text: string, file: File | null) => Promise<void> }) {
   const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function submit() {
-    if (!text.trim()) return;
+    if (!text.trim() && !file) return;
     setSending(true);
-    await onSubmit(text.trim());
+    await onSubmit(text.trim(), file);
     setSending(false);
   }
 
   return (
-    <div className="mt-2 flex gap-1.5">
-      <input
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        placeholder="Yanıtınızı yazın"
-        className="min-h-[40px] flex-1 rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
-      />
-      <button
-        onClick={submit}
-        disabled={sending || !text.trim()}
-        className="flex min-h-[40px] items-center gap-1 rounded-lg bg-espresso px-3 text-xs font-medium text-cream disabled:opacity-50 dark:bg-brand-600"
-      >
-        {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-      </button>
+    <div className="mt-2 space-y-1.5">
+      {file && (
+        <div className="flex items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-xs dark:bg-midnight">
+          <span className="flex-1 truncate text-espresso dark:text-cream">{file.name}</span>
+          <button onClick={() => setFile(null)} className="text-espresso-muted hover:text-rose-600 dark:text-cream/40">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        <input
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          placeholder="Yanıtınızı yazın (opsiyonel — fotoğraf da ekleyebilirsiniz)"
+          className="min-h-[40px] flex-1 rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          title="Fotoğraf ekle"
+          className="flex min-h-[40px] items-center justify-center rounded-lg border border-hairline px-2.5 text-espresso-muted transition hover:text-brand-600 dark:border-white/10 dark:text-cream/40"
+        >
+          <ImagePlus className="h-3.5 w-3.5" />
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const f = event.target.files?.[0];
+            if (f) setFile(f);
+            event.target.value = "";
+          }}
+        />
+        <button
+          onClick={submit}
+          disabled={sending || (!text.trim() && !file)}
+          className="flex min-h-[40px] items-center gap-1 rounded-lg bg-espresso px-3 text-xs font-medium text-cream disabled:opacity-50 dark:bg-brand-600"
+        >
+          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -93,13 +127,21 @@ export function QuestionPoolTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffRecord.id]);
 
-  async function answer(id: string, answerText: string) {
+  async function answer(id: string, answerText: string, file: File | null) {
     try {
-      const res = await fetch(`/api/questions/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answerText }),
-      });
+      let res: Response;
+      if (file) {
+        const form = new FormData();
+        if (answerText) form.append("answerText", answerText);
+        form.append("image", file);
+        res = await fetch(`/api/questions/${id}`, { method: "PATCH", body: form });
+      } else {
+        res = await fetch(`/api/questions/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answerText }),
+        });
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Yanıt gönderilemedi.");
       setOpenId(null);
@@ -161,7 +203,7 @@ export function QuestionPoolTab() {
               {question.status === "PENDING" && (
                 <>
                   {openId === question.id ? (
-                    <AnswerBox onSubmit={(text) => answer(question.id, text)} />
+                    <AnswerBox onSubmit={(text, file) => answer(question.id, text, file)} />
                   ) : (
                     <button
                       onClick={() => setOpenId(question.id)}
@@ -176,6 +218,10 @@ export function QuestionPoolTab() {
                 <p className="mt-1 flex items-start gap-1.5 text-[11px] text-green-700 dark:text-green-400">
                   <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0" /> {question.answerText}
                 </p>
+              )}
+              {question.status !== "PENDING" && question.answerImageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={question.answerImageUrl} alt="Yanıt fotoğrafı" className="mt-1.5 max-h-40 rounded-lg border border-hairline object-contain dark:border-white/10" />
               )}
             </motion.div>
           ))}
