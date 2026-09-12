@@ -12,7 +12,6 @@ import {
   Library,
   CalendarCheck,
   HelpCircle,
-  Camera,
   Map,
   Puzzle,
   AlertTriangle,
@@ -32,7 +31,6 @@ import { PopQuizTab } from "@/components/teacher/tabs/pop-quiz";
 import { MaterialLibraryTab } from "@/components/teacher/tabs/material-library";
 import { AppointmentApprovalTab } from "@/components/teacher/tabs/appointment-approval";
 import { QuestionPoolTab } from "@/components/teacher/tabs/question-pool";
-import { OpticalScannerTab } from "@/components/teacher/tabs/optical-scanner";
 import { SuccessHeatmapTab } from "@/components/teacher/tabs/success-heatmap";
 import { GapClosingTab } from "@/components/teacher/tabs/gap-closing";
 import { RiskReferralTab } from "@/components/teacher/tabs/risk-referral";
@@ -40,6 +38,18 @@ import { WeeklyScheduleTab } from "@/components/teacher/tabs/weekly-schedule";
 import { useSessionName } from "@/lib/institution-scope";
 
 // Sol Ada: Ders & Sınıf Operasyonu — Sağ Ada: Analiz & Etüt/İletişim
+//
+// ⚠️ "Mobil Optik Okuyucu" (scanner) BİLEREK burada değil. Tarama
+// butonuna basınca sadece hata veriyordu — kamera/OCR hiç bağlı değildi.
+// İncelemede ortaya çıktı: yönetici tarafındaki "gerçek" optik sistem de
+// görüntü okuma yapmıyor, fiziksel tarayıcı makinesinin ürettiği sabit
+// genişlikli bir .txt dosyasını ayrıştırıyor (bkz. optical-import.ts).
+// Yani bağlanacak hazır bir OCR/OMR yok — telefon kamerasından kağıt
+// algılama, perspektif düzeltme, işaretli daire tespiti sıfırdan bir
+// bilgisayarlı görü işi. Yarım-doğru bir sürüm yanlış okunan bir daireyi
+// öğrencinin kalıcı notuna sessizce yazardı — bu risk kabul edilmedi,
+// sekme ayrı bir faz olarak (muhtemelen bulut görü servisiyle) hazır
+// olana kadar kaldırıldı. Eski dosya: components/teacher/tabs/optical-scanner.tsx (git geçmişinde durur).
 const TABS = [
   { id: "attendance", label: "Canlı Yoklama", icon: ClipboardCheck, Component: LiveAttendanceTab, side: "left" },
   { id: "quick-homework", label: "Gelişmiş Ödev Atama", icon: Zap, Component: QuickHomeworkAssignerTab, side: "left" },
@@ -50,7 +60,6 @@ const TABS = [
   { id: "materials", label: "Ders Materyali Kütüphanesi", icon: Library, Component: MaterialLibraryTab, side: "left" },
   { id: "appointments", label: "Etüt & Randevu Onayı", icon: CalendarCheck, Component: AppointmentApprovalTab, side: "right" },
   { id: "question-pool", label: "Soru Çözüm Havuzu", icon: HelpCircle, Component: QuestionPoolTab, side: "right" },
-  { id: "scanner", label: "Mobil Optik Okuyucu", icon: Camera, Component: OpticalScannerTab, side: "right" },
   { id: "heatmap", label: "Başarı Isı Haritası", icon: Map, Component: SuccessHeatmapTab, side: "right" },
   { id: "gap-closing", label: "Eksik Kapatma", icon: Puzzle, Component: GapClosingTab, side: "right" },
   { id: "risk-referral", label: "Rehberlik Sevk & Risk", icon: AlertTriangle, Component: RiskReferralTab, side: "right" },

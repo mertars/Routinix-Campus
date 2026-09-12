@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // Her sınav satırına Ölçme Değerlendirme kart listesinin ihtiyaç duyduğu
 // özet sayaçlar EKLENİR (ders sayısı, cevap anahtarı girilmiş ders sayısı,
 // sonuç girilmiş öğrenci sayısı) — ERP'deki eski tüketiciler (bkz.
-// exam-seating.tsx, exam-results-import.tsx, optical-scanner.tsx) bu ek
+// exam-seating.tsx, exam-results-import.tsx) bu ek
 // alanları görmezden gelir, mevcut şekil AYNEN korunur.
 async function handleGet() {
   try {

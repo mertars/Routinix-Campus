@@ -7,8 +7,8 @@ import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
 
 // Öğretmenin röntgen görünümü — roster SADECE kendi şubeleri (bkz.
-// /api/students?branchIds=, optical-scanner.tsx/gap-closing.tsx'teki AYNI
-// desen), academic-xray.tsx'teki kurum geneli roster'dan BİLEREK farklı.
+// /api/students?branchIds=, gap-closing.tsx'teki AYNI desen),
+// academic-xray.tsx'teki kurum geneli roster'dan BİLEREK farklı.
 //
 // Faz K — Akademik Röntgen ŞUANLIK SADECE lise (9-12. sınıf) için (bkz.
 // /xray/principal'daki AYNI gerekçe) — öğretmenin ortaokul şubeleri varsa
