@@ -23,6 +23,14 @@ export function MaterialLibraryTab() {
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // ⚠️ Yükleme daha önce her zaman assignedBranches[0]'a gidiyordu — birden
+  // fazla şubeye giren bir öğretmen (yaygın durum, bkz. haftalık program)
+  // hangi şube için yüklediğini SEÇEMİYORDU, sessizce ilk şubeye yazılıyordu.
+  const [uploadBranchId, setUploadBranchId] = useState(assignedBranches[0]?.id ?? "");
+  useEffect(() => {
+    setUploadBranchId((current) => current || assignedBranches[0]?.id || "");
+  }, [assignedBranches]);
+
   async function loadAll() {
     if (assignedBranches.length === 0) return;
     try {
@@ -41,13 +49,13 @@ export function MaterialLibraryTab() {
   }, [assignedBranches.map((b) => b.id).join(",")]);
 
   async function handleUpload(file: File) {
-    if (!assignedBranches[0]) return;
+    if (!uploadBranchId) return;
     setUploading(true);
     try {
       const form = new FormData();
       form.append("file", file);
       form.append("teacherId", staffRecord.id);
-      form.append("branchId", assignedBranches[0].id);
+      form.append("branchId", uploadBranchId);
       const res = await fetch("/api/materials", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Yükleme başarısız.");
@@ -72,6 +80,26 @@ export function MaterialLibraryTab() {
 
   return (
     <div className="space-y-4">
+      {/* Şube seçici, tıklanabilir bırakma alanının DIŞINDA — içeride olsaydı
+          select'e her tıklama, üstteki kartın onClick'iyle çakışıp dosya
+          seçiciyi de açardı. */}
+      {assignedBranches.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-espresso-muted dark:text-cream/40">Hangi şube için:</span>
+          <select
+            value={uploadBranchId}
+            onChange={(event) => setUploadBranchId(event.target.value)}
+            className="min-h-[36px] rounded-lg border border-hairline bg-white px-2.5 py-1 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight-card dark:text-cream"
+          >
+            {assignedBranches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <motion.div
         whileHover={{ scale: 1.005, y: -2 }}
         onClick={() => !uploading && inputRef.current?.click()}
@@ -79,7 +107,11 @@ export function MaterialLibraryTab() {
       >
         {uploading ? <Loader2 className="h-6 w-6 animate-spin text-brand-600" /> : <UploadCloud className="h-6 w-6 text-brand-600" />}
         <p className="text-sm font-medium text-espresso dark:text-cream">{uploading ? "Yükleniyor..." : "Ders materyali yükle"}</p>
-        <p className="text-xs text-espresso-muted dark:text-cream/40">PDF, DOC veya sunum dosyası seçin</p>
+        <p className="text-xs text-espresso-muted dark:text-cream/40">
+          {assignedBranches.length > 1
+            ? `${assignedBranches.find((b) => b.id === uploadBranchId)?.name ?? ""} şubesine · PDF, DOC veya sunum dosyası seçin`
+            : "PDF, DOC veya sunum dosyası seçin"}
+        </p>
         <input
           ref={inputRef}
           type="file"
