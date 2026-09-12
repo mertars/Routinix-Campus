@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight, Megaphone, BookOpen, TrendingUp, LayoutDashboard, MessageSquareText } from "lucide-react";
@@ -59,6 +59,36 @@ export default function ParentPage() {
   const [tab, setTab] = useState<TabId>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Sekme çubuğu 6 sekmeyle mobilde tek satıra sığmıyor — ölçüldü, 3'ü
+  // ekran dışında kalıyordu ve `overflow-x-auto` teknik olarak kaydırılabilir
+  // olsa da bunu belli eden hiçbir görsel ipucu yoktu. Sağ kenarda soluklaşan
+  // bir bant, gerçekten daha fazla sekme varken görünür; sona gelince kaybolur.
+  const tabsScrollRef = useRef<HTMLDivElement | null>(null);
+  const tabsResizeObserver = useRef<ResizeObserver | null>(null);
+  const [tabsHaveMore, setTabsHaveMore] = useState(false);
+  const checkTabsScroll = useCallback(() => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    setTabsHaveMore(el.scrollWidth - el.scrollLeft - el.clientWidth > 4);
+  }, []);
+  // ⚠️ useRef + ayrı bir useEffect(deps: [detail]) YETMEDİ: AnimatePresence
+  // mode="wait" yükleniyor durumunun çıkış animasyonu bitene kadar yeni
+  // çocuğu (ve bu ref'i) DOM'a hiç basmıyor — efekt "detail" değişir
+  // değişmez çalışıyor ama ref o an hâlâ null, ölçüm hep 0 dönüyordu.
+  // Callback-ref, düğüm GERÇEKTEN takılınca çalışır; ResizeObserver de
+  // sonradan (yazı tipi yüklenince, ekran döndürülünce) yeniden ölçer.
+  const attachTabsScrollRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      tabsScrollRef.current = node;
+      tabsResizeObserver.current?.disconnect();
+      if (!node) return;
+      checkTabsScroll();
+      tabsResizeObserver.current = new ResizeObserver(() => checkTabsScroll());
+      tabsResizeObserver.current.observe(node);
+    },
+    [checkTabsScroll]
+  );
 
   // Oturum açmış velinin kendisi + bağlı öğrencilerinin özet performansı TEK
   // istekte gelir (bkz. /api/parent/me) — session cookie'ye göre sınırlıdır,
@@ -186,23 +216,39 @@ export default function ParentPage() {
               <EmptyState msg="Sisteme bağlı bir öğrenci bulunamadı." />
             ) : detail ? (
               <div key={detail.id}>
-                {/* Sekme çubuğu — kaydırılabilir, mobilde de tek satır. */}
-                <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-xl bg-cream-card p-1 dark:bg-white/5">
-                  {TABS.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setTab(t.id)}
-                      className={cn(
-                        "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition",
-                        tab === t.id
-                          ? "bg-espresso text-cream dark:bg-brand-600"
-                          : "text-espresso-muted hover:bg-white/60 dark:text-cream/40 dark:hover:bg-white/5"
-                      )}
-                    >
-                      <t.icon className="h-3.5 w-3.5" />
-                      {t.label}
-                    </button>
-                  ))}
+                {/* Sekme çubuğu — kaydırılabilir. Sağdaki bant, gerçekten
+                    daha fazla sekme ekran dışındayken görünür (ölçülüp
+                    açılıp kapanır, bkz. checkTabsScroll) — sona gelince
+                    kaybolur, hep-açık bir ipucu yanıltıcı olurdu. */}
+                <div className="relative mb-4">
+                  <div
+                    ref={attachTabsScrollRef}
+                    onScroll={checkTabsScroll}
+                    className="flex gap-1.5 overflow-x-auto rounded-xl bg-cream-card p-1 dark:bg-white/5"
+                  >
+                    {TABS.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setTab(t.id)}
+                        className={cn(
+                          "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition",
+                          tab === t.id
+                            ? "bg-espresso text-cream dark:bg-brand-600"
+                            : "text-espresso-muted hover:bg-white/60 dark:text-cream/40 dark:hover:bg-white/5"
+                        )}
+                      >
+                        <t.icon className="h-3.5 w-3.5" />
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div
+                    aria-hidden
+                    className={cn(
+                      "pointer-events-none absolute inset-y-0 right-0 w-9 rounded-r-xl bg-gradient-to-l from-cream to-transparent transition-opacity duration-200 dark:from-midnight",
+                      tabsHaveMore ? "opacity-100" : "opacity-0"
+                    )}
+                  />
                 </div>
 
                 {/* Sekmeler TEMBEL yüklenir: her sekme kendi isteğini

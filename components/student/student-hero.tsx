@@ -36,14 +36,20 @@ export function StudentHero({ name }: { name: string }) {
           {name}
         </motion.h1>
 
-        <motion.p
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-          className="mt-1 text-sm text-espresso-muted dark:text-cream/40"
-        >
-          Şubeniz: {branchName}
-        </motion.p>
+        {/* branchName ilk render'da boş string (bkz. EMPTY_REPORT) — oturum
+            ve öğrenci verisi iki ayrı istekte, sırayla gelir. Koşulsuz
+            yazdırınca kısa bir an "Şubeniz: " (boş) görünüyordu; veri
+            gelene kadar satır hiç çizilmiyor. */}
+        {branchName && (
+          <motion.p
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="mt-1 text-sm text-espresso-muted dark:text-cream/40"
+          >
+            Şubeniz: {branchName}
+          </motion.p>
+        )}
       </div>
 
       <ExamCountdownChip />

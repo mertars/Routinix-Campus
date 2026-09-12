@@ -8,6 +8,17 @@ import { cn } from "@/lib/utils";
 
 const QUICK_ACCESS_IDS = ["attendance", "quick-homework", "homework-matrix", "appointments"];
 
+// Alt çubuğun kendi kısa etiketleri — sekmenin GERÇEK adı ("Gelişmiş Ödev
+// Atama") değişmiyor, sadece 5 sütuna bölünen ~70px'lik bir alanda görünen
+// isim. Ölçüldü: gerçek adlarla hepsi "Canlı Yokla…", "Gelişmiş Öd…" diye
+// kırpılıyordu — kısaltma çözmüyor, kısa isim gerekiyor.
+const QUICK_ACCESS_SHORT_LABEL: Record<string, string> = {
+  attendance: "Yoklama",
+  "quick-homework": "Ödev Ver",
+  "homework-matrix": "Kontrol",
+  appointments: "Etüt",
+};
+
 export function TeacherMobileNav({
   leftTabs,
   rightTabs,
@@ -47,7 +58,7 @@ export function TeacherMobileNav({
               )}
               <tab.icon className={cn("h-5 w-5", isActive ? "text-brand-600" : "text-espresso/50 dark:text-cream/40")} />
               <span className={cn("max-w-[62px] truncate text-[9px] leading-tight", isActive ? "font-semibold text-brand-600" : "text-espresso/50 dark:text-cream/40")}>
-                {tab.label}
+                {QUICK_ACCESS_SHORT_LABEL[tab.id] ?? tab.label}
               </span>
             </button>
           );

@@ -39,13 +39,22 @@ export const ROLE_ID_BY_AUTH_ROLE: Record<AuthRole, RoleId> = {
   PARENT: "parent",
 };
 
-// Kampüs V2 — Yönetici/Öğretmen artık doğrudan panele değil, ÖNCE 3'lü
-// modül seçim ekranına (Launcher/Hub) düşer; "Kampüs ERP" kartı oradan
-// /principal veya /teacher'a yönlendirir (bkz. app/hub/page.tsx). Öğrenci/
-// Veli için davranış DEĞİŞMEDİ — henüz tek modülleri var.
+// Yönetici hâlâ ÖNCE 5'li modül seçim ekranına (Launcher/Hub) düşer —
+// bir kurumu işletmek çok modüllü bir iştir, seçim ekranı orada anlamlı.
+//
+// ⚠️ Öğretmen ARTIK değil (bu satır Kampüs V2'de "/hub" idi). Ölçüldü:
+// hub'ın 5 kartı mobilde tek sütuna dizilince her kart ekranı dolduruyor,
+// öğretmen asıl işine (yoklama, ödev) ulaşmadan önce kaydırmak zorunda
+// kalıyordu. Öğretmenin günlük işi zaten tek modülde (ERP) yoğunlaşıyor;
+// Röntgen/Ölçme/Video'ya da panelin İÇİNDEN, ModuleSwitcher/komut
+// paletiyle ulaşıyor (bkz. lib/modules.ts) — ayrı bir seçim ekranına
+// gerek yok. Hub yine de erişilebilir kalır ("Tüm modüller" bağlantısı),
+// sadece artık zorunlu ilk durak değil.
+//
+// Öğrenci/Veli için davranış hiç değişmedi — onlar zaten tek modüllü.
 export const REDIRECT_BY_AUTH_ROLE: Record<AuthRole, string> = {
   STUDENT: "/student",
-  TEACHER: "/hub",
+  TEACHER: "/teacher",
   ADMIN: "/hub",
   PARENT: "/parent",
 };

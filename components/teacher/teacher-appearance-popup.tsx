@@ -1,13 +1,22 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, RotateCcw, Palette } from "lucide-react";
+import { X, Check, RotateCcw, Palette, LogOut } from "lucide-react";
 import { useAccent } from "@/lib/accent-context";
 import { ACCENT_PRESETS, DEFAULT_ACCENT_HEX } from "@/lib/color-utils";
+import { useLogout } from "@/lib/role-context";
+import { useInstitutionName } from "@/lib/institution-scope";
+import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { ThemeToggle } from "@/components/theme-toggle";
 
+// ⚠️ Mobil üst çubuk daralınca (bkz. teacher-top-bar.tsx) kurum rozeti ve
+// çıkış tuşu ayrı birer pill olarak sığmıyordu — altı ayrı yuvarlak buton
+// tek satıra sıkışmıştı, kurum adı "Kont…" diye kırpılıyordu. İkisi de
+// buraya taşındı: bu popup artık sadece görünüm değil, "Ayarlar"ın tamamı.
 export function TeacherAppearancePopup({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { hex, setAccent, resetAccent } = useAccent();
+  const institutionName = useInstitutionName();
+  const logout = useLogout();
   const isDefaultAccent = hex.toLowerCase() === DEFAULT_ACCENT_HEX.toLowerCase();
 
   return (
@@ -21,19 +30,28 @@ export function TeacherAppearancePopup({ isOpen, onClose }: { isOpen: boolean; o
             onClick={onClose}
             className="fixed inset-0 z-[70] bg-espresso/50 backdrop-blur-sm"
           />
-          <div className="fixed left-1/2 top-1/2 z-[80] w-[88vw] max-w-xs -translate-x-1/2 -translate-y-1/2">
+          {/* max-h-[85vh] + overflow-y-auto: kurum satırı ve çıkış tuşu
+              eklenince (bkz. üstteki not) içerik kısa telefonlarda 100vh'ı
+              aşabiliyor — sabit yükseklik olmadan üst kısım ekranın
+              dışında kırpılıyordu. */}
+          <div className="fixed left-1/2 top-1/2 z-[80] w-[88vw] max-w-xs max-h-[85vh] -translate-x-1/2 -translate-y-1/2">
             <motion.div
               initial={{ opacity: 0, scale: 0.94, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 12 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="rounded-3xl border border-white/10 bg-midnight-card/95 p-6 text-cream shadow-2xl backdrop-blur-2xl"
+              className="max-h-[85vh] overflow-y-auto rounded-3xl border border-white/10 bg-midnight-card/95 p-6 text-cream shadow-2xl backdrop-blur-2xl"
             >
               <div className="mb-5 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-cream">Görünüm</h3>
+                <h3 className="text-sm font-semibold text-cream">Ayarlar</h3>
                 <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-cream/60 transition hover:bg-white/10">
                   <X className="h-4 w-4" />
                 </button>
+              </div>
+
+              <div className="mb-5 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5">
+                <InstitutionBadgeIcon className="h-3.5 w-3.5 shrink-0 text-brand-400" />
+                <span className="min-w-0 truncate text-xs font-medium text-cream/80">{institutionName}</span>
               </div>
 
               <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-cream/50">
@@ -69,10 +87,17 @@ export function TeacherAppearancePopup({ isOpen, onClose }: { isOpen: boolean; o
               </button>
 
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cream/50">Tema</p>
-              <div className="flex items-center justify-between rounded-xl border border-white/15 px-3.5 py-2.5">
+              <div className="mb-6 flex items-center justify-between rounded-xl border border-white/15 px-3.5 py-2.5">
                 <span className="text-xs text-cream/70">Gece / Gündüz Modu</span>
                 <ThemeToggle />
               </div>
+
+              <button
+                onClick={logout}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2.5 text-xs font-medium text-red-300 transition hover:bg-red-500/15"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Çıkış Yap
+              </button>
             </motion.div>
           </div>
         </>

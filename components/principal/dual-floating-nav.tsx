@@ -147,13 +147,20 @@ export function DualFloatingNav({
   rightTabs,
   activeTab,
   onSelect,
+  showWork = true,
 }: {
   leftTabs: readonly NavTab[];
   rightTabs: readonly NavTab[];
   activeTab: string;
   onSelect: (id: string) => void;
+  /**
+   * Rozetler yalnızca yönetimde anlamlı — /api/admin/agenda o role kilitli.
+   * Öğretmen/öğrenci sayfaları bu adayı ödünç aldığında false geçmeli,
+   * yoksa her açılışta 403 dönen boşuna bir istek atılır.
+   */
+  showWork?: boolean;
 }) {
-  const { badges } = useAgenda();
+  const { badges } = useAgenda(showWork);
 
   return (
     <>

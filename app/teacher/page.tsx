@@ -88,6 +88,7 @@ export default function TeacherPage() {
         rightTabs={RIGHT_TABS}
         activeTab={activeTab}
         onSelect={(id) => setActiveTab(id as TabId)}
+        showWork={false}
       />
       <TeacherMobileNav leftTabs={LEFT_TABS} rightTabs={RIGHT_TABS} activeTab={activeTab} onSelect={(id) => setActiveTab(id as TabId)} />
 
