@@ -13,7 +13,7 @@ const MAX_ATTEMPTS = 5;
 const bodySchema = z.object({
   phone: z.string().min(1),
   code: z.string().length(6),
-  expectedRole: z.enum(["principal", "teacher", "student", "parent"]).optional(),
+  expectedRole: z.enum(["principal", "teacher", "student", "parent", "guidance"]).optional(),
   intent: z.enum(["login", "reset"]).optional().default("login"),
 });
 

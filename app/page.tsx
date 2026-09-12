@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ShieldAlert, Crown, GraduationCap, BookOpen, Users } from "lucide-react";
+import { ShieldAlert, Crown, GraduationCap, BookOpen, Users, LifeBuoy } from "lucide-react";
 import { MOCK_PERSONAS, type RoleId } from "@/lib/mock-data";
 import { RoleCard } from "@/components/role-select/role-card";
 import { AuroraOrbs, GlowLogo, spaceGrotesk, AURORA_GRID_STYLE } from "@/components/ui/aurora-brand";
@@ -14,6 +14,7 @@ const PANEL_LABEL: Record<string, string> = {
   teacher: "Öğretmen Paneli",
   student: "Öğrenci Paneli",
   parent: "Veli Paneli",
+  guidance: "Rehberlik Paneli",
 };
 
 const ICONS: Record<RoleId, typeof Crown> = {
@@ -21,6 +22,7 @@ const ICONS: Record<RoleId, typeof Crown> = {
   teacher: GraduationCap,
   student: BookOpen,
   parent: Users,
+  guidance: LifeBuoy,
 };
 
 const ROLE_DESCRIPTION: Record<RoleId, string> = {
@@ -28,6 +30,7 @@ const ROLE_DESCRIPTION: Record<RoleId, string> = {
   teacher: "Sınıfını, ödevlerini ve öğrenci gelişimini uçtan uca takip et.",
   student: "Netlerini, ödevlerini ve haftalık programını tek yerden gör.",
   parent: "Çocuğunuzun akademik gelişimini gerçek zamanlı izleyin.",
+  guidance: "Rehberliğe sevk edilen öğrencileri tek kuyruktan görüp takip et.",
 };
 
 // useSearchParams() bir Suspense sınırı içinde olmalı (Next.js App Router
@@ -79,7 +82,7 @@ export default function RoleSelectPage() {
         <AccessDeniedNotice />
       </Suspense>
 
-      <div className="relative z-10 grid w-full max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="relative z-10 grid w-full max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {MOCK_PERSONAS.map((persona, index) => (
           <RoleCard
             key={persona.id}

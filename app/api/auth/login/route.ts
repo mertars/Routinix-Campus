@@ -13,7 +13,7 @@ import { checkLoginRateLimit, recordFailedLoginAttempt, extractClientIp } from "
 const bodySchema = z.object({
   phone: z.string().min(1),
   password: z.string().min(1),
-  expectedRole: z.enum(["principal", "teacher", "student", "parent"]).optional(),
+  expectedRole: z.enum(["principal", "teacher", "student", "parent", "guidance"]).optional(),
 });
 
 async function handlePost(request: NextRequest) {

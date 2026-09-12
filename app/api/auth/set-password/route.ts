@@ -26,7 +26,7 @@ const TARGET_TYPE_BY_ROLE: Record<string, string> = {
 const bodySchema = z.object({
   passwordChangeToken: z.string().min(1),
   password: z.string().min(6),
-  expectedRole: z.enum(["principal", "teacher", "student", "parent"]).optional(),
+  expectedRole: z.enum(["principal", "teacher", "student", "parent", "guidance"]).optional(),
 });
 
 // Şifre değiştirme token'ı üç ayrı olaydan gelebilir (bkz. jwt.ts >

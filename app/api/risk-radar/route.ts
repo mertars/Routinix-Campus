@@ -31,10 +31,13 @@ async function handleGet(request: NextRequest) {
       if (session.role === "TEACHER") {
         if (session.sub !== teacherId) throw new AuthError("Kayıt bulunamadı.", "NOT_FOUND", 404);
       } else {
-        requireRole(session, "principal");
+        requireRole(session, "principal", "guidance");
       }
     } else {
-      requireRole(session, "principal");
+      // Rehberlik de kurum geneli radara erişebilir — bir öğretmenin
+      // şubesine bağlı değil (bkz. lib/server/auth/jwt.ts'teki Rehberlik
+      // personası notu).
+      requireRole(session, "principal", "guidance");
     }
 
     const entries = await withTtlCache(

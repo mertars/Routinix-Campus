@@ -8,7 +8,11 @@ import { prisma } from "@/lib/server/prisma";
 // Kod düz metin saklanmaz; bcrypt hash'i tutulur.
 // ----------------------------------------------------------------------------
 
-export type AuthRole = "STUDENT" | "TEACHER" | "ADMIN" | "PARENT";
+export type AuthRole = "STUDENT" | "TEACHER" | "ADMIN" | "PARENT" | "GUIDANCE";
+
+// Teacher.subject'in Rehberlik personasını tetikleyen değeri — teacher
+// SUBJECT_OPTIONS'taki (add/edit-user-modal.tsx) AYNI literal.
+export const GUIDANCE_SUBJECT = "Rehberlik";
 
 // Kullanıcının girdiği telefonu, veritabanındaki telefonlarla eşleşebilecek
 // sadeleştirilmiş bir biçime indirger. "+90 555 000 00 01", "05550000001" ve
@@ -69,9 +73,15 @@ export async function findAccountByPhone(phone: string): Promise<FoundAccount | 
 
   const teacher = await prisma.teacher.findFirst({ where: { mobilePhone: { endsWith: digits }, isActive: true, ...activeInstitution } });
   if (teacher) {
+    // Rehberlik — kendi ayrı personası (2026-09-12 kullanıcı kararı: "tamamen
+    // ayrı bir rol/giriş"). Yeni bir tablo/hesap türü YOK: Teacher kaydı
+    // aynen kalır (GuidanceReferral.teacherId zaten buna bağlı), sadece
+    // subject="Rehberlik" olan öğretmen GİRİŞTE farklı bir role/panele
+    // (/guidance) yönlendirilir — /teacher'ın 13 sekmelik ERP kabuğunu değil,
+    // kendi sevk kuyruğu panelini görür (bkz. app/guidance/page.tsx).
     return {
       id: teacher.id,
-      role: "TEACHER",
+      role: teacher.subject === GUIDANCE_SUBJECT ? "GUIDANCE" : "TEACHER",
       phone: teacher.mobilePhone,
       name: fullName(teacher.firstName, teacher.lastName),
       passwordHash: teacher.passwordHash,

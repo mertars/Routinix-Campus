@@ -24,7 +24,7 @@ const OTP_TTL_MS = 30 * 60 * 1000; // 30 dakika
 
 const bodySchema = z.object({
   phone: z.string().min(1),
-  expectedRole: z.enum(["principal", "teacher", "student", "parent"]).optional(),
+  expectedRole: z.enum(["principal", "teacher", "student", "parent", "guidance"]).optional(),
   intent: z.enum(["login", "reset"]).optional().default("login"),
 });
 

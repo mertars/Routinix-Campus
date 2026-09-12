@@ -66,7 +66,11 @@ async function handleGet(request: NextRequest) {
     const studentId = request.nextUrl.searchParams.get("studentId");
 
     if (!studentId) {
-      requireRole(session, "principal");
+      // Öğretmen de kurumun TÜM duyurularını görebilir — kendisi gönderdiği
+      // için değil (o zaten POST'un dönüşünden bilir), diğerlerinin ne
+      // gönderdiğini de görebilsin diye (tek paylaşılan pano, bkz.
+      // components/teacher/tabs/announcements.tsx).
+      requireRole(session, "principal", "teacher");
       const announcements = await prisma.announcement.findMany({
         where: { institutionId: session.institutionId },
         orderBy: { createdAt: "desc" },

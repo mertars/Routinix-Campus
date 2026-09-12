@@ -8,32 +8,48 @@ type AttendanceEntry = { id: string; teacherName: string; branchName: string; re
 type QuizFeedEntry = { id: string; quizName: string; branchName: string; responseCount: number; sentAt: string };
 type LateSubmission = { studentName: string; updatedAt: string };
 type GuidanceFeedEntry = { id: string; authorName: string; studentName: string; createdAt: string };
+type GuidanceReferralEntry = { id: string; teacherName: string; studentName: string; status: "PENDING" | "REVIEWED"; createdAt: string };
+// İki AYRI kaynağın (bkz. o dosyaların üstündeki BİLEREK-ayrı-tablo notu:
+// GuidanceNote = admin'in kendi notu, GuidanceReferral = öğretmenin/otomatik
+// Röntgen tespitinin sevki) TEK zaman sıralı listede birleşmiş görünümü —
+// öncesinde bu panel SADECE GuidanceNote okuyordu, öğretmen sevkleri
+// (ve Röntgen'in otomatik sevkleri) admin'in ana ekranında HİÇ görünmüyordu.
+type GuidanceFeedItem = { id: string; kind: "note" | "referral"; authorName: string; studentName: string; createdAt: string };
 
 export function LiveTeacherFeed() {
   const [attendanceLog, setAttendanceLog] = useState<AttendanceEntry[]>([]);
   const [quizResults, setQuizResults] = useState<QuizFeedEntry[]>([]);
   const [lateSubmissions, setLateSubmissions] = useState<LateSubmission[]>([]);
-  const [guidanceNotices, setGuidanceNotices] = useState<GuidanceFeedEntry[]>([]);
+  const [guidanceNotices, setGuidanceNotices] = useState<GuidanceFeedItem[]>([]);
 
   useEffect(() => {
     async function load() {
       try {
-        const [attendanceRes, quizRes, homeworkRes, guidanceRes] = await Promise.all([
+        const [attendanceRes, quizRes, homeworkRes, guidanceNotesRes, guidanceReferralsRes] = await Promise.all([
           fetch("/api/attendance/archive?limit=4"),
           fetch("/api/quizzes?feed=true&limit=4"),
           fetch("/api/homework?late=true&limit=4"),
           fetch("/api/guidance-notes?feed=true&limit=4"),
+          fetch("/api/guidance-referrals?status=PENDING&limit=4"),
         ]);
-        const [attendanceData, quizData, homeworkData, guidanceData] = await Promise.all([
+        const [attendanceData, quizData, homeworkData, guidanceNotesData, guidanceReferralsData] = await Promise.all([
           attendanceRes.json(),
           quizRes.json(),
           homeworkRes.json(),
-          guidanceRes.json(),
+          guidanceNotesRes.json(),
+          guidanceReferralsRes.json(),
         ]);
         setAttendanceLog(attendanceData.entries ?? []);
         setQuizResults(quizData.results ?? []);
         setLateSubmissions(homeworkData.submissions ?? []);
-        setGuidanceNotices(guidanceData.notes ?? []);
+
+        const notes: GuidanceFeedEntry[] = guidanceNotesData.notes ?? [];
+        const referrals: GuidanceReferralEntry[] = guidanceReferralsData.referrals ?? [];
+        const merged: GuidanceFeedItem[] = [
+          ...notes.map((n) => ({ id: `note-${n.id}`, kind: "note" as const, authorName: n.authorName, studentName: n.studentName, createdAt: n.createdAt })),
+          ...referrals.map((r) => ({ id: `referral-${r.id}`, kind: "referral" as const, authorName: r.teacherName, studentName: r.studentName, createdAt: r.createdAt })),
+        ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setGuidanceNotices(merged);
       } catch {
         // sessiz — kartlar "henüz yok" durumunda kalır
       }
@@ -79,7 +95,8 @@ export function LiveTeacherFeed() {
               <div key={notice.id} className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs dark:bg-rose-500/10">
                 <span className="font-medium text-espresso dark:text-cream">{notice.authorName}</span>{" "}
                 <span className="text-espresso-muted dark:text-cream/40">
-                  , {notice.studentName} için görüşme tavsiye etti · {new Date(notice.createdAt).toLocaleString("tr-TR")}
+                  , {notice.studentName} için {notice.kind === "referral" ? "rehberliğe sevk gönderdi" : "görüşme tavsiye etti"} ·{" "}
+                  {new Date(notice.createdAt).toLocaleString("tr-TR")}
                 </span>
               </div>
             ))}

@@ -7,6 +7,7 @@ const ROLE_LABEL_TR: Record<RoleId, string> = {
   teacher: "Öğretmen",
   student: "Öğrenci",
   parent: "Veli",
+  guidance: "Rehberlik",
 };
 
 // Beklenen rol (login sayfasının ?role= parametresinden gelir) ile hesabın

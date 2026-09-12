@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
-    requireRole(session, "teacher", "principal");
+    requireRole(session, "teacher", "principal", "guidance");
 
     const body = await request.json();
     const { studentId, category, confidentialityLevel, note } = body as {
@@ -76,13 +76,13 @@ async function handlePost(request: NextRequest) {
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
-    requireRole(session, "teacher", "principal");
+    requireRole(session, "teacher", "principal", "guidance");
 
     const studentId = request.nextUrl.searchParams.get("studentId");
     const isFeed = request.nextUrl.searchParams.get("feed") === "true";
 
     if (isFeed) {
-      requireRole(session, "principal");
+      requireRole(session, "principal", "guidance");
       const limit = Math.min(20, Number(request.nextUrl.searchParams.get("limit") ?? "4") || 4);
       const notes = await prisma.guidanceNote.findMany({
         where: { confidentialityLevel: { not: "CONFIDENTIAL" }, student: { institutionId: session.institutionId } },

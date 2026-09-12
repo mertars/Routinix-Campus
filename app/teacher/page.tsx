@@ -16,6 +16,7 @@ import {
   Puzzle,
   AlertTriangle,
   CalendarDays,
+  Megaphone,
 } from "lucide-react";
 import { type NavTab } from "@/components/principal/floating-nav";
 import { DualFloatingNav } from "@/components/principal/dual-floating-nav";
@@ -35,6 +36,7 @@ import { SuccessHeatmapTab } from "@/components/teacher/tabs/success-heatmap";
 import { GapClosingTab } from "@/components/teacher/tabs/gap-closing";
 import { RiskReferralTab } from "@/components/teacher/tabs/risk-referral";
 import { WeeklyScheduleTab } from "@/components/teacher/tabs/weekly-schedule";
+import { TeacherAnnouncementsTab } from "@/components/teacher/tabs/announcements";
 import { useSessionName } from "@/lib/institution-scope";
 
 // Sol Ada: Ders & Sınıf Operasyonu — Sağ Ada: Analiz & Etüt/İletişim
@@ -64,6 +66,7 @@ const TABS = [
   { id: "gap-closing", label: "Eksik Kapatma", icon: Puzzle, Component: GapClosingTab, side: "right" },
   { id: "risk-referral", label: "Rehberlik Sevk & Risk", icon: AlertTriangle, Component: RiskReferralTab, side: "right" },
   { id: "weekly-schedule", label: "Haftalık Program & Soru Bankası", icon: CalendarDays, Component: WeeklyScheduleTab, side: "right" },
+  { id: "announcements", label: "Duyurular", icon: Megaphone, Component: TeacherAnnouncementsTab, side: "right" },
 ] as const satisfies readonly (NavTab & { Component: () => JSX.Element; side: "left" | "right" })[];
 
 type TabId = (typeof TABS)[number]["id"];

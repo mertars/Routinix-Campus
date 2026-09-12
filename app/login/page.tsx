@@ -38,12 +38,13 @@ import { cn } from "@/lib/utils";
 // Üçü de aynı "password-new" ekranına ve aynı /api/auth/set-password ucuna çıkar.
 // ----------------------------------------------------------------------------
 
-const VALID_ROLES: RoleId[] = ["principal", "teacher", "student", "parent"];
+const VALID_ROLES: RoleId[] = ["principal", "teacher", "student", "parent", "guidance"];
 const ROLE_LABEL_TR: Record<RoleId, string> = {
   principal: "Yönetici",
   teacher: "Öğretmen",
   student: "Öğrenci",
   parent: "Veli",
+  guidance: "Rehberlik",
 };
 
 type Step = "phone" | "otp" | "password-new" | "password-login";
@@ -146,6 +147,7 @@ const ROLE_BADGE_LABEL: Record<RoleId, string> = {
   teacher: "Öğretmen Portalı",
   student: "Öğrenci Girişi",
   parent: "Veli Girişi",
+  guidance: "Rehberlik Girişi",
 };
 
 const VISION_BADGES = [

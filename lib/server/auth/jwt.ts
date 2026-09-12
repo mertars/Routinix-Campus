@@ -25,18 +25,26 @@ import { getEnv } from "@/lib/server/env";
 // bir yerde yazım hatası sessizce oturumu kırar).
 export const SESSION_COOKIE_NAME = "routinix-kampus-session";
 
-export type AuthRole = "STUDENT" | "TEACHER" | "ADMIN" | "PARENT";
+// ⚠️ lib/server/auth/otp.ts'teki AYNI isimli type ile senkron tutulmalı —
+// ikisi de birebir aynı literal union'ı taşıyan BAĞIMSIZ tanımlar (tek bir
+// yerden import etmek otp.ts→jwt.ts arasında dairesel bağımlılık yaratırdı).
+export type AuthRole = "STUDENT" | "TEACHER" | "ADMIN" | "PARENT" | "GUIDANCE";
 
 // Oturum token'ında taşınan kullanıcının seçili persona'sına (lib/role-context)
 // ve /principal, /teacher, /student rotalarına karşılık gelen kısa role id.
 // Admin -> principal; Parent -> parent (middleware /parent'ı korumaz).
-export type RoleId = "principal" | "teacher" | "student" | "parent";
+// Guidance -> guidance: Rehberlik dersi öğretmeninin (Teacher.subject=
+// "Rehberlik") giriş anında yönlendirildiği AYRI persona (bkz. otp.ts >
+// findAccountByPhone) — kimliği hâlâ bir Teacher kaydı, ama /teacher'ın
+// 13 sekmelik ERP kabuğunu DEĞİL, kendi sevk kuyruğu panelini görür.
+export type RoleId = "principal" | "teacher" | "student" | "parent" | "guidance";
 
 export const ROLE_ID_BY_AUTH_ROLE: Record<AuthRole, RoleId> = {
   STUDENT: "student",
   TEACHER: "teacher",
   ADMIN: "principal",
   PARENT: "parent",
+  GUIDANCE: "guidance",
 };
 
 // Yönetici hâlâ ÖNCE 5'li modül seçim ekranına (Launcher/Hub) düşer —
@@ -57,6 +65,7 @@ export const REDIRECT_BY_AUTH_ROLE: Record<AuthRole, string> = {
   TEACHER: "/teacher",
   ADMIN: "/hub",
   PARENT: "/parent",
+  GUIDANCE: "/guidance",
 };
 
 export type SessionPayload = {

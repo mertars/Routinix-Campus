@@ -15,6 +15,10 @@ const ROUTE_ROLE: Record<string, string> = {
   "/teacher": "teacher",
   "/student": "student",
   "/parent": "parent",
+  // Rehberlik — kendi ayrı personası (bkz. lib/server/auth/jwt.ts'teki AYNI
+  // yorum). Diğer 5 modül prefix'i gibi kendi kabuğunu görür, ERP'nin
+  // /teacher tab setini görmez.
+  "/guidance": "guidance",
   // Akademik Röntgen (Hub'daki 2. modül) — ERP'den (/principal, /teacher)
   // AYRI, kendi rotaları. Aynı iki role açık ama ERP'nin tab setini
   // GÖRMEMELİ, bu yüzden /principal'ın altına değil kendi prefix'ine konur.
