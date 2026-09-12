@@ -306,6 +306,15 @@ export function LiveAttendanceTab() {
   // İşaretlenmemiş öğrenci sayısı — kaydet düğmesinin kilidi buna bağlı.
   const unmarkedCount = roster.filter((st) => !statuses[st.id] || statuses[st.id] === "unmarked").length;
 
+  // ⚠️ GERÇEK HATA (Mert bildirdi, 2026-09-13): seçili şube bugün hiç ders
+  // yapmıyorsa (todaysLessonsForBranch boş → selectedSlot hep "") roster
+  // yine de yükleniyordu ve "Hepsi Geldi"/Kaydet düğmesi TAM AKTİF
+  // görünüyordu — öğretmen işaretleyip Kaydet'e basınca handleSubmit
+  // selectedSlot boş olduğu için sessizce hiçbir şey yapmıyordu (ne hata,
+  // ne kayıt). Artık bu durumda roster/işaretleme kartı hiç render
+  // edilmiyor, yerine AÇIK bir "bugün ders yok" kartı gösteriliyor.
+  const hasLessonToday = todaysLessonsForBranch.length > 0 && !!selectedSlot;
+
   function markAll(status: AttendanceStatus) {
     return () => setStatuses(Object.fromEntries(roster.map((st) => [st.id, status])));
   }
@@ -337,7 +346,17 @@ export function LiveAttendanceTab() {
   }
 
   async function handleSubmit() {
-    if (!branch || !selectedSlot || roster.length === 0) return;
+    // ⚠️ Bu üç koşuldan biri eksikken düğme artık zaten disabled (bkz.
+    // hasLessonToday) — ama önceden düğme HER ZAMAN tıklanabilirdi ve
+    // selectedSlot boşken (seçili şube bugün hiç ders yapmıyorsa) bu
+    // fonksiyon SESSİZCE hiçbir şey yapmadan geri dönüyordu: öğretmen
+    // "Hepsi Geldi" deyip Kaydet'e basıyor, hiçbir tepki/hata görmüyordu.
+    // Artık düğme bu durumda zaten kapalı, ama buraya yanlışlıkla
+    // ulaşılırsa (ör. ileride bir kod değişikliğiyle) sessiz kalmasın.
+    if (!branch || !selectedSlot || roster.length === 0) {
+      showError("Bu şube için bugün programda ders görünmüyor — yoklama girilecek bir ders saati yok.");
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch("/api/attendance", {
@@ -452,6 +471,12 @@ export function LiveAttendanceTab() {
         whileHover={{ scale: 1.005, y: -2 }}
         className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30"
       >
+        {!hasLessonToday ? (
+          <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-medium text-rose-600 dark:bg-rose-500/10 dark:text-rose-300">
+            Bu şube için bugün programda ders görünmüyor — yoklama girilecek bir ders saati yok. Yukarıdan başka bir şube seçin.
+          </p>
+        ) : (
+          <>
         {/* Tek tuşla hepsini işaretle: tipik derste 30 öğrencinin 28'i
             gelir. Önce "hepsi geldi" denir, sonra 2 kişi değiştirilir —
             30 dokunuş 3'e iner. Eksik işaretleme kaydı ENGELLEDİĞİ için
@@ -543,6 +568,8 @@ export function LiveAttendanceTab() {
                 ? `${unmarkedCount} öğrenci işaretlenmedi`
                 : "Yoklamayı Kaydet ve Gönder"}
         </button>
+        </>
+        )}
       </motion.div>
 
       <ArchiveModal isOpen={isArchiveOpen} onClose={() => setIsArchiveOpen(false)} entries={archiveEntries} />
