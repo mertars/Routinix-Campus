@@ -54,6 +54,17 @@ const ROUTE_ROLE: Record<string, string> = {
 // TÜRETİLİYOR (hardcode YOK) — R2 ayarlanmadan CSP'ye eklenmiyor.
 const r2UploadOrigin = process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : null;
 
+// ⚠️ GERÇEK HATA (Mert bildirdi, 2026-09-14): soru/materyal fotoğrafları
+// save-question-image.ts/save-teacher-material.ts'in R2'ye taşınmasından
+// (2026-09-13) SONRA hiç GÖRÜNMEZ oldu — yükleme/HeadObject doğrulaması
+// başarılıydı ama tarayıcı <img>'i hiç render etmiyordu, sessizce. Sebep:
+// img-src bu CSP'de sadece 'self'/data:/blob:/youtube'a izin veriyordu,
+// R2_PUBLIC_URL'in kendi origin'i (pub-xxx.r2.dev) YOKTU — tarayıcı CSP
+// ihlali olarak SESSİZCE engelliyordu (network hatası bile atmıyor, sadece
+// konsola bir CSP uyarısı yazıyor). r2UploadOrigin'deki AYNI "env'den türet,
+// R2 kurulmadan CSP'ye ekleme" deseni.
+const r2PublicOrigin = process.env.R2_PUBLIC_URL ? new URL(process.env.R2_PUBLIC_URL).origin : null;
+
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
@@ -65,8 +76,9 @@ function buildCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}' https://www.youtube.com${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
     "style-src 'self' 'unsafe-inline'",
     // img.youtube.com — Video Ders Merkezi'nin YouTube küçük resim
-    // önizlemeleri (bkz. lib/client/youtube.ts) için.
-    "img-src 'self' data: blob: https://img.youtube.com",
+    // önizlemeleri (bkz. lib/client/youtube.ts) için. r2PublicOrigin —
+    // soru/materyal/gider eki fotoğrafları artık R2'den (bkz. yukarıdaki not).
+    `img-src 'self' data: blob: https://img.youtube.com${r2PublicOrigin ? ` ${r2PublicOrigin}` : ""}`,
     "font-src 'self' data:",
     `connect-src 'self'${r2UploadOrigin ? ` ${r2UploadOrigin}` : ""}`,
     "worker-src 'self' blob:",
