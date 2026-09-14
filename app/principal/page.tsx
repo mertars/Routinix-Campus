@@ -29,6 +29,7 @@ import {
 import { fetchDashboard } from "@/lib/client/fetch-dashboard";
 import { DualFloatingNav } from "@/components/principal/dual-floating-nav";
 import { ERP_TABS, ERP_LEFT_TABS, ERP_RIGHT_TABS, type ErpTabId } from "@/lib/erp-tabs";
+import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
 import { consumePendingErpTab, subscribeErpTab } from "@/lib/erp-tab-store";
 import { SegmentSelector } from "@/components/principal/segment-selector";
 import { PrincipalMobileNav } from "@/components/principal/principal-mobile-nav";
@@ -117,7 +118,7 @@ const EMPTY_STATS: DashboardStats = { totalStudents: 0, activeBranches: 0, avgCo
 export default function PrincipalPage() {
   const { name: adminName, title: adminTitle } = useAdminProfile("Mert", "Kurum Müdürü");
   const { showError } = useToast();
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useDeepLinkTab<TabId>("overview", (v) => v in TAB_COMPONENTS);
 
   // Başka bir yüzeyden gelen "şu sekmeye git" isteği (Öğrenci 360 kartı,
   // komut paleti). İki durum da lib/erp-tab-store.ts'te tarif edildi.

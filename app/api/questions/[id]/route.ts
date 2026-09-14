@@ -4,7 +4,7 @@ import { requireSession, assertOwnsSelf } from "@/lib/server/auth/session-guard"
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { saveQuestionImage, MAX_QUESTION_IMAGE_BYTES } from "@/lib/server/uploads/save-question-image";
 import { withApiLogging, logger } from "@/lib/logger";
-import { notify, studentAndParents, teacherName } from "@/lib/server/notifications/activity";
+import { notify, parentsOf, teacherName } from "@/lib/server/notifications/activity";
 
 // PATCH /api/questions/:id — iki farklı aktör, iki farklı geçiş yapar:
 // ÖĞRETMEN (question.teacherId sahibi): { answerText } VEYA (kullanıcı
@@ -106,13 +106,23 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
 // üretmeli — metin tek yerde dursun diye küçük bir yardımcı.
 async function notifyQuestionAnswered(institutionId: string, studentId: string, teacherId: string, subject: string) {
   const answerer = await teacherName(teacherId);
+  // Öğrenci ve veli ayrı adres alır (veli /student'i açamaz).
   await notify({
     institutionId,
-    recipients: await studentAndParents(studentId),
+    recipients: [{ role: "STUDENT", id: studentId }],
     eventType: "question.answered",
     title: `${answerer} sorunu yanıtladı`,
     body: subject,
-    href: "/student",
+    href: "/student?tab=ask-question",
+    actorName: answerer,
+  });
+  await notify({
+    institutionId,
+    recipients: await parentsOf(studentId),
+    eventType: "question.answered",
+    title: `${answerer}, öğrencinizin sorusunu yanıtladı`,
+    body: subject,
+    href: "/parent",
     actorName: answerer,
   });
 }

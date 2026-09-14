@@ -38,6 +38,7 @@ import { RiskReferralTab } from "@/components/teacher/tabs/risk-referral";
 import { WeeklyScheduleTab } from "@/components/teacher/tabs/weekly-schedule";
 import { TeacherAnnouncementsTab } from "@/components/teacher/tabs/announcements";
 import { useSessionName } from "@/lib/institution-scope";
+import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
 
 // Sol Ada: Ders & Sınıf Operasyonu — Sağ Ada: Analiz & Etüt/İletişim
 //
@@ -85,7 +86,7 @@ const sectionVariants = {
 
 export default function TeacherPage() {
   const teacherName = useSessionName("İrfan Hoca");
-  const [activeTab, setActiveTab] = useState<TabId>("attendance");
+  const [activeTab, setActiveTab] = useDeepLinkTab<TabId>("attendance", (v) => TABS.some((t) => t.id === v));
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? LiveAttendanceTab;
 
   return (

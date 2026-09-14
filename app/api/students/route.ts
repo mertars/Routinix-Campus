@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, assertTeacherTeachesBranches } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
@@ -24,6 +24,18 @@ async function handleGet(request: NextRequest) {
     if (branchIds.length === 0) {
       return NextResponse.json({ error: "branchId veya branchIds parametresi zorunludur." }, { status: 400 });
     }
+
+    // ⚠️ GÜVENLİK (2026-09-15 denetiminde bulundu): burada SADECE kurum
+    // filtresi vardı. Kurumlar arası sızıntı yoktu ama bir öğretmen, HİÇ
+    // DERSİNİN OLMADIĞI şubelerin tam öğrenci listesini (ad-soyad-sınıf)
+    // çekebiliyordu — şube id'sini tahmin etmesi bile gerekmiyordu, kendi
+    // ekranındaki başka bir isteğin döndürdüğü id yeterliydi. Okulun tüm
+    // öğrenci mevcudunun herhangi bir öğretmene açılması hem yetki hem
+    // KVKK sorunudur. Yönetici için kısıt YOK (zaten tüm kurumu yönetir).
+    if (session.role === "TEACHER") {
+      await assertTeacherTeachesBranches(session.sub, branchIds);
+    }
+
     const students = await prisma.student.findMany({
       where: { branchId: { in: branchIds }, institutionId: session.institutionId },
       select: { id: true, firstName: true, lastName: true, branchId: true, branch: { select: { name: true, grade: true } } },

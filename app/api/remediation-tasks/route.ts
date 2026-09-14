@@ -48,7 +48,7 @@ async function handlePost(request: NextRequest) {
       eventType: "remediation.assigned",
       title: `Yeni kazanım görevi: ${task.topic}`,
       body: `${assigner ?? "Öğretmenin"} · ${task.taskDescription}`,
-      href: "/student",
+      href: "/student?tab=gap-closing",
       actorName: assigner,
     });
 

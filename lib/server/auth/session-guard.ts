@@ -151,6 +151,53 @@ export async function assertTeacherTeachesBranches(teacherId: string, branchIds:
   }
 }
 
+// Bir ŞUBE verisini (yoklama listesi, materyal, sınıf defteri, müfredat
+// ilerlemesi, oturma planı) OKUMA yetkisi — rol başına merdiven.
+//
+// ⚠️ 2026-09-15 denetiminde bulundu: bu ekranların OKUMA uçlarında şube
+// kontrolü YOKTU, sadece "şube bu kurumda mı" bakılıyordu. Yazma yolları
+// (POST/PUT) doğru şekilde assertTeacherTeachesBranch çağırıyordu ama AYNI
+// dosyadaki GET çağırmıyordu. Sonuç: herhangi bir öğretmen başka bir sınıfın
+// yoklamasını/sınıf defteri notlarını okuyabiliyor, bazı uçlarda (materyal,
+// müfredat) rol kontrolü de olmadığı için öğrenci/veli bile okuyabiliyordu.
+//
+// Merdiven:
+//   ADMIN     → kurumundaki her şube (zaten kurumu yönetiyor)
+//   TEACHER   → yalnızca ders verdiği şubeler
+//   GUIDANCE  → kurum geneli çalışır (sevk/görüşme şubeye bağlı değil)
+//   STUDENT   → yalnızca kendi şubesi
+//   PARENT    → yalnızca çocuklarının şubeleri
+export async function assertCanReadBranch(session: Session, branchId: string): Promise<void> {
+  const role = ROLE_ID_BY_AUTH_ROLE[session.role];
+
+  if (role === "principal" || role === "guidance") return;
+
+  if (role === "teacher") {
+    await assertTeacherTeachesBranch(session.sub, branchId);
+    return;
+  }
+
+  if (role === "student") {
+    const student = await prisma.student.findFirst({
+      where: { id: session.sub, branchId },
+      select: { id: true },
+    });
+    if (!student) throw new AuthError("Kayıt bulunamadı.", "NOT_FOUND", 404);
+    return;
+  }
+
+  if (role === "parent") {
+    const link = await prisma.parentStudent.findFirst({
+      where: { parentId: session.sub, student: { branchId } },
+      select: { id: true },
+    });
+    if (!link) throw new AuthError("Kayıt bulunamadı.", "NOT_FOUND", 404);
+    return;
+  }
+
+  throw new AuthError("Kayıt bulunamadı.", "NOT_FOUND", 404);
+}
+
 export async function assertParentOwnsStudent(parentId: string, studentId: string): Promise<void> {
   const link = await prisma.parentStudent.findFirst({
     where: { parentId, studentId },

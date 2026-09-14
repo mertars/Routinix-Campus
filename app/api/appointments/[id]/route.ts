@@ -6,7 +6,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { getTeacherDaySlots } from "@/lib/server/etut/get-teacher-day-slots";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { withApiLogging, logger } from "@/lib/logger";
-import { notify, studentAndParents, teacherName } from "@/lib/server/notifications/activity";
+import { notify, parentsOf, teacherName } from "@/lib/server/notifications/activity";
 
 const DECISION_STATUSES = new Set<AppointmentStatus>(["APPROVED", "REJECTED"]);
 // Onaylanmış bir etüt GERÇEKLEŞTİKTEN SONRA geriye dönük işaretlenir —
@@ -98,13 +98,26 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
     // yapıyorlar, "onaylandı mı" diye ekranı yenilemeleri gerekmesin.
     if (status === "APPROVED" || status === "REJECTED") {
       const decider = await teacherName(existing.teacherId);
+      const eventType = status === "APPROVED" ? "appointment.approved" : "appointment.rejected";
+      const detail = `${decider} · ${existing.day} · ${existing.slot}`;
+      // ⚠️ Öğrenci ve veli AYRI adres alır: veli /student'i açamaz, öğrenci
+      // de /parent'ı. Tek notify iki kitleye tek href verdiği için bölündü.
       await notify({
         institutionId: session.institutionId,
-        recipients: await studentAndParents(existing.studentId),
-        eventType: status === "APPROVED" ? "appointment.approved" : "appointment.rejected",
+        recipients: [{ role: "STUDENT", id: existing.studentId }],
+        eventType,
         title: status === "APPROVED" ? "Etüt talebin onaylandı" : "Etüt talebin reddedildi",
-        body: `${decider} · ${existing.day} · ${existing.slot}`,
-        href: "/student",
+        body: detail,
+        href: "/student?tab=etut",
+        actorName: decider,
+      });
+      await notify({
+        institutionId: session.institutionId,
+        recipients: await parentsOf(existing.studentId),
+        eventType,
+        title: status === "APPROVED" ? "Öğrencinizin etüt talebi onaylandı" : "Öğrencinizin etüt talebi reddedildi",
+        body: detail,
+        href: "/parent",
         actorName: decider,
       });
     }

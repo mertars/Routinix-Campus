@@ -48,6 +48,7 @@ import { MentorshipTab } from "@/components/student/tabs/mentorship";
 import { ProfileTab } from "@/components/student/tabs/profile";
 import { VideoLibraryTab } from "@/components/student/tabs/videos";
 import { useSessionName } from "@/lib/institution-scope";
+import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
 
 const TABS = [
   { id: "overview", label: "Ana Sayfa", icon: Home, Component: OverviewTab, side: "left" },
@@ -87,7 +88,7 @@ const sectionVariants = {
 
 export default function StudentPage() {
   const studentName = useSessionName("Arslan");
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useDeepLinkTab<TabId>("overview", (v) => TABS.some((t) => t.id === v));
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? OverviewTab;
 
   return (

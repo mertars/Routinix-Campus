@@ -65,7 +65,7 @@ async function handlePost(request: NextRequest) {
       eventType: "quiz.started",
       title: `Pop-Quiz başladı: ${quiz.name}`,
       body: `${starter} · ${quiz.questions.length} soru`,
-      href: "/student",
+      href: "/student?tab=pop-quiz",
       actorName: starter,
       urgent: true,
     });

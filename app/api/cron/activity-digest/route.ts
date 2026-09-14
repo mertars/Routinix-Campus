@@ -111,7 +111,7 @@ async function handleGet(request: NextRequest) {
             eventType: "student.enrollment_expiring",
             title: `${enrollment.student.firstName} ${enrollment.student.lastName} kaydının süresi bitmek üzere`,
             body: `${daysLeft} gün kaldı · ${enrollment.academicYear} · Bitiş ${enrollment.endDate.toLocaleDateString("tr-TR")}`,
-            href: "/principal",
+            href: "/principal?tab=students",
             urgent: daysLeft <= 7,
           });
         }

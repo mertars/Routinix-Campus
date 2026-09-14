@@ -62,7 +62,7 @@ export async function emitAttendanceNotifications(input: {
         eventType: "attendance.absent",
         title: record.status === "ABSENT" ? `${name} derse gelmedi` : `${name} derse geç kaldı`,
         body: `${branch} · ${subject} · ${slot}`,
-        href: "/parent",
+        href: "/parent?tab=attendance",
         actorName: actor,
         urgent: record.status === "ABSENT",
       });

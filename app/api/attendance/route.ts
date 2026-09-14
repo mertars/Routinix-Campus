@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { getTrDayNameForDate } from "@/lib/schedule-time";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole , assertCanReadBranch } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 
@@ -161,6 +161,8 @@ async function handleGet(request: NextRequest) {
     if (!branchId || !date || !slot) {
       return NextResponse.json({ error: "branchId, date ve slot parametreleri zorunludur." }, { status: 400 });
     }
+    // ⚠️ Şube okuma yetkisi (bkz. session-guard > assertCanReadBranch).
+    await assertCanReadBranch(session, branchId);
     const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { institutionId: true } });
     if (!branch || branch.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });

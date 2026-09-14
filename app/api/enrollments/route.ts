@@ -132,7 +132,7 @@ async function handlePost(request: NextRequest) {
       eventType: "student.enrolled",
       title: `${enrolled} kaydı oluşturuldu`,
       body: `${enrollment.academicYear} dönemi · ${registrar ?? "Yönetici"}`,
-      href: "/principal",
+      href: "/principal?tab=students",
       actorName: registrar,
     });
     await notify({

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole , assertCanReadBranch, assertTeacherTeachesBranch } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
@@ -16,6 +16,7 @@ async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
     const branchId = request.nextUrl.searchParams.get("branchId");
+    if (branchId) await assertCanReadBranch(session, branchId);
     if (!branchId) return NextResponse.json({ error: "branchId parametresi zorunludur." }, { status: 400 });
     const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { institutionId: true } });
     if (!branch || branch.institutionId !== session.institutionId) {
@@ -48,6 +49,9 @@ async function handlePost(request: NextRequest) {
     if (!branch || branch.institutionId !== session.institutionId) {
       return NextResponse.json({ error: "Şube bulunamadı." }, { status: 404 });
     }
+    // ⚠️ Yazma yetkisi: öğretmen SADECE ders verdiği şubeyi değiştirebilir.
+    // (Yönetici kurumundaki her şubeyi düzenleyebilir.)
+    if (session.role === "TEACHER") await assertTeacherTeachesBranch(session.sub, branchId);
     await prisma.curriculumProgress.upsert({
       where: { branchId_subtopicId: { branchId, subtopicId } },
       update: { covered, coveredAt: covered ? new Date() : null },

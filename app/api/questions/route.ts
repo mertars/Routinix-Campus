@@ -88,7 +88,7 @@ async function handlePost(request: NextRequest) {
       eventType: "question.asked",
       title: `${question.student.firstName} ${question.student.lastName} soru gönderdi`,
       body: `${question.subject}${question.studentNote ? ` · ${question.studentNote}` : ""}`,
-      href: "/teacher",
+      href: "/teacher?tab=question-pool",
       actorName: `${question.student.firstName} ${question.student.lastName}`,
     });
 

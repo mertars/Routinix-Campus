@@ -118,7 +118,7 @@ async function handlePost(request: NextRequest) {
       eventType: "schedule.changed",
       title: "Ders programın güncellendi",
       body: `${await branchName(branchId)} · ${day} ${slot} · ${subject.trim()}`,
-      href: "/teacher",
+      href: "/teacher?tab=weekly-schedule",
       urgent: true,
     });
 

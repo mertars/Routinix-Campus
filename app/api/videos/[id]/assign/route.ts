@@ -44,7 +44,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       eventType: "video.assigned",
       title: `Yeni video atandı: ${video.title}`,
       body: "Video Ders Merkezi'nden izleyebilirsin.",
-      href: "/student",
+      href: "/student?tab=videos",
     });
     for (const target of validStudents) {
       await notify({

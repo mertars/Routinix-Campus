@@ -55,7 +55,7 @@ async function handlePost(request: NextRequest) {
       eventType: "appointment.requested",
       title: `${requester} etüt talebi gönderdi`,
       body: `${day} · ${slot} · ${topic.trim()}`,
-      href: "/teacher",
+      href: "/teacher?tab=appointments",
       actorName: requester,
     });
 

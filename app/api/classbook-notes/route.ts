@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { requireSession, requireRole, assertTeacherTeachesBranch } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, assertTeacherTeachesBranch , assertCanReadBranch } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
@@ -13,6 +13,7 @@ async function handleGet(request: NextRequest) {
     requireRole(session, "teacher", "principal");
 
     const branchId = request.nextUrl.searchParams.get("branchId");
+    if (branchId) await assertCanReadBranch(session, branchId);
     if (!branchId) return NextResponse.json({ error: "branchId parametresi zorunludur." }, { status: 400 });
     const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { institutionId: true } });
     if (!branch || branch.institutionId !== session.institutionId) {

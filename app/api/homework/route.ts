@@ -65,7 +65,7 @@ async function handlePost(request: NextRequest) {
         eventType: "homework.assigned",
         title: `Yeni ödev: ${homework.title}`,
         body: `${actor}${due}`,
-        href: "/student",
+        href: "/student?tab=homework",
         actorName: actor,
       });
       await notify({
@@ -74,7 +74,7 @@ async function handlePost(request: NextRequest) {
         eventType: "homework.assigned",
         title: `${bName} sınıfına yeni ödev verildi`,
         body: `${homework.title} · ${actor}${due}`,
-        href: "/parent",
+        href: "/parent?tab=homework",
         actorName: actor,
       });
     }

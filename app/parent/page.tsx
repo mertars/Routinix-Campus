@@ -15,6 +15,7 @@ import { ParentAnnouncementsTab } from "@/components/parent/announcements-tab";
 import { ParentExamsTab } from "@/components/parent/exams-tab";
 import { ParentGuidanceTab } from "@/components/parent/guidance-tab";
 import { cn } from "@/lib/utils";
+import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
 
 // Veli panelinin sekmeleri.
 //
@@ -57,7 +58,7 @@ export default function ParentPage() {
   const [totals, setTotals] = useState<{ open: number; overdue: number }>({ open: 0, overdue: 0 });
   const [students, setStudents] = useState<StudentDetail[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabId>("overview");
+  const [tab, setTab] = useDeepLinkTab<TabId>("overview", (v) => TABS.some((t) => t.id === v));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
