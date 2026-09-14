@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight, Megaphone, BookOpen, TrendingUp, LayoutDashboard, MessageSquareText } from "lucide-react";
+import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight, Megaphone, BookOpen, TrendingUp, LayoutDashboard, MessageSquareText,
+  CalendarClock,
+} from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { NotificationBell } from "@/components/ui/notification-bell";
@@ -13,6 +15,7 @@ import { ParentAttendanceTab } from "@/components/parent/attendance-tab";
 import { ParentHomeworkTab } from "@/components/parent/homework-tab";
 import { ParentAnnouncementsTab } from "@/components/parent/announcements-tab";
 import { ParentExamsTab } from "@/components/parent/exams-tab";
+import { ParentActivityTab } from "@/components/parent/activity-tab";
 import { ParentGuidanceTab } from "@/components/parent/guidance-tab";
 import { cn } from "@/lib/utils";
 import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
@@ -27,6 +30,7 @@ const TABS = [
   { id: "attendance", label: "Devam", icon: CalendarCheck2 },
   { id: "exams", label: "Denemeler", icon: TrendingUp },
   { id: "homework", label: "Ödevler", icon: BookOpen },
+  { id: "activity", label: "Etüt & Görevler", icon: CalendarClock },
   { id: "guidance", label: "Rehberlik", icon: MessageSquareText },
   { id: "announcements", label: "Duyurular", icon: Megaphone },
 ] as const;
@@ -260,6 +264,7 @@ export default function ParentPage() {
                 {tab === "attendance" && <ParentAttendanceTab studentId={detail.id} />}
                 {tab === "exams" && <ParentExamsTab studentId={detail.id} />}
                 {tab === "homework" && <ParentHomeworkTab studentId={detail.id} />}
+                {tab === "activity" && <ParentActivityTab studentId={detail.id} />}
                 {tab === "guidance" && <ParentGuidanceTab studentId={detail.id} />}
                 {tab === "announcements" && <ParentAnnouncementsTab studentId={detail.id} />}
 
