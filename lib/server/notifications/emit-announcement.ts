@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/server/prisma";
-import { notify, type NotifyRecipient } from "@/lib/server/notifications/activity";
+import { notify, guidanceStaff, type NotifyRecipient } from "@/lib/server/notifications/activity";
 
 // Duyuru bildirimlerinin TEK yeri.
 //
@@ -32,6 +32,9 @@ export async function emitAnnouncementNotifications(announcement: {
     const students = await prisma.student.findMany({ where: studentWhere, select: { id: true } });
     const studentIds = students.map((s) => s.id);
 
+    // ⚠️ Rehberlik personeli de kurum çalışanıdır — okul geneli duyuru
+    // ona da ulaşmalı. Denetimde bulundu: alıcı listesi öğrenci+veli+
+    // öğretmenden kuruluyordu, rehberliğin kutusuna HİÇBİR duyuru düşmüyordu.
     const [parentLinks, teachers] = await Promise.all([
       prisma.parentStudent.findMany({ where: { studentId: { in: studentIds } }, select: { parentId: true } }),
       // Öğretmenler yalnızca okul geneli duyurularda — şube/kademe
@@ -41,10 +44,17 @@ export async function emitAnnouncementNotifications(announcement: {
         : Promise.resolve([] as { id: string }[]),
     ]);
 
+    // Rehberlik kimliği de bir Teacher kaydıdır (subject="Rehberlik");
+    // onlara TEACHER değil GUIDANCE rolüyle yazılır, yoksa kendi
+    // panelindeki kutuda görünmez.
+    const guidance = scopeType === "ALL_SCHOOL" ? await guidanceStaff(institutionId) : [];
+    const guidanceIds = new Set(guidance.map((g) => g.id));
+
     const recipients: NotifyRecipient[] = [
       ...studentIds.map((id) => ({ role: "STUDENT" as const, id })),
       ...parentLinks.map((l) => ({ role: "PARENT" as const, id: l.parentId })),
-      ...teachers.map((t) => ({ role: "TEACHER" as const, id: t.id })),
+      ...teachers.filter((t) => !guidanceIds.has(t.id)).map((t) => ({ role: "TEACHER" as const, id: t.id })),
+      ...guidance,
     ];
 
     await notify({

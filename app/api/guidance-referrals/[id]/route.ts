@@ -5,6 +5,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { notify, actorNameOf } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,11 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
 
     const referral = await prisma.guidanceReferral.findUnique({
       where: { id: params.id },
-      select: { id: true, student: { select: { institutionId: true } } },
+      select: {
+        id: true,
+        teacherId: true,
+        student: { select: { institutionId: true, firstName: true, lastName: true } },
+      },
     });
     if (!referral) return NextResponse.json({ error: "Sevk kaydı bulunamadı." }, { status: 404 });
     requireInstitution(session, referral.student.institutionId);
@@ -41,6 +46,25 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
       targetId: params.id,
       metadata: { status },
     });
+
+    // ⚠️ 2026-09-15 denetiminin bulgusu: sevkin SONUCU sevk eden
+    // öğretmene HİÇ dönmüyordu. Öğretmen bir öğrenciyi rehberliğe
+    // yolluyor, rehberlik işlemi yapıyor, öğretmen sonucu asla
+    // öğrenemiyordu (liste ucu da öğretmene kapalı). Katalogdaki
+    // `guidance.referral_resolved` olayı tanımlıydı ama hiç üretilmiyordu.
+    if (status === "REVIEWED") {
+      const who = `${referral.student.firstName} ${referral.student.lastName}`;
+      const handler = await actorNameOf(session.role, session.sub);
+      await notify({
+        institutionId: referral.student.institutionId,
+        recipients: [{ role: "TEACHER", id: referral.teacherId }],
+        eventType: "guidance.referral_resolved",
+        title: `${who} için sevkin değerlendirildi`,
+        body: `${handler ?? "Rehberlik"} görüşmeyi tamamladı.`,
+        href: "/teacher?tab=risk-referral",
+        actorName: handler,
+      });
+    }
 
     return NextResponse.json({ guidanceReferral: updated });
   } catch (error) {

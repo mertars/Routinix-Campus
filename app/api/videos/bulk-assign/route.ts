@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { notify } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,25 @@ async function handlePost(request: NextRequest) {
 
     const data = validVideos.flatMap((v) => validStudents.map((s) => ({ videoId: v.id, studentId: s.id })));
     const result = await prisma.videoAssignment.createMany({ data, skipDuplicates: true });
+
+    // ⚠️ 2026-09-15 denetiminin bulgusu: TEKİL atama (videos/[id]/assign)
+    // bildirim gönderiyordu ama TOPLU atama SESSİZDİ — öğrenci videoları
+    // ancak o sekmeyi açarsa fark ediyordu. Aynı işin iki yolundan birinin
+    // haber vermemesi, kullanıcıya "bazen bildirim geliyor bazen gelmiyor"
+    // gibi görünür; bu da bildirim sistemine güveni bitirir.
+    //
+    // Tek bildirim: 12 video atandıysa 12 satır değil, "12 yeni video".
+    await notify({
+      institutionId: session.institutionId,
+      recipients: validStudents.map((s) => ({ role: "STUDENT" as const, id: s.id })),
+      eventType: "video.assigned",
+      title:
+        validVideos.length === 1
+          ? "Sana yeni bir video atandı"
+          : `Sana ${validVideos.length} yeni video atandı`,
+      body: "Video Ders Merkezi'nden izleyebilirsin.",
+      href: "/student?tab=videos",
+    });
 
     return NextResponse.json({ assignedCount: result.count, videoCount: validVideos.length, studentCount: validStudents.length });
   } catch (error) {

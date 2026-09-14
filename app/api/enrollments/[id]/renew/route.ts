@@ -11,6 +11,7 @@ import {
   defaultEndDate,
 } from "@/lib/server/enrollment/enrollment-service";
 import { academicYearOf } from "@/lib/payments/academic-year";
+import { notify, admins, parentsOf, studentName } from "@/lib/server/notifications/activity";
 import { apiFailure } from "@/lib/server/api-failure";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +78,31 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
         },
       });
     }
+
+    // ⚠️ Denetim bulgusu: kayıt OLUŞTURMA bildiriyordu ama YENİLEME
+    // sessizdi — veli, çocuğunun yeni dönem kaydının açıldığını (ve yeni
+    // taksit planını) hiçbir yerden öğrenmiyordu.
+    const [who, parents] = await Promise.all([
+      studentName(result.enrollment.studentId),
+      parentsOf(result.enrollment.studentId),
+    ]);
+    const planNote = result.plan ? ` · ${result.plan.createdCount} taksit oluşturuldu` : "";
+    await notify({
+      institutionId: session.institutionId,
+      recipients: parents,
+      eventType: "student.enrolled",
+      title: `${who} için kayıt yenilendi`,
+      body: `${result.previousYear} → ${result.enrollment.academicYear}${planNote}`,
+      href: "/payments/parent",
+    });
+    await notify({
+      institutionId: session.institutionId,
+      recipients: await admins(session.institutionId),
+      eventType: "student.enrolled",
+      title: `${who} kaydı yenilendi`,
+      body: `${result.previousYear} → ${result.enrollment.academicYear}${planNote}`,
+      href: "/payments/principal",
+    });
 
     return NextResponse.json(
       {
