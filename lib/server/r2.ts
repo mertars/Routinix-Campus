@@ -77,19 +77,29 @@ export async function putObject(key: string, body: Buffer, contentType: string):
   await client.send(new PutObjectCommand({ Bucket: getBucketName(), Key: key, Body: body, ContentType: contentType }));
 }
 
-// R2_PUBLIC_URL kovanın herkese açık r2.dev (veya bağlı özel alan adı)
-// tabanıdır — çağıran kod bunu DB'ye tam URL olarak yazar, sonradan silmek
-// için publicUrlToKey ile geri çevrilir.
+// Dosyanın uygulama içi adresi. ⚠️ ARTIK R2'nin herkese açık adresi
+// (pub-xxx.r2.dev) DEĞİL — kendi alan adımızdan sunuluyor (bkz.
+// app/api/files/[...key]/route.ts). Sebep: r2.dev adresi hem tarayıcı
+// CSP'sine takılıyordu hem de kovanın herkese açık erişiminin açık olduğunu
+// doğrulayamıyoruz; proxy her iki sorunu da ortadan kaldırıyor ve dosyaları
+// oturum arkasına alıyor.
 export function getPublicUrl(key: string): string {
-  const base = requireEnv("R2_PUBLIC_URL").replace(/\/+$/, "");
-  return `${base}/${key}`;
+  return `/api/files/${key}`;
 }
 
-// Bir R2 public URL'sinden anahtarı geri çıkarır — DELETE uçlarının
-// DB'de sakladığı tam URL'den hangi nesneyi sileceğini bulması için.
-// Taban eşleşmezse null döner (ör. eski/yerel bir yol, ya da başka kaynak).
+// Saklanan URL'den R2 anahtarını geri çıkarır — DELETE uçları hangi nesneyi
+// sileceğini bundan bulur.
+//
+// ⚠️ ÜÇ biçimi de tanır, çünkü veritabanında üçü de bulunabiliyor:
+//   1. /api/files/questions/x.png        → yeni (proxy)
+//   2. https://pub-xxx.r2.dev/questions/x.png → 2026-09-13'teki ilk R2 sürümü
+//   3. /uploads/questions/x.png          → R2 öncesi yerel disk (dosya artık YOK,
+//                                          null döner; silinecek bir nesne de yok)
 export function publicUrlToKey(url: string): string | null {
+  if (url.startsWith("/api/files/")) return url.slice("/api/files/".length);
+
   const base = process.env.R2_PUBLIC_URL?.replace(/\/+$/, "");
-  if (!base || !url.startsWith(`${base}/`)) return null;
-  return url.slice(base.length + 1);
+  if (base && url.startsWith(`${base}/`)) return url.slice(base.length + 1);
+
+  return null;
 }

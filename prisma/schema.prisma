@@ -3276,3 +3276,36 @@ model ActivityNotification {
   @@index([recipientRole, recipientId, category])
   @@index([institutionId, createdAt])
 }
+
+// ----------------------------------------------------------------------------
+// Silinen Satır Arşivi (Çöp Kutusu)
+// ----------------------------------------------------------------------------
+//
+// ⚠️ NEDEN VAR: 2026-09-12 ve 09-14'te yanlışlıkla silinen gerçek veriler
+// GERİ GETİRİLEMEDİ. db-guard.ts artık "daraltılmamış" silmeyi engelliyor ama
+// doğru biçimde yazılıp YANLIŞ id'lere denk gelen bir silme hâlâ mümkün.
+// Bu tablo o boşluğu kapatır: korunan modellerde bir satır silinmeden ÖNCE
+// tam kopyası buraya JSON olarak yazılır, yani hiçbir silme kalıcı değildir.
+//
+// ⚠️ SINIR: veritabanı seviyesindeki CASCADE silmeler buraya DÜŞMEZ (Prisma
+// onları görmez). Örn. bir Institution silinince altındaki her şey cascade ile
+// gider ve arşivlenmez — kurum silme gibi işler için yedek (scripts/backup-db.sh)
+// tek güvencedir.
+model DeletedRowArchive {
+  id        String   @id @default(cuid())
+  // Hangi Prisma modeli (örn. "AttendanceRecord")
+  model     String
+  // Silinen satırın kendi id'si — geri yüklerken aranacak anahtar
+  rowId     String
+  // Biliniyorsa kurum — "şu kurumun silinenlerini göster" sorgusu için
+  institutionId String?
+  // Satırın silinmeden önceki TAM hâli
+  data      Json
+  // Silmeyi yapan (oturum varsa "ROLE:id", yoksa script/sistem)
+  deletedBy String?
+  deletedAt DateTime @default(now())
+
+  @@index([model, rowId])
+  @@index([institutionId, deletedAt])
+  @@index([deletedAt])
+}

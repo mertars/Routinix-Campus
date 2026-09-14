@@ -113,3 +113,49 @@ describe("db-guard (gerçek veritabanı)", () => {
     expect(result.count).toBe(1);
   });
 });
+
+describe("silinen satır arşivi (çöp kutusu)", () => {
+  it("silinen satırın tam kopyasını saklar — hiçbir silme kalıcı değil", async () => {
+    // 2026-09-14'te hasar verdiğim modelin ta kendisi.
+    const created = await db.attendanceRecord.create({
+      data: { studentId, date: new Date("2026-09-14"), slot: "16:00-17:00", subject: "Matematik", status: "ABSENT" },
+    });
+
+    await db.attendanceRecord.deleteMany({ where: { id: created.id } });
+
+    // Satır gerçekten gitti mi?
+    const gone = await db.attendanceRecord.findUnique({ where: { id: created.id } });
+    expect(gone).toBeNull();
+
+    // ...ama kopyası arşivde duruyor mu?
+    const archived = await db.deletedRowArchive.findFirst({
+      where: { model: "AttendanceRecord", rowId: created.id },
+    });
+    expect(archived).not.toBeNull();
+    const snapshot = archived!.data as Record<string, unknown>;
+    expect(snapshot.slot).toBe("16:00-17:00");
+    expect(snapshot.status).toBe("ABSENT");
+  });
+
+  it("arşivdeki kopyadan satır geri yüklenebilir", async () => {
+    const archived = await db.deletedRowArchive.findFirst({
+      where: { model: "AttendanceRecord" },
+      orderBy: { deletedAt: "desc" },
+    });
+    expect(archived).not.toBeNull();
+
+    const snap = archived!.data as Record<string, unknown>;
+    const restored = await db.attendanceRecord.create({
+      data: {
+        id: snap.id as string,
+        studentId: snap.studentId as string,
+        date: new Date(snap.date as string),
+        slot: snap.slot as string,
+        subject: snap.subject as string,
+        status: snap.status as string,
+      },
+    });
+    expect(restored.slot).toBe("16:00-17:00");
+    expect(restored.status).toBe("ABSENT");
+  });
+});

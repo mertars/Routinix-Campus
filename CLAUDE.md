@@ -18,6 +18,10 @@ npm run test:db:down    # kapat
 - Her test kendi izole kurumunda çalışır (`testInstitutionId()`); temizlik = kurumu silmek (cascade).
 - **Canlı veritabanına karşı geçici temizlik script'i YAZMA.** Gerekiyorsa önce testi test veritabanına taşı.
 
+🚨 **Hiçbir silme kalıcı değil — çöp kutusu var** (`lib/server/db-archive.ts`). Korunan modellerde bir satır silinmeden ÖNCE tam kopyası `DeletedRowArchive`'a JSON olarak yazılır; yanlış silinen kayıt oradan geri yüklenebilir. ⚠️ SINIR: veritabanı seviyesindeki CASCADE silmeler (ör. kurum silince altındaki her şey) Prisma'dan geçmez, arşive DÜŞMEZ — orada tek güvence yedektir.
+
+🚨 **Yedekleme kendi kontrolümüzde** (`npm run db:backup`). Sağlayıcıdan bağımsız; `npm run db:backup:verify` yedeği TEST veritabanına geri yükleyerek gerçekten çalıştığını kanıtlar (yedek almak yetmez, geri yüklenebildiği test edilmiş olmalı). Yedekler `backups/` altına düşer, git'e girmez.
+
 🚨 **Toplu silme/güncelleme koruması devrede** (`lib/server/db-guard.ts`). Korunan modellerde `deleteMany`/`updateMany`, sorgu bir sahiplik/kimlik anahtarıyla (`id`, `institutionId`, `studentId`, `branchId`, ...) daraltılmadıysa `UnscopedBulkWriteError` fırlatır. `{ date, slot }` veya `{ weekLabel }` gibi İÇERİK alanlarıyla silme artık teknik olarak imkânsız. Bu koruma üretimde de açıktır; yeni bir model eklerken kuruma ait işletme verisi tutuyorsa `PROTECTED_MODELS`'e ekle.
 
 🚨 **Test verisi temizliği SADECE ID'ye göre yapılır, İÇERİK/ETİKETE göre ASLA.** `deleteMany`/`updateMany` çağrısında `title`/`weekLabel`/`name` gibi bir alana göre filtre kurmak YASAK — kısa/genel bir etiket (ör. "1. Hafta") gerçek bir kayıtla çakışabilir ve fark edilmeden gerçek veri silinir (2026-09-12'de tam olarak bu oldu, Arslan Dershaneleri'nde 12 gerçek satır böyle silindi, geri alınamadı). Kural:
@@ -41,6 +45,8 @@ npm run test:db:down    # kapat
 - Migration'lar `prisma migrate dev` ile gerçek Neon veritabanına uygulanır; şema değişikliği sonrası **`npx prisma generate` + ÇALIŞAN `next dev` sürecini yeniden başlat** (Node, `@prisma/client`'ı process başına önbelleğe alır, dev sunucu yeniden başlamadan yeni alanlar görünmez).
 - Her değişiklikten sonra `npx tsc --noEmit` ve `npx eslint <değişen dosyalar>` temiz olmalı.
 - **Gerçekçi HACİMLE ölç.** 5 kayıtla "çalışıyor" demek yanıltır: bildirim cron'u 75 gerçek taksitle 59 sn sürüyordu (Vercel'de zaman aşımı), 5 kayıtla fark edilmezdi. Döngü İÇİNDE veritabanı sorgusu yazma; toplu sorguya çevir.
+- **Postgres sürümü**: üretim (Neon) **18.6** çalışıyor — test veritabanı (`docker-compose.test.yml`) ve CI da 18 olmalı. ⚠️ PG18 imajı veri dizinini değiştirdi: mount `/var/lib/postgresql` (17'deki `/var/lib/postgresql/data` DEĞİL), yoksa konteyner açılmaz.
+- **CI** (`.github/workflows/ci.yml`) lint + tsc + birim + **entegrasyon** testlerini ve build'i koşar. Entegrasyon için ayrı bir `routinix_test` veritabanı oluşturur.
 - **Tarayıcı hataları artık sunucu loguna düşüyor** (`components/client-error-reporter.tsx` → `POST /api/client-errors`): CSP ihlali, yakalanmamış hata, başarısız Promise. "Sessizce çalışmıyor" durumlarını önce log söyler.
 - Commit sonrası `origin/main`'e doğrudan push edilir, sormadan (özel bir istek olmadıkça feature branch/preview YOK).
 - Git commit'leri `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` ile biter.

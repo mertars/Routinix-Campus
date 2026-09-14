@@ -9,10 +9,11 @@
 #   npm run test:int        → entegrasyon testlerini çalıştır
 #   npm run test:db:down    → kapat (veri silinir, zaten tek kullanımlık)
 #
-# Üretimdeki Neon ile aynı ana sürüm (17) kullanılır ki davranış farkı olmasın.
+# ⚠️ Üretimdeki Neon Postgres 18.6 çalışıyor (2026-09-14'te ölçüldü) — test
+# veritabanı da 18 olmalı, yoksa davranış farkı ve pg_dump sürüm uyuşmazlığı olur.
 services:
   routinix-test-db:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: routinix-test-db
     environment:
       POSTGRES_USER: routinix
@@ -23,8 +24,11 @@ services:
       - "5433:5432"
     # Veri KALICI DEĞİL (volume yok): kapanınca her şey gider. Test
     # veritabanının kalıcı olması istenmez, aksine her koşuda temiz olmalı.
+    # ⚠️ Postgres 18 imajı veri dizinini DEĞİŞTİRDİ: mount /var/lib/postgresql
+    # olmalı (17'de /var/lib/postgresql/data idi) — eski yolla konteyner
+    # "incompatible data directory" diyip açılmıyor.
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U routinix -d routinix_test"]
       interval: 2s

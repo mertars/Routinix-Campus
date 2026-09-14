@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getEnv } from "@/lib/server/env";
 import { bulkWriteGuard } from "@/lib/server/db-guard";
+import { deleteArchive } from "@/lib/server/db-archive";
 
 // Prisma 7: bağlantı artık şemadaki 'url' yerine bir driver adapter üzerinden
 // veriliyor. DATABASE_URL eksikse getEnv() boot anında zaten fail-fast
@@ -39,7 +40,9 @@ function createPrismaClient() {
   // REDDEDER (bkz. lib/server/db-guard.ts). Üretimde de açık: mevcut
   // çağrıların tamamı kurala zaten uyuyor, maliyeti yok, ama bir daha
   // "yanlışlıkla geniş sorgu" yazılmasını imkânsız kılıyor.
-  return new PrismaClient({ adapter }).$extends(bulkWriteGuard);
+  // Sıra ÖNEMLİ: önce guard (geniş sorguyu hiç çalıştırmadan reddeder),
+  // sonra arşiv (geçerli bir silmede satırların kopyasını saklar).
+  return new PrismaClient({ adapter }).$extends(bulkWriteGuard).$extends(deleteArchive);
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

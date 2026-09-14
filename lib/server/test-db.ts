@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { bulkWriteGuard } from "@/lib/server/db-guard";
+import { deleteArchive } from "@/lib/server/db-archive";
 
 // TEST VERİTABANI İSTEMCİSİ — veri yazan/silen her test ve script BUNU
 // kullanır, `lib/server/prisma.ts`i DEĞİL.
@@ -55,9 +56,9 @@ let cached: ReturnType<typeof create> | null = null;
 function create() {
   const url = assertSafeTestUrl(process.env.TEST_DATABASE_URL);
   const adapter = new PrismaPg({ connectionString: url, max: 5 });
-  // Koruma katmanı testlerde de açık — test kodu da yanlış sorgu yazabilir
-  // ve bunu ÜRETİME çıkmadan burada görmek istiyoruz.
-  return new PrismaClient({ adapter }).$extends(bulkWriteGuard);
+  // ⚠️ Üretimle AYNI eklenti zinciri (guard + arşiv) — aksi hâlde testler
+  // gerçek davranışı sınamaz, "testte geçti üretimde patladı" kapısı açılır.
+  return new PrismaClient({ adapter }).$extends(bulkWriteGuard).$extends(deleteArchive);
 }
 
 /** Test veritabanı istemcisi. İlk çağrıda güvenlik kontrollerini çalıştırır. */

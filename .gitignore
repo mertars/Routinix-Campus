@@ -16,3 +16,4 @@ public/uploads
 !.env.example
 !.env.local.example
 !.env.test.example
+backups/
