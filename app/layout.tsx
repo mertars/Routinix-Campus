@@ -8,6 +8,7 @@ import { LiveSyncProvider } from "@/lib/live-sync-context";
 import { ToastProvider } from "@/lib/toast-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { PanelAurora } from "@/components/ui/aurora-brand";
+import { ClientErrorReporter } from "@/components/client-error-reporter";
 import { Student360Sheet } from "@/components/shared/student-360-sheet";
 import { CommandPalette } from "@/components/shared/command-palette";
 import "./globals.css";
@@ -94,6 +95,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: ACCENT_INIT_SCRIPT }} />
       </head>
       <body className="overflow-x-hidden bg-cream text-espresso dark:bg-midnight dark:text-cream">
+        {/* Tarayıcı hatalarını (CSP ihlali dahil) sunucu loguna taşır —
+            bkz. components/client-error-reporter.tsx. Hiçbir şey render etmez. */}
+        <ClientErrorReporter />
         <PanelAurora />
         <ThemeProvider>
           <AccentProvider>

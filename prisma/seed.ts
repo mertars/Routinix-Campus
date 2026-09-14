@@ -16,6 +16,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { bulkWriteGuard } from "../lib/server/db-guard";
 import { createHash } from "crypto";
 import {
   INITIAL_BRANCHES,
@@ -30,7 +31,9 @@ import {
 import { generateBranchCode, generateTeacherCode, generateStudentNumber } from "../lib/server/codes/institutional-codes";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? "" });
-const prisma = new PrismaClient({ adapter });
+// Seed de aynı korumadan geçer (bkz. lib/server/db-guard.ts) — tohumlama
+// script'i de yanlışlıkla geniş bir toplu silme yazabilir.
+const prisma = new PrismaClient({ adapter }).$extends(bulkWriteGuard);
 
 // Çoklu-kurum migration'ının (20260826115720_add_institution_multitenancy)
 // backfill ettiği TEK kurumla birebir aynı id — demo verisi hep bu kuruma

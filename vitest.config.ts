@@ -12,6 +12,8 @@ export default defineConfig({
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.test.ts"],
-    exclude: ["node_modules/**", "e2e/**", ".next/**"],
+    // tests/integration — GERÇEK veritabanı gerektirir, ayrı yapılandırmayla
+    // çalışır (npm run test:int, bkz. vitest.integration.config.ts).
+    exclude: ["node_modules/**", "e2e/**", ".next/**", "tests/integration/**"],
   },
 });

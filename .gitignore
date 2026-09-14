@@ -12,3 +12,7 @@ public/uploads
 /blob-report
 .vercel
 .env*
+# Örnek dosyalar izlenir (gerçek sır içermez)
+!.env.example
+!.env.local.example
+!.env.test.example

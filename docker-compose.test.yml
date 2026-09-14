@@ -1,0 +1,32 @@
+# YEREL TEST VERİTABANI — testler ASLA dershane (üretim) veritabanında koşmaz.
+#
+# ⚠️ Neden var: 2026-09-12 ve 2026-09-14'te test temizliği CANLI veritabanında
+# çalıştırıldığı için gerçek veri silindi. Kural yazmak yetmedi; artık
+# testlerin bağlanacağı yer FİZİKSEL olarak ayrı.
+#
+#   npm run test:db:up      → ayağa kaldır
+#   npm run test:db:reset   → şemayı sıfırdan kur (migration'ları uygular)
+#   npm run test:int        → entegrasyon testlerini çalıştır
+#   npm run test:db:down    → kapat (veri silinir, zaten tek kullanımlık)
+#
+# Üretimdeki Neon ile aynı ana sürüm (17) kullanılır ki davranış farkı olmasın.
+services:
+  routinix-test-db:
+    image: postgres:17-alpine
+    container_name: routinix-test-db
+    environment:
+      POSTGRES_USER: routinix
+      POSTGRES_PASSWORD: routinix_test
+      POSTGRES_DB: routinix_test
+    ports:
+      # 5433 — yerelde başka bir Postgres varsa (5432) çakışmasın.
+      - "5433:5432"
+    # Veri KALICI DEĞİL (volume yok): kapanınca her şey gider. Test
+    # veritabanının kalıcı olması istenmez, aksine her koşuda temiz olmalı.
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U routinix -d routinix_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

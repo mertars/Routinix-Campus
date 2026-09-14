@@ -1,11 +1,16 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getEnv } from "@/lib/server/env";
+import { bulkWriteGuard } from "@/lib/server/db-guard";
 
 // Prisma 7: bağlantı artık şemadaki 'url' yerine bir driver adapter üzerinden
 // veriliyor. DATABASE_URL eksikse getEnv() boot anında zaten fail-fast
 // tetiklemiş olur (bkz. instrumentation.ts) — burası hiç ulaşılmaz kalır.
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+// ⚠️ Tip, eklenti (bulkWriteGuard) uygulandıktan SONRAKİ istemciden türetilir —
+// aksi halde eklenti zincirinin döndürdüğü tip `PrismaClient`e atanamaz.
+type GuardedPrismaClient = ReturnType<typeof createPrismaClient>;
+
+const globalForPrisma = globalThis as unknown as { prisma?: GuardedPrismaClient };
 
 function createPrismaClient() {
   const adapter = new PrismaPg({
@@ -30,10 +35,20 @@ function createPrismaClient() {
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
   });
-  return new PrismaClient({ adapter });
+  // bulkWriteGuard — sahiplik anahtarı olmayan toplu silme/güncellemeyi
+  // REDDEDER (bkz. lib/server/db-guard.ts). Üretimde de açık: mevcut
+  // çağrıların tamamı kurala zaten uyuyor, maliyeti yok, ama bir daha
+  // "yanlışlıkla geniş sorgu" yazılmasını imkânsız kılıyor.
+  return new PrismaClient({ adapter }).$extends(bulkWriteGuard);
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+
+// Bir fonksiyon hem `prisma`yı hem de `$transaction` içindeki `tx`i kabul
+// edecekse bu tipi kullanır. ⚠️ `Prisma.TransactionClient` KULLANMA:
+// istemci artık bir eklentiyle (bulkWriteGuard) sarılı ve eklentili istemci
+// o tipe yapısal olarak UYMUYOR — tip hatası verir.
+export type DbTx = Omit<GuardedPrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends">;
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

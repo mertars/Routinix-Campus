@@ -1,6 +1,7 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { DbTx } from "@/lib/server/prisma";
 
-type Tx = PrismaClient | Prisma.TransactionClient;
+// bkz. lib/server/prisma.ts > DbTx (eklentili istemci + tx birlikte).
+type Tx = DbTx;
 
 // Tek şehirli kurum varsayımı — INSTITUTION_NAME ("Arslan Dershaneleri")
 // bir şehir alanı taşımıyor. Çoklu kampüs/şehir eklenirse bu sabit yerine
