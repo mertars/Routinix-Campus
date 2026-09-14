@@ -65,38 +65,84 @@ export async function notify(input: NotifyInput): Promise<void> {
 }
 
 /**
- * Tekrar etmeyen bildirim — ZAMANLANMIŞ (cron) işler için.
+ * Tekrar etmeyen bildirimleri TOPLU yaz — ZAMANLANMIŞ (cron) işler için.
  *
- * ⚠️ Neden gerekli: "kayıt süresi bitmek üzere" gibi uyarıları üreten cron
- * HER GÜN çalışır. Sıradan notify() kullanılsaydı aynı öğrenci için aynı
- * uyarı her sabah yeniden düşer, kutu bir haftada kullanılamaz hâle gelirdi.
- * Burada aynı (alıcı + olay + başlık) üçlüsü verilen pencere içinde zaten
- * varsa ATLANIR.
+ * ⚠️ Neden "once": "kayıt süresi bitmek üzere" gibi uyarıları üreten cron HER
+ * GÜN çalışır. Sıradan notify() kullanılsaydı aynı uyarı her sabah yeniden
+ * düşer, kutu bir haftada kullanılamaz hâle gelirdi. Aynı
+ * (alıcı + olay + başlık) üçlüsü pencere içinde zaten varsa ATLANIR.
+ *
+ * ⚠️ Neden TOPLU: ilk sürüm her alıcı için ayrı bir findFirst + ayrı insert
+ * yapıyordu. Arslan Dershaneleri'nin GERÇEK verisiyle ölçüldü — 75 gecikmiş
+ * taksit ≈ 375 sıralı gidiş-dönüş, Neon'da ~100-900 ms/sorgu, toplam
+ * **59 saniye**. Vercel'in 60 sn fonksiyon sınırında bu doğrudan zaman
+ * aşımı demekti. Artık kaç kalem olursa olsun SABİT 2 sorgu: bir okuma
+ * (mevcutları topla) + bir createMany.
  */
-export async function notifyOnce(input: NotifyInput & { withinHours: number }): Promise<void> {
+export async function notifyManyOnce(
+  items: (NotifyInput & { urgent?: boolean })[],
+  withinHours: number
+): Promise<number> {
   try {
-    const since = new Date(Date.now() - input.withinHours * 3_600_000);
-    const fresh: NotifyRecipient[] = [];
-    for (const r of input.recipients) {
-      const existing = await prisma.activityNotification.findFirst({
-        where: {
-          recipientRole: r.role,
-          recipientId: r.id,
-          eventType: input.eventType,
-          title: input.title,
-          createdAt: { gte: since },
-        },
-        select: { id: true },
-      });
-      if (!existing) fresh.push(r);
+    if (items.length === 0) return 0;
+    const since = new Date(Date.now() - withinHours * 3_600_000);
+
+    // Adayları düzleştir (kalem × alıcı).
+    type Candidate = { key: string; row: ReturnType<typeof toRow> };
+    function toRow(item: NotifyInput, r: NotifyRecipient) {
+      const meta = eventMeta(item.eventType);
+      return {
+        institutionId: item.institutionId,
+        recipientRole: r.role,
+        recipientId: r.id,
+        category: meta.category,
+        eventType: item.eventType,
+        title: item.title,
+        body: item.body ?? null,
+        href: item.href ?? null,
+        actorName: item.actorName ?? null,
+        urgent: item.urgent ?? meta.urgent ?? false,
+      };
     }
-    if (fresh.length === 0) return;
-    await notify({ ...input, recipients: fresh });
+
+    const candidates: Candidate[] = [];
+    const seen = new Set<string>();
+    for (const item of items) {
+      for (const r of item.recipients) {
+        if (!r.id) continue;
+        const key = `${r.role}|${r.id}|${item.eventType}|${item.title}`;
+        if (seen.has(key)) continue; // aynı çalıştırmada tekrar
+        seen.add(key);
+        candidates.push({ key, row: toRow(item, r) });
+      }
+    }
+    if (candidates.length === 0) return 0;
+
+    // TEK okuma: bu alıcılar + bu olay tipleri için penceredeki mevcut kayıtlar.
+    const recipientIds = [...new Set(candidates.map((c) => c.row.recipientId))];
+    const eventTypes = [...new Set(candidates.map((c) => c.row.eventType))];
+    const existing = await prisma.activityNotification.findMany({
+      where: {
+        recipientId: { in: recipientIds },
+        eventType: { in: eventTypes },
+        createdAt: { gte: since },
+      },
+      select: { recipientRole: true, recipientId: true, eventType: true, title: true },
+    });
+    const existingKeys = new Set(existing.map((e) => `${e.recipientRole}|${e.recipientId}|${e.eventType}|${e.title}`));
+
+    const fresh = candidates.filter((c) => !existingKeys.has(c.key)).map((c) => c.row);
+    if (fresh.length === 0) return 0;
+
+    // TEK yazma.
+    await prisma.activityNotification.createMany({ data: fresh });
+    return fresh.length;
   } catch (error) {
-    logger.error("activity_notification_once_failed", {
-      eventType: input.eventType,
+    logger.error("activity_notification_many_once_failed", {
+      count: items.length,
       error: error instanceof Error ? error.message : String(error),
     });
+    return 0;
   }
 }
 
