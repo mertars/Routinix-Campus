@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, ShieldCheck, AlertOctagon, CalendarClock, Save, C
 import { useTeacherScope } from "@/lib/teacher-scope";
 import { useToast } from "@/lib/toast-context";
 import { HomeworkSearchPicker } from "@/components/teacher/homework-search-picker";
+import { openTeacherStudentCard } from "@/lib/teacher-student-card-store";
 import { cn } from "@/lib/utils";
 
 type HomeworkStatus = "NOT_DONE" | "HALF" | "DONE" | "LATE";
@@ -201,7 +202,12 @@ export function HomeworkCheckMatrixTab() {
                     transition={{ delay: index * 0.02 }}
                     className="rounded-2xl bg-cream-card p-3 dark:bg-white/5"
                   >
-                    <p className="mb-2 truncate text-sm font-medium text-espresso dark:text-cream">{student.firstName} {student.lastName}</p>
+                    <button
+                      onClick={() => openTeacherStudentCard(student.id)}
+                      className="mb-2 block w-full truncate text-left text-sm font-medium text-espresso underline-offset-2 hover:underline dark:text-cream"
+                    >
+                      {student.firstName} {student.lastName}
+                    </button>
                     {/* Kullanıcı geri bildirimi — döngüsel tek buton yerine
                         4 AYRI buton: hangi duruma basıldıysa doğrudan o
                         set edilir, art arda tıklayıp doğru duruma "denk

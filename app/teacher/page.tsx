@@ -21,6 +21,7 @@ import {
 import { type NavTab } from "@/components/principal/floating-nav";
 import { DualFloatingNav } from "@/components/principal/dual-floating-nav";
 import { TeacherMobileNav } from "@/components/teacher/teacher-mobile-nav";
+import { TeacherStudentCardMount } from "@/components/teacher/student-card-mount";
 import { TeacherTopBar } from "@/components/teacher/teacher-top-bar";
 import { TeacherHero } from "@/components/teacher/teacher-hero";
 import { LiveAttendanceTab } from "@/components/teacher/tabs/live-attendance";
@@ -104,6 +105,10 @@ export default function TeacherPage() {
         showWork={false}
       />
       <TeacherMobileNav leftTabs={LEFT_TABS} rightTabs={RIGHT_TABS} activeTab={activeTab} onSelect={(id) => setActiveTab(id as TabId)} />
+
+      {/* Öğretmene özel öğrenci kartı — TEK mount, açma çağrısı herhangi
+          bir sekmeden gelir (bkz. lib/teacher-student-card-store.ts). */}
+      <TeacherStudentCardMount />
 
       <TeacherTopBar />
 

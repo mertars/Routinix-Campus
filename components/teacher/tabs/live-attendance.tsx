@@ -7,6 +7,7 @@ import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
 import { getTodayTrDayName, parseSlotRange } from "@/lib/schedule-time";
 import { useToast } from "@/lib/toast-context";
 import { Modal } from "@/components/ui/modal";
+import { openTeacherStudentCard } from "@/lib/teacher-student-card-store";
 import { cn } from "@/lib/utils";
 
 import { ATTENDANCE_LABEL, type AttendanceStatus } from "@/lib/attendance/status";
@@ -581,7 +582,14 @@ export function LiveAttendanceTab() {
                 transition={{ delay: index * 0.03 }}
                 className="rounded-2xl bg-cream-card p-3 dark:bg-white/5 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:rounded-xl sm:px-3 sm:py-2.5"
               >
-                <p className="mb-2 text-sm font-medium text-espresso dark:text-cream sm:mb-0 sm:min-w-[140px]">{studentName}</p>
+                {/* İsim artık kartı açar: öğretmenin "bu öğrenci kim, dersimde
+                    ne durumda" sorusu yoklama sırasında doğuyor. */}
+                <button
+                  onClick={() => openTeacherStudentCard(student.id)}
+                  className="mb-2 text-left text-sm font-medium text-espresso underline-offset-2 hover:underline dark:text-cream sm:mb-0 sm:min-w-[140px]"
+                >
+                  {studentName}
+                </button>
                 <div className="grid grid-cols-4 gap-1.5 sm:flex sm:items-center">
                   {STATUS_BUTTONS.map((btn) => (
                     <button
