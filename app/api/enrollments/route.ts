@@ -4,6 +4,7 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { notify, admins, parentsOf, studentName, actorNameOf } from "@/lib/server/notifications/activity";
 import { backfillEnrollments, countStudentsWithoutEnrollment } from "@/lib/server/enrollment/backfill";
 import {
   EnrollmentError,
@@ -119,6 +120,28 @@ async function handlePost(request: NextRequest) {
       installmentCount: body?.installmentCount != null ? Number(body.installmentCount) : null,
       note: (body?.note as string | undefined)?.trim() || null,
       createdByAdminId: session.sub,
+    });
+
+    const [enrolled, registrar] = await Promise.all([
+      studentName(studentId),
+      actorNameOf(session.role, session.sub),
+    ]);
+    await notify({
+      institutionId: session.institutionId,
+      recipients: await admins(session.institutionId),
+      eventType: "student.enrolled",
+      title: `${enrolled} kaydı oluşturuldu`,
+      body: `${enrollment.academicYear} dönemi · ${registrar ?? "Yönetici"}`,
+      href: "/principal",
+      actorName: registrar,
+    });
+    await notify({
+      institutionId: session.institutionId,
+      recipients: await parentsOf(studentId),
+      eventType: "student.enrolled",
+      title: `${enrolled} için kayıt oluşturuldu`,
+      body: `${enrollment.academicYear} dönemi`,
+      href: "/parent",
     });
 
     return NextResponse.json({ id: enrollment.id, academicYear: enrollment.academicYear }, { status: 201 });

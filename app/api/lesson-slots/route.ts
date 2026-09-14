@@ -4,6 +4,7 @@ import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { notify, teacher as teacherRecipient, branchName } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +107,19 @@ async function handlePost(request: NextRequest) {
       where: { branchId_day_slot: { branchId, day, slot } },
       update: { teacherId, subject: subject.trim() },
       create: { branchId, teacherId, subject: subject.trim(), day, slot },
+    });
+
+    // Kullanıcı isteğindeki örneklerden: "hocanın programı değişir".
+    // Öğretmenin haberi olmadan programına ders eklenmesi en can sıkıcı
+    // durumlardan biri — acil işaretli.
+    await notify({
+      institutionId: session.institutionId,
+      recipients: teacherRecipient(teacherId),
+      eventType: "schedule.changed",
+      title: "Ders programın güncellendi",
+      body: `${await branchName(branchId)} · ${day} ${slot} · ${subject.trim()}`,
+      href: "/teacher",
+      urgent: true,
     });
 
     return NextResponse.json({ slot: created }, { status: 201 });

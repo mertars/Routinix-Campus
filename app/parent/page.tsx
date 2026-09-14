@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight, Megaphone, BookOpen, TrendingUp, LayoutDashboard, MessageSquareText } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { XRAY_MIN_GRADE } from "@/lib/mock-data";
 import { XrayParentSummaryCard } from "@/components/parent/xray-summary-card";
 import { ParentAttendanceTab } from "@/components/parent/attendance-tab";
@@ -129,6 +130,7 @@ export default function ParentPage() {
           <span className={cn(spaceGrotesk.className, "hidden text-sm font-semibold text-espresso sm:inline dark:text-cream")}>Routinix Kampüs</span>
         </div>
         <div className="flex items-center gap-3">
+          <NotificationBell audience="PARENT" />
           <div className="hidden items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 backdrop-blur-sm dark:text-brand-300 sm:flex">
             <span className="text-sm font-medium">{parentName || "Veli"}</span>
             <span className="text-xs opacity-50">·</span>

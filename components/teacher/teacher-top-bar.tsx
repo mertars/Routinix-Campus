@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Radio, Clock, Settings, LogOut } from "lucide-react";
 import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { CommandPaletteTrigger } from "@/components/ui/command-palette-trigger";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { useLogout } from "@/lib/role-context";
 import { useTeacherScope, useCurrentLesson } from "@/lib/teacher-scope";
 import { useHideOnScroll } from "@/lib/use-hide-on-scroll";
@@ -50,13 +51,16 @@ export function TeacherTopBar() {
               <ModuleSwitcher current="erp" locked />
               <CommandPaletteTrigger compact />
             </div>
-            <button
-              onClick={() => setIsAppearanceOpen(true)}
-              aria-label="Ayarlar"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <NotificationBell audience="TEACHER" />
+              <button
+                onClick={() => setIsAppearanceOpen(true)}
+                aria-label="Ayarlar"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div
@@ -110,6 +114,7 @@ export function TeacherTopBar() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <NotificationBell audience="TEACHER" />
             <AccentPicker />
             <ThemeToggle />
             <div className="flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">

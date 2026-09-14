@@ -10,6 +10,7 @@ import { AccentPicker } from "@/components/principal/accent-picker";
 import { MobileMenuPopup } from "@/components/principal/mobile-menu-popup";
 import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { CommandPaletteTrigger } from "@/components/ui/command-palette-trigger";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { useInstitutionCounts } from "@/lib/institution-counts";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
@@ -52,6 +53,7 @@ export function TopBar() {
               )}
             </div>
             <CommandPaletteTrigger compact className="h-10 w-10" />
+            <NotificationBell audience="ADMIN" compact />
             <button
               onClick={() => setIsMenuOpen(true)}
               aria-label="Menüyü aç"
@@ -97,6 +99,7 @@ export function TopBar() {
 
         <div className="hidden items-center gap-2 sm:gap-3 md:flex">
           <CommandPaletteTrigger />
+          <NotificationBell audience="ADMIN" />
           <AccentPicker />
           <ThemeToggle />
           <button

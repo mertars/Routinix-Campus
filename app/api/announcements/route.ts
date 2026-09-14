@@ -5,6 +5,7 @@ import { requireSession, requireRole, requireInstitution, assertOwnsSelf, assert
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { emitAnnouncementNotifications } from "@/lib/server/notifications/emit-announcement";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,11 @@ async function handlePost(request: NextRequest) {
         authorRole,
       },
     });
+
+    // Duyuru panosu KALIR (herkesin aynısını gördüğü ilan tahtası);
+    // buradaki bildirim sadece "yeni bir duyuru var" haberini kişinin
+    // kutusuna düşürür — ikisi birbirinin yerine geçmez.
+    await emitAnnouncementNotifications(announcement);
 
     return NextResponse.json({ announcement }, { status: 201 });
   } catch (error) {

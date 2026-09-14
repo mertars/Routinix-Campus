@@ -3,6 +3,8 @@ import { prisma } from "@/lib/server/prisma";
 import { withApiLogging } from "@/lib/logger";
 import { resolveContractToken } from "@/lib/server/contracts/contract-service";
 import { apiFailure } from "@/lib/server/api-failure";
+import { prisma as db } from "@/lib/server/prisma";
+import { notify, admins } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +46,25 @@ async function handlePost(request: NextRequest, { params }: { params: { token: s
       where: { id: resolution.contract.id },
       data: { status: "SIGNED", signerName, signerRelation, signatureData, signedAt: new Date(), signedIp },
     });
+
+    // ⚠️ Bu uçta OTURUM YOK (veli, paylaşılan bağlantıdan imzalıyor) —
+    // kurum kimliği sözleşmenin kendi öğrencisinden okunur.
+    const signedContract = await db.studentContract.findUnique({
+      where: { id: resolution.contract.id },
+      select: { institutionId: true, student: { select: { firstName: true, lastName: true } } },
+    });
+    if (signedContract) {
+      const who = `${signedContract.student.firstName} ${signedContract.student.lastName}`;
+      await notify({
+        institutionId: signedContract.institutionId,
+        recipients: await admins(signedContract.institutionId),
+        eventType: "contract.signed",
+        title: `${who} sözleşmesi imzalandı`,
+        body: `${signerName}${signerRelation ? ` (${signerRelation})` : ""} tarafından imzalandı`,
+        href: "/payments/principal",
+        actorName: signerName,
+      });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

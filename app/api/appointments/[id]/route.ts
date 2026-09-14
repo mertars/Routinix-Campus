@@ -6,6 +6,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { getTeacherDaySlots } from "@/lib/server/etut/get-teacher-day-slots";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { withApiLogging, logger } from "@/lib/logger";
+import { notify, studentAndParents, teacherName } from "@/lib/server/notifications/activity";
 
 const DECISION_STATUSES = new Set<AppointmentStatus>(["APPROVED", "REJECTED"]);
 // Onaylanmış bir etüt GERÇEKLEŞTİKTEN SONRA geriye dönük işaretlenir —
@@ -91,6 +92,21 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
 
     if (!appointment) {
       return NextResponse.json({ error: "Bu saat artık müsait değil (başka bir randevuyla çakışıyor)." }, { status: 409 });
+    }
+
+    // Öğrenci ve velisi kararı anında görsün — etüt saatine göre plan
+    // yapıyorlar, "onaylandı mı" diye ekranı yenilemeleri gerekmesin.
+    if (status === "APPROVED" || status === "REJECTED") {
+      const decider = await teacherName(existing.teacherId);
+      await notify({
+        institutionId: session.institutionId,
+        recipients: await studentAndParents(existing.studentId),
+        eventType: status === "APPROVED" ? "appointment.approved" : "appointment.rejected",
+        title: status === "APPROVED" ? "Etüt talebin onaylandı" : "Etüt talebin reddedildi",
+        body: `${decider} · ${existing.day} · ${existing.slot}`,
+        href: "/student",
+        actorName: decider,
+      });
     }
 
     return NextResponse.json({ appointment });

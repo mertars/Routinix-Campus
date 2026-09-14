@@ -5,6 +5,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { getTeacherDaySlots } from "@/lib/server/etut/get-teacher-day-slots";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { notify, admins, teacher as teacherRecipient, studentName } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,17 @@ async function handlePost(request: NextRequest) {
 
     const appointment = await prisma.appointmentRequest.create({
       data: { studentId, teacherId, topic: topic.trim(), day, slot },
+    });
+
+    const requester = await studentName(studentId);
+    await notify({
+      institutionId: session.institutionId,
+      recipients: [...teacherRecipient(teacherId), ...(await admins(session.institutionId))],
+      eventType: "appointment.requested",
+      title: `${requester} etüt talebi gönderdi`,
+      body: `${day} · ${slot} · ${topic.trim()}`,
+      href: "/teacher",
+      actorName: requester,
     });
 
     return NextResponse.json({ appointment }, { status: 201 });

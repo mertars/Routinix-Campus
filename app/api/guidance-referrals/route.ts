@@ -5,6 +5,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { notify, admins, guidanceStaff, actorNameOf, studentName } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,22 @@ async function handlePost(request: NextRequest) {
       targetType: "Student",
       targetId: studentId,
       metadata: { reason: guidanceReferral.reason },
+    });
+
+    // Sevk, rehberliğin ASIL iş kuyruğu — anında düşmeli. Yönetici de
+    // görür (kurumda kaç sevk açıldığı yönetsel bir sinyal).
+    const [referrer, subject] = await Promise.all([
+      actorNameOf(session.role, session.sub),
+      studentName(studentId),
+    ]);
+    await notify({
+      institutionId: session.institutionId,
+      recipients: [...(await guidanceStaff(session.institutionId)), ...(await admins(session.institutionId))],
+      eventType: "guidance.referral_created",
+      title: `${subject} rehberliğe sevk edildi`,
+      body: `${referrer ?? "Öğretmen"} · ${reason.trim()}`,
+      href: "/guidance",
+      actorName: referrer,
     });
 
     return NextResponse.json({ guidanceReferral }, { status: 201 });

@@ -5,6 +5,7 @@ import { notifyTeacherBySms } from "@/lib/server/notifications/teacher-sms-queue
 import { requireSession, requireRole, requireInstitution, assertOwnsSelf, assertTeacherOwnsStudent, assertParentOwnsStudent } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { notify, teacher as teacherRecipient } from "@/lib/server/notifications/activity";
 
 // Global Soru Havuzu akışında sınıf arkadaşlarına HANGİ öğrencinin soruyu
 // sorduğunu tam adıyla YAYINLAMAMAK için (kurum geneline açık bir akışta bu
@@ -78,6 +79,18 @@ async function handlePost(request: NextRequest) {
       // hata göstermeye gerek yok, sadece logla.
       logger.warn("question_notify_failed", { questionId: question.id, error: notifyError instanceof Error ? notifyError.message : String(notifyError) });
     }
+
+    // SMS'in YANINDA uygulama içi bildirim — SMS kuruma para/kredi
+    // harcar ve öğretmen telefonunu açmayabilir; kutu her hâlükârda dolar.
+    await notify({
+      institutionId: session.institutionId,
+      recipients: teacherRecipient(question.teacherId),
+      eventType: "question.asked",
+      title: `${question.student.firstName} ${question.student.lastName} soru gönderdi`,
+      body: `${question.subject}${question.studentNote ? ` · ${question.studentNote}` : ""}`,
+      href: "/teacher",
+      actorName: `${question.student.firstName} ${question.student.lastName}`,
+    });
 
     return NextResponse.json({ question }, { status: 201 });
   } catch (error) {

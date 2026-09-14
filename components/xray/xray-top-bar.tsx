@@ -7,6 +7,7 @@ import { LogOut, ShieldAlert, TrendingDown, ListTodo, Users, LayoutGrid, LayoutD
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
@@ -91,6 +92,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
             <CommandPaletteTrigger compact />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            <NotificationBell audience={roleLabel === "Öğretmen" ? "TEACHER" : "ADMIN"} />
             <ThemeToggle />
             <button
               onClick={logout}
@@ -165,6 +167,7 @@ export function XrayTopBar({ roleLabel, principalTools = false }: { roleLabel: s
               <span className="text-xs font-semibold">{institutionName}</span>
             </div>
             <span className="text-xs font-medium text-espresso-muted dark:text-cream/40">{roleLabel}</span>
+            <NotificationBell audience={roleLabel === "Öğretmen" ? "TEACHER" : "ADMIN"} />
             <ThemeToggle />
             <button
               onClick={logout}

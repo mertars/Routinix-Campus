@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, assertTeacherTeachesBranches } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { notify, studentsOfBranch, parentsOfBranch, teacherName, branchName } from "@/lib/server/notifications/activity";
 
 // POST /api/homework — öğretmen KENDİ adına bir veya birden fazla şubeye
 // ödev atar. teacherId body'den değil oturumdan alınır.
@@ -48,6 +49,35 @@ async function handlePost(request: NextRequest) {
         dueAt: dueAt ? new Date(dueAt) : null,
       },
     });
+
+    // Ödev atanır atanmaz öğrencinin ve velisinin kutusuna düşer.
+    const actor = await teacherName(teacherId);
+    for (const bId of branchIds) {
+      const [students, parents, bName] = await Promise.all([
+        studentsOfBranch(bId),
+        parentsOfBranch(bId),
+        branchName(bId),
+      ]);
+      const due = homework.dueAt ? ` · Son teslim: ${homework.dueAt.toLocaleDateString("tr-TR")}` : "";
+      await notify({
+        institutionId: session.institutionId,
+        recipients: students,
+        eventType: "homework.assigned",
+        title: `Yeni ödev: ${homework.title}`,
+        body: `${actor}${due}`,
+        href: "/student",
+        actorName: actor,
+      });
+      await notify({
+        institutionId: session.institutionId,
+        recipients: parents,
+        eventType: "homework.assigned",
+        title: `${bName} sınıfına yeni ödev verildi`,
+        body: `${homework.title} · ${actor}${due}`,
+        href: "/parent",
+        actorName: actor,
+      });
+    }
 
     return NextResponse.json({ homework }, { status: 201 });
   } catch (error) {

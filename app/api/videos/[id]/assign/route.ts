@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { notify, parentsOf } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
     const session = await requireSession();
     requireRole(session, "principal");
 
-    const video = await prisma.video.findUnique({ where: { id: params.id }, select: { institutionId: true } });
+    const video = await prisma.video.findUnique({ where: { id: params.id }, select: { institutionId: true, title: true } });
     if (!video) return NextResponse.json({ error: "Video bulunamadı." }, { status: 404 });
     requireInstitution(session, video.institutionId);
 
@@ -34,6 +35,27 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       data: validStudents.map((s) => ({ videoId: params.id, studentId: s.id })),
       skipDuplicates: true,
     });
+
+    // Kullanıcı isteğindeki örnek: "öğrenciye yeni etüt video atanır".
+    const videoRecipients = validStudents.map((s) => ({ role: "STUDENT" as const, id: s.id }));
+    await notify({
+      institutionId: session.institutionId,
+      recipients: videoRecipients,
+      eventType: "video.assigned",
+      title: `Yeni video atandı: ${video.title}`,
+      body: "Video Ders Merkezi'nden izleyebilirsin.",
+      href: "/student",
+    });
+    for (const target of validStudents) {
+      await notify({
+        institutionId: session.institutionId,
+        recipients: await parentsOf(target.id),
+        eventType: "video.assigned",
+        title: `Yeni video atandı: ${video.title}`,
+        body: "Öğrencinizin izlemesi için atandı.",
+        href: "/parent",
+      });
+    }
 
     return NextResponse.json({ assignedCount: result.count });
   } catch (error) {

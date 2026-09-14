@@ -4,6 +4,7 @@ import { requireSession, requireRole, requireInstitution, assertOwnsSelf, assert
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { notify, studentAndParents, actorNameOf } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,18 @@ async function handlePost(request: NextRequest) {
     }
     await assertTeacherOwnsStudent(session.sub, studentId);
     const task = await prisma.remediationTask.create({ data: { studentId, topic: topic.trim(), taskDescription: taskDescription.trim() } });
+
+    const assigner = await actorNameOf(session.role, session.sub);
+    await notify({
+      institutionId: session.institutionId,
+      recipients: await studentAndParents(studentId),
+      eventType: "remediation.assigned",
+      title: `Yeni kazanım görevi: ${task.topic}`,
+      body: `${assigner ?? "Öğretmenin"} · ${task.taskDescription}`,
+      href: "/student",
+      actorName: assigner,
+    });
+
     return NextResponse.json({ task }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

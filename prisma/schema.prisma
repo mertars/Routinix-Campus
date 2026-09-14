@@ -154,6 +154,7 @@ model Institution {
   reminderRule                ReminderRule?
   recurringExpenses           RecurringExpense[]
   studentEnrollments          StudentEnrollment[]
+  activityNotifications       ActivityNotification[]
   createdAt                   DateTime                     @default(now())
   updatedAt                   DateTime                     @updatedAt
 }
@@ -3198,4 +3199,80 @@ enum BankTransactionStatus {
   UNMATCHED // henüz kimseye bağlanmadı
   MATCHED // bir öğrenciye bağlandı ve tahsilat oluşturuldu
   IGNORED // bu satır bir öğrenci ödemesi değil (masraf, iade vb.)
+}
+
+// ----------------------------------------------------------------------------
+// Uygulama İçi Bildirim Kutusu (Activity Notifications)
+// ----------------------------------------------------------------------------
+//
+// ⚠️ Yukarıdaki "Toplu Bildirim / SMS" bölümüyle (NotificationBatch,
+// NotificationStatus, SmsTemplate) KARIŞTIRILMAMALI — o, kurumun DIŞARIYA
+// (veliye SMS) gönderdiği toplu mesaj sistemidir. Announcement (Duyuru) da
+// ayrı: o, yönetimin YAYINLADIĞI, herkesin aynısını gördüğü bir ilan panosu.
+//
+// Buradaki model ise üçüncü ve farklı bir şey: kullanıcının KENDİ hesabında
+// olan biteni anlatan, kişiye özel, olay güdümlü bir aktivite akışı
+// ("x hoca y dersin yoklamasını girdi", "sana yeni bir etüt atandı",
+// "öğrencinin kayıt süresi bitmek üzere"). Kullanıcı kararı (2026-09-14):
+// "bildirim ekranını uygulama içi atamalar için istemiştim... kullanıcının
+// ekranında yapılan tüm değişimler için, yöneticide de gelenler için."
+enum ActivityCategory {
+  ATTENDANCE // Yoklama
+  HOMEWORK // Ödev
+  EXAM // Deneme / sınav sonucu
+  PAYMENT // Ödeme / taksit
+  STUDENT // Öğrenci kaydı, durumu, kayıt süresi
+  SCHEDULE // Ders programı, etüt/randevu
+  GUIDANCE // Rehberlik sevk/görüşme
+  CONTENT // Materyal, video, soru çözüm
+  ANNOUNCEMENT // Duyuru
+  SYSTEM // Sistem / hesap
+}
+
+// Alıcı rolü. Kimlik tabloları AYRI (Student/Parent/Teacher/Admin) olduğu
+// için gerçek bir yabancı anahtar kurulamıyor — alıcı (rol + id) çiftiyle
+// polimorfik tutuluyor, bu yüzden silme davranışı da uygulama tarafında
+// (kullanıcı silinince bildirimleri de silinir) ele alınmalı.
+enum ActivityAudience {
+  ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+  GUIDANCE
+}
+
+model ActivityNotification {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  recipientRole ActivityAudience
+  recipientId   String
+
+  category ActivityCategory
+  // Makine tarafı olay adı ("attendance.submitted", "payment.received") —
+  // ikon/renk seçimi ve ileride filtreleme bunun üzerinden yapılır. Serbest
+  // metin DEĞİL: lib/notifications/events.ts'teki listeden gelir.
+  eventType String
+  title     String
+  body      String?
+  // Tıklanınca gidilecek uygulama içi adres (örn. "/principal?tab=attendance").
+  href      String?
+  // Olayı yapan kişinin GÖRÜNEN adı — kimlik tabloları ayrı olduğu için
+  // burada sadece metin tutulur, sonradan ad değişse bile bildirim geçmişi
+  // o anki hâliyle kalır (kasıtlı).
+  actorName String?
+  // Acil/kritik işaretli bildirimler listede öne çıkar (kırmızı rozet).
+  urgent    Boolean   @default(false)
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  // Alıcının kutusu tarihe göre listelenir — en sık sorgu bu.
+  @@index([recipientRole, recipientId, createdAt])
+  // Okunmamış sayacı (rozet) bu indeksten okunur.
+  @@index([recipientRole, recipientId, isRead])
+  // Kategori sekmeleri.
+  @@index([recipientRole, recipientId, category])
+  @@index([institutionId, createdAt])
 }

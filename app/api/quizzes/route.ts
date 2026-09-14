@@ -3,6 +3,7 @@ import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole, assertTeacherTeachesBranch } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
+import { notify, studentsOfBranch, teacherName } from "@/lib/server/notifications/activity";
 
 // POST /api/quizzes — öğretmen bir Pop-Quiz fırlatır (stage=LIVE).
 // teacherId body'den DEĞİL oturumdan alınır (bir öğretmen başka bir öğretmen
@@ -53,6 +54,20 @@ async function handlePost(request: NextRequest) {
         },
       },
       include: { questions: true },
+    });
+
+    // Pop-Quiz CANLI başlar — öğrencinin hemen görmesi gerekir, bu
+    // yüzden acil işaretli.
+    const starter = await teacherName(teacherId);
+    await notify({
+      institutionId: session.institutionId,
+      recipients: await studentsOfBranch(branchId),
+      eventType: "quiz.started",
+      title: `Pop-Quiz başladı: ${quiz.name}`,
+      body: `${starter} · ${quiz.questions.length} soru`,
+      href: "/student",
+      actorName: starter,
+      urgent: true,
     });
 
     return NextResponse.json({ quiz }, { status: 201 });

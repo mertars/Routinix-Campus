@@ -7,6 +7,7 @@ import { withApiLogging, logger } from "@/lib/logger";
 
 import { ATTENDANCE_STATUSES } from "@/lib/attendance/status";
 import { parseAttendanceDate } from "@/lib/attendance/date-key";
+import { emitAttendanceNotifications } from "@/lib/server/notifications/emit-attendance";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +119,24 @@ async function handlePost(request: NextRequest) {
         data: { teacherId, branchId, date: day, recordCount: records.length },
       }),
     ]);
+
+    // Bildirimler — kullanıcı isteğindeki birinci örnek: "yöneticiye ...
+    // x hoca y dersin yoklama girişini yaptı". Veliye ise SADECE kendi
+    // çocuğu gelmediyse/geç kaldıysa düşer (herkese her yoklamayı
+    // bildirmek kutuyu anlamsızlaştırırdı).
+    //
+    // ⚠️ BİLEREK `await` — "void (async () => ...)()" ile ateşle-unut YAPMA:
+    // Vercel'in sunucusuz fonksiyonu yanıt döndüğü anda sonlanabilir ve
+    // bekleyen iş sessizce ÖLÜR. notify() zaten kendi içinde hata yutuyor,
+    // yani bu await yoklamanın başarısını riske atmaz.
+    await emitAttendanceNotifications({
+      institutionId: session.institutionId,
+      teacherId,
+      branchId,
+      slot,
+      subject: lessonSlot.subject,
+      records,
+    });
 
     return NextResponse.json({ ok: true, recordCount: records.length }, { status: 201 });
   } catch (error) {

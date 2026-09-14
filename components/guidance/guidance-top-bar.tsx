@@ -5,6 +5,7 @@ import { LogOut } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ export function GuidanceTopBar() {
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <NotificationBell audience="GUIDANCE" />
           <ThemeToggle />
           <div className="hidden items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300 sm:flex">
             <InstitutionBadgeIcon className="h-3.5 w-3.5" />

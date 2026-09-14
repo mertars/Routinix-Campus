@@ -8,6 +8,7 @@ import { useStudentScope } from "@/lib/student-scope";
 import { useHideOnScroll } from "@/lib/use-hide-on-scroll";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { AccentPicker } from "@/components/principal/accent-picker";
 import { StudentAppearancePopup } from "@/components/student/student-appearance-popup";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
@@ -36,6 +37,7 @@ export function StudentTopBar() {
           <div className="flex items-center justify-between gap-2">
             <GlowLogo size="h-8 w-8" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <div className="ml-auto flex min-w-0 items-center gap-1.5">
+              <NotificationBell audience="STUDENT" />
               <button
                 onClick={() => setIsAppearanceOpen(true)}
                 aria-label="Görünüm ayarları"
@@ -77,6 +79,7 @@ export function StudentTopBar() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <NotificationBell audience="STUDENT" />
             <AccentPicker />
             <ThemeToggle />
             <div className="flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">

@@ -4,6 +4,7 @@ import { requireSession, assertOwnsSelf } from "@/lib/server/auth/session-guard"
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { saveQuestionImage, MAX_QUESTION_IMAGE_BYTES } from "@/lib/server/uploads/save-question-image";
 import { withApiLogging, logger } from "@/lib/logger";
+import { notify, studentAndParents, teacherName } from "@/lib/server/notifications/activity";
 
 // PATCH /api/questions/:id — iki farklı aktör, iki farklı geçiş yapar:
 // ÖĞRETMEN (question.teacherId sahibi): { answerText } VEYA (kullanıcı
@@ -56,6 +57,7 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
         where: { id: params.id },
         data: { answerText, status: "ANSWERED", answeredAt: new Date() },
       });
+      await notifyQuestionAnswered(session.institutionId, existing.studentId, existing.teacherId, question.subject);
       return NextResponse.json({ question });
     }
 
@@ -89,6 +91,8 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
       },
     });
 
+    await notifyQuestionAnswered(session.institutionId, existing.studentId, existing.teacherId, question.subject);
+
     return NextResponse.json({ question });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
@@ -96,6 +100,21 @@ async function handlePatch(request: NextRequest, { params }: { params: { id: str
     const message = error instanceof Error ? error.message : "Beklenmeyen hata";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+// İki yanıt yolu (JSON metin / multipart fotoğraf) da aynı bildirimi
+// üretmeli — metin tek yerde dursun diye küçük bir yardımcı.
+async function notifyQuestionAnswered(institutionId: string, studentId: string, teacherId: string, subject: string) {
+  const answerer = await teacherName(teacherId);
+  await notify({
+    institutionId,
+    recipients: await studentAndParents(studentId),
+    eventType: "question.answered",
+    title: `${answerer} sorunu yanıtladı`,
+    body: subject,
+    href: "/student",
+    actorName: answerer,
+  });
 }
 
 export const PATCH = withApiLogging("PATCH /api/questions/[id]", handlePatch);

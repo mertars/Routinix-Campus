@@ -5,6 +5,7 @@ import { requireSession, requireRole, assertTeacherTeachesBranch } from "@/lib/s
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
+import { notify, studentsOfBranch, teacherName } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,17 @@ async function handlePost(request: NextRequest) {
         fileType,
         sizeLabel,
       },
+    });
+
+    const sharer = await teacherName(teacherId);
+    await notify({
+      institutionId: session.institutionId,
+      recipients: await studentsOfBranch(branchId),
+      eventType: "material.shared",
+      title: `Yeni ders materyali: ${material.title}`,
+      body: `${sharer} · ${material.sizeLabel}`,
+      href: "/student",
+      actorName: sharer,
     });
 
     return NextResponse.json({ material }, { status: 201 });

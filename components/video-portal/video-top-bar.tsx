@@ -7,6 +7,7 @@ import { CommandPaletteTrigger } from "@/components/ui/command-palette-trigger";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -42,7 +43,8 @@ export function VideoTopBar({ roleLabel }: { roleLabel: string }) {
             <span className="text-xs font-semibold">{institutionName}</span>
           </div>
           <span className="hidden text-xs font-medium text-espresso-muted dark:text-cream/40 lg:inline">{roleLabel}</span>
-          <ThemeToggle />
+          <NotificationBell audience={roleLabel === "Öğretmen" ? "TEACHER" : "ADMIN"} />
+            <ThemeToggle />
           <button
             onClick={logout}
             aria-label="Çıkış yap"

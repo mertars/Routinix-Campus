@@ -8,6 +8,7 @@ import { requirePaymentRole } from "@/lib/server/payments/require-payment-role";
 import { recordPaymentAudit } from "@/lib/server/payments/payment-audit";
 import { collectPayment, OverCollectionError } from "@/lib/server/payments/collect-service";
 import { apiFailure } from "@/lib/server/api-failure";
+import { notify, admins, parentsOf } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,28 @@ async function handlePost(request: NextRequest, { params }: { params: { id: stri
       amount,
       summary: `${student?.firstName ?? ""} ${student?.lastName ?? ""} · ${installment.title}`.trim(),
       metadata: { method, receiptNo, studentId: installment.studentId },
+    });
+
+    // Kullanıcı isteğindeki ikinci örnek: "x öğrenci ödemesi geldi".
+    // Veliye de makbuz bildirimi gider — ödediğinin sisteme işlendiğini
+    // görmek velinin en sık sorduğu şey.
+    const payerName = `${student?.firstName ?? ""} ${student?.lastName ?? ""}`.trim() || "Öğrenci";
+    const amountLabel = `${amount.toLocaleString("tr-TR")} ₺`;
+    await notify({
+      institutionId: session.institutionId,
+      recipients: await admins(session.institutionId),
+      eventType: "payment.received",
+      title: `${payerName} ödemesi geldi`,
+      body: `${amountLabel} · ${installment.title} · Makbuz ${receiptNo}`,
+      href: "/payments/principal",
+    });
+    await notify({
+      institutionId: session.institutionId,
+      recipients: await parentsOf(installment.studentId),
+      eventType: "payment.received",
+      title: "Ödemeniz alındı",
+      body: `${amountLabel} · ${installment.title} · Makbuz ${receiptNo}`,
+      href: "/payments/parent",
     });
 
     return NextResponse.json({ payment }, { status: 201 });
