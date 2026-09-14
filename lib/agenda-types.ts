@@ -35,6 +35,26 @@ export type AgendaItem = {
   tab?: string;
   /** Başka modül — ?tab= ile doğrudan ilgili sekmeye iner. */
   href?: string;
+  /**
+   * SATIR İÇİ EYLEM — kartın üstünde, sayfadan ayrılmadan yapılabilen iş.
+   *
+   * ⚠️ Neden eklendi: Gündem "ne eksik" diyor ama işi yaptırmak için
+   * kullanıcıyı başka bir ekrana atıyordu; orada eksiği tekrar bulması
+   * gerekiyordu. Yöneticinin günlük işi bu listeye basarak dönecekse
+   * (kullanıcı kararı, 2026-09-15) en sık tekrar eden işler kartın
+   * üstünde bitmeli.
+   *
+   * `endpoint` POST edilir, dönen `{ message }` kullanıcıya gösterilir.
+   * Eylem YIKICI OLMAMALI (silme/para hareketi burada YAPILMAZ) — onay
+   * ekranı olmadan tek tıkla tetiklendiği için yalnızca "hatırlat",
+   * "bildir" gibi geri alınabilir işler uygundur.
+   */
+  action?: {
+    label: string;
+    endpoint: string;
+    /** Tamamlandığında kartın metni bununla değişir (iyimser geri bildirim). */
+    doneLabel: string;
+  };
 };
 
 export type AgendaCounts = Record<AgendaHorizon, number> & { critical: number };

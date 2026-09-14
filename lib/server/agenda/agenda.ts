@@ -37,6 +37,9 @@ export async function runSource(source: AgendaSource, ctx: AgendaContext): Promi
       detail: hit.detail,
       tab: source.tab,
       href: source.href,
+      // Eylemi BULGU tanımlar (kaynak değil): etiket veriye bağlı —
+      // "3 öğretmene hatırlat" ancak sorgu koştuktan sonra bilinir.
+      action: hit.action,
     };
   } catch (error) {
     // Bir maddenin sorgusu bozulduğunda müdür boş ekran görmemeli;

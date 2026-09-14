@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { CheckCircle2, ArrowRight, RefreshCw, ChevronDown, ListChecks } from "lucide-react";
+import { CheckCircle2, ArrowRight, RefreshCw, ChevronDown, ListChecks, Check, Loader2, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocalStorageState } from "@/lib/use-local-storage-state";
 import { useAgenda } from "@/lib/agenda-store";
@@ -53,14 +54,70 @@ const HORIZON_ACCENT: Record<AgendaHorizon, string> = {
   gaps: "text-espresso-muted dark:text-cream/45",
 };
 
+// SATIR İÇİ EYLEM — kartın üstünde, sayfadan ayrılmadan biten iş.
+//
+// ⚠️ Kartın kendisi bir <button>; iç içe buton HTML'de geçersiz ve
+// tıklama kartın gezinmesini de tetikler. Bu yüzden eylem bir <span
+// role="button"> ve tıklama kartın onClick'ine ÇIKMADAN durduruluyor.
+function InlineAction({ action }: { action: NonNullable<AgendaItem["action"]> }) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function run(event: React.MouseEvent) {
+    event.stopPropagation();
+    if (state !== "idle") return;
+    setState("busy");
+    try {
+      const res = await fetch(action.endpoint, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      setMessage(data?.message ?? (res.ok ? action.doneLabel : "İşlem tamamlanamadı."));
+      setState(res.ok ? "done" : "idle");
+    } catch {
+      setMessage("Bağlantı hatası.");
+      setState("idle");
+    }
+  }
+
+  if (state === "done") {
+    return (
+      <span className="mt-2 flex items-center gap-1 text-[11px] font-medium text-green-700 dark:text-green-400">
+        <Check className="h-3 w-3" /> {message ?? action.doneLabel}
+      </span>
+    );
+  }
+
+  return (
+    <span className="mt-2 flex items-center gap-2">
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={run}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") run(e as unknown as React.MouseEvent);
+        }}
+        className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-espresso px-2.5 py-1 text-[11px] font-semibold text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+      >
+        {state === "busy" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+        {action.label}
+      </span>
+      {message && <span className="text-[10.5px] text-espresso-muted dark:text-cream/40">{message}</span>}
+    </span>
+  );
+}
+
 function AgendaCard({ item, onGo }: { item: AgendaItem; onGo: (item: AgendaItem) => void }) {
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onGo(item)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onGo(item);
+      }}
       className={cn(
         // h-full: aynı satırdaki kartlar farklı uzunlukta metinlerle
         // farklı yükseklikte kalmasın.
-        "group flex h-full items-start gap-3 rounded-xl border border-hairline bg-white px-3.5 py-3 text-left transition dark:border-white/10 dark:bg-midnight-card",
+        "group flex h-full cursor-pointer items-start gap-3 rounded-xl border border-hairline bg-white px-3.5 py-3 text-left transition dark:border-white/10 dark:bg-midnight-card",
         URGENCY_RING[item.urgency]
       )}
     >
@@ -74,10 +131,12 @@ function AgendaCard({ item, onGo }: { item: AgendaItem; onGo: (item: AgendaItem)
         <span className="mt-1.5 inline-block rounded-md bg-cream-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-espresso-muted dark:bg-white/[0.07] dark:text-cream/40">
           {AREA_LABEL[item.area]}
         </span>
+
+        {item.action && <InlineAction action={item.action} />}
       </div>
 
       <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-espresso-muted transition-transform group-hover:translate-x-0.5 dark:text-cream/30" />
-    </button>
+    </div>
   );
 }
 

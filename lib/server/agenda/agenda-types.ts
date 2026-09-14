@@ -34,6 +34,8 @@ export type AgendaHit = {
   detail: string;
   /** Kaynak, bulduğu duruma göre aciliyeti yükseltebilir (ör. süresi dolmak üzere olan sözleşme). */
   urgency?: AgendaUrgency;
+  /** Satır içi eylem — bkz. lib/agenda-types.ts > AgendaItem.action. */
+  action?: { label: string; endpoint: string; doneLabel: string };
 };
 
 export type AgendaSource = {
