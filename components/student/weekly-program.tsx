@@ -212,7 +212,12 @@ export function StudentWeeklyProgram({ program, studentId }: { program: StudentP
                           <div className="mt-1.5">
                             {kind === "VIDEO" && entry.video?.youtubeId ? (
                               <Link
-                                href="/student?tab=videos"
+                                // ⚠️ Sekmeye DEĞİL, videonun KENDİSİNE
+                                // (bkz. videos.tsx > ?video derin bağlantısı).
+                                // Sadece sekmeye gitmek "video izlenmiyor"
+                                // şikâyetinin sebebiydi: öğrenci hangi videoyu
+                                // izleyeceğini listede aramak zorunda kalıyordu.
+                                href={`/student?tab=videos&video=${entry.video.id}`}
                                 className={cn(
                                   "flex min-h-[32px] w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition hover:opacity-85",
                                   done ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400" : meta.chip
@@ -222,7 +227,14 @@ export function StudentWeeklyProgram({ program, studentId }: { program: StudentP
                               </Link>
                             ) : kind === "XRAY_TEST" && entry.xrayAssignment ? (
                               <Link
-                                href="/student?tab=xray"
+                                // ⚠️ Röntgen testi AYRI bir sayfada çözülüyor
+                                // (app/student/comprehension/[assignmentId]).
+                                // Sekmeye yönlendirmek "test başlamıyor"
+                                // şikâyetinin sebebiydi — test doğrudan açılır.
+                                // Tamamlanmış atama da AYNI sayfada açılır
+                                // (sayfa durumu kendisi ayırt eder) — ayrı bir
+                                // sonuç rotası YOK.
+                                href={`/student/comprehension/${entry.xrayAssignment.id}`}
                                 className={cn(
                                   "flex min-h-[32px] w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition hover:opacity-85",
                                   done ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400" : meta.chip

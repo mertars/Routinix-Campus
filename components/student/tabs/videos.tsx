@@ -49,6 +49,31 @@ export function VideoLibraryTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ⚠️ DERİN BAĞLANTI (Mert, 2026-09-15: "hâlâ video izlenmiyor"). Çalışma
+  // programındaki video bloğunun "İzle" tuşu buraya YALNIZCA sekme olarak
+  // geliyordu; öğrenci hangi videoyu izleyeceğini listede kendisi aramak
+  // zorundaydı — pratikte video izlenmiyordu. ?video=<videoId> ile gelen
+  // istek doğrudan o videoyu AÇAR.
+  //
+  // useSearchParams() DEĞİL, mount efektinde window.location okunuyor —
+  // lib/use-deep-link-tab.ts'teki AYNI gerekçe (Suspense/build sorunları).
+  const [pendingVideoId, setPendingVideoId] = useState<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("video");
+    if (!id) return;
+    setPendingVideoId(id);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("video");
+    window.history.replaceState({}, "", url.toString());
+  }, []);
+
+  useEffect(() => {
+    if (!pendingVideoId || !videos) return;
+    const match = videos.find((v) => v.id === pendingVideoId);
+    if (match) setActive(match);
+    setPendingVideoId(null);
+  }, [pendingVideoId, videos]);
+
   // Denetim bulgusu (2026-09-05) — yönetici paneli PROCESSING videoları
   // periyodik tazeliyordu (bkz. video-portal-panel.tsx), öğrenci tarafı
   // TEK seferlik fetch yapıyordu: bir video izlenirken/atanmışken hazır

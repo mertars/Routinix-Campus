@@ -9,6 +9,7 @@ import {
   Check,
   Copy,
   FileDown,
+  GripHorizontal,
   Loader2,
   PlayCircle,
   Plus,
@@ -199,6 +200,9 @@ function EntryCard({
   onDuplicate,
   onOpenVideoPicker,
   onOpenSubtopicPicker,
+  onDragStart,
+  onDragEnd,
+  isDragging,
 }: {
   entry: Entry;
   subjectOptions: string[];
@@ -208,17 +212,53 @@ function EntryCard({
   onDuplicate: () => void;
   onOpenVideoPicker: () => void;
   onOpenSubtopicPicker: () => void;
+  onDragStart: (copy: boolean) => void;
+  onDragEnd: () => void;
+  isDragging: boolean;
 }) {
   const field =
     "min-h-[36px] w-full rounded-lg border border-hairline bg-white px-2 text-[12.5px] text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream";
+  // ⚠️ Sürükleme SADECE tutamaçtan başlar. Kartın tamamı draggable olsaydı
+  // içindeki input/select'lerde metin seçmek imkânsızlaşırdı — tarayıcı
+  // sürüklemeyi kendi başlatırdı.
+  const [dragArmed, setDragArmed] = useState(false);
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: 16 }}
-      className="rounded-xl border border-hairline bg-white p-2 dark:border-white/10 dark:bg-midnight-card/60"
+      draggable={dragArmed}
+      onDragStart={(e) => {
+        // Alt/Ctrl basılıysa KOPYALA — "aynı şeyi farklı günlere koyabilsin"
+        // (Mert). Basılı değilse taşı.
+        const native = e as unknown as React.DragEvent;
+        native.dataTransfer?.setData("text/plain", entry.key);
+        if (native.dataTransfer) native.dataTransfer.effectAllowed = "copyMove";
+        onDragStart(native.altKey || native.ctrlKey || native.metaKey);
+      }}
+      onDragEnd={() => {
+        setDragArmed(false);
+        onDragEnd();
+      }}
+      className={cn(
+        "rounded-xl border bg-white p-2 dark:bg-midnight-card/60",
+        isDragging ? "border-brand-500 opacity-50" : "border-hairline dark:border-white/10"
+      )}
     >
+      {/* Tutamaç — basılı tutup başka bir güne sürükleyin. Alt/Ctrl ile
+          sürüklerseniz blok KOPYALANIR (aynı çalışmayı birden çok güne
+          koymak için). */}
+      <div
+        onMouseDown={() => setDragArmed(true)}
+        onMouseUp={() => setDragArmed(false)}
+        onMouseLeave={() => setDragArmed(false)}
+        title="Sürükleyip başka güne taşı · Alt ile sürükle = kopyala"
+        className="mb-1 flex cursor-grab items-center justify-center rounded text-espresso-muted/50 active:cursor-grabbing dark:text-cream/25"
+      >
+        <GripHorizontal className="h-3.5 w-3.5" />
+      </div>
+
       {/* Blok türü — plan artık yalnızca "soru çöz" değil. */}
       <div className="mb-1.5 grid grid-cols-4 gap-1">
         {(Object.keys(KIND_META) as EntryKind[]).map((k) => {
@@ -367,6 +407,26 @@ export function GuidanceProgramBuilder() {
   const [videos, setVideos] = useState<VideoOption[]>([]);
   // Hangi blok için hangi seçici açık (pop-up).
   const [pickerFor, setPickerFor] = useState<{ key: string; kind: "VIDEO" | "XRAY_TEST" } | null>(null);
+  // Sürüklenen blok ve kopyalama modu (Alt/Ctrl basılıysa kopya).
+  const [dragState, setDragState] = useState<{ key: string; copy: boolean } | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<Day | null>(null);
+
+  /** Sürüklenen bloğu hedef güne taşır ya da kopyalar. */
+  function dropOnDay(day: Day) {
+    const state = dragState;
+    setDragOverDay(null);
+    setDragState(null);
+    if (!state) return;
+    setEntries((prev) => {
+      const source = prev.find((e) => e.key === state.key);
+      if (!source) return prev;
+      // Aynı güne bırakmak kopyada anlamlı (aynı gün iki kez), taşımada
+      // hiçbir şey değiştirmez.
+      if (state.copy) return [...prev, { ...source, key: newKey(), day }];
+      if (source.day === day) return prev;
+      return prev.map((e) => (e.key === state.key ? { ...e, day } : e));
+    });
+  }
   // Kazanım "+" tuşu hangi güne atsın — rehber sırayı kendisi kurar.
   const [targetDay, setTargetDay] = useState<Day>("Pazartesi");
 
@@ -642,7 +702,27 @@ export function GuidanceProgramBuilder() {
               return (
                 <section
                   key={day}
-                  className="rounded-2xl border border-hairline bg-cream-muted/40 p-2 dark:border-white/10 dark:bg-white/[0.03]"
+                  // ⚠️ SÜRÜKLE-BIRAK hedefi (Mert: "sürükleyerek aynı şeyi
+                  // farklı günlere koyabilsin"). onDragOver'da
+                  // preventDefault ŞART — yoksa tarayıcı bırakmayı hiç
+                  // kabul etmez ve hiçbir şey olmaz.
+                  onDragOver={(e) => {
+                    if (!dragState) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = dragState.copy ? "copy" : "move";
+                    if (dragOverDay !== day) setDragOverDay(day);
+                  }}
+                  onDragLeave={() => setDragOverDay((d) => (d === day ? null : d))}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    dropOnDay(day);
+                  }}
+                  className={cn(
+                    "rounded-2xl border p-2 transition",
+                    dragOverDay === day
+                      ? "border-brand-500 bg-brand-500/10"
+                      : "border-hairline bg-cream-muted/40 dark:border-white/10 dark:bg-white/[0.03]"
+                  )}
                 >
                   <div className="mb-1.5 flex items-center justify-between px-1">
                     <h3 className="flex items-center gap-1.5 text-[12px] font-bold text-espresso dark:text-cream">
@@ -676,6 +756,12 @@ export function GuidanceProgramBuilder() {
                           onDuplicate={() => setEntries((prev) => [...prev, { ...entry, key: newKey() }])}
                           onOpenVideoPicker={() => setPickerFor({ key: entry.key, kind: "VIDEO" })}
                           onOpenSubtopicPicker={() => setPickerFor({ key: entry.key, kind: "XRAY_TEST" })}
+                          onDragStart={(copy) => setDragState({ key: entry.key, copy })}
+                          onDragEnd={() => {
+                            setDragState(null);
+                            setDragOverDay(null);
+                          }}
+                          isDragging={dragState?.key === entry.key}
                         />
                       ))}
                     </AnimatePresence>
@@ -699,6 +785,11 @@ export function GuidanceProgramBuilder() {
               <CalendarRange className="h-3.5 w-3.5" />
               {totals.blocks} blok · {totals.days} gün · <span className="font-bold text-espresso dark:text-cream">{totals.questions} soru</span>
             </span>
+            {totals.blocks > 0 && (
+              <span className="hidden items-center gap-1 text-[11px] text-espresso-muted dark:text-cream/40 lg:flex">
+                <GripHorizontal className="h-3 w-3" /> tutamaçtan sürükleyip güne taşıyın · Alt ile sürükle = kopyala
+              </span>
+            )}
             {incomplete > 0 && (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
                 {incomplete} blok eksik
