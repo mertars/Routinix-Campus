@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, memo } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, GraduationCap, UserCog2, Users, FileUp, Layers, Pencil, UserX, UserCheck, Trash2, ListChecks, FileDown, Orbit } from "lucide-react";
+import { FileDown, FileUp, GraduationCap, Layers, ListChecks, Orbit, Pencil, Plus, Search, Trash2, UserCheck, UserCog2, UserX, Users } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import type { EditTarget } from "@/components/principal/user-management/edit-user-modal";
@@ -39,6 +39,10 @@ const DeactivateConfirmModal = dynamic(
 );
 const PermanentDeleteConfirmModal = dynamic(
   () => import("@/components/principal/user-management/permanent-delete-confirm-modal").then((mod) => mod.PermanentDeleteConfirmModal),
+  { ssr: false }
+);
+const AdvisorAssignModal = dynamic(
+  () => import("@/components/principal/user-management/advisor-assign-modal").then((mod) => mod.AdvisorAssignModal),
   { ssr: false }
 );
 const BulkActionsModal = dynamic(
@@ -235,6 +239,7 @@ export function BranchStaffTab() {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isAddBranchOpen, setIsAddBranchOpen] = useState(false);
+  const [isAdvisorOpen, setIsAdvisorOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [credentials, setCredentials] = useState<NewUserCredentials | null>(null);
   const [inspectorTarget, setInspectorTarget] = useState<{ id: string; role: DirectoryRole; name: string } | null>(null);
@@ -362,6 +367,12 @@ export function BranchStaffTab() {
               className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
             >
               <Layers className="h-3.5 w-3.5" /> Yeni Şube Ekle
+            </button>
+            <button
+              onClick={() => setIsAdvisorOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"
+            >
+              <UserCheck className="h-3.5 w-3.5" /> Danışman Ata
             </button>
             <button
               onClick={() => setIsBulkImportOpen(true)}
@@ -506,6 +517,7 @@ export function BranchStaffTab() {
         onClose={() => setIsAddBranchOpen(false)}
         onCreated={() => loadBranches()}
       />
+      <AdvisorAssignModal isOpen={isAdvisorOpen} onClose={() => setIsAdvisorOpen(false)} />
       <CredentialsCardModal credentials={credentials} onClose={() => setCredentials(null)} />
       <PerformanceInspectorModal target={inspectorTarget} onClose={() => setInspectorTarget(null)} />
       <EditUserModal
