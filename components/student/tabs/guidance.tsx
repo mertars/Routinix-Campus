@@ -7,6 +7,7 @@ import { BookOpen, CalendarCheck2, Clock, HeartHandshake, Loader2, PlayCircle, S
 import { DAYS_OF_WEEK } from "@/lib/mock-data";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
+import { StudentWeeklyProgram, type StudentProgram } from "@/components/student/weekly-program";
 import { cn } from "@/lib/utils";
 
 type AppointmentStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -34,7 +35,7 @@ const ENTRY_KIND_META: Record<ProgramEntryKind, { label: string; icon: typeof Ta
   VIDEO: { label: "Video", icon: PlayCircle, className: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300" },
   XRAY_TEST: { label: "Röntgen testi", icon: Scan, className: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300" },
 };
-type Program = { id: string; weekLabel: string; createdAt: string; entries: ProgramEntry[] };
+type Program = StudentProgram;
 
 const REASONS = ["Sınav Kaygısı", "Motivasyon", "Ders/Bölüm Seçimi", "Kişisel Gelişim", "Diğer"];
 
@@ -136,9 +137,6 @@ export function GuidanceTab() {
   return (
     <div className="space-y-4">
       <motion.div whileHover={{ scale: 1.005, y: -2 }} className="rounded-3xl border border-hairline bg-white/70 p-5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50 dark:hover:border-brand-500/30">
-        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-espresso dark:text-cream">
-          <CalendarCheck2 className="h-4 w-4 text-brand-600" /> Haftalık Çalışma Programın
-        </h2>
         {loadingProgram ? (
           <div className="flex items-center justify-center py-8 text-espresso-muted dark:text-cream/40">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -148,65 +146,10 @@ export function GuidanceTab() {
             Rehberlik/danışman öğretmenin henüz sana bir çalışma programı göndermedi.
           </p>
         ) : (
-          <div className="space-y-3">
-            <p className="text-[11px] text-espresso-muted dark:text-cream/40">
-              {latestProgram.weekLabel} · {new Date(latestProgram.createdAt).toLocaleDateString("tr-TR")} tarihinde gönderildi
-            </p>
-            <div className="space-y-2">
-              {entriesByDay.map(({ day, entries }) => (
-                <div key={day} className="rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5">
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-600">{day}</p>
-                  <div className="space-y-1.5">
-                    {/* ⚠️ Blok TÜRÜNE göre render (bkz. schema.prisma >
-                        ProgramEntryKind). Eskiden her satır "N soru" diyordu;
-                        video ya da konu çalışma bloğunda bu yanlış olurdu.
-                        Video bloğu Video Ders Merkezi'ne GÖTÜRÜR — öğrenciye
-                        "bir video izle" deyip nereye gideceğini söylememek
-                        bildirim gönderip gidecek yer vermemekle aynı hata. */}
-                    {entries.map((entry) => {
-                      const kind = entry.kind ?? "QUESTION";
-                      const meta = ENTRY_KIND_META[kind] ?? ENTRY_KIND_META.QUESTION;
-                      const KindIcon = meta.icon;
-                      return (
-                        <div key={entry.id} className="flex items-center justify-between gap-3 text-xs">
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-espresso dark:text-cream">
-                              {entry.subject} — {entry.kind === "VIDEO" && entry.video ? entry.video.title : entry.topic}
-                            </p>
-                            <p className="text-[10px] text-espresso-muted dark:text-cream/40">
-                              {entry.time}
-                              {entry.note ? ` · ${entry.note}` : ""}
-                            </p>
-                          </div>
-                          {kind === "VIDEO" && entry.video?.youtubeId ? (
-                            <Link
-                              href="/student?tab=videos"
-                              className={cn(
-                                "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition hover:opacity-80",
-                                meta.className
-                              )}
-                            >
-                              <KindIcon className="h-3 w-3" /> İzle
-                            </Link>
-                          ) : (
-                            <span
-                              className={cn(
-                                "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                                meta.className
-                              )}
-                            >
-                              <KindIcon className="h-3 w-3" />
-                              {kind === "QUESTION" || kind === "XRAY_TEST" ? `${entry.questionTarget} soru` : meta.label}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          /* ⚠️ Günleri alt alta dizen düz liste YATAY PANOYA çevrildi ve
+             bloklar birer GİRİŞ NOKTASI oldu (bkz.
+             components/student/weekly-program.tsx üstündeki gerekçe). */
+          <StudentWeeklyProgram program={latestProgram} studentId={studentId} />
         )}
       </motion.div>
 

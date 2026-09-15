@@ -43,10 +43,57 @@ async function handleGet(request: NextRequest) {
       // Video bloklarında öğrencinin videoyu AÇABİLMESİ için başlık ve
       // youtubeId gerekir — aksi halde "bir video izle" yazan ama nereye
       // gideceğini söylemeyen bir satır kalırdı.
-      include: { entries: { include: { video: { select: { id: true, title: true, youtubeId: true } } } } },
+      // ⚠️ Blok TAMAMLANMA durumu buradan gelir: video için VideoAssignment
+      // (watchedAt/lastPositionSeconds), röntgen için atamanın kendi status'ü.
+      // Hem öğrenci "ne kaldı" görür hem rehberlik "izledi mi" görür — tek
+      // gerçek, iki taraf.
+      include: {
+        entries: {
+          include: {
+            video: { select: { id: true, title: true, youtubeId: true, durationSeconds: true } },
+            xrayAssignment: { select: { id: true, status: true, completedAt: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json({ programs });
+
+    // Video izleme durumu — VideoAssignment öğrenci+video bazlı (bkz.
+    // @@unique). Program satırında videoId var, izleme orada; tek sorguda
+    // topla ve blokla eşle (blok başına sorgu N tur demekti).
+    const videoIds = [...new Set(programs.flatMap((p) => p.entries.map((e) => e.videoId).filter((v): v is string => !!v)))];
+    const watchRows = videoIds.length
+      ? await prisma.videoAssignment.findMany({
+          where: { studentId, videoId: { in: videoIds } },
+          select: { id: true, videoId: true, watchedAt: true, lastPositionSeconds: true },
+        })
+      : [];
+    const watchByVideo = new Map(watchRows.map((w) => [w.videoId, w]));
+    return NextResponse.json({
+      programs: programs.map((p) => ({
+        ...p,
+        entries: p.entries.map((e) => {
+          const w = e.videoId ? watchByVideo.get(e.videoId) : null;
+          return {
+            ...e,
+            // Öğrencinin bu bloğu açabilmesi için gereken atama kimliği
+            // (video oynatıcı ilerlemeyi bununla kaydeder).
+            videoAssignmentId: w?.id ?? null,
+            watchedAt: w?.watchedAt?.toISOString() ?? null,
+            lastPositionSeconds: w?.lastPositionSeconds ?? null,
+            // Blok "yapıldı" mı? Video izlendiyse, röntgen testi
+            // tamamlandıysa. Soru/konu bloklarında böyle bir sinyal yok —
+            // null döner, arayüz onları tamamlanma göstermez.
+            done:
+              e.kind === "VIDEO"
+                ? !!w?.watchedAt
+                : e.kind === "XRAY_TEST"
+                  ? e.xrayAssignment?.status === "COMPLETED"
+                  : null,
+          };
+        }),
+      })),
+    });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     return apiFailure("guidance_program_list_failed", error);
@@ -95,6 +142,54 @@ async function handlePost(request: NextRequest) {
       }
     }
 
+    // ⚠️ BLOKLAR GERÇEK ATAMA OLUŞTURUR (Mert, 2026-09-15: "video izlenmiyor,
+    // röntgen testi atamada gelsin... yapınca rehberlik öğrenciye tıkladığında
+    // izlediğini görebilsin").
+    //
+    // Paralel bir takip mekanizması KURULMADI: program bloğu sistemin ZATEN
+    // olan atama kayıtlarını üretir (VideoAssignment, XrayComprehensionAssignment).
+    // Böylece öğrenci videoyu kendi video panelinden açar, izleme yüzdesi ve
+    // watchedAt eskiden beri çalışan mekanizmayla dolar, rehberlik de aynı
+    // kayıttan "izledi mi" sorusunun cevabını alır. Ayrı bir alan tutulsaydı
+    // iki gerçek (öğrencinin gördüğü ve rehberin gördüğü) ayrışırdı.
+    const videoBlocks = entries.filter((e) => e.kind === "VIDEO" && e.videoId);
+    const xrayBlocks = entries.filter((e) => e.kind === "XRAY_TEST" && e.subtopicId);
+
+    // Video ataması: @@unique([videoId, studentId]) var — aynı video ikinci
+    // kez programa konursa YENİ atama açılmaz, mevcut olan korunur
+    // (izleme ilerlemesi sıfırlanmasın).
+    for (const b of videoBlocks) {
+      await prisma.videoAssignment.upsert({
+        where: { videoId_studentId: { videoId: b.videoId!, studentId } },
+        update: {},
+        create: { videoId: b.videoId!, studentId },
+      });
+    }
+
+    // Röntgen ataması: aynı konudan TEKRAR test alınabilir (şemada @@unique
+    // yok, bkz. comprehension-assignments route'undaki not) — her blok için
+    // yeni bir atama açılır. Soru havuzunda içerik yoksa atama YAPILMAZ ama
+    // blok yine de plana yazılır (öğrenciye "bu konuya çalış" demek yine
+    // anlamlı; açılmayan bir test linki vermek değil).
+    const xrayAssignmentByKey = new Map<string, string>();
+    for (const b of xrayBlocks) {
+      const hasQuestions = await prisma.xrayComprehensionQuestion.count({
+        where: { subject: b.subject.trim(), subtopicId: b.subtopicId!.trim() },
+      });
+      if (hasQuestions === 0) continue;
+      const created = await prisma.xrayComprehensionAssignment.create({
+        data: {
+          studentId,
+          subject: b.subject.trim(),
+          subtopicId: b.subtopicId!.trim(),
+          // Rehberlik bir Teacher kaydıdır — atamayı ona bağla.
+          ...(session.role === "GUIDANCE" ? { assignedByTeacherId: session.sub } : { assignedById: session.sub }),
+        },
+        select: { id: true },
+      });
+      xrayAssignmentByKey.set(`${b.day}|${b.time}|${b.subtopicId}`, created.id);
+    }
+
     const program = await prisma.guidanceProgram.create({
       data: {
         studentId,
@@ -110,6 +205,8 @@ async function handlePost(request: NextRequest) {
             videoId: e.kind === "VIDEO" ? (e.videoId ?? null) : null,
             subtopicId: e.subtopicId ?? null,
             note: e.note?.trim() || null,
+            xrayAssignmentId:
+              e.kind === "XRAY_TEST" ? (xrayAssignmentByKey.get(`${e.day}|${e.time}|${e.subtopicId}`) ?? null) : null,
           })),
         },
       },

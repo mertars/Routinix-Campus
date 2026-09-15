@@ -388,6 +388,7 @@ model Teacher {
   staffAdvances           StaffAdvance[]
   guidanceReferrals       GuidanceReferral[]
   counselorMeetings       GuidanceMeeting[]          @relation("CounselorMeetings")
+  xrayAssignmentsGiven    XrayComprehensionAssignment[] @relation("XrayAssignedByTeacher")
   createdAt               DateTime                   @default(now())
   updatedAt               DateTime                   @updatedAt
 
@@ -1552,6 +1553,12 @@ model GuidanceProgramEntry {
 
   // Rehberin bloğa düştüğü kısa açıklama ("önce özet çıkar, sonra soru").
   note String?
+
+  // kind=XRAY_TEST iken program kaydedilirken OLUŞTURULAN gerçek atama.
+  // Blok artık sadece "şunu çöz" demiyor, testi gerçekten atıyor — ve
+  // öğrencinin çözüp çözmediği bu bağ üzerinden görülüyor.
+  xrayAssignmentId String?
+  xrayAssignment   XrayComprehensionAssignment? @relation(fields: [xrayAssignmentId], references: [id], onDelete: SetNull)
 }
 
 enum ProgramEntryKind {
@@ -2295,8 +2302,15 @@ model XrayComprehensionAssignment {
   student      Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
   subject      String
   subtopicId   String
-  assignedById String
-  assignedBy   Admin                @relation(fields: [assignedById], references: [id], onDelete: Cascade)
+  // ⚠️ İKİ ayrı atayan alanı (Mert, 2026-09-15: "röntgen testi atamada
+  // gelsin"). Bu tablo yalnızca Admin'e bağlıydı, bu yüzden REHBERLİK
+  // çalışma programından röntgen testi atayamıyordu. Kimlik tabloları ayrı
+  // olduğu için (Admin/Teacher) polimorfik ilişki yok — ikisi de nullable,
+  // biri dolu olur. Mevcut satırların hepsinde assignedById dolu kalır.
+  assignedById String?
+  assignedBy   Admin?               @relation(fields: [assignedById], references: [id], onDelete: Cascade)
+  assignedByTeacherId String?
+  assignedByTeacher   Teacher?      @relation("XrayAssignedByTeacher", fields: [assignedByTeacherId], references: [id], onDelete: SetNull)
   status       XrayAssignmentStatus @default(ASSIGNED)
   assignedAt   DateTime             @default(now())
   startedAt    DateTime?
@@ -2307,6 +2321,8 @@ model XrayComprehensionAssignment {
 
   @@index([studentId])
   @@index([assignedById])
+  // Bu atamayı oluşturan çalışma programı bloğu (varsa).
+  programEntries GuidanceProgramEntry[]
 }
 
 model XrayComprehensionAnswer {

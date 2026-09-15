@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/server/prisma";
 import { PdfGuidanceProgram, type GuidanceProgramEntryRow } from "@/components/pdf/pdf-guidance-program";
 import { DAYS_OF_WEEK } from "@/lib/mock-data";
-import { requireSession, requireRole, requireInstitution } from "@/lib/server/auth/session-guard";
+import { requireSession, requireRole, requireInstitution, assertOwnsSelf } from "@/lib/server/auth/session-guard";
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
@@ -21,7 +21,10 @@ async function handlePost(request: NextRequest) {
     // ⚠️ Rehberlik eklendi: programı YAZAN rol rehberlik (bkz.
     // components/guidance/program-builder.tsx) ama çıktısını alamıyordu —
     // öğrenciye kağıt program vermek rehberliğin en sık işlerinden biri.
-    requireRole(session, "principal", "guidance");
+    // ⚠️ Öğrenci de eklendi (Mert, 2026-09-15: "kendi sayfasından da pdf
+    // alabilsin programı inceleyebilsin") — ama SADECE KENDİ programı için;
+    // assertOwnsSelf aşağıda, studentId çözüldükten sonra uygulanır.
+    requireRole(session, "principal", "guidance", "student");
 
     const body = await request.json();
     const { studentId, weekLabel, entries } = body as {
@@ -36,6 +39,8 @@ async function handlePost(request: NextRequest) {
     const student = await prisma.student.findUnique({ where: { id: studentId }, select: { firstName: true, lastName: true, institutionId: true } });
     if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
     requireInstitution(session, student.institutionId);
+    // Öğrenci BAŞKASININ programının PDF'ini alamaz.
+    if (session.role === "STUDENT") assertOwnsSelf(session, studentId);
 
     const institution = await prisma.institution.findUnique({ where: { id: session.institutionId }, select: { name: true, logoUrl: true } });
 

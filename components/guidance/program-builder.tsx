@@ -20,6 +20,7 @@ import {
   TrendingDown,
   X,
 } from "lucide-react";
+import { SubtopicPickerModal, VideoPickerModal, type VideoOption } from "@/components/guidance/block-pickers";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -59,8 +60,6 @@ const KIND_META: Record<EntryKind, { label: string; short: string; icon: typeof 
   VIDEO: { label: "Video izleme", short: "Video", icon: PlayCircle, className: "bg-rose-600 text-white" },
   XRAY_TEST: { label: "Röntgen testi", short: "Röntgen", icon: Scan, className: "bg-sky-600 text-white" },
 };
-
-type VideoOption = { id: string; title: string; subject: string; topic: string; grade: number };
 
 type Entry = {
   key: string;
@@ -105,6 +104,8 @@ type SavedProgram = {
     video?: { title: string } | null;
     subtopicId?: string | null;
     note?: string | null;
+    /** Video izlendi / röntgen testi tamamlandı mı (soru-konu bloklarında null). */
+    done?: boolean | null;
   }[];
 };
 
@@ -196,6 +197,8 @@ function EntryCard({
   onChange,
   onRemove,
   onDuplicate,
+  onOpenVideoPicker,
+  onOpenSubtopicPicker,
 }: {
   entry: Entry;
   subjectOptions: string[];
@@ -203,12 +206,11 @@ function EntryCard({
   onChange: (patch: Partial<Entry>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onOpenVideoPicker: () => void;
+  onOpenSubtopicPicker: () => void;
 }) {
   const field =
     "min-h-[36px] w-full rounded-lg border border-hairline bg-white px-2 text-[12.5px] text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream";
-  // Video seçimi dersle daralır — 200 videoluk kütüphanede tüm listeyi
-  // göstermek kullanışsız olurdu.
-  const videoChoices = entry.subject ? videos.filter((v) => v.subject === entry.subject) : videos;
   return (
     <motion.div
       layout
@@ -275,22 +277,35 @@ function EntryCard({
       {/* VIDEO bloğu — kurumun KENDİ kütüphanesinden seçim. Serbest URL
           alanı bilerek yok: dışarıdan link denetlenemez ve izlendi takibi
           kurulamaz (bkz. schema.prisma > GuidanceProgramEntry.videoId). */}
+      {/* ⚠️ Pop-up seçim (Mert): dar bir blok kartındaki <select> 200
+          videoluk kütüphanede kullanışsızdı — başlık kırpılıyor, arama yok.
+          Bkz. components/guidance/block-pickers.tsx. */}
       {entry.kind === "VIDEO" && (
-        <select
-          value={entry.videoId ?? ""}
-          onChange={(e) => {
-            const v = videos.find((x) => x.id === e.target.value) ?? null;
-            onChange({ videoId: v?.id ?? null, videoTitle: v?.title ?? null, topic: entry.topic || (v?.topic ?? "") });
-          }}
-          className={cn(field, "mb-1.5", !entry.videoId && "text-espresso-muted dark:text-cream/40")}
+        <button
+          onClick={() => onOpenVideoPicker()}
+          className={cn(
+            field,
+            "mb-1.5 flex items-center gap-1.5 text-left",
+            !entry.videoTitle && "text-espresso-muted dark:text-cream/40"
+          )}
         >
-          <option value="">Videoyu seçin{entry.subject ? ` (${entry.subject})` : ""}</option>
-          {videoChoices.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.title} · {v.grade}. sınıf
-            </option>
-          ))}
-        </select>
+          <PlayCircle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+          <span className="min-w-0 flex-1 truncate">{entry.videoTitle ?? "Videoyu seç"}</span>
+        </button>
+      )}
+
+      {entry.kind === "XRAY_TEST" && (
+        <button
+          onClick={() => onOpenSubtopicPicker()}
+          className={cn(
+            field,
+            "mb-1.5 flex items-center gap-1.5 text-left",
+            !entry.subtopicId && "text-espresso-muted dark:text-cream/40"
+          )}
+        >
+          <Scan className="h-3.5 w-3.5 shrink-0 text-sky-600" />
+          <span className="min-w-0 flex-1 truncate">{entry.subtopicId ? entry.topic : "Röntgen konusunu seç"}</span>
+        </button>
       )}
 
       {entry.kind !== "QUESTION" && (
@@ -350,6 +365,8 @@ export function GuidanceProgramBuilder() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [history, setHistory] = useState<SavedProgram[] | null>(null);
   const [videos, setVideos] = useState<VideoOption[]>([]);
+  // Hangi blok için hangi seçici açık (pop-up).
+  const [pickerFor, setPickerFor] = useState<{ key: string; kind: "VIDEO" | "XRAY_TEST" } | null>(null);
   // Kazanım "+" tuşu hangi güne atsın — rehber sırayı kendisi kurar.
   const [targetDay, setTargetDay] = useState<Day>("Pazartesi");
 
@@ -657,6 +674,8 @@ export function GuidanceProgramBuilder() {
                           }
                           onRemove={() => setEntries((prev) => prev.filter((e) => e.key !== entry.key))}
                           onDuplicate={() => setEntries((prev) => [...prev, { ...entry, key: newKey() }])}
+                          onOpenVideoPicker={() => setPickerFor({ key: entry.key, kind: "VIDEO" })}
+                          onOpenSubtopicPicker={() => setPickerFor({ key: entry.key, kind: "XRAY_TEST" })}
                         />
                       ))}
                     </AnimatePresence>
@@ -723,6 +742,27 @@ export function GuidanceProgramBuilder() {
                       <span className="block text-[10.5px] text-espresso-muted dark:text-cream/40">
                         {p.entries.length} blok · {new Date(p.createdAt).toLocaleDateString("tr-TR")}
                       </span>
+                      {/* ⚠️ Mert: "yapınca rehberlik öğrenciye tıkladığında
+                          izlediğini görebilsin". Takip edilebilen bloklar
+                          (video/röntgen) için tamamlanma oranı — soru ve konu
+                          bloklarında böyle bir sinyal olmadığı için sayılmaz. */}
+                      {(() => {
+                        const trackable = p.entries.filter((e) => e.done === true || e.done === false);
+                        if (trackable.length === 0) return null;
+                        const done = trackable.filter((e) => e.done).length;
+                        return (
+                          <span
+                            className={cn(
+                              "mt-0.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                              done === trackable.length
+                                ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+                            )}
+                          >
+                            <Check className="h-2.5 w-2.5" /> {done}/{trackable.length} yapıldı
+                          </span>
+                        );
+                      })()}
                     </span>
                     {/* Geçmiş programı taslağa kopyala — haftalar çoğu zaman
                         birbirinin üstüne kurulur, sıfırdan yazdırmak gereksiz. */}
@@ -769,6 +809,37 @@ export function GuidanceProgramBuilder() {
           )}
         </div>
       </div>
+
+      {/* Pop-up seçiciler — blok kartının içine sığmayan seçimler burada. */}
+      <VideoPickerModal
+        isOpen={pickerFor?.kind === "VIDEO"}
+        onClose={() => setPickerFor(null)}
+        videos={videos}
+        selectedId={entries.find((e) => e.key === pickerFor?.key)?.videoId ?? null}
+        preferredSubject={entries.find((e) => e.key === pickerFor?.key)?.subject}
+        onPick={(v) =>
+          setEntries((prev) =>
+            prev.map((e) =>
+              e.key === pickerFor?.key
+                ? { ...e, videoId: v.id, videoTitle: v.title, subject: e.subject || v.subject, topic: e.topic || v.topic }
+                : e
+            )
+          )
+        }
+      />
+      <SubtopicPickerModal
+        isOpen={pickerFor?.kind === "XRAY_TEST"}
+        onClose={() => setPickerFor(null)}
+        subtopics={(ctx?.weakTopics ?? []).map((t) => ({ subject: t.subject, subtopicId: t.subtopicId, name: t.name, score: t.score }))}
+        selectedId={entries.find((e) => e.key === pickerFor?.key)?.subtopicId ?? null}
+        onPick={(s) =>
+          setEntries((prev) =>
+            prev.map((e) =>
+              e.key === pickerFor?.key ? { ...e, subtopicId: s.subtopicId, subject: s.subject, topic: s.name } : e
+            )
+          )
+        }
+      />
     </div>
   );
 }
