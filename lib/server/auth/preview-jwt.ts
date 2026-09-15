@@ -1,0 +1,78 @@
+import { SignJWT, jwtVerify } from "jose";
+import { getEnv } from "@/lib/server/env";
+import type { AuthRole } from "@/lib/server/auth/jwt";
+
+// ----------------------------------------------------------------------------
+// ÖNİZLEME OTURUMU — platform sahibinin bir kurumun panelini "içeriden"
+// görebilmesi için üretilen ÜÇÜNCÜ oturum türü.
+//
+// Neden ayrı bir dosya/cookie/audience: lib/server/auth/platform-jwt.ts'teki
+// AYNI gerekçe. Sistemde artık üç oturum türü var ve HİÇBİRİ diğerinin yerine
+// geçemez — üçü de aynı AUTH_SECRET ile imzalanıyor ama farklı 'aud' claim'i
+// taşıyor, bu yüzden jose'nin KENDİSİ yanlış türdeki bir token'ı reddeder:
+//   routinix:session           → kurum kullanıcısı (7 gün)
+//   routinix:platform-session  → platform sahibi   (1 gün)
+//   routinix:preview-session   → ÖNİZLEME          (1 saat, SALT OKUNUR)
+//
+// ⚠️ GÜVENLİK SINIRLARI — bu token'ın ne YAPAMADIĞI, ne yapabildiğinden
+// daha önemli:
+//   1. SADECE platform sahibi üretebilir (POST /api/platform/preview →
+//      requirePlatformSession). Kurum kullanıcısının kendisi için üretmesinin
+//      hiçbir yolu yok.
+//   2. SALT OKUNUR. Mutasyon yöntemleri (POST/PUT/PATCH/DELETE) tek noktadan
+//      (withApiLogging) reddedilir, AYRICA Prisma seviyesinde her yazma
+//      işlemi bloke edilir (bkz. lib/server/db-preview-guard.ts) — GET
+//      içinden yazmaya çalışan bir uç bile veri değiştiremez.
+//   3. GERÇEK oturuma ASLA öncelik veremez: bir kurum oturumu cookie'si
+//      varsa önizleme token'ı hiç okunmaz (bkz. session-guard.ts).
+//   4. Kısa ömürlü (1 saat) — platform çıkışında da temizlenir.
+// ----------------------------------------------------------------------------
+
+export const PREVIEW_SESSION_COOKIE_NAME = "routinix-preview-session";
+
+const PREVIEW_SESSION_AUDIENCE = "routinix:preview-session";
+
+export type PreviewSessionPayload = {
+  // Kurum oturumuyla AYNI alanlar — requireSession() bunu doğrudan bir
+  // Session gibi döndürebilsin diye (panel kodunun önizlemede olduğunu
+  // bilmesine gerek yok, "tıpkı uygulamadan girmiş biri gibi" görünsün).
+  sub: string;
+  role: AuthRole;
+  phone: string;
+  name: string;
+  institutionId: string;
+  // Kurum oturumunda OLMAYAN iki alan — önizlemeyi ayırt eden imza.
+  preview: true;
+  // Denetim izi: bu önizlemeyi hangi platform sahibi başlattı.
+  previewBy: string;
+};
+
+// 1 saat: rahat inceleme için yeterince uzun, sızan bir cookie'nin değerini
+// düşürecek kadar kısa. Rol değiştirildiğinde zaten yeniden üretiliyor.
+const PREVIEW_SESSION_TTL_SECONDS = 60 * 60;
+
+function secretKey(): Uint8Array {
+  return new TextEncoder().encode(getEnv().AUTH_SECRET);
+}
+
+export async function signPreviewSessionToken(payload: PreviewSessionPayload): Promise<string> {
+  return new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setAudience(PREVIEW_SESSION_AUDIENCE)
+    .setExpirationTime(Math.floor(Date.now() / 1000) + PREVIEW_SESSION_TTL_SECONDS)
+    .sign(secretKey());
+}
+
+export async function verifyPreviewSessionToken(token: string): Promise<PreviewSessionPayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, secretKey(), { audience: PREVIEW_SESSION_AUDIENCE });
+    // preview:true alanı imzanın İÇİNDE — audience kontrolüne EK bir kemer.
+    if ((payload as { preview?: unknown }).preview !== true) return null;
+    return payload as unknown as PreviewSessionPayload;
+  } catch {
+    return null;
+  }
+}
+
+export const PREVIEW_SESSION_MAX_AGE_SECONDS = PREVIEW_SESSION_TTL_SECONDS;

@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan, Activity, ListChecks, ShieldCheck } from "lucide-react";
+import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan, Activity, ListChecks, ShieldCheck, MonitorSmartphone } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { XrayQuestionPoolWizard } from "@/components/platform/xray-question-pool-wizard";
 import { XrayPoolGenerationDashboard } from "@/components/platform/xray-pool-generation-dashboard";
 import { XrayQaReviewDashboard } from "@/components/platform/xray-qa-review-dashboard";
 import { XrayPoolQuestionsBrowser } from "@/components/platform/xray-pool-questions-browser";
+import { PanelPreview } from "@/components/platform/panel-preview";
 import { useToast } from "@/lib/toast-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -187,6 +188,8 @@ export default function PlatformDashboardPage() {
   const [isGenerationDashboardOpen, setIsGenerationDashboardOpen] = useState(false);
   const [isQuestionsBrowserOpen, setIsQuestionsBrowserOpen] = useState(false);
   const [isQaReviewOpen, setIsQaReviewOpen] = useState(false);
+  const [previewInstitutionId, setPreviewInstitutionId] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   async function loadInstitutions() {
     try {
@@ -205,6 +208,12 @@ export default function PlatformDashboardPage() {
 
   useEffect(() => {
     loadInstitutions();
+    // ⚠️ Açılışta kalıntı bir panel önizlemesi cookie'si SİLİNİR. Tarayıcı
+    // önizleme açıkken kapatılırsa cookie bir saat daha yaşardı ve bu
+    // konsolun yazma işlemleri (kurum açma, şifre sıfırlama) o süre boyunca
+    // "önce önizlemeyi kapatın" diye reddedilirdi — bkz.
+    // lib/server/preview/read-only.ts. Silme sunucuda olur (cookie httpOnly).
+    fetch("/api/platform/preview", { method: "DELETE" }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -232,41 +241,50 @@ export default function PlatformDashboardPage() {
           </button>
         </div>
 
-        <div className="mb-6 flex items-center justify-between">
+        {/* ⚠️ flex-wrap ŞART: "Panel Önizleme" 6. tuş olarak eklenince sıra
+            taşıp başlığın ÜSTÜNE biniyordu (2026-09-15 ekran görüntüsü).
+            Dar pencerede tuşlar başlığın altına iner, üst üste binmez. */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold text-espresso dark:text-cream">Kurumlar</h1>
             <p className="text-xs text-espresso-muted dark:text-cream/40">
               {institutions ? `${institutions.length} kurum · kurulum yapmak/hesapları görmek için bir karta tıkla` : "Yükleniyor..."}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsPreviewOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[13px] font-medium text-amber-700 transition hover:bg-amber-500/20 dark:text-amber-300"
+            >
+              <MonitorSmartphone className="h-4 w-4" /> Panel Önizleme
+            </button>
             <button
               onClick={() => setIsGenerationDashboardOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2.5 text-sm font-medium text-violet-700 transition hover:bg-violet-500/20 dark:text-violet-300"
+              className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2.5 text-[13px] font-medium text-violet-700 transition hover:bg-violet-500/20 dark:text-violet-300"
             >
               <Activity className="h-4 w-4" /> Soru Havuzu Üretim Paneli
             </button>
             <button
               onClick={() => setIsQuestionsBrowserOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+              className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-[13px] font-medium text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
             >
               <ListChecks className="h-4 w-4" /> Soruları Görüntüle / Düzenle
             </button>
             <button
               onClick={() => setIsQaReviewOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-medium text-rose-700 transition hover:bg-rose-500/20 dark:text-rose-300"
+              className="flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-[13px] font-medium text-rose-700 transition hover:bg-rose-500/20 dark:text-rose-300"
             >
               <ShieldCheck className="h-4 w-4" /> QA Denetim Paneli
             </button>
             <button
               onClick={() => setIsQuestionPoolOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 text-sm font-medium text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300"
+              className="flex items-center gap-1.5 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2.5 text-[13px] font-medium text-sky-700 transition hover:bg-sky-500/20 dark:text-sky-300"
             >
               <Scan className="h-4 w-4" /> Röntgen Soru Havuzu Yükle
             </button>
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-espresso px-4 py-2.5 text-sm font-medium text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+              className="flex items-center gap-1.5 rounded-xl bg-espresso px-3 py-2.5 text-[13px] font-medium text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
             >
               <Plus className="h-4 w-4" /> Yeni Kurum Aç
             </button>
@@ -302,14 +320,29 @@ export default function PlatformDashboardPage() {
                       <Building2 className="h-4 w-4 text-brand-600" />
                       <p className="text-sm font-semibold text-espresso dark:text-cream">{inst.name}</p>
                     </div>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                        inst.isActive ? "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400" : "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300"
-                      )}
-                    >
-                      {inst.isActive ? "Aktif" : "Askıya Alınmış"}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {/* Kartın kendisi kurulum ekranını açıyor; bu kısayol
+                          doğrudan O KURUMUN panel önizlemesini açar. */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreviewInstitutionId(inst.id);
+                          setIsPreviewOpen(true);
+                        }}
+                        title="Panellerini önizle"
+                        className="rounded-lg p-1 text-espresso-muted transition hover:bg-amber-500/10 hover:text-amber-600 dark:text-cream/40 dark:hover:text-amber-300"
+                      >
+                        <MonitorSmartphone className="h-3.5 w-3.5" />
+                      </button>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                          inst.isActive ? "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400" : "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300"
+                        )}
+                      >
+                        {inst.isActive ? "Aktif" : "Askıya Alınmış"}
+                      </span>
+                    </div>
                   </div>
                   <p className="mb-3 font-mono text-[11px] text-espresso-muted dark:text-cream/40">{inst.slug}</p>
                   <div className="grid grid-cols-3 gap-2 text-center">
@@ -353,6 +386,12 @@ export default function PlatformDashboardPage() {
       <XrayPoolGenerationDashboard isOpen={isGenerationDashboardOpen} onClose={() => setIsGenerationDashboardOpen(false)} />
       <XrayPoolQuestionsBrowser isOpen={isQuestionsBrowserOpen} onClose={() => setIsQuestionsBrowserOpen(false)} />
       <XrayQaReviewDashboard isOpen={isQaReviewOpen} onClose={() => setIsQaReviewOpen(false)} />
+      <PanelPreview
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        institutions={(institutions ?? []).map((i) => ({ id: i.id, name: i.name }))}
+        initialInstitutionId={previewInstitutionId}
+      />
     </main>
   );
 }

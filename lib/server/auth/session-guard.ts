@@ -1,19 +1,34 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/server/prisma";
 import { verifySessionToken, ROLE_ID_BY_AUTH_ROLE, SESSION_COOKIE_NAME, type SessionPayload, type RoleId } from "./jwt";
+import { PREVIEW_SESSION_COOKIE_NAME, verifyPreviewSessionToken } from "./preview-jwt";
 import { AuthError } from "./errors";
 
 // Korumalı TÜM API route'larının (bkz. FAZ 1 planı) tek gerçek giriş noktası.
 // Buradan geçmeyen hiçbir uç, request.cookies'i kendi başına okumamalı —
 // aksi halde institution.isActive kontrolü (kurum askıya alma) atlanabilir.
-export type Session = SessionPayload;
+//
+// isPreview — oturum, platform sahibinin SALT OKUNUR panel önizlemesinden
+// geliyor (bkz. lib/server/auth/preview-jwt.ts). Panel kodunun bunu bilmesine
+// gerek YOKTUR (amaç "tıpkı uygulamadan girmiş biri gibi" görünmek); alan
+// yalnızca denetim/teşhis için taşınır, yetki kararı VERMEZ — yazma kilidi
+// tamamen ayrı iki katmanda uygulanır (bkz. lib/server/preview/read-only.ts).
+export type Session = SessionPayload & { isPreview?: true; previewBy?: string };
 
 export async function requireSession(): Promise<Session> {
   const token = cookies().get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
+
+  // ⚠️ ÖNCELİK KURALI: GERÇEK oturum her zaman kazanır. Kurum oturumu
+  // cookie'si VARSA (geçersiz/süresi dolmuş olsa bile) önizleme token'ına
+  // hiç bakılmaz — aksi halde unutulmuş bir önizleme cookie'si, gerçek
+  // oturumu süren birinin isteğini sessizce başka bir kimliğe çevirebilirdi.
+  // Aynı kural lib/server/preview/read-only.ts ve middleware.ts'te de
+  // birebir uygulanır; üçü birbiriyle tutarlı olmak ZORUNDA.
+  const payload = token ? await verifySessionToken(token) : await resolvePreviewSession();
+
+  if (!token && !payload) {
     throw new AuthError("Oturum bulunamadı. Lütfen giriş yapın.", "NO_SESSION", 401);
   }
-  const payload = await verifySessionToken(token);
   // institutionId, çoklu-kurum geçişinden ÖNCE imzalanmış eski token'larda
   // yok — imza hâlâ geçerli olsa bile bu durumda oturum geçersiz sayılır
   // (aksi halde institutionId: undefined ile Prisma sorgusu ham bir 500
@@ -25,6 +40,8 @@ export async function requireSession(): Promise<Session> {
   // JWT'nin kendisi hâlâ geçerli olsa bile (7 güne kadar) kurum bu süre
   // içinde askıya alınmış olabilir — bu yüzden her istekte DB'den tazelenir.
   // Bu, statik JWT'ler için pratik tek anlık-iptal (kill-switch) yoludur.
+  // Önizleme oturumu da AYNI kontrolden geçer: askıya alınmış bir kurumun
+  // paneli platform sahibi için de açılmaz.
   const institution = await prisma.institution.findUnique({
     where: { id: payload.institutionId },
     select: { isActive: true },
@@ -34,6 +51,24 @@ export async function requireSession(): Promise<Session> {
   }
 
   return payload;
+}
+
+// Önizleme cookie'sini Session şekline çevirir. Ayrı 'aud' claim'i sayesinde
+// buraya bir kurum/platform oturumu token'ı ASLA geçemez (bkz. preview-jwt.ts).
+async function resolvePreviewSession(): Promise<Session | null> {
+  const previewToken = cookies().get(PREVIEW_SESSION_COOKIE_NAME)?.value;
+  if (!previewToken) return null;
+  const preview = await verifyPreviewSessionToken(previewToken);
+  if (!preview) return null;
+  return {
+    sub: preview.sub,
+    role: preview.role,
+    phone: preview.phone,
+    name: preview.name,
+    institutionId: preview.institutionId,
+    isPreview: true,
+    previewBy: preview.previewBy,
+  };
 }
 
 export function requireRole(session: Session, ...roles: RoleId[]): void {

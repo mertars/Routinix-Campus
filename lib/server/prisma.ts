@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getEnv } from "@/lib/server/env";
+import { previewReadOnlyGuard } from "@/lib/server/db-preview-guard";
 import { bulkWriteGuard } from "@/lib/server/db-guard";
 import { deleteArchive } from "@/lib/server/db-archive";
 
@@ -40,9 +41,12 @@ function createPrismaClient() {
   // REDDEDER (bkz. lib/server/db-guard.ts). Üretimde de açık: mevcut
   // çağrıların tamamı kurala zaten uyuyor, maliyeti yok, ama bir daha
   // "yanlışlıkla geniş sorgu" yazılmasını imkânsız kılıyor.
-  // Sıra ÖNEMLİ: önce guard (geniş sorguyu hiç çalıştırmadan reddeder),
-  // sonra arşiv (geçerli bir silmede satırların kopyasını saklar).
-  return new PrismaClient({ adapter }).$extends(bulkWriteGuard).$extends(deleteArchive);
+  // Sıra ÖNEMLİ: önce önizleme kilidi (platform önizlemesi salt okunurdur,
+  // bkz. lib/server/db-preview-guard.ts — en başta ki aşağıdaki katmanların
+  // KENDİ yazmaları da, örn. deleteArchive'ın arşiv satırı, ondan geçsin),
+  // sonra guard (geniş sorguyu hiç çalıştırmadan reddeder), sonra arşiv
+  // (geçerli bir silmede satırların kopyasını saklar).
+  return new PrismaClient({ adapter }).$extends(previewReadOnlyGuard).$extends(bulkWriteGuard).$extends(deleteArchive);
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

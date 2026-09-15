@@ -1,5 +1,6 @@
 import { checkGeneralRateLimit, extractClientIp, MAX_REQUESTS_PER_USER } from "@/lib/server/rate-limit/general-rate-limit";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/server/auth/jwt";
+import { previewBlockReason, resolveEffectivePreview, runAsPreview } from "@/lib/server/preview/read-only";
 
 // Request'in Cookie header'ından oturum çerezini elle ayrıştırıp doğrular —
 // bu wrapper next/headers'ın cookies() API'sini kullanamaz (route context'i
@@ -92,26 +93,55 @@ export function withApiLogging<Args extends unknown[]>(
       });
     }
 
-    try {
-      const response = await handler(...args);
-      logger.info("api_request", {
-        route: routeLabel,
-        method,
-        url,
-        status: response.status,
-        durationMs: Date.now() - startedAt,
-      });
-      return response;
-    } catch (error) {
-      logger.error("api_unhandled_error", {
-        route: routeLabel,
-        method,
-        url,
-        durationMs: Date.now() - startedAt,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      throw error;
+    // ÖNİZLEME SALT-OKUNUR KİLİDİ — 1. katman (bkz.
+    // lib/server/preview/read-only.ts'teki iki katman açıklaması). Bu
+    // sarmalayıcı 270 API rotasının 269'unu kapsadığı için "önizleme hiçbir
+    // şey yazamaz" garantisinin doğal tek noktası burasıdır: mutasyon
+    // yöntemleri handler HİÇ ÇALIŞMADAN reddedilir.
+    //
+    // ⚠️ Gerçek bir kurum oturumu cookie'si varsa resolveEffectivePreview
+    // zaten null döner — bu blok gerçek kullanıcıların tek bir isteğine bile
+    // dokunmaz, ek maliyeti de yok (önizleme cookie'si yoksa JWT doğrulaması
+    // hiç yapılmaz).
+    const preview = await resolveEffectivePreview(request);
+    if (preview) {
+      const blocked = previewBlockReason(method, url ? new URL(url).pathname : "");
+      if (blocked) {
+        logger.warn("api_preview_blocked", { route: routeLabel, method, url, previewBy: preview.previewBy, institutionId: preview.institutionId });
+        return new Response(JSON.stringify({ error: blocked, code: "PREVIEW_READ_ONLY" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      // Geçen istekler önizleme kapsamında çalışır — 2. katman (Prisma
+      // yazma kilidi, bkz. lib/server/db-preview-guard.ts) bu kapsamda aktiftir.
+      return runAsPreview(preview, () => runHandler());
+    }
+
+    return runHandler();
+
+    async function runHandler(): Promise<Response> {
+      try {
+        const response = await handler(...args);
+        logger.info("api_request", {
+          route: routeLabel,
+          method,
+          url,
+          status: response.status,
+          durationMs: Date.now() - startedAt,
+        });
+        return response;
+      } catch (error) {
+        logger.error("api_unhandled_error", {
+          route: routeLabel,
+          method,
+          url,
+          durationMs: Date.now() - startedAt,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+        throw error;
+      }
     }
   };
 }

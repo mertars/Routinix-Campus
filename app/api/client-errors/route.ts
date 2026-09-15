@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logger } from "@/lib/logger";
+import { logger, withApiLogging } from "@/lib/logger";
 import { requireSession } from "@/lib/server/auth/session-guard";
 
 export const dynamic = "force-dynamic";
@@ -60,4 +60,9 @@ async function handlePost(request: NextRequest) {
   }
 }
 
-export const POST = handlePost;
+// ⚠️ withApiLogging ile sarılı: bu, tüm API rotalarının tek boğaz noktası
+// (rate limit + panel önizlemesinin salt-okunur kilidi orada uygulanır, bkz.
+// lib/server/preview/read-only.ts). Bu rota veritabanına HİÇBİR ŞEY yazmadığı
+// için orada açıkça "önizlemede de serbest" listesindedir — önizleme sırasında
+// tarayıcıda çıkan bir hata yine sunucu loguna düşsün diye.
+export const POST = withApiLogging("POST /api/client-errors", handlePost);

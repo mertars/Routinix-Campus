@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySessionToken, ROLE_ID_BY_AUTH_ROLE } from "@/lib/server/auth/jwt";
 import { verifyPlatformSessionToken, PLATFORM_SESSION_COOKIE_NAME } from "@/lib/server/auth/platform-jwt";
+import { verifyPreviewSessionToken, PREVIEW_SESSION_COOKIE_NAME } from "@/lib/server/auth/preview-jwt";
 
 // Panel rotalarını GERÇEK, sunucu tarafı imzalı oturuma (routinix-kampus-session,
 // bkz. lib/server/auth/jwt.ts) göre korur. Rol bilgisi tarayıcıdan okunabilir/
@@ -65,7 +66,15 @@ const r2UploadOrigin = process.env.R2_ACCOUNT_ID ? `https://${process.env.R2_ACC
 // R2 kurulmadan CSP'ye ekleme" deseni.
 const r2PublicOrigin = process.env.R2_PUBLIC_URL ? new URL(process.env.R2_PUBLIC_URL).origin : null;
 
-function buildCsp(nonce: string): string {
+// frame-ancestors, önizleme AKTİFKEN 'self'e gevşer (bkz. aşağıdaki çağrı).
+// Gerekçe: /platform'daki panel önizlemesi, gerçek panel rotalarını AYNI
+// ORIGIN'de bir <iframe> içinde gösteriyor — 'none' bunu da engelliyordu.
+// 'self' bir clickjacking açığı DEĞİLDİR: farklı bir origin'in bizi
+// çerçevelemesi hâlâ tamamen yasak, sadece kendi sayfamızın kendi sayfamızı
+// çerçevelemesine izin verilir. Yine de bu izin yalnızca önizleme cookie'si
+// taşıyan isteklerde verilir — gerçek müşterilerin hiçbir isteğinde
+// 'none' politikası değişmez.
+function buildCsp(nonce: string, allowSelfFraming: boolean): string {
   return [
     "default-src 'self'",
     // https://www.youtube.com — Video Ders Merkezi'nin kendi kontrol
@@ -93,7 +102,7 @@ function buildCsp(nonce: string): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    `frame-ancestors ${allowSelfFraming ? "'self'" : "'none'"}`,
   ].join("; ");
 }
 
@@ -101,16 +110,23 @@ export async function middleware(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
-  const cspHeader = buildCsp(nonce);
 
   const { pathname } = request.nextUrl;
+
+  // Çerçevelenme izni SADECE önizleme cookie'si varken ve SADECE panel
+  // rotaları için açılır. /platform'un kendisi (platform sahibinin konsolu)
+  // önizleme sırasında bile ASLA çerçevelenemez — en yüksek yetkili ekran,
+  // en sıkı politikada kalır.
+  const hasPreviewCookie = !!request.cookies.get(PREVIEW_SESSION_COOKIE_NAME)?.value;
+  const isPlatformArea = pathname === "/platform" || pathname.startsWith("/platform/");
+  const cspHeader = buildCsp(nonce, hasPreviewCookie && !isPlatformArea);
 
   // /platform — kurum panellerinin (ROUTE_ROLE) TAMAMEN dışında, ayrı bir
   // cookie/JWT ile korunan Platform Sahibi (Süper Admin) alanı (bkz.
   // lib/server/auth/platform-jwt.ts). /platform/login'in kendisi hariç tüm
   // /platform/* burada korunur — API tarafında da requirePlatformSession()
   // ayrıca doğrular, bu sadece sayfa seviyesinde erken bir yönlendirmedir.
-  if (pathname === "/platform" || pathname.startsWith("/platform/")) {
+  if (isPlatformArea) {
     if (pathname === "/platform/login") {
       const response = NextResponse.next({ request: { headers: requestHeaders } });
       response.headers.set("Content-Security-Policy", cspHeader);
@@ -138,16 +154,14 @@ export async function middleware(request: NextRequest) {
   // olduğu için) kendi paneline değil, rol seçim ekranına döner — panel
   // rotalarındaki "yanlış role" davranışıyla tutarlı.
   if (pathname === "/hub" || pathname.startsWith("/hub/")) {
-    const token = request.cookies.get(SESSION_COOKIE)?.value;
-    const session = token ? await verifySessionToken(token) : null;
-    const roleId = session ? ROLE_ID_BY_AUTH_ROLE[session.role] : null;
+    const { roleId, hasSession } = await resolveRole(request);
     if (roleId === "principal" || roleId === "teacher") {
       const response = NextResponse.next({ request: { headers: requestHeaders } });
       response.headers.set("Content-Security-Policy", cspHeader);
       return response;
     }
     const url = request.nextUrl.clone();
-    if (!session) {
+    if (!hasSession) {
       url.pathname = "/login";
       url.search = "";
     } else {
@@ -167,9 +181,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const session = token ? await verifySessionToken(token) : null;
-  const roleId = session ? ROLE_ID_BY_AUTH_ROLE[session.role] : null;
+  const { roleId, hasSession } = await resolveRole(request);
 
   if (roleId === ROUTE_ROLE[matchedPrefix]) {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -178,7 +190,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const url = request.nextUrl.clone();
-  if (!session) {
+  if (!hasSession) {
     // Hiç oturum yok — doğrudan girişe yönlendir.
     url.pathname = "/login";
     url.search = "";
@@ -191,6 +203,27 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.redirect(url);
   response.headers.set("Content-Security-Policy", cspHeader);
   return response;
+}
+
+// Bu istek hangi panel rolüne sahip? İki oturum türü SIRAYLA denenir.
+//
+// ⚠️ ÖNCELİK KURALI: GERÇEK kurum oturumu cookie'si varsa önizleme token'ına
+// hiç BAKILMAZ — önizleme, gerçek bir oturumun yerine ASLA geçemez. Aynı
+// kural lib/server/auth/session-guard.ts ve lib/server/preview/read-only.ts
+// içinde de birebir uygulanır; üçü tutarlı olmak ZORUNDA, aksi halde
+// sayfanın gördüğü kimlik ile API'nin gördüğü kimlik ayrışır.
+//
+// Önizleme oturumu buradan geçse bile SALT OKUNURDUR (bkz. preview-jwt.ts).
+async function resolveRole(request: NextRequest): Promise<{ roleId: string | null; hasSession: boolean }> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  if (token) {
+    const session = await verifySessionToken(token);
+    return { roleId: session ? ROLE_ID_BY_AUTH_ROLE[session.role] : null, hasSession: !!session };
+  }
+  const previewToken = request.cookies.get(PREVIEW_SESSION_COOKIE_NAME)?.value;
+  if (!previewToken) return { roleId: null, hasSession: false };
+  const preview = await verifyPreviewSessionToken(previewToken);
+  return { roleId: preview ? ROLE_ID_BY_AUTH_ROLE[preview.role] : null, hasSession: !!preview };
 }
 
 export const config = {
