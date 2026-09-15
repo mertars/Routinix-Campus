@@ -51,8 +51,11 @@ async function handlePost(_request: NextRequest) {
         info.lessons.length === 1
           ? "Yoklama girilmemiş bir dersin var"
           : `Yoklama girilmemiş ${info.lessons.length} dersin var`,
-      body: `${report.dayName} · ${info.lessons.join(" · ")}`,
-      href: "/teacher?tab=attendance",
+      body: `${report.dayName} · ${info.lessons.join(" · ")} — "Unutulan Yoklamalar" sekmesinden girebilirsiniz.`,
+      // ⚠️ Canlı Yoklama DEĞİL: o ekran yalnızca BUGÜNÜN ders saatlerini
+      // sunar, öğretmen geçmişteki eksiği oradan giremezdi — hatırlatma
+      // döngüsü tam burada kopuyordu (Mert bildirdi, 2026-09-15).
+      href: "/teacher?tab=missed-attendance",
       actorName: actor,
       urgent: true,
     }));

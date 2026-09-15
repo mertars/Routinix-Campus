@@ -2,22 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  ClipboardCheck,
-  Zap,
-  ListChecks,
-  BookOpen,
-  LayoutGrid,
-  Rocket,
-  Library,
-  CalendarCheck,
-  HelpCircle,
-  Map,
-  Puzzle,
-  AlertTriangle,
-  CalendarDays,
-  Megaphone,
-} from "lucide-react";
+import { AlarmClock, AlertTriangle, BookOpen, CalendarCheck, CalendarDays, ClipboardCheck, HelpCircle, LayoutGrid, Library, ListChecks, Map, Megaphone, Puzzle, Rocket, Zap } from "lucide-react";
 import { type NavTab } from "@/components/principal/floating-nav";
 import { DualFloatingNav } from "@/components/principal/dual-floating-nav";
 import { TeacherMobileNav } from "@/components/teacher/teacher-mobile-nav";
@@ -25,6 +10,7 @@ import { TeacherStudentCardMount } from "@/components/teacher/student-card-mount
 import { TeacherTopBar } from "@/components/teacher/teacher-top-bar";
 import { TeacherHero } from "@/components/teacher/teacher-hero";
 import { LiveAttendanceTab } from "@/components/teacher/tabs/live-attendance";
+import { MissedAttendanceTab } from "@/components/teacher/tabs/missed-attendance";
 import { QuickHomeworkAssignerTab } from "@/components/teacher/tabs/quick-homework-assigner";
 import { HomeworkCheckMatrixTab } from "@/components/teacher/tabs/homework-check-matrix";
 import { ClassbookTab } from "@/components/teacher/tabs/classbook";
@@ -56,6 +42,7 @@ import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
 // olana kadar kaldırıldı. Eski dosya: components/teacher/tabs/optical-scanner.tsx (git geçmişinde durur).
 const TABS = [
   { id: "attendance", label: "Canlı Yoklama", icon: ClipboardCheck, Component: LiveAttendanceTab, side: "left" },
+  { id: "missed-attendance", label: "Unutulan Yoklamalar", icon: AlarmClock, Component: MissedAttendanceTab, side: "left" },
   { id: "quick-homework", label: "Gelişmiş Ödev Atama", icon: Zap, Component: QuickHomeworkAssignerTab, side: "left" },
   { id: "homework-matrix", label: "Ödev Kontrol Matrisi", icon: ListChecks, Component: HomeworkCheckMatrixTab, side: "left" },
   { id: "classbook", label: "Sınıf Defteri & Müfredat", icon: BookOpen, Component: ClassbookTab, side: "left" },
