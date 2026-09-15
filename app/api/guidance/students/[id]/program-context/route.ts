@@ -93,6 +93,17 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
 
     // ⚠️ EN ZAYIF ÖNCE — programa atılacak kazanım sırası budur
     // (teacher-student-card.ts'teki aynı karar).
+    // ⚠️ Hangi kazanımda RÖNTGEN SORUSU var? Rehber bunu seçmeden ÖNCE
+    // bilmeli: havuzu boş bir konuya röntgen bloğu koyulursa atama
+    // yapılamıyor ve öğrencide tıklanacak bir test çıkmıyor (gerçek vaka:
+    // "mt11-nicelikler-degisimler-1" konusunda havuz boştu).
+    const poolRows = await prisma.xrayComprehensionQuestion.groupBy({
+      by: ["subtopicId"],
+      where: { subtopicId: { in: mastery.map((m) => m.subtopicId) } },
+      _count: { _all: true },
+    });
+    const poolBySubtopic = new Map(poolRows.map((r) => [r.subtopicId, r._count._all]));
+
     const nameCache = new Map<string, Map<string, string>>();
     const weakTopics = mastery
       .map((m) => {
@@ -103,6 +114,8 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
           name: nameCache.get(m.subject)!.get(m.subtopicId) ?? m.subtopicId,
           score: m.masteryScore,
           assessedAt: m.assessedAt.toISOString(),
+          /** Röntgen soru havuzunda içerik var mı — yoksa test ATANAMAZ. */
+          xrayQuestionCount: poolBySubtopic.get(m.subtopicId) ?? 0,
         };
       })
       .sort((a, b) => a.score - b.score)

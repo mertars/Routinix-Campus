@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 // ----------------------------------------------------------------------------
 
 export type VideoOption = { id: string; title: string; subject: string; topic: string; grade: number };
-export type SubtopicOption = { subject: string; subtopicId: string; name: string; score?: number };
+export type SubtopicOption = { subject: string; subtopicId: string; name: string; score?: number; xrayQuestionCount?: number };
 
 export function VideoPickerModal({
   isOpen,
@@ -176,6 +176,14 @@ export function SubtopicPickerModal({
                   <span className="block truncate text-[13px] font-medium text-espresso dark:text-cream">{s.name}</span>
                   <span className="block truncate text-[11px] text-espresso-muted dark:text-cream/45">{s.subject}</span>
                 </span>
+                {/* ⚠️ Havuzu boş konuda test ATANAMAZ — rehber seçmeden
+                    önce görsün (gerçek vaka: seçilen konuda 0 soru vardı ve
+                    öğrencide tıklanacak test çıkmadı). */}
+                {s.xrayQuestionCount === 0 && (
+                  <span className="shrink-0 rounded bg-cream-card px-1.5 py-0.5 text-[9.5px] font-semibold text-espresso-muted dark:bg-white/10 dark:text-cream/45">
+                    soru yok
+                  </span>
+                )}
                 {typeof s.score === "number" && (
                   <span
                     className={cn(

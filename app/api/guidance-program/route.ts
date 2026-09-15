@@ -84,12 +84,20 @@ async function handleGet(request: NextRequest) {
             // Blok "yapıldı" mı? Video izlendiyse, röntgen testi
             // tamamlandıysa. Soru/konu bloklarında böyle bir sinyal yok —
             // null döner, arayüz onları tamamlanma göstermez.
+            // ⚠️ Her blok için ARTIK bir tamamlanma sinyali var. Video ve
+            // röntgende doğal sinyal (izlendi/çözüldü) önceliklidir; soru ve
+            // konu çalışmada öğrencinin elle işaretlemesi (completedAt)
+            // kullanılır. Böylece rehberlik dört türün TAMAMINDA ilerleme
+            // görür — eskiden soru bloğu hep "takip edilemez"di.
             done:
               e.kind === "VIDEO"
-                ? !!w?.watchedAt
-                : e.kind === "XRAY_TEST"
-                  ? e.xrayAssignment?.status === "COMPLETED"
-                  : null,
+                ? !!w?.watchedAt || !!e.completedAt
+                : e.kind === "XRAY_TEST" && e.xrayAssignment
+                  ? e.xrayAssignment.status === "COMPLETED" || !!e.completedAt
+                  : !!e.completedAt,
+            // Elle işaretlenebilir mi? Video izlendiyse/test çözüldüyse
+            // öğrencinin ayrıca işaretlemesine gerek yok.
+            manualDone: !!e.completedAt,
           };
         }),
       })),

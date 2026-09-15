@@ -39,6 +39,7 @@ export type StudentProgramEntry = {
   watchedAt?: string | null;
   xrayAssignment?: { id: string; status: string; completedAt: string | null } | null;
   done?: boolean | null;
+  manualDone?: boolean;
 };
 
 export type StudentProgram = {
@@ -62,10 +63,42 @@ function todayName(): string {
   return ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"][new Date().getDay()];
 }
 
-export function StudentWeeklyProgram({ program, studentId }: { program: StudentProgram; studentId: string }) {
+export function StudentWeeklyProgram({
+  program,
+  studentId,
+  onChanged,
+}: {
+  program: StudentProgram;
+  studentId: string;
+  /** Bir blok işaretlenince üst bileşen programı tazelesin. */
+  onChanged?: () => void;
+}) {
   const { showError } = useToast();
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // İyimser güncelleme: sunucu cevabı beklenmeden rozet değişir, hata
+  // olursa geri alınır — tek tuşluk bir işlem için bekletmek gereksiz.
+  const [localDone, setLocalDone] = useState<Record<string, boolean>>({});
   const today = todayName();
+
+  async function onToggle(entryId: string, next: boolean) {
+    setBusyId(entryId);
+    setLocalDone((p) => ({ ...p, [entryId]: next }));
+    try {
+      const res = await fetch(`/api/guidance-program/entries/${entryId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ done: next }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "İşaretlenemedi.");
+      onChanged?.();
+    } catch (error) {
+      setLocalDone((p) => ({ ...p, [entryId]: !next }));
+      showError(error instanceof Error ? error.message : "İşaretlenemedi.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const byDay = useMemo(
     () => DAYS.map((d) => ({ day: d, entries: program.entries.filter((e) => e.day === d) })),
@@ -74,10 +107,11 @@ export function StudentWeeklyProgram({ program, studentId }: { program: StudentP
 
   const totals = useMemo(() => {
     const questions = program.entries.reduce((s, e) => s + ((e.kind ?? "QUESTION") === "VIDEO" || e.kind === "TOPIC_STUDY" ? 0 : e.questionTarget), 0);
-    const trackable = program.entries.filter((e) => e.done !== null && e.done !== undefined);
-    const done = trackable.filter((e) => e.done).length;
-    return { blocks: program.entries.length, questions, done, trackable: trackable.length };
-  }, [program.entries]);
+    // Artık HER blok takip edilebilir (video/röntgen doğal sinyalle,
+    // soru/konu öğrencinin işaretiyle).
+    const done = program.entries.filter((e) => localDone[e.id] ?? e.done === true).length;
+    return { blocks: program.entries.length, questions, done, trackable: program.entries.length };
+  }, [program.entries, localDone]);
 
   async function downloadPdf() {
     setPdfBusy(true);
@@ -171,7 +205,8 @@ export function StudentWeeklyProgram({ program, studentId }: { program: StudentP
                       const kind = entry.kind ?? "QUESTION";
                       const meta = KIND_META[kind];
                       const Icon = meta.icon;
-                      const done = entry.done === true;
+                      // Yerel iyimser durum varsa o kazanır.
+                      const done = localDone[entry.id] ?? entry.done === true;
                       return (
                         <motion.div
                           key={entry.id}
@@ -243,15 +278,32 @@ export function StudentWeeklyProgram({ program, studentId }: { program: StudentP
                                 <Icon className="h-3 w-3" /> {done ? "Sonucu gör" : "Teste başla"}
                               </Link>
                             ) : (
-                              <span
+                              /* ⚠️ SORU / KONU (ve ataması olmayan röntgen)
+                                 blokları artık TIKLANABİLİR. Eskiden burada
+                                 "40 soru" yazan ölü bir <span> vardı ve
+                                 sistemdeki blokların %96'sı bu türdeydi —
+                                 "tuşlar hiçbir tepki vermiyor" şikâyetinin
+                                 tam sebebi buydu. Video/röntgende doğal bir
+                                 tamamlanma sinyali var; soru ve konu
+                                 çalışmada yok, o yüzden öğrenci kendisi
+                                 işaretler. */
+                              <button
+                                onClick={() => onToggle(entry.id, !done)}
+                                disabled={busyId === entry.id}
                                 className={cn(
-                                  "flex min-h-[28px] w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold",
-                                  meta.chip
+                                  "flex min-h-[32px] w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition active:scale-[0.98] disabled:opacity-60",
+                                  done ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400" : meta.chip
                                 )}
                               >
-                                <Icon className="h-3 w-3" />
-                                {kind === "QUESTION" ? `${entry.questionTarget} soru` : meta.label}
-                              </span>
+                                {busyId === entry.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : done ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Icon className="h-3 w-3" />
+                                )}
+                                {done ? "Yapıldı" : kind === "QUESTION" ? `${entry.questionTarget} soru · yaptım` : `${meta.label} · yaptım`}
+                              </button>
                             )}
                           </div>
                         </motion.div>

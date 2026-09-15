@@ -87,7 +87,7 @@ type Context = {
     isAggregate: boolean;
     coversSubjects: string[];
   }[];
-  weakTopics: { subject: string; subtopicId: string; name: string; score: number }[];
+  weakTopics: { subject: string; subtopicId: string; name: string; score: number; xrayQuestionCount?: number }[];
   subjectOptions: string[];
 };
 type SavedProgram = {
@@ -921,7 +921,7 @@ export function GuidanceProgramBuilder() {
       <SubtopicPickerModal
         isOpen={pickerFor?.kind === "XRAY_TEST"}
         onClose={() => setPickerFor(null)}
-        subtopics={(ctx?.weakTopics ?? []).map((t) => ({ subject: t.subject, subtopicId: t.subtopicId, name: t.name, score: t.score }))}
+        subtopics={(ctx?.weakTopics ?? []).map((t) => ({ subject: t.subject, subtopicId: t.subtopicId, name: t.name, score: t.score, xrayQuestionCount: t.xrayQuestionCount }))}
         selectedId={entries.find((e) => e.key === pickerFor?.key)?.subtopicId ?? null}
         onPick={(s) =>
           setEntries((prev) =>

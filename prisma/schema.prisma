@@ -1559,6 +1559,15 @@ model GuidanceProgramEntry {
   // öğrencinin çözüp çözmediği bu bağ üzerinden görülüyor.
   xrayAssignmentId String?
   xrayAssignment   XrayComprehensionAssignment? @relation(fields: [xrayAssignmentId], references: [id], onDelete: SetNull)
+
+  // ⚠️ ÖĞRENCİNİN ELLE İŞARETLEMESİ (Mert, 2026-09-15: "tuşlar direkt
+  // hiçbir tepki vermiyor"). Sebebi ölçüldü: sistemdeki 85 bloğun 82'si
+  // QUESTION ve soru bloğu tıklanabilir DEĞİLDİ — "40 soru" yazan bir
+  // etiketti. Video/röntgen bloklarının doğal bir tamamlanma sinyali var
+  // (izlendi/çözüldü); soru ve konu çalışmanın YOK, o yüzden öğrenci
+  // kendisi işaretler. Böylece HER blok bir eyleme cevap verir ve rehberlik
+  // de dört türün tamamında ilerleme görür.
+  completedAt DateTime?
 }
 
 enum ProgramEntryKind {

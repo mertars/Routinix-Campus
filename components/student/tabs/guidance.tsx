@@ -73,19 +73,27 @@ export function GuidanceTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
+  function loadProgram() {
     if (!studentId) return;
-    setLoadingProgram(true);
     fetch(`/api/guidance-program?studentId=${encodeURIComponent(studentId)}`)
       .then((res) => res.json())
       .then((data: { programs?: Program[] }) => setLatestProgram(data.programs?.[0] ?? null))
       .catch(() => showError("Çalışma programı yüklenemedi."))
       .finally(() => setLoadingProgram(false));
+  }
+
+  useEffect(() => {
+    if (!studentId) return;
+    setLoadingProgram(true);
+    loadProgram();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
 
   async function loadRequests() {
-    if (!counselor) return;
+    // ⚠️ studentId useStudentScope'un KENDİ asenkron isteğinden gelir —
+    // ilk render'da BOŞTUR. Guard yokken `?studentId=` boş gidiyor ve uç
+    // 400 dönüyordu (tarayıcı konsolunda gereksiz hata gürültüsü).
+    if (!counselor || !studentId) return;
     try {
       const res = await fetch(`/api/appointments?studentId=${encodeURIComponent(studentId)}`);
       const data = await res.json();
@@ -149,7 +157,7 @@ export function GuidanceTab() {
           /* ⚠️ Günleri alt alta dizen düz liste YATAY PANOYA çevrildi ve
              bloklar birer GİRİŞ NOKTASI oldu (bkz.
              components/student/weekly-program.tsx üstündeki gerekçe). */
-          <StudentWeeklyProgram program={latestProgram} studentId={studentId} />
+          <StudentWeeklyProgram program={latestProgram} studentId={studentId} onChanged={loadProgram} />
         )}
       </motion.div>
 
