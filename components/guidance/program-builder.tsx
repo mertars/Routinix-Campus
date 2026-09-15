@@ -4,12 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookMarked,
+  BookOpen,
   CalendarRange,
   Check,
   Copy,
   FileDown,
   Loader2,
+  PlayCircle,
   Plus,
+  Scan,
   Search,
   Send,
   Target,
@@ -45,7 +48,33 @@ type Day = (typeof DAYS)[number];
 
 const TIME_PRESETS = ["08:00 - 09:00", "10:00 - 11:00", "14:00 - 15:00", "16:00 - 17:00", "17:00 - 18:00", "19:00 - 20:00", "20:00 - 21:00"];
 
-type Entry = { key: string; day: Day; time: string; subject: string; topic: string; questionTarget: number };
+// ⚠️ Blok TÜRLERİ (Mert, 2026-09-15): "şu an sadece soru üstüne; konu
+// çalışma da entegre et, sistemdeki videolardan seçip koyma, röntgen testi
+// atama gibi kullanabilecek bütün özellikleri kullanarak plan oluşturabilsin".
+type EntryKind = "QUESTION" | "TOPIC_STUDY" | "VIDEO" | "XRAY_TEST";
+
+const KIND_META: Record<EntryKind, { label: string; short: string; icon: typeof Target; className: string }> = {
+  QUESTION: { label: "Soru çözümü", short: "Soru", icon: Target, className: "bg-brand-600 text-white" },
+  TOPIC_STUDY: { label: "Konu çalışma", short: "Konu", icon: BookOpen, className: "bg-violet-600 text-white" },
+  VIDEO: { label: "Video izleme", short: "Video", icon: PlayCircle, className: "bg-rose-600 text-white" },
+  XRAY_TEST: { label: "Röntgen testi", short: "Röntgen", icon: Scan, className: "bg-sky-600 text-white" },
+};
+
+type VideoOption = { id: string; title: string; subject: string; topic: string; grade: number };
+
+type Entry = {
+  key: string;
+  day: Day;
+  time: string;
+  subject: string;
+  topic: string;
+  questionTarget: number;
+  kind: EntryKind;
+  videoId: string | null;
+  videoTitle: string | null;
+  subtopicId: string | null;
+  note: string;
+};
 type StudentOption = { id: string; name: string; branchName: string | null };
 type Context = {
   student: { id: string; name: string; branchName: string | null; grade: number | null; track: string | null };
@@ -65,7 +94,18 @@ type SavedProgram = {
   id: string;
   weekLabel: string;
   createdAt: string;
-  entries: { day: string; time: string; subject: string; topic: string; questionTarget: number }[];
+  entries: {
+    day: string;
+    time: string;
+    subject: string;
+    topic: string;
+    questionTarget: number;
+    kind?: EntryKind;
+    videoId?: string | null;
+    video?: { title: string } | null;
+    subtopicId?: string | null;
+    note?: string | null;
+  }[];
 };
 
 let keySeq = 0;
@@ -152,18 +192,23 @@ function StudentPicker({ onPick }: { onPick: (s: StudentOption) => void }) {
 function EntryCard({
   entry,
   subjectOptions,
+  videos,
   onChange,
   onRemove,
   onDuplicate,
 }: {
   entry: Entry;
   subjectOptions: string[];
+  videos: VideoOption[];
   onChange: (patch: Partial<Entry>) => void;
   onRemove: () => void;
   onDuplicate: () => void;
 }) {
   const field =
     "min-h-[36px] w-full rounded-lg border border-hairline bg-white px-2 text-[12.5px] text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream";
+  // Video seçimi dersle daralır — 200 videoluk kütüphanede tüm listeyi
+  // göstermek kullanışsız olurdu.
+  const videoChoices = entry.subject ? videos.filter((v) => v.subject === entry.subject) : videos;
   return (
     <motion.div
       layout
@@ -172,6 +217,29 @@ function EntryCard({
       exit={{ opacity: 0, x: 16 }}
       className="rounded-xl border border-hairline bg-white p-2 dark:border-white/10 dark:bg-midnight-card/60"
     >
+      {/* Blok türü — plan artık yalnızca "soru çöz" değil. */}
+      <div className="mb-1.5 grid grid-cols-4 gap-1">
+        {(Object.keys(KIND_META) as EntryKind[]).map((k) => {
+          const Icon = KIND_META[k].icon;
+          const active = entry.kind === k;
+          return (
+            <button
+              key={k}
+              onClick={() => onChange({ kind: k, ...(k !== "VIDEO" ? { videoId: null, videoTitle: null } : {}) })}
+              title={KIND_META[k].label}
+              aria-label={KIND_META[k].label}
+              className={cn(
+                "flex min-h-[30px] flex-col items-center justify-center gap-0.5 rounded-lg text-[8.5px] font-semibold transition",
+                active ? KIND_META[k].className : "bg-cream-card text-espresso-muted opacity-60 hover:opacity-100 dark:bg-white/5 dark:text-cream/40"
+              )}
+            >
+              <Icon className="h-3 w-3" />
+              {KIND_META[k].short}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="mb-1.5 grid grid-cols-2 gap-1.5">
         <select value={entry.time} onChange={(e) => onChange({ time: e.target.value })} className={field}>
           {[...new Set([entry.time, ...TIME_PRESETS])].map((t) => (
@@ -203,18 +271,54 @@ function EntryCard({
         placeholder="Konu / kazanım"
         className={cn(field, "mb-1.5")}
       />
+
+      {/* VIDEO bloğu — kurumun KENDİ kütüphanesinden seçim. Serbest URL
+          alanı bilerek yok: dışarıdan link denetlenemez ve izlendi takibi
+          kurulamaz (bkz. schema.prisma > GuidanceProgramEntry.videoId). */}
+      {entry.kind === "VIDEO" && (
+        <select
+          value={entry.videoId ?? ""}
+          onChange={(e) => {
+            const v = videos.find((x) => x.id === e.target.value) ?? null;
+            onChange({ videoId: v?.id ?? null, videoTitle: v?.title ?? null, topic: entry.topic || (v?.topic ?? "") });
+          }}
+          className={cn(field, "mb-1.5", !entry.videoId && "text-espresso-muted dark:text-cream/40")}
+        >
+          <option value="">Videoyu seçin{entry.subject ? ` (${entry.subject})` : ""}</option>
+          {videoChoices.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.title} · {v.grade}. sınıf
+            </option>
+          ))}
+        </select>
+      )}
+
+      {entry.kind !== "QUESTION" && (
+        <input
+          value={entry.note}
+          onChange={(e) => onChange({ note: e.target.value })}
+          placeholder="Açıklama (örn. önce özet çıkar)"
+          className={cn(field, "mb-1.5")}
+        />
+      )}
+
       <div className="flex items-center gap-1.5">
-        <div className="relative flex-1">
-          <Target className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-espresso-muted dark:text-cream/35" />
-          <input
-            type="number"
-            min={0}
-            max={999}
-            value={entry.questionTarget}
-            onChange={(e) => onChange({ questionTarget: Math.max(0, Number(e.target.value) || 0) })}
-            className={cn(field, "pl-7")}
-          />
-        </div>
+        {/* Soru hedefi SADECE soru çözümü ve röntgen testinde anlamlı —
+            video izlerken "40 soru" yazmak kafa karıştırırdı. */}
+        {(entry.kind === "QUESTION" || entry.kind === "XRAY_TEST") && (
+          <div className="relative flex-1">
+            <Target className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-espresso-muted dark:text-cream/35" />
+            <input
+              type="number"
+              min={0}
+              max={999}
+              value={entry.questionTarget}
+              onChange={(e) => onChange({ questionTarget: Math.max(0, Number(e.target.value) || 0) })}
+              className={cn(field, "pl-7")}
+            />
+          </div>
+        )}
+        {entry.kind !== "QUESTION" && entry.kind !== "XRAY_TEST" && <span className="flex-1" />}
         <button
           onClick={onDuplicate}
           title="Bu bloğu çoğalt"
@@ -245,6 +349,7 @@ export function GuidanceProgramBuilder() {
   const [saving, setSaving] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [history, setHistory] = useState<SavedProgram[] | null>(null);
+  const [videos, setVideos] = useState<VideoOption[]>([]);
   // Kazanım "+" tuşu hangi güne atsın — rehber sırayı kendisi kurar.
   const [targetDay, setTargetDay] = useState<Day>("Pazartesi");
 
@@ -266,6 +371,25 @@ export function GuidanceProgramBuilder() {
       .then(setCtx)
       .catch(() => showError("Öğrenci verileri yüklenemedi."));
     loadHistory(student.id);
+    // Kurumun video kütüphanesi — VIDEO bloklarında seçilecek.
+    // Yalnızca yayına HAZIR videolar: aktarımı süren/başarısız bir videoyu
+    // programa koymak öğrenciye açılmayan bir link vermek olurdu.
+    fetch("/api/videos")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) =>
+        setVideos(
+          (d.videos ?? [])
+            .filter((v: { status: string; youtubeId: string | null }) => v.status === "READY" && v.youtubeId)
+            .map((v: { id: string; title: string; subject: string; topic: string; grade: number }) => ({
+              id: v.id,
+              title: v.title,
+              subject: v.subject,
+              topic: v.topic,
+              grade: v.grade,
+            }))
+        )
+      )
+      .catch(() => setVideos([]));
   }, [student, showError, loadHistory]);
 
   function addEntry(day: Day, preset?: Partial<Entry>) {
@@ -278,6 +402,11 @@ export function GuidanceProgramBuilder() {
         subject: preset?.subject ?? "",
         topic: preset?.topic ?? "",
         questionTarget: preset?.questionTarget ?? 20,
+        kind: preset?.kind ?? "QUESTION",
+        videoId: preset?.videoId ?? null,
+        videoTitle: preset?.videoTitle ?? null,
+        subtopicId: preset?.subtopicId ?? null,
+        note: preset?.note ?? "",
       },
     ]);
   }
@@ -312,7 +441,13 @@ export function GuidanceProgramBuilder() {
             time: e.time,
             subject: e.subject.trim(),
             topic: e.topic.trim(),
-            questionTarget: e.questionTarget,
+            // Video/konu bloklarında soru hedefi 0 — PDF ve öğrenci
+            // ekranı "0 soru" yazmak yerine türü gösteriyor.
+            questionTarget: e.kind === "QUESTION" || e.kind === "XRAY_TEST" ? e.questionTarget : 0,
+            kind: e.kind,
+            videoId: e.videoId,
+            subtopicId: e.subtopicId,
+            note: e.note.trim() || null,
           })),
         }),
       });
@@ -516,6 +651,7 @@ export function GuidanceProgramBuilder() {
                           key={entry.key}
                           entry={entry}
                           subjectOptions={ctx?.subjectOptions ?? []}
+                          videos={videos}
                           onChange={(patch) =>
                             setEntries((prev) => prev.map((e) => (e.key === entry.key ? { ...e, ...patch } : e)))
                           }
@@ -600,6 +736,11 @@ export function GuidanceProgramBuilder() {
                             subject: e.subject,
                             topic: e.topic,
                             questionTarget: e.questionTarget,
+                            kind: (e.kind ?? "QUESTION") as EntryKind,
+                            videoId: e.videoId ?? null,
+                            videoTitle: e.video?.title ?? null,
+                            subtopicId: e.subtopicId ?? null,
+                            note: e.note ?? "",
                           }))
                         );
                         showSuccess("Program taslağa kopyalandı — düzenleyip yeniden gönderebilirsiniz.");

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { HeartHandshake, Send, Clock, Loader2, CalendarCheck2, Target } from "lucide-react";
+import { BookOpen, CalendarCheck2, Clock, HeartHandshake, Loader2, PlayCircle, Scan, Send, Target } from "lucide-react";
 import { DAYS_OF_WEEK } from "@/lib/mock-data";
 import { useStudentScope } from "@/lib/student-scope";
 import { useToast } from "@/lib/toast-context";
@@ -11,7 +12,28 @@ import { cn } from "@/lib/utils";
 type AppointmentStatus = "PENDING" | "APPROVED" | "REJECTED";
 type AppointmentEntry = { id: string; topic: string; day: string; slot: string; status: AppointmentStatus; requestedAt: string; teacher: { firstName: string; lastName: string } };
 
-type ProgramEntry = { id: string; day: string; time: string; subject: string; topic: string; questionTarget: number };
+type ProgramEntryKind = "QUESTION" | "TOPIC_STUDY" | "VIDEO" | "XRAY_TEST";
+type ProgramEntry = {
+  id: string;
+  day: string;
+  time: string;
+  subject: string;
+  topic: string;
+  questionTarget: number;
+  kind?: ProgramEntryKind;
+  note?: string | null;
+  video?: { id: string; title: string; youtubeId: string | null } | null;
+};
+
+// Blok türü → etiket/ikon/renk. Rehberin ekranındakiyle (bkz.
+// components/guidance/program-builder.tsx > KIND_META) AYNI renk kodu —
+// öğrenci ile rehber aynı şeyi aynı renkte görmeli.
+const ENTRY_KIND_META: Record<ProgramEntryKind, { label: string; icon: typeof Target; className: string }> = {
+  QUESTION: { label: "Soru", icon: Target, className: "bg-brand-50 text-brand-700 dark:bg-brand-600/15 dark:text-brand-300" },
+  TOPIC_STUDY: { label: "Konu çalış", icon: BookOpen, className: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300" },
+  VIDEO: { label: "Video", icon: PlayCircle, className: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300" },
+  XRAY_TEST: { label: "Röntgen testi", icon: Scan, className: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300" },
+};
 type Program = { id: string; weekLabel: string; createdAt: string; entries: ProgramEntry[] };
 
 const REASONS = ["Sınav Kaygısı", "Motivasyon", "Ders/Bölüm Seçimi", "Kişisel Gelişim", "Diğer"];
@@ -135,17 +157,51 @@ export function GuidanceTab() {
                 <div key={day} className="rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5">
                   <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-600">{day}</p>
                   <div className="space-y-1.5">
-                    {entries.map((entry) => (
-                      <div key={entry.id} className="flex items-center justify-between gap-3 text-xs">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-espresso dark:text-cream">{entry.subject} — {entry.topic}</p>
-                          <p className="text-[10px] text-espresso-muted dark:text-cream/40">{entry.time}</p>
+                    {/* ⚠️ Blok TÜRÜNE göre render (bkz. schema.prisma >
+                        ProgramEntryKind). Eskiden her satır "N soru" diyordu;
+                        video ya da konu çalışma bloğunda bu yanlış olurdu.
+                        Video bloğu Video Ders Merkezi'ne GÖTÜRÜR — öğrenciye
+                        "bir video izle" deyip nereye gideceğini söylememek
+                        bildirim gönderip gidecek yer vermemekle aynı hata. */}
+                    {entries.map((entry) => {
+                      const kind = entry.kind ?? "QUESTION";
+                      const meta = ENTRY_KIND_META[kind] ?? ENTRY_KIND_META.QUESTION;
+                      const KindIcon = meta.icon;
+                      return (
+                        <div key={entry.id} className="flex items-center justify-between gap-3 text-xs">
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-espresso dark:text-cream">
+                              {entry.subject} — {entry.kind === "VIDEO" && entry.video ? entry.video.title : entry.topic}
+                            </p>
+                            <p className="text-[10px] text-espresso-muted dark:text-cream/40">
+                              {entry.time}
+                              {entry.note ? ` · ${entry.note}` : ""}
+                            </p>
+                          </div>
+                          {kind === "VIDEO" && entry.video?.youtubeId ? (
+                            <Link
+                              href="/student?tab=videos"
+                              className={cn(
+                                "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition hover:opacity-80",
+                                meta.className
+                              )}
+                            >
+                              <KindIcon className="h-3 w-3" /> İzle
+                            </Link>
+                          ) : (
+                            <span
+                              className={cn(
+                                "flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium",
+                                meta.className
+                              )}
+                            >
+                              <KindIcon className="h-3 w-3" />
+                              {kind === "QUESTION" || kind === "XRAY_TEST" ? `${entry.questionTarget} soru` : meta.label}
+                            </span>
+                          )}
                         </div>
-                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700 dark:bg-brand-600/15 dark:text-brand-300">
-                          <Target className="h-3 w-3" /> {entry.questionTarget} soru
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}

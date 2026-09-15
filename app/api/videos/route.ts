@@ -20,7 +20,11 @@ export const maxDuration = 300;
 async function handleGet(request: NextRequest) {
   try {
     const session = await requireSession();
-    requireRole(session, "principal", "teacher");
+    // ⚠️ Rehberlik eklendi (Mert, 2026-09-15): çalışma programına "sistemdeki
+    // videolardan seçip koyma" isteniyor (bkz. GuidanceProgramEntry.kind =
+    // VIDEO). Rehberlik zaten kurum genelinde çalışan bir personel rolü;
+    // kütüphaneyi OKUYABİLİR, ekleme yetkisi yine sadece yöneticide (POST).
+    requireRole(session, "principal", "teacher", "guidance");
 
     const videos = await prisma.video.findMany({
       where: { institutionId: session.institutionId },

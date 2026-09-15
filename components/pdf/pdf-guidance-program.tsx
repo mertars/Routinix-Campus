@@ -94,7 +94,17 @@ const styles = StyleSheet.create({
   watermark: { fontSize: 7, color: COLORS.textMuted, opacity: 0.6 },
 });
 
-export type GuidanceProgramEntryRow = { day: string; time: string; subject: string; topic: string; questionTarget: number };
+export type GuidanceProgramEntryRow = {
+  day: string;
+  time: string;
+  subject: string;
+  topic: string;
+  questionTarget: number;
+  // Blok türü ve rehberin açıklaması (bkz. schema.prisma >
+  // ProgramEntryKind). Eski kayıtlarda yok — QUESTION varsayılır.
+  kind?: "QUESTION" | "TOPIC_STUDY" | "VIDEO" | "XRAY_TEST";
+  note?: string | null;
+};
 
 export type PdfGuidanceProgramProps = {
   institutionName: string;
@@ -184,9 +194,26 @@ export function PdfGuidanceProgram({ institutionName, logoUrl, studentName, week
                         <View style={[styles.subjectPill, { backgroundColor: color.bg }]}>
                           <Text style={[styles.subjectPillText, { color: color.text }]}>{t(entry.subject)}</Text>
                         </View>
-                        <Text style={styles.entryTopic}>{t(entry.topic)}</Text>
+                        <Text style={styles.entryTopic}>
+                          {t(entry.topic)}
+                          {entry.note ? t(` — ${entry.note}`) : ""}
+                        </Text>
+                        {/* ⚠️ Rozet blok TÜRÜNE göre. Eskiden her satır
+                            "N soru" yazıyordu; video/konu çalışma bloğunda
+                            bu yanlış bir hedef gösterirdi (bkz.
+                            schema.prisma > ProgramEntryKind). */}
                         <View style={styles.targetPill}>
-                          <Text style={styles.targetPillText}>{t(`${entry.questionTarget} soru`)}</Text>
+                          <Text style={styles.targetPillText}>
+                            {t(
+                              entry.kind === "VIDEO"
+                                ? "Video izle"
+                                : entry.kind === "TOPIC_STUDY"
+                                  ? "Konu çalış"
+                                  : entry.kind === "XRAY_TEST"
+                                    ? `Röntgen · ${entry.questionTarget} soru`
+                                    : `${entry.questionTarget} soru`
+                            )}
+                          </Text>
                         </View>
                       </View>
                     );

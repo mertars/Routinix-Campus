@@ -1532,6 +1532,33 @@ model GuidanceProgramEntry {
   subject        String
   topic          String
   questionTarget Int
+
+  // ⚠️ Blok TÜRÜ (Mert, 2026-09-15): "şu an sadece soru üstüne; buraya konu
+  // çalışma da entegre et, video linki koyma — sistemdeki videolardan seçip
+  // koyma, röntgen testi atama gibi sistemdeki kullanabilecek bütün
+  // özellikleri kullanarak plan oluşturabilsin". Eski satırlar QUESTION
+  // varsayılanıyla aynen çalışmaya devam eder.
+  kind ProgramEntryKind @default(QUESTION)
+
+  // kind=VIDEO iken — kurumun KENDİ video kütüphanesinden seçilen ders
+  // (bkz. model Video). Serbest bir URL alanı BİLEREK yok: dışarıdan link
+  // yapıştırmak hem denetlenemez hem de izlendi/izlenmedi takibi kurulamaz.
+  videoId String?
+  video   Video?  @relation(fields: [videoId], references: [id], onDelete: SetNull)
+
+  // kind=XRAY_TEST veya TOPIC_STUDY iken — CURRICULUM_TREE'deki kazanım.
+  // Röntgen'in kazanım kimliğiyle AYNI (bkz. TopicMasteryAssessment).
+  subtopicId String?
+
+  // Rehberin bloğa düştüğü kısa açıklama ("önce özet çıkar, sonra soru").
+  note String?
+}
+
+enum ProgramEntryKind {
+  QUESTION
+  TOPIC_STUDY
+  VIDEO
+  XRAY_TEST
 }
 
 // ----------------------------------------------------------------------------
@@ -2359,6 +2386,9 @@ model Video {
   assignments     VideoAssignment[]
 
   @@index([institutionId, grade, subject])
+  // Çalışma programlarında bu videoya verilen bloklar (bkz.
+  // GuidanceProgramEntry.kind = VIDEO).
+  programEntries  GuidanceProgramEntry[]
 }
 
 // Bir videonun hangi öğrencilere atandığını tutar — kullanıcı isteği

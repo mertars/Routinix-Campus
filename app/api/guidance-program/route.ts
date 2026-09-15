@@ -40,7 +40,10 @@ async function handleGet(request: NextRequest) {
 
     const programs = await prisma.guidanceProgram.findMany({
       where: { studentId },
-      include: { entries: true },
+      // Video bloklarında öğrencinin videoyu AÇABİLMESİ için başlık ve
+      // youtubeId gerekir — aksi halde "bir video izle" yazan ama nereye
+      // gideceğini söylemeyen bir satır kalırdı.
+      include: { entries: { include: { video: { select: { id: true, title: true, youtubeId: true } } } } },
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json({ programs });
@@ -60,7 +63,19 @@ async function handlePost(request: NextRequest) {
     const { studentId, weekLabel, entries } = body as {
       studentId?: string;
       weekLabel?: string;
-      entries?: { day: string; time: string; subject: string; topic: string; questionTarget: number }[];
+      entries?: {
+        day: string;
+        time: string;
+        subject: string;
+        topic: string;
+        questionTarget: number;
+        // Blok türü ve ekleri (bkz. schema.prisma > GuidanceProgramEntry).
+        // Gönderilmezse QUESTION varsayılır — eski istemciler kırılmaz.
+        kind?: "QUESTION" | "TOPIC_STUDY" | "VIDEO" | "XRAY_TEST";
+        videoId?: string | null;
+        subtopicId?: string | null;
+        note?: string | null;
+      }[];
     };
     if (!studentId || !weekLabel?.trim() || !Array.isArray(entries) || entries.length === 0) {
       return NextResponse.json({ error: "studentId, weekLabel ve en az bir entry zorunludur." }, { status: 400 });
@@ -69,11 +84,34 @@ async function handlePost(request: NextRequest) {
     if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
     requireInstitution(session, student.institutionId);
 
+    // ⚠️ VIDEO bloklarındaki videoId KURUM İÇİNDEN doğrulanır — istemciden
+    // gelen id'ye güvenilmez (CLAUDE.md). Aksi halde başka bir kurumun
+    // videosu bir öğrencinin programına iliştirilebilirdi.
+    const videoIds = [...new Set(entries.map((e) => e.videoId).filter((v): v is string => !!v))];
+    if (videoIds.length > 0) {
+      const ok = await prisma.video.count({ where: { id: { in: videoIds }, institutionId: student.institutionId } });
+      if (ok !== videoIds.length) {
+        return NextResponse.json({ error: "Seçilen videolardan biri bu kuruma ait değil." }, { status: 400 });
+      }
+    }
+
     const program = await prisma.guidanceProgram.create({
       data: {
         studentId,
         weekLabel: weekLabel.trim(),
-        entries: { create: entries.map((e) => ({ day: e.day, time: e.time, subject: e.subject, topic: e.topic, questionTarget: e.questionTarget })) },
+        entries: {
+          create: entries.map((e) => ({
+            day: e.day,
+            time: e.time,
+            subject: e.subject,
+            topic: e.topic,
+            questionTarget: e.questionTarget,
+            kind: e.kind ?? "QUESTION",
+            videoId: e.kind === "VIDEO" ? (e.videoId ?? null) : null,
+            subtopicId: e.subtopicId ?? null,
+            note: e.note?.trim() || null,
+          })),
+        },
       },
       include: { entries: true },
     });
