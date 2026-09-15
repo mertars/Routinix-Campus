@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, LifeBuoy, Users } from "lucide-react";
+import { AlertTriangle, CalendarClock, LifeBuoy, Users } from "lucide-react";
 import { GuidanceTopBar } from "@/components/guidance/guidance-top-bar";
 import { ReferralQueue } from "@/components/guidance/referral-queue";
 import { StudentFocusTab } from "@/components/guidance/student-focus-tab";
 import { RiskTab } from "@/components/guidance/risk-tab";
+import { GuidanceMeetingsTab } from "@/components/guidance/meetings-tab";
 import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 // takibi), üçüncüsü "kimi gözden kaçırıyorum" (risk radarı).
 const TABS = [
   { id: "referrals", label: "Sevk Kuyruğu", icon: LifeBuoy },
+  { id: "meetings", label: "Görüşme Takvimi", icon: CalendarClock },
   { id: "students", label: "Öğrenci Takibi", icon: Users },
   { id: "risk", label: "Risk Radarı", icon: AlertTriangle },
 ] as const;
@@ -75,6 +77,7 @@ export default function GuidancePage() {
             transition={{ duration: 0.2 }}
           >
             {activeTab === "referrals" && <ReferralQueue />}
+            {activeTab === "meetings" && <GuidanceMeetingsTab />}
             {activeTab === "students" && <StudentFocusTab />}
             {activeTab === "risk" && (
               <RiskTab

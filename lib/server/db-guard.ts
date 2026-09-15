@@ -23,6 +23,9 @@ const SCOPE_KEYS = new Set([
   "institutionId",
   "studentId",
   "teacherId",
+  // Rehberlik görüşmesi sahipliği (bkz. GuidanceMeeting) — öğretmen kimliği
+  // ama ayrı alan adı; olmadan o modelde toplu silme hiç daraltılamıyordu.
+  "counselorId",
   "parentId",
   "adminId",
   "branchId",
@@ -72,6 +75,7 @@ const PROTECTED_MODELS = new Set([
   "YearlyPlanRow",
   "TeacherMaterial",
   "GuidanceNote",
+  "GuidanceMeeting",
   "GuidanceReferral",
   "AppointmentRequest",
   "ExamNetResult",

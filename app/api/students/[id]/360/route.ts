@@ -39,6 +39,18 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
     } else if (session.role === "TEACHER") {
       await assertTeacherOwnsStudent(session.sub, student.id);
       includeFinance = false;
+    } else if (session.role === "GUIDANCE") {
+      // ⚠️ Rehberlik EKLENDİ (Mert, 2026-09-15: "öğrencinin derecesini
+      // bilemiyor"). Rehber öğretmen kurum genelinde çalışır — şube
+      // sahipliği ARANMAZ (bkz. session-guard > assertCanReadBranch'teki
+      // aynı merdiven: GUIDANCE kurum geneli). Rehberliğin işi tam olarak
+      // netleri, devamsızlığı ve kazanım eksiklerini görmektir; bunlar
+      // olmadan görüşme yapmak körlemesine konuşmaktır.
+      //
+      // FİNANS YİNE KAPALI: borç bilgisi rehberlik görüşmesinin konusu
+      // değil ve Ödeme Takip modülü bu role hiç açılmadı — öğretmendeki
+      // AYNI gerekçe.
+      includeFinance = false;
     } else {
       throw new AuthError("Bu işlem için yetkiniz yok.", "FORBIDDEN_ROLE", 403);
     }

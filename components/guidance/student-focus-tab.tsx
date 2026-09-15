@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, Loader2, NotebookPen, Search, Send, UserRound } from "lucide-react";
+import { AlertTriangle, LineChart, Loader2, NotebookPen, Search, Send, UserRound } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
+import { openStudent360 } from "@/lib/student-360-store";
 import { cn } from "@/lib/utils";
 
 // ÖĞRENCİ TAKİBİ — rehberliğin ana çalışma ekranı.
@@ -207,12 +208,25 @@ export function StudentFocusTab() {
           </div>
         ) : (
           <>
-            <div className="mb-4">
-              <h2 className="text-base font-bold text-espresso dark:text-cream">{selected.name}</h2>
-              <p className="text-[11.5px] text-espresso-muted dark:text-cream/45">
-                {selected.branchName} · No {selected.studentNumber} · {selected.noteCount} görüşme kaydı ·{" "}
-                {sinceLabel(selected.lastNoteAt)}
-              </p>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="text-base font-bold text-espresso dark:text-cream">{selected.name}</h2>
+                <p className="text-[11.5px] text-espresso-muted dark:text-cream/45">
+                  {selected.branchName} · No {selected.studentNumber} · {selected.noteCount} görüşme kaydı ·{" "}
+                  {sinceLabel(selected.lastNoteAt)}
+                </p>
+              </div>
+              {/* ⚠️ Mert (2026-09-15): "öğrencinin derecesini bilemiyor".
+                  Rehberlik artık Öğrenci 360'ı açabiliyor (netler, deneme
+                  sonuçları, kazanım eksikleri, devamsızlık) — FİNANS HARİÇ,
+                  bkz. app/api/students/[id]/360/route.ts. Görüşmeye veriyle
+                  hazırlanmak rehberliğin asli işi. */}
+              <button
+                onClick={() => openStudent360(selected.id)}
+                className="flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-xl bg-espresso px-3 text-[11.5px] font-semibold text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+              >
+                <LineChart className="h-3.5 w-3.5" /> Akademik Durum
+              </button>
             </div>
 
             {selected.openReferrals.length > 0 && (

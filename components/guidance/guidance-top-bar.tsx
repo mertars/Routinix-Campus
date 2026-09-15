@@ -30,7 +30,13 @@ export function GuidanceTopBar() {
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-brand-500/30 bg-white/60 px-3 py-1.5 shadow-[0_0_15px_rgb(var(--brand-600)/0.3)] dark:border-brand-500/20 dark:bg-midnight-card/50 dark:backdrop-blur-sm">
           <GlowLogo size="h-7 w-7" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
-          <span className={cn(spaceGrotesk.className, "truncate text-sm font-semibold text-espresso dark:text-cream")}>Rehberlik</span>
+          {/* Panel adı mobilde GİZLİ: 390px'te hem "Rehberlik" hem kurum adı
+              aynı satıra sığmıyor, ikisi birden kırpılıyordu. Hangi paneldeyiz
+              zaten sekme çubuğundan belli — kurum adı ise değil, o yüzden
+              öncelik onda (Mert: "dershane ismi tam gözüksün"). */}
+          <span className={cn(spaceGrotesk.className, "hidden truncate text-sm font-semibold text-espresso dark:text-cream sm:inline")}>
+            Rehberlik
+          </span>
         </div>
 
         {/* Kurum adı artık KÜÇÜK ekranda da görünür (eskiden sm altında

@@ -38,6 +38,7 @@ const ARCHIVED_MODELS = new Set([
   "YearlyPlanRow",
   "TeacherMaterial",
   "GuidanceNote",
+  "GuidanceMeeting",
   "GuidanceReferral",
   "AppointmentRequest",
   "ExamNetResult",

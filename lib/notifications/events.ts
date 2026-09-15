@@ -132,6 +132,10 @@ export const NOTIFICATION_EVENTS = {
   "guidance.referral_resolved": { category: "GUIDANCE", icon: "check-circle" },
   "guidance.program_assigned": { category: "GUIDANCE", icon: "life-buoy" },
   "guidance.mentor_requested": { category: "GUIDANCE", icon: "help-circle" },
+  // Rehberlik görüşme takvimi (bkz. app/api/guidance/meetings). Öğrencinin
+  // randevudan HABERİ OLMAZSA gelmez ve görüşme "gelmedi" diye kapanır.
+  "guidance.meeting_scheduled": { category: "GUIDANCE", icon: "calendar-clock", urgent: true },
+  "guidance.meeting_cancelled": { category: "GUIDANCE", icon: "calendar-clock" },
 
   // --- İçerik ---
   "question.asked": { category: "CONTENT", icon: "help-circle" },

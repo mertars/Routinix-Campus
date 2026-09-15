@@ -33,7 +33,10 @@ async function handleGet(request: NextRequest) {
     if (session.role === "STUDENT") assertOwnsSelf(session, studentId);
     else if (session.role === "TEACHER") await assertTeacherOwnsStudent(session.sub, studentId);
     else if (session.role === "PARENT") await assertParentOwnsStudent(session.sub, studentId);
-    else requireRole(session, "principal");
+    // ⚠️ Rehberlik eklendi: bu ekran zaten YÖNETİCİ panelinde vardı ve
+    // rehber öğretmen kendi asli aracına (çalışma programı) erişemiyordu
+    // (Mert, 2026-09-15: "plan program oluşturamıyor").
+    else requireRole(session, "principal", "guidance");
 
     const programs = await prisma.guidanceProgram.findMany({
       where: { studentId },
@@ -51,7 +54,7 @@ async function handleGet(request: NextRequest) {
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
-    requireRole(session, "principal");
+    requireRole(session, "principal", "guidance");
 
     const body = await request.json();
     const { studentId, weekLabel, entries } = body as {

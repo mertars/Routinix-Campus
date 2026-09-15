@@ -276,6 +276,7 @@ model Student {
   quizSubmissions              QuizSubmission[]
   appointmentRequests          AppointmentRequest[]
   guidanceNotes                GuidanceNote[]
+  guidanceMeetings                GuidanceMeeting[]
   guidanceReferrals            GuidanceReferral[]
   announcementReads            AnnouncementRead[]
   seatAssignments              ExamSeatAssignment[]
@@ -386,6 +387,7 @@ model Teacher {
   payrollItems            PayrollItem[]
   staffAdvances           StaffAdvance[]
   guidanceReferrals       GuidanceReferral[]
+  counselorMeetings       GuidanceMeeting[]          @relation("CounselorMeetings")
   createdAt               DateTime                   @default(now())
   updatedAt               DateTime                   @updatedAt
 
@@ -1106,6 +1108,47 @@ model GuidanceNote {
   createdAt            DateTime             @default(now())
 
   @@index([studentId])
+}
+
+// Rehberlik görüşmesi — "kimle, ne zaman görüşeceğim".
+//
+// ⚠️ NEDEN AYRI BİR MODEL (Mert, 2026-09-15: "görüşme de açamıyor,
+// programını kimle ne zaman görüşecek göremiyor"): sistemde randevu
+// kavramı olarak yalnızca AppointmentRequest vardı ve o ÖĞRENCİNİN
+// öğretmenden etüt İSTEMESİ akışıdır — gün ADI + ders saati tutar
+// ("Salı, 16:00-17:00"), gerçek bir tarihi yoktur. Rehberlik takvimi
+// "3 Ekim Salı 14:00" demek zorunda: hangi hafta olduğu belirsiz bir
+// randevu takvim değildir ve geçmiş görüşmeler tarihe göre sıralanamaz.
+model GuidanceMeeting {
+  id          String  @id @default(cuid())
+  studentId   String
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  // Rehberlik personası bir Teacher kaydıdır (bkz. lib/server/auth/otp.ts) —
+  // ayrı bir tablo YOK, o yüzden görüşmeyi açan da Teacher'a bağlanır.
+  counselorId String
+  counselor   Teacher @relation("CounselorMeetings", fields: [counselorId], references: [id], onDelete: Cascade)
+
+  scheduledAt DateTime
+  // Dakika cinsinden süre — takvimde blok yüksekliği ve çakışma kontrolü için.
+  durationMin Int                  @default(30)
+  topic       String
+  category    GuidanceCategory     @default(ACADEMIC)
+  // Görüşme NOTU burada DEĞİL GuidanceNote'ta tutulur (gizlilik seviyesi
+  // orada yönetiliyor). Burası yalnızca "oldu mu, olmadıysa neden".
+  status      GuidanceMeetingStatus @default(PLANNED)
+  outcomeNote String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([counselorId, scheduledAt])
+  @@index([studentId])
+}
+
+enum GuidanceMeetingStatus {
+  PLANNED
+  DONE
+  NO_SHOW
+  CANCELLED
 }
 
 enum GuidanceReferralStatus {
