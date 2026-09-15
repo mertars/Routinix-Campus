@@ -49,7 +49,15 @@ type Entry = { key: string; day: Day; time: string; subject: string; topic: stri
 type StudentOption = { id: string; name: string; branchName: string | null };
 type Context = {
   student: { id: string; name: string; branchName: string | null; grade: number | null; track: string | null };
-  subjects: { subject: string; avgNet: number; lastNet: number | null; examCount: number; absentCount: number }[];
+  subjects: {
+    subject: string;
+    avgNet: number;
+    lastNet: number | null;
+    examCount: number;
+    absentCount: number;
+    isAggregate: boolean;
+    coversSubjects: string[];
+  }[];
   weakTopics: { subject: string; subtopicId: string; name: string; score: number }[];
   subjectOptions: string[];
 };
@@ -172,18 +180,22 @@ function EntryCard({
             </option>
           ))}
         </select>
-        <input
-          list="program-subjects"
+        {/* ⚠️ Serbest metin DEĞİL, listeden seçim: ders adları tek kaynaktan
+            gelir (lib/subjects.ts) — kademenin gerçek dersleri + öğrencinin
+            ders programındakiler. Serbest metinken deneme kitapçığı adları
+            ("Fen Bilimleri") plana sızıyordu. */}
+        <select
           value={entry.subject}
           onChange={(e) => onChange({ subject: e.target.value })}
-          placeholder="Ders"
-          className={field}
-        />
-        <datalist id="program-subjects">
+          className={cn(field, !entry.subject && "text-espresso-muted dark:text-cream/40")}
+        >
+          <option value="">Ders seçin</option>
           {subjectOptions.map((s) => (
-            <option key={s} value={s} />
+            <option key={s} value={s}>
+              {s}
+            </option>
           ))}
-        </datalist>
+        </select>
       </div>
       <input
         value={entry.topic}
@@ -397,12 +409,23 @@ export function GuidanceProgramBuilder() {
                 ) : (
                   <div className="space-y-1">
                     {ctx.subjects.map((s) => (
-                      <div key={s.subject} className="flex items-center gap-2 rounded-lg bg-cream-card px-2.5 py-1.5 dark:bg-white/5">
-                        <span className="min-w-0 flex-1 truncate text-[12.5px] text-espresso dark:text-cream">{s.subject}</span>
-                        {s.absentCount > 0 && (
-                          <span className="shrink-0 text-[10px] text-rose-600 dark:text-rose-300">{s.absentCount} devamsız</span>
+                      <div key={s.subject} className="rounded-lg bg-cream-card px-2.5 py-1.5 dark:bg-white/5">
+                        <div className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-[12.5px] text-espresso dark:text-cream">{s.subject}</span>
+                          {s.absentCount > 0 && (
+                            <span className="shrink-0 text-[10px] text-rose-600 dark:text-rose-300">{s.absentCount} devamsız</span>
+                          )}
+                          <span className="shrink-0 text-[12.5px] font-bold tabular-nums text-espresso dark:text-cream">{s.avgNet}</span>
+                        </div>
+                        {/* ⚠️ Kitapçık bölümü — gerçek bir ders DEĞİL, plana
+                            ders olarak alınmaz (bkz. lib/subjects.ts). Neti
+                            bilgi olarak duruyor ama hangi dersleri kapsadığı
+                            açıkça yazılıyor ki rehber plana doğru dersi yazsın. */}
+                        {s.isAggregate && s.coversSubjects.length > 0 && (
+                          <p className="mt-0.5 text-[10px] leading-snug text-espresso-muted dark:text-cream/40">
+                            deneme bölümü · {s.coversSubjects.join(", ")}
+                          </p>
                         )}
-                        <span className="shrink-0 text-[12.5px] font-bold tabular-nums text-espresso dark:text-cream">{s.avgNet}</span>
                       </div>
                     ))}
                   </div>

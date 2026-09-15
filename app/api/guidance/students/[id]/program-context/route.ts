@@ -5,6 +5,7 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { expandSubject, isAggregateSubject, levelOfGrade, planningSubjects } from "@/lib/subjects";
 
 export const dynamic = "force-dynamic";
 
@@ -42,14 +43,15 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
         firstName: true,
         lastName: true,
         institutionId: true,
+        branchId: true,
         branch: { select: { name: true, grade: true, track: true } },
       },
     });
     if (!student) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
     requireInstitution(session, student.institutionId);
 
-    // Üç sorgu birbirinden bağımsız — tek Promise.all.
-    const [mastery, nets, attendance] = await Promise.all([
+    // Dört sorgu birbirinden bağımsız — tek Promise.all.
+    const [mastery, nets, attendance, taught] = await Promise.all([
       prisma.topicMasteryAssessment.findMany({
         where: { studentId: student.id },
         select: { subject: true, subtopicId: true, masteryScore: true, assessedAt: true },
@@ -61,6 +63,18 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
         take: 120,
       }),
       prisma.attendanceRecord.groupBy({ by: ["subject"], where: { studentId: student.id, status: "ABSENT" }, _count: { _all: true } }),
+      // ⚠️ Öğrencinin GERÇEKTEN gördüğü dersler ders programından gelir.
+      // Ders listesi deneme sonuçlarından TÜRETİLMEZ (bkz. lib/subjects.ts
+      // üstündeki ölçüm: ExamNetResult "Fen Bilimleri", "Sosyal" gibi
+      // KİTAPÇIK BÖLÜMÜ adları taşıyor ve plana taşınınca "fenden 100 soru
+      // çöz" gibi işlevsiz bir hedef üretiyordu).
+      student.branchId
+        ? prisma.lessonSlot.findMany({
+            where: { branchId: student.branchId },
+            select: { subject: true },
+            distinct: ["subject"],
+          })
+        : Promise.resolve([] as { subject: string }[]),
     ]);
 
     // Ders bazlı net ortalaması — "hangi derste geride" sorusunun cevabı.
@@ -73,6 +87,7 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
       bySubject.set(n.subject, cur);
     }
 
+    const level = levelOfGrade(student.branch?.grade ?? null);
     const absentBySubject = new Map<string, number>();
     for (const a of attendance) absentBySubject.set(a.subject ?? "—", a._count._all);
 
@@ -108,14 +123,21 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
           lastNet: v.last,
           examCount: v.count,
           absentCount: absentBySubject.get(subject) ?? 0,
+          // Kitapçık bölümü mü (ör. TYT "Fen Bilimleri")? Arayüz bunu
+          // net listesinde AÇIKLAR ama ders seçeneği olarak SUNMAZ.
+          isAggregate: isAggregateSubject(subject, level),
+          coversSubjects: isAggregateSubject(subject, level) ? expandSubject(subject, level) : [],
         }))
         .sort((a, b) => a.avgNet - b.avgNet),
       weakTopics,
-      // Programda kullanılabilecek ders adları — öğrencinin gerçekten
-      // gördüğü dersler, serbest metin yerine.
-      subjectOptions: [...new Set([...bySubject.keys(), ...mastery.map((m) => m.subject)])].sort((a, b) =>
-        a.localeCompare(b, "tr-TR")
+      // ⚠️ Programda kullanılabilecek dersler TEK KAYNAKTAN (lib/subjects.ts):
+      // kademenin gerçek dersleri + öğrencinin ders programındaki dersler.
+      // Deneme sonuçlarındaki kitapçık bölümleri buraya GİRMEZ.
+      subjectOptions: planningSubjects(
+        student.branch?.grade ?? null,
+        taught.map((t) => t.subject)
       ),
+      level,
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
