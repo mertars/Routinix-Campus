@@ -90,7 +90,7 @@ const sectionVariants = {
 };
 
 export default function StudentPage() {
-  const studentName = useSessionName("Arslan");
+  const studentName = useSessionName();
   const [activeTab, setActiveTab] = useDeepLinkTab<TabId>("overview", (v) => TABS.some((t) => t.id === v));
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? OverviewTab;
 

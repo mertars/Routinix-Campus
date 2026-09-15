@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import { RoleProvider } from "@/lib/role-context";
+import { SessionProfileProvider } from "@/lib/institution-scope";
+import { getSessionProfile } from "@/lib/server/auth/session-profile";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AccentProvider } from "@/lib/accent-context";
 import { LiveSyncProvider } from "@/lib/live-sync-context";
@@ -63,7 +65,16 @@ const ACCENT_INIT_SCRIPT = `
 })();
 `;
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // Kimliği SUNUCUDA çöz — ilk HTML'de doğru isim/kurum yazsın.
+  //
+  // ⚠️ NEDEN BURADA (2026-09-15, Mert bildirdi): bu bilgi eskiden yalnızca
+  // panel mount olduktan SONRA /api/auth/session ile geliyordu ve o 2-3
+  // saniye boyunca ekranda lib/mock-data.ts'teki DEMO isimler duruyordu —
+  // her kullanıcı her açılışta BAŞKA BİRİNİN adını görüyordu. Oturum yoksa
+  // (/login, /platform) null döner, hiçbir maliyeti olmaz.
+  const sessionProfile = await getSessionProfile();
+
   // middleware.ts'in her istekte ürettiği CSP nonce'ı — Next.js kendi
   // hydration/RSC script'lerine bunu otomatik uygular, ama BURADA elle
   // yazılan iki inline script'in çalışabilmesi için nonce prop'u AÇIKÇA
@@ -102,6 +113,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <AccentProvider>
             <RoleProvider>
+              <SessionProfileProvider profile={sessionProfile}>
               <LiveSyncProvider>
                 <ToastProvider>
                   <ErrorBoundary>{children}</ErrorBoundary>
@@ -116,6 +128,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   <CommandPalette />
                 </ToastProvider>
               </LiveSyncProvider>
+              </SessionProfileProvider>
             </RoleProvider>
           </AccentProvider>
         </ThemeProvider>

@@ -1,8 +1,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { LogOut } from "lucide-react";
-import { useLogout } from "@/lib/role-context";
+import { Settings } from "lucide-react";
+import { useState } from "react";
+import { SettingsSheet } from "@/components/ui/settings-sheet";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/ui/notification-bell";
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
 // tek amaçlı ayrı bir persona (bkz. lib/server/auth/jwt.ts'teki not),
 // dolayısıyla modül değiştirme/komut paleti burada anlamsız.
 export function GuidanceTopBar() {
-  const handleLogout = useLogout();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const institutionName = useInstitutionName();
 
   return (
@@ -32,21 +33,25 @@ export function GuidanceTopBar() {
           <span className={cn(spaceGrotesk.className, "truncate text-sm font-semibold text-espresso dark:text-cream")}>Rehberlik</span>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <NotificationBell audience="GUIDANCE" />
-          <ThemeToggle />
-          <div className="hidden items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300 sm:flex">
-            <InstitutionBadgeIcon className="h-3.5 w-3.5" />
-            <span className="max-w-[10rem] truncate text-xs font-semibold">{institutionName}</span>
+        {/* Kurum adı artık KÜÇÜK ekranda da görünür (eskiden sm altında
+            tamamen gizliydi) — çıkışın boşalttığı yer buna verildi; çıkış
+            Ayarlar sayfasına taşındı. */}
+        <div className="flex min-w-0 shrink items-center gap-1.5 sm:gap-2">
+          <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
+            <InstitutionBadgeIcon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate text-[11px] font-semibold sm:text-xs">{institutionName}</span>
           </div>
+          <NotificationBell audience="GUIDANCE" />
           <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 rounded-full border border-red-400/20 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-600 backdrop-blur-sm transition hover:border-red-400/30 hover:bg-red-500/10 dark:text-red-300"
+            onClick={() => setIsSettingsOpen(true)}
+            aria-label="Ayarlar"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
           >
-            <LogOut className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Çıkış Yap</span>
+            <Settings className="h-4 w-4" />
           </button>
         </div>
       </div>
+      <SettingsSheet isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} subtitle="Rehberlik Servisi" />
     </motion.header>
   );
 }

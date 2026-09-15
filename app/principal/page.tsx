@@ -116,7 +116,7 @@ type DashboardStats = { totalStudents: number; activeBranches: number; avgComple
 const EMPTY_STATS: DashboardStats = { totalStudents: 0, activeBranches: 0, avgCompletion: 0, riskyStudentCount: 0 };
 
 export default function PrincipalPage() {
-  const { name: adminName, title: adminTitle } = useAdminProfile("Mert", "Kurum Müdürü");
+  const { name: adminName, title: adminTitle } = useAdminProfile("Kurum Müdürü");
   const { showError } = useToast();
   const [activeTab, setActiveTab] = useDeepLinkTab<TabId>("overview", (v) => v in TAB_COMPONENTS);
 

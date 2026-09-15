@@ -7,7 +7,7 @@ import { useInstitutionName } from "@/lib/institution-scope";
 import { useLogout } from "@/lib/role-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
-import { MobileMenuPopup } from "@/components/principal/mobile-menu-popup";
+import { SettingsSheet } from "@/components/ui/settings-sheet";
 import { ModuleSwitcher } from "@/components/ui/module-switcher";
 import { CommandPaletteTrigger } from "@/components/ui/command-palette-trigger";
 import { NotificationBell } from "@/components/ui/notification-bell";
@@ -111,7 +111,7 @@ export function TopBar() {
         </div>
       </div>
     </motion.header>
-    <MobileMenuPopup isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+    <SettingsSheet isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
     </>
   );
 }

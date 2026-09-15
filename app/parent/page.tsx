@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, GraduationCap, Target, CalendarCheck2, LogOut, Wallet, ChevronRight, Megaphone, BookOpen, TrendingUp, LayoutDashboard, MessageSquareText,
-  CalendarClock,
-} from "lucide-react";
-import { useLogout } from "@/lib/role-context";
+import { BookOpen, CalendarCheck2, CalendarClock, ChevronRight, GraduationCap, LayoutDashboard, Megaphone, MessageSquareText, Settings, Target, TrendingUp, Users, Wallet } from "lucide-react";
+import { SettingsSheet } from "@/components/ui/settings-sheet";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { XRAY_MIN_GRADE } from "@/lib/mock-data";
@@ -56,7 +54,7 @@ function formatTRY(n: number) {
 }
 
 export default function ParentPage() {
-  const logout = useLogout();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const router = useRouter();
   const [parentName, setParentName] = useState("");
   const [totals, setTotals] = useState<{ open: number; overdue: number }>({ open: 0, overdue: 0 });
@@ -134,21 +132,24 @@ export default function ParentPage() {
           <GlowLogo size="h-8 w-8" textSize="text-sm" innerClassName="bg-espresso dark:bg-midnight" />
           <span className={cn(spaceGrotesk.className, "hidden text-sm font-semibold text-espresso sm:inline dark:text-cream")}>Routinix Kampüs</span>
         </div>
-        <div className="flex items-center gap-3">
-          <NotificationBell audience="PARENT" />
-          <div className="hidden items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 backdrop-blur-sm dark:text-brand-300 sm:flex">
-            <span className="text-sm font-medium">{parentName || "Veli"}</span>
-            <span className="text-xs opacity-50">·</span>
-            <span className="text-xs opacity-80">Veli Paneli</span>
+        {/* Çıkış artık Ayarlar sayfasında (bkz. components/ui/settings-sheet.tsx)
+            — telefonda üst barı kalabalıklaştırıyordu ve günlük bir işlem değil. */}
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-3 py-1.5 text-brand-700 backdrop-blur-sm dark:text-brand-300">
+            <span className="truncate text-[13px] font-medium">{parentName || "Veli"}</span>
           </div>
+          <NotificationBell audience="PARENT" />
           <button
-            onClick={logout}
-            className="flex items-center gap-1.5 rounded-lg border border-red-400/20 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-600 backdrop-blur-sm transition hover:border-red-400/30 hover:bg-red-500/10 dark:text-red-300"
+            onClick={() => setIsSettingsOpen(true)}
+            aria-label="Ayarlar"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
           >
-            <LogOut className="h-3.5 w-3.5" /> Çıkış Yap
+            <Settings className="h-4 w-4" />
           </button>
         </div>
       </header>
+
+      <SettingsSheet isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} subtitle="Veli Paneli" />
 
       <div className="mx-auto w-full max-w-3xl flex-1 pt-6">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>

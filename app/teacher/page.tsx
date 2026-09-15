@@ -86,7 +86,7 @@ const sectionVariants = {
 };
 
 export default function TeacherPage() {
-  const teacherName = useSessionName("İrfan Hoca");
+  const teacherName = useSessionName();
   const [activeTab, setActiveTab] = useDeepLinkTab<TabId>("attendance", (v) => TABS.some((t) => t.id === v));
   const ActiveComponent = TABS.find((tab) => tab.id === activeTab)?.Component ?? LiveAttendanceTab;
 

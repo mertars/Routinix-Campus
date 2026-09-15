@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { GraduationCap, Palette, LogOut } from "lucide-react";
+import { GraduationCap, LogOut, Settings } from "lucide-react";
 import { useLogout } from "@/lib/role-context";
 import { useStudentScope } from "@/lib/student-scope";
 import { useHideOnScroll } from "@/lib/use-hide-on-scroll";
@@ -10,7 +10,7 @@ import { useInstitutionName } from "@/lib/institution-scope";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationBell } from "@/components/ui/notification-bell";
 import { AccentPicker } from "@/components/principal/accent-picker";
-import { StudentAppearancePopup } from "@/components/student/student-appearance-popup";
+import { SettingsSheet } from "@/components/ui/settings-sheet";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -32,28 +32,25 @@ export function StudentTopBar() {
       className="sticky top-0 z-40 border-b border-hairline bg-cream/80 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] backdrop-blur-md dark:border-white/10 dark:bg-midnight/80 md:px-32"
     >
       <div className="mx-auto max-w-6xl">
-        {/* Mobil düzen: sadeleştirilmiş — logo, görünüm ayarı, kurum rozeti, Rol Değiştir */}
+        {/* Mobil düzen — ölçüldü (2026-09-15): bildirim + palet + kurum rozeti
+            + "Çıkış Yap" tek satıra sığmıyordu, kurum adı "Kont…" diye
+            kırpılıyordu. Çıkış Ayarlar sayfasına taşındı (günlük bir işlem
+            değil), açılan yer kurum adına verildi — artık tam görünüyor. */}
         <div className="md:hidden">
           <div className="flex items-center justify-between gap-2">
             <GlowLogo size="h-8 w-8" textSize="text-xs" innerClassName="bg-espresso dark:bg-midnight" />
             <div className="ml-auto flex min-w-0 items-center gap-1.5">
+              <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
+                <InstitutionBadgeIcon className="h-3 w-3 shrink-0" />
+                <span className="truncate text-[11px] font-semibold">{institutionName}</span>
+              </div>
               <NotificationBell audience="STUDENT" />
               <button
                 onClick={() => setIsAppearanceOpen(true)}
-                aria-label="Görünüm ayarları"
+                aria-label="Ayarlar"
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-hairline bg-white/70 text-espresso shadow-sm dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream"
               >
-                <Palette className="h-4 w-4" />
-              </button>
-              <div className="flex min-w-0 items-center gap-1 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
-                <InstitutionBadgeIcon className="h-3 w-3" />
-                <span className="truncate text-[10px] font-semibold">{institutionName}</span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex shrink-0 items-center gap-1 rounded-full border border-red-400/20 bg-red-500/5 px-2.5 py-1.5 text-[11px] font-medium text-red-600 backdrop-blur-sm transition hover:border-red-400/30 hover:bg-red-500/10 dark:text-red-300"
-              >
-                <LogOut className="h-3 w-3" /> Çıkış Yap
+                <Settings className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -96,7 +93,7 @@ export function StudentTopBar() {
         </div>
       </div>
 
-      <StudentAppearancePopup isOpen={isAppearanceOpen} onClose={() => setIsAppearanceOpen(false)} />
+      <SettingsSheet isOpen={isAppearanceOpen} onClose={() => setIsAppearanceOpen(false)} subtitleIcon={GraduationCap} subtitle={`${branchName} · ${TRACK_LABEL[track]}`} />
     </motion.header>
   );
 }

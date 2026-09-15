@@ -12,7 +12,7 @@ import { useHideOnScroll } from "@/lib/use-hide-on-scroll";
 import { useInstitutionName } from "@/lib/institution-scope";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AccentPicker } from "@/components/principal/accent-picker";
-import { TeacherAppearancePopup } from "@/components/teacher/teacher-appearance-popup";
+import { SettingsSheet } from "@/components/ui/settings-sheet";
 import { InstitutionBadgeIcon } from "@/components/ui/institution-badge-icon";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -49,9 +49,15 @@ export function TeacherTopBar() {
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 shrink items-center gap-2">
               <ModuleSwitcher current="erp" locked />
-              <CommandPaletteTrigger compact />
+              {/* Kurum adı mobilde HİÇ görünmüyordu — Mert "dershane ismi tam
+                  gözüksün" dedi; çıkışın boşalttığı yer buna verildi. */}
+              <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-1.5 text-brand-700 shadow-sm backdrop-blur-sm dark:text-brand-300">
+                <InstitutionBadgeIcon className="h-3 w-3 shrink-0" />
+                <span className="truncate text-[11px] font-semibold">{institutionName}</span>
+              </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <CommandPaletteTrigger compact />
               <NotificationBell audience="TEACHER" />
               <button
                 onClick={() => setIsAppearanceOpen(true)}
@@ -131,7 +137,7 @@ export function TeacherTopBar() {
         </div>
       </div>
 
-      <TeacherAppearancePopup isOpen={isAppearanceOpen} onClose={() => setIsAppearanceOpen(false)} />
+      <SettingsSheet isOpen={isAppearanceOpen} onClose={() => setIsAppearanceOpen(false)} subtitleIcon={Clock} subtitle={lessonText} />
     </motion.header>
   );
 }

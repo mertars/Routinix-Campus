@@ -50,7 +50,7 @@ type Analytics = {
 // sadece danışman/branş öğretmenine açık (ReportCardTeacherComment.teacherId
 // gerçek bir Teacher kaydına bağlı, yöneticinin öğretmen kimliği yok).
 export function AcademicXrayTab() {
-  const { name: adminName } = useAdminProfile("Yönetici", "Kurum Müdürü");
+  const { name: adminName } = useAdminProfile("Kurum Müdürü");
   const { showError } = useToast();
   const [students, setStudents] = useState<RosterStudent[]>([]);
   const [query, setQuery] = useState("");
