@@ -8,7 +8,7 @@ import { ReferralQueue } from "@/components/guidance/referral-queue";
 import { StudentFocusTab } from "@/components/guidance/student-focus-tab";
 import { RiskTab } from "@/components/guidance/risk-tab";
 import { GuidanceMeetingsTab } from "@/components/guidance/meetings-tab";
-import { GuidanceProgramTab } from "@/components/principal/tabs/guidance-program";
+import { GuidanceProgramBuilder } from "@/components/guidance/program-builder";
 import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
 import { cn } from "@/lib/utils";
 
@@ -30,12 +30,12 @@ const TABS = [
   { id: "referrals", label: "Sevk Kuyruğu", icon: LifeBuoy },
   { id: "meetings", label: "Görüşme Takvimi", icon: CalendarClock },
   { id: "students", label: "Öğrenci Dosyası", icon: Users },
-  // ⚠️ Bu ekran ZATEN vardı — ama YÖNETİCİ panelinde (bkz.
-  // components/principal/tabs/guidance-program.tsx). Rehber öğretmen kendi
-  // asli aracına, öğrenciye çalışma programı yazmaya, ulaşamıyordu
-  // (Mert, 2026-09-15: "plan program oluşturamıyor"). Aynı bileşen burada
-  // da render ediliyor; PDF çıktısı ve öğrencinin panelinde görünmesi
-  // zaten çalışıyordu (bkz. components/student/tabs/guidance.tsx).
+  // ⚠️ Rehberliğe özel, YENİDEN YAZILAN oluşturucu (bkz.
+  // components/guidance/program-builder.tsx). Yönetici panelindeki eski
+  // ekran çalışıyordu ama KÖR yazıyordu; buradaki sürümde öğrencinin ders
+  // netleri ve en zayıf kazanımları ekranda durur ve kazanımlar tek tuşla
+  // programa blok olarak atılır. Kaydedilen yapı aynı olduğu için PDF ve
+  // öğrencinin paneli değişmeden çalışır (components/student/tabs/guidance.tsx).
   { id: "program", label: "Çalışma Programı", icon: BookMarked },
   { id: "risk", label: "Risk Radarı", icon: AlertTriangle },
 ] as const;
@@ -87,7 +87,7 @@ export default function GuidancePage() {
             {activeTab === "referrals" && <ReferralQueue />}
             {activeTab === "meetings" && <GuidanceMeetingsTab />}
             {activeTab === "students" && <StudentFocusTab onNavigate={(tab) => setActiveTab(tab)} />}
-            {activeTab === "program" && <GuidanceProgramTab />}
+            {activeTab === "program" && <GuidanceProgramBuilder />}
             {activeTab === "risk" && (
               <RiskTab
                 onOpenStudent={(id) => {

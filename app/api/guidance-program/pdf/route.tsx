@@ -18,7 +18,10 @@ export const dynamic = "force-dynamic";
 async function handlePost(request: NextRequest) {
   try {
     const session = await requireSession();
-    requireRole(session, "principal");
+    // ⚠️ Rehberlik eklendi: programı YAZAN rol rehberlik (bkz.
+    // components/guidance/program-builder.tsx) ama çıktısını alamıyordu —
+    // öğrenciye kağıt program vermek rehberliğin en sık işlerinden biri.
+    requireRole(session, "principal", "guidance");
 
     const body = await request.json();
     const { studentId, weekLabel, entries } = body as {
