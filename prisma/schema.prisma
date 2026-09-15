@@ -1131,6 +1131,11 @@ model GuidanceMeeting {
   scheduledAt DateTime
   // Dakika cinsinden süre — takvimde blok yüksekliği ve çakışma kontrolü için.
   durationMin Int                  @default(30)
+  // Görüşmeye KİM çağrıldı. Mert (2026-09-15): "aynı şekilde velilerle de
+  // görüşme yapabilme ekle". Ayrı bir tablo açmak yerine alan: veli
+  // görüşmesi de hep BİR ÖĞRENCİ hakkındadır (öğrencinin dosyasında
+  // görünmesi gerekir), değişen sadece masaya kimin oturduğudur.
+  attendee    MeetingAttendee      @default(STUDENT)
   topic       String
   category    GuidanceCategory     @default(ACADEMIC)
   // Görüşme NOTU burada DEĞİL GuidanceNote'ta tutulur (gizlilik seviyesi
@@ -1149,6 +1154,13 @@ enum GuidanceMeetingStatus {
   DONE
   NO_SHOW
   CANCELLED
+}
+
+enum MeetingAttendee {
+  STUDENT
+  PARENT
+  // Öğrenci + veli birlikte — dershanede en sık yapılan üçlü görüşme.
+  BOTH
 }
 
 enum GuidanceReferralStatus {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CalendarClock, CalendarPlus, Check, Loader2, Search, UserX, X, XCircle } from "lucide-react";
+import { CalendarClock, CalendarPlus, Check, Loader2, Search, UserRound, UserX, Users, X, XCircle } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,7 @@ type Meeting = {
   topic: string;
   category: "ACADEMIC" | "PSYCHOLOGICAL" | "DISCIPLINARY";
   status: "PLANNED" | "DONE" | "NO_SHOW" | "CANCELLED";
+  attendee: "STUDENT" | "PARENT" | "BOTH";
   outcomeNote: string | null;
   studentId: string;
   studentName: string;
@@ -37,6 +38,12 @@ const CATEGORY_LABEL: Record<Meeting["category"], string> = {
   ACADEMIC: "Akademik",
   PSYCHOLOGICAL: "Psikolojik",
   DISCIPLINARY: "Davranış",
+};
+
+const ATTENDEE_LABEL: Record<Meeting["attendee"], string> = {
+  STUDENT: "Öğrenci",
+  PARENT: "Veli",
+  BOTH: "Öğrenci + Veli",
 };
 
 const STATUS_STYLE: Record<Meeting["status"], { label: string; className: string }> = {
@@ -76,6 +83,9 @@ function NewMeetingForm({ onCreated }: { onCreated: () => void }) {
   const [duration, setDuration] = useState(30);
   const [topic, setTopic] = useState("");
   const [category, setCategory] = useState<Meeting["category"]>("ACADEMIC");
+  // Veli görüşmesi de hep BİR ÖĞRENCİ hakkındadır; değişen sadece masaya
+  // kimin oturduğu (bkz. schema.prisma > GuidanceMeeting.attendee).
+  const [attendee, setAttendee] = useState<Meeting["attendee"]>("STUDENT");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -122,6 +132,7 @@ function NewMeetingForm({ onCreated }: { onCreated: () => void }) {
           durationMin: duration,
           topic: topic.trim(),
           category,
+          attendee,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -225,6 +236,26 @@ function NewMeetingForm({ onCreated }: { onCreated: () => void }) {
         </label>
       </div>
 
+      {/* Kiminle görüşülecek — bildirim de buna göre gider: veli
+          görüşmesini öğrenciye haber vermenin anlamı yok. */}
+      <div className="mb-2 flex gap-1.5">
+        {(Object.keys(ATTENDEE_LABEL) as Meeting["attendee"][]).map((a) => (
+          <button
+            key={a}
+            onClick={() => setAttendee(a)}
+            className={cn(
+              "flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl text-xs font-semibold transition",
+              attendee === a
+                ? "bg-brand-600 text-white shadow-sm"
+                : "bg-cream-card text-espresso-muted dark:bg-white/5 dark:text-cream/45"
+            )}
+          >
+            {a === "STUDENT" ? <UserRound className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+            {ATTENDEE_LABEL[a]}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-3 flex gap-1.5">
         {(Object.keys(CATEGORY_LABEL) as Meeting["category"][]).map((c) => (
           <button
@@ -299,7 +330,8 @@ function MeetingRow({ meeting, onChanged }: { meeting: Meeting; onChanged: () =>
             {meeting.branchName ? <span className="font-normal text-espresso-muted dark:text-cream/45"> · {meeting.branchName}</span> : null}
           </p>
           <p className="truncate text-[11.5px] text-espresso-muted dark:text-cream/45">
-            {meeting.topic} · {CATEGORY_LABEL[meeting.category]} · {meeting.durationMin} dk
+            {meeting.topic} · {CATEGORY_LABEL[meeting.category]} · {ATTENDEE_LABEL[meeting.attendee] ?? "Öğrenci"} ·{" "}
+            {meeting.durationMin} dk
           </p>
           {meeting.outcomeNote && (
             <p className="mt-1 rounded-lg bg-cream-card px-2 py-1 text-[11px] text-espresso-muted dark:bg-white/5 dark:text-cream/45">

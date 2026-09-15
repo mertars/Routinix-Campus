@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { AlertTriangle, LineChart, Loader2, NotebookPen, Search, Send, UserRound } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { openStudent360 } from "@/lib/student-360-store";
+import { StudentDossier } from "@/components/guidance/student-dossier";
 import { cn } from "@/lib/utils";
 
 // ÖĞRENCİ TAKİBİ — rehberliğin ana çalışma ekranı.
@@ -61,11 +62,20 @@ function sinceLabel(iso: string | null): string {
   return `${days} gün önce görüşüldü`;
 }
 
-export function StudentFocusTab() {
+export function StudentFocusTab({
+  onNavigate,
+}: {
+  /** Dosyadaki eylem tuşları başka sekmeye geçirir ve öğrenciyi oraya taşır —
+   *  rehber "bu öğrenciye program yazayım" dediğinde onu tekrar seçtirmek
+   *  gereksiz bir adım olurdu. */
+  onNavigate?: (tab: "meetings" | "program", studentId: string) => void;
+}) {
   const { showError, showSuccess } = useToast();
   const [query, setQuery] = useState("");
   const [students, setStudents] = useState<GuidanceStudent[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Not kaydedilince dosya (zaman tüneli) tazelensin.
+  const [dossierKey, setDossierKey] = useState(0);
   const [notes, setNotes] = useState<NoteEntry[] | null>(null);
 
   const [draft, setDraft] = useState("");
@@ -208,27 +218,19 @@ export function StudentFocusTab() {
           </div>
         ) : (
           <>
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h2 className="text-base font-bold text-espresso dark:text-cream">{selected.name}</h2>
-                <p className="text-[11.5px] text-espresso-muted dark:text-cream/45">
-                  {selected.branchName} · No {selected.studentNumber} · {selected.noteCount} görüşme kaydı ·{" "}
-                  {sinceLabel(selected.lastNoteAt)}
-                </p>
-              </div>
-              {/* ⚠️ Mert (2026-09-15): "öğrencinin derecesini bilemiyor".
-                  Rehberlik artık Öğrenci 360'ı açabiliyor (netler, deneme
-                  sonuçları, kazanım eksikleri, devamsızlık) — FİNANS HARİÇ,
-                  bkz. app/api/students/[id]/360/route.ts. Görüşmeye veriyle
-                  hazırlanmak rehberliğin asli işi. */}
-              <button
-                onClick={() => openStudent360(selected.id)}
-                className="flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-xl bg-espresso px-3 text-[11.5px] font-semibold text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
-              >
-                <LineChart className="h-3.5 w-3.5" /> Akademik Durum
-              </button>
-            </div>
-
+            {/* ⚠️ Künye, akademik özet, eylemler ve ZAMAN TÜNELİ artık tek
+                bileşende (bkz. components/guidance/student-dossier.tsx).
+                Buradaki eski başlık ve ayrı "notlar listesi" kaldırıldı:
+                görüşme/not/program üç ayrı yerde durdukça rehber öğretmen
+                geçmişi parça parça aramak zorunda kalıyordu. Açık sevkler ve
+                not yazma kutusu, dosyanın özet ile geçmiş ARASINDAKİ
+                yuvasına giriyor. */}
+            <StudentDossier
+              studentId={selected.id}
+              refreshKey={dossierKey}
+              onPlanMeeting={() => onNavigate?.("meetings", selected.id)}
+              onWriteProgram={() => onNavigate?.("program", selected.id)}
+            >
             {selected.openReferrals.length > 0 && (
               <div className="mb-4 space-y-1.5">
                 {selected.openReferrals.map((r) => (
@@ -291,40 +293,7 @@ export function StudentFocusTab() {
               </p>
             </div>
 
-            {/* Görüşme geçmişi */}
-            <div className="space-y-2">
-              {notes === null && (
-                <div className="flex justify-center py-6">
-                  <Loader2 className="h-4 w-4 animate-spin text-espresso-muted dark:text-cream/40" />
-                </div>
-              )}
-              {notes?.map((n) => (
-                <motion.div
-                  key={n.id}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="rounded-xl bg-cream-card px-3 py-2.5 dark:bg-white/5"
-                >
-                  <p className="text-[13px] leading-snug text-espresso dark:text-cream">{n.note}</p>
-                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-espresso-muted dark:text-cream/40">
-                    <span className="rounded-full bg-espresso/[0.06] px-1.5 py-0.5 font-medium dark:bg-white/[0.07]">
-                      {CATEGORY_LABEL[n.category] ?? n.category}
-                    </span>
-                    <span className="rounded-full bg-espresso/[0.06] px-1.5 py-0.5 font-medium dark:bg-white/[0.07]">
-                      {CONFIDENTIALITY_LABEL[n.confidentialityLevel] ?? n.confidentialityLevel}
-                    </span>
-                    <span>{n.authorName}</span>
-                    <span aria-hidden>·</span>
-                    <span>{new Date(n.createdAt).toLocaleString("tr-TR")}</span>
-                  </p>
-                </motion.div>
-              ))}
-              {notes?.length === 0 && (
-                <p className="py-4 text-center text-xs text-espresso-muted dark:text-cream/40">
-                  Bu öğrenciyle henüz görüşme kaydı yok.
-                </p>
-              )}
-            </div>
+            </StudentDossier>
           </>
         )}
       </div>

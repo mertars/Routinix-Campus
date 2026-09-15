@@ -5,7 +5,7 @@ import { requireSession, requireRole, requireInstitution } from "@/lib/server/au
 import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
-import { notify, actorNameOf } from "@/lib/server/notifications/activity";
+import { notify, actorNameOf, parentsOf, studentAndParents } from "@/lib/server/notifications/activity";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +32,9 @@ const createSchema = z.object({
   durationMin: z.number().int().min(5).max(240).optional(),
   topic: z.string().trim().min(1, "Görüşme konusu zorunludur.").max(300),
   category: z.enum(["ACADEMIC", "PSYCHOLOGICAL", "DISCIPLINARY"]).optional(),
+  // Görüşmeye kim çağrıldı — veli görüşmesi de hep BİR ÖĞRENCİ hakkındadır
+  // (bkz. schema.prisma > GuidanceMeeting.attendee).
+  attendee: z.enum(["STUDENT", "PARENT", "BOTH"]).optional(),
 });
 
 async function handleGet(request: NextRequest) {
@@ -64,6 +67,7 @@ async function handleGet(request: NextRequest) {
         category: true,
         status: true,
         outcomeNote: true,
+        attendee: true,
         counselor: { select: { id: true, firstName: true, lastName: true } },
         student: {
           select: { id: true, firstName: true, lastName: true, branch: { select: { name: true } } },
@@ -80,6 +84,7 @@ async function handleGet(request: NextRequest) {
         topic: m.topic,
         category: m.category,
         status: m.status,
+        attendee: m.attendee,
         outcomeNote: m.outcomeNote,
         counselorName: `${m.counselor.firstName} ${m.counselor.lastName}`,
         studentId: m.student.id,
@@ -104,7 +109,7 @@ async function handlePost(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Eksik alan." }, { status: 400 });
     }
-    const { studentId, scheduledAt, durationMin, topic, category } = parsed.data;
+    const { studentId, scheduledAt, durationMin, topic, category, attendee } = parsed.data;
 
     const when = new Date(scheduledAt);
     if (Number.isNaN(when.getTime())) {
@@ -126,6 +131,7 @@ async function handlePost(request: NextRequest) {
         durationMin: durationMin ?? 30,
         topic,
         category: category ?? "ACADEMIC",
+        attendee: attendee ?? "STUDENT",
       },
       select: { id: true, scheduledAt: true },
     });
@@ -134,9 +140,17 @@ async function handlePost(request: NextRequest) {
     // görüşme "gelmedi" diye kapanır. notifyOnce: aynı görüşme için
     // mükerrer bildirim yazılmaz.
     const actor = await actorNameOf(session.role, session.sub);
+    // ⚠️ Bildirim KATILIMCIYA gider. Veli görüşmesini öğrenciye haber
+    // vermek işe yaramaz — gelmesi gereken veli, haberi olması gereken de o.
+    const recipients =
+      attendee === "PARENT"
+        ? await parentsOf(studentId)
+        : attendee === "BOTH"
+          ? await studentAndParents(studentId)
+          : [{ role: "STUDENT" as const, id: studentId }];
     await notify({
       institutionId: session.institutionId,
-      recipients: [{ role: "STUDENT", id: studentId }],
+      recipients,
       eventType: "guidance.meeting_scheduled",
       title: "Rehberlik görüşmesi planlandı",
       body: `${when.toLocaleString("tr-TR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })} · ${topic}`,
