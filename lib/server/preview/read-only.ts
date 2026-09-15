@@ -113,7 +113,7 @@ const PLATFORM_ADMIN_PREFIX = "/api/platform/";
  * Önizleme oturumu bu isteği yapabilir mi? Yapamıyorsa kullanıcıya
  * gösterilecek Türkçe gerekçeyi döner, yapabiliyorsa null.
  */
-export function previewBlockReason(method: string, pathname: string): string | null {
+export function previewBlockReason(method: string, pathname: string, canWrite = false): string | null {
   // 1. Önizlemenin kendi kontrol düzlemi — her zaman serbest.
   if (pathname === PLATFORM_LOGOUT_PATH || pathname === PREVIEW_CONTROL_PREFIX || pathname.startsWith(`${PREVIEW_CONTROL_PREFIX}/`)) {
     return null;
@@ -130,6 +130,12 @@ export function previewBlockReason(method: string, pathname: string): string | n
   if (pathname.startsWith(PLATFORM_ADMIN_PREFIX)) {
     return "Önizleme açıkken platform yönetimi işlemi yapılamaz. Önce önizlemeyi kapatın.";
   }
-  // 6. Geri kalan her yazma.
-  return "Önizleme salt okunurdur — gerçek bir kurumun verisi buradan değiştirilemez.";
+  // 6. Geri kalan her yazma — YAZMA MODU açıksa serbest.
+  //
+  // ⚠️ Yukarıdaki 4. ve 5. maddeler yazma modunda DA geçerli: kimlik/oturum
+  // işlemleri ve platform yönetimi yazmaları her koşulda kapalı. Yazma modu
+  // yalnızca "kurum panelinde normal bir kullanıcının yapabileceği işler"
+  // içindir — bkz. preview-jwt.ts > canWrite üstündeki risk çözümlemesi.
+  if (canWrite) return null;
+  return "Önizleme salt okunurdur. Üstteki \"Yazma Modu\" düğmesiyle açabilirsiniz.";
 }

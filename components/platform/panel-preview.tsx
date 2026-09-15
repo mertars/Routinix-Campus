@@ -15,6 +15,7 @@ import {
   ExternalLink,
   X,
   Lock,
+  Pencil,
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
@@ -87,6 +88,10 @@ export function PanelPreview({
   const [users, setUsers] = useState<PreviewUser[]>([]);
   const [device, setDevice] = useState<DeviceId>("desktop");
   const [session, setSession] = useState<ActiveSession | null>(null);
+  // Yazma modu — VARSAYILAN KAPALI ve her açılışta kapalı başlar
+  // (gerçek müşteri verisine yanlışlıkla yazmayı önleyen asıl önlem budur;
+  // bkz. lib/server/auth/preview-jwt.ts > canWrite).
+  const [canWrite, setCanWrite] = useState(false);
   const [starting, setStarting] = useState<RoleId | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const [stageHeight, setStageHeight] = useState(0);
@@ -113,15 +118,19 @@ export function PanelPreview({
   // çünkü kurum değiştirildiği anda state henüz güncellenmemiş olur
   // (setState asenkron), o yüzden yeni kurum doğrudan geçirilir.
   const startPreview = useCallback(
-    async (nextRole: RoleId, options?: { userId?: string; institutionId?: string }) => {
+    async (nextRole: RoleId, options?: { userId?: string; institutionId?: string; write?: boolean }) => {
       const targetInstitutionId = options?.institutionId ?? institutionId;
       if (!targetInstitutionId) return;
+      // Yazma modu token'ın İÇİNDE taşınır, yani modu değiştirmek token'ı
+      // yeniden üretmek demektir — istemci tarafında çevrilebilen bir bayrak
+      // olsaydı hiçbir şey ifade etmezdi.
+      const write = options?.write ?? canWrite;
       setStarting(nextRole);
       try {
         const res = await fetch("/api/platform/preview", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ institutionId: targetInstitutionId, role: nextRole, userId: options?.userId }),
+          body: JSON.stringify({ institutionId: targetInstitutionId, role: nextRole, userId: options?.userId, write }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error ?? "Önizleme açılamadı.");
@@ -133,6 +142,7 @@ export function PanelPreview({
           institutionName: data.institutionName,
           user: data.user,
         });
+        setCanWrite(data.canWrite === true);
         setIframeKey((k) => k + 1);
       } catch (error) {
         setSession(null);
@@ -141,7 +151,7 @@ export function PanelPreview({
         setStarting(null);
       }
     },
-    [institutionId, showError]
+    [institutionId, showError, canWrite]
   );
 
   // Rol/kurum değiştikçe o role ait gerçek hesap listesi tazelenir —
@@ -202,9 +212,25 @@ export function PanelPreview({
         {/* --- Kontrol çubuğu --- */}
         <div className="shrink-0 border-b border-hairline bg-white/80 backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/70">
           <div className="flex flex-wrap items-center gap-2 px-3 py-2.5 sm:px-4">
-            <span className="flex items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
-              <Lock className="h-3.5 w-3.5" /> Salt Okunur Önizleme
-            </span>
+            {/* ⚠️ Mod düğmesi ve rozeti AYNI şey — kırmızı olduğunda gerçek
+                müşteri verisine yazıyorsunuz demektir. Kapalıyken kehribar,
+                açıkken kırmızı: tek bakışta ayırt edilsin diye. Mod token'ın
+                içinde taşınır, yani düğme sadece görsel değil (bkz.
+                lib/server/auth/preview-jwt.ts > canWrite). */}
+            <button
+              onClick={() => session && startPreview(session.role, { userId: session.user.id, write: !canWrite })}
+              disabled={!session || !!starting}
+              title={canWrite ? "Salt okunura dön" : "Yazma modunu aç — gerçek veri değişir"}
+              className={cn(
+                "flex min-h-[36px] items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-bold uppercase tracking-wide transition disabled:opacity-60",
+                canWrite
+                  ? "bg-red-600 text-white shadow-sm hover:bg-red-700"
+                  : "bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-500/15 dark:text-amber-300"
+              )}
+            >
+              {canWrite ? <Pencil className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+              {canWrite ? "Yazma Modu Açık" : "Salt Okunur"}
+            </button>
 
             <select
               value={institutionId}
@@ -311,11 +337,20 @@ export function PanelPreview({
           </div>
 
           {session && (
-            <p className="truncate border-t border-hairline px-3 py-1.5 text-[11px] text-espresso-muted dark:border-white/5 dark:text-cream/40 sm:px-4">
-              <span className="font-semibold text-espresso dark:text-cream">{session.institutionName}</span> · {session.roleLabel} ·{" "}
-              {session.user.name}
-              {session.user.detail ? ` (${session.user.detail})` : ""} · <span className="font-mono">{session.url}</span> — bu ekran canlı
-              sürümün kendisidir, veri değiştirilemez.
+            <p
+              className={cn(
+                "truncate border-t px-3 py-1.5 text-[11px] sm:px-4",
+                canWrite
+                  ? "border-red-500/30 bg-red-500/10 font-medium text-red-700 dark:text-red-300"
+                  : "border-hairline text-espresso-muted dark:border-white/5 dark:text-cream/40"
+              )}
+            >
+              <span className={cn("font-semibold", canWrite ? "" : "text-espresso dark:text-cream")}>{session.institutionName}</span> ·{" "}
+              {session.roleLabel} · {session.user.name}
+              {session.user.detail ? ` (${session.user.detail})` : ""} · <span className="font-mono">{session.url}</span>
+              {canWrite
+                ? " — YAZMA MODU AÇIK: burada yaptığınız her değişiklik bu kurumun GERÇEK verisine işlenir."
+                : " — bu ekran canlı sürümün kendisidir, veri değiştirilemez."}
             </p>
           )}
         </div>

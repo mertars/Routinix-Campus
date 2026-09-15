@@ -62,6 +62,8 @@ export const logger = {
 // kodu) ve beklenmeyen hataları otomatik loglayan yardımcı. Route'ların
 // kendi try-catch'i hâlâ kendi hata mesajlarını üretir; bu sarmalayıcı
 // sadece gözlemlenebilirlik (observability) katmanı ekler.
+const MUTATING_FOR_LOG = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
 export function withApiLogging<Args extends unknown[]>(
   routeLabel: string,
   handler: (...args: Args) => Promise<Response>
@@ -105,7 +107,7 @@ export function withApiLogging<Args extends unknown[]>(
     // hiç yapılmaz).
     const preview = await resolveEffectivePreview(request);
     if (preview) {
-      const blocked = previewBlockReason(method, url ? new URL(url).pathname : "");
+      const blocked = previewBlockReason(method, url ? new URL(url).pathname : "", preview.canWrite === true);
       if (blocked) {
         logger.warn("api_preview_blocked", { route: routeLabel, method, url, previewBy: preview.previewBy, institutionId: preview.institutionId });
         return new Response(JSON.stringify({ error: blocked, code: "PREVIEW_READ_ONLY" }), {
@@ -113,8 +115,26 @@ export function withApiLogging<Args extends unknown[]>(
           headers: { "Content-Type": "application/json" },
         });
       }
+      // ⚠️ YAZMA MODUNDAKİ HER MUTASYON LOGLANIR. Önizlemede yapılan bir
+      // yazma, denetim kaydında kimliğine bürünülen kullanıcının üstüne
+      // görünür — yani müşterinin kendi yöneticisi yapmış gibi durur. Bu
+      // satır o boşluğu kapatır: gerçekte kimin, hangi kuruma, hangi uçtan
+      // yazdığı sunucu logunda (ve Sentry'de) aranabilir kalır.
+      if (preview.canWrite && MUTATING_FOR_LOG.has(method.toUpperCase())) {
+        logger.warn("api_preview_write", {
+          route: routeLabel,
+          method,
+          url,
+          previewBy: preview.previewBy,
+          institutionId: preview.institutionId,
+          asUser: `${preview.role}:${preview.sub}`,
+          asName: preview.name,
+        });
+      }
+
       // Geçen istekler önizleme kapsamında çalışır — 2. katman (Prisma
-      // yazma kilidi, bkz. lib/server/db-preview-guard.ts) bu kapsamda aktiftir.
+      // yazma kilidi, bkz. lib/server/db-preview-guard.ts) salt okunur
+      // önizlemede devrededir.
       return runAsPreview(preview, () => runHandler());
     }
 

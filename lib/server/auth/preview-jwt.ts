@@ -48,6 +48,23 @@ export type PreviewSessionPayload = {
   preview: true;
   // Denetim izi: bu önizlemeyi hangi platform sahibi başlattı.
   previewBy: string;
+  // YAZMA MODU — varsayılan yok/false (salt okunur).
+  //
+  // ⚠️ Mert (2026-09-15) "önizlemede deneme yapamıyorum, güncelleme
+  // yapabilsem güvenlik açığı çıkar mı" diye sordu. Cevap: AÇIK DEĞİL.
+  // Önizleme token'ı tek başına zaten değersiz — aynı tarayıcıda geçerli
+  // bir platform sahibi oturumu olmadan hiç okunmuyor (bkz.
+  // resolveActivePreview). Yani yazma yetkisi "platform sahibinin zaten
+  // yapabildiği" sınırı genişletmiyor. Gerçek riskler başka yerde ve
+  // önlemleri şunlar:
+  //   1. Gerçek müşteri verisine YANLIŞLIKLA yazmak → mod açıkça açılır
+  //      (varsayılan kapalı) ve arayüzde kırmızı bantla durur.
+  //   2. Denetimde yanlış kişi görünmesi (kimliğine bürünülen kullanıcı
+  //      yapmış gibi durur) → yazma modundaki HER mutasyon
+  //      api_preview_write olarak loglanır.
+  //   3. Kimlik ele geçirme → /api/auth/* mutasyonları yazma modunda DA
+  //      yasak; şifre/OTP/oturum işlemleri önizlemeden asla yapılamaz.
+  canWrite?: boolean;
 };
 
 // 1 saat: rahat inceleme için yeterince uzun, sızan bir cookie'nin değerini

@@ -49,6 +49,9 @@ const bodySchema = z.object({
   role: z.enum(["principal", "teacher", "student", "parent", "guidance"]),
   // Belirtilmezse o rolün ilk (varsayılan) kullanıcısı seçilir.
   userId: z.string().min(1).optional(),
+  // Yazma modu — VARSAYILAN KAPALI. Açıkça istenmedikçe önizleme salt
+  // okunurdur (bkz. preview-jwt.ts > canWrite üstündeki risk çözümlemesi).
+  write: z.boolean().optional(),
 });
 
 async function handlePost(request: NextRequest) {
@@ -58,7 +61,7 @@ async function handlePost(request: NextRequest) {
     if (!parsed.success) {
       throw new AuthError("Kurum ve rol zorunludur.", "MISSING_FIELDS", 400);
     }
-    const { institutionId, role, userId } = parsed.data;
+    const { institutionId, role, userId, write } = parsed.data;
     const institution = await requirePlatformInstitution(institutionId);
 
     // ⚠️ Hedef kullanıcı client'tan gelen id'ye GÜVENİLEREK değil, kurumun
@@ -81,6 +84,7 @@ async function handlePost(request: NextRequest) {
       institutionId,
       preview: true,
       previewBy: owner.sub,
+      canWrite: write === true,
     });
 
     // DENETİM İZİ — kimlik bürünme her zaman iz bırakmalı. AuditLog'a
@@ -97,6 +101,7 @@ async function handlePost(request: NextRequest) {
       role,
       targetId: target.id,
       targetName: target.name,
+      canWrite: write === true,
     });
 
     const response = NextResponse.json({
@@ -106,6 +111,7 @@ async function handlePost(request: NextRequest) {
       role,
       roleLabel: ROLE_LABEL[role as RoleId],
       user: { id: target.id, name: target.name, detail: target.detail },
+      canWrite: write === true,
       expiresInSeconds: PREVIEW_SESSION_MAX_AGE_SECONDS,
     });
     response.cookies.set(PREVIEW_SESSION_COOKIE_NAME, token, {
