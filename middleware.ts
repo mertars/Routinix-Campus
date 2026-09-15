@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifySessionToken, ROLE_ID_BY_AUTH_ROLE } from "@/lib/server/auth/jwt";
 import { verifyPlatformSessionToken, PLATFORM_SESSION_COOKIE_NAME } from "@/lib/server/auth/platform-jwt";
-import { verifyPreviewSessionToken, PREVIEW_SESSION_COOKIE_NAME } from "@/lib/server/auth/preview-jwt";
+import { resolveActivePreview, PREVIEW_SESSION_COOKIE_NAME } from "@/lib/server/auth/preview-jwt";
 
 // Panel rotalarını GERÇEK, sunucu tarafı imzalı oturuma (routinix-kampus-session,
 // bkz. lib/server/auth/jwt.ts) göre korur. Rol bilgisi tarayıcıdan okunabilir/
@@ -207,23 +207,24 @@ export async function middleware(request: NextRequest) {
 
 // Bu istek hangi panel rolüne sahip? İki oturum türü SIRAYLA denenir.
 //
-// ⚠️ ÖNCELİK KURALI: GERÇEK kurum oturumu cookie'si varsa önizleme token'ına
-// hiç BAKILMAZ — önizleme, gerçek bir oturumun yerine ASLA geçemez. Aynı
-// kural lib/server/auth/session-guard.ts ve lib/server/preview/read-only.ts
-// içinde de birebir uygulanır; üçü tutarlı olmak ZORUNDA, aksi halde
-// sayfanın gördüğü kimlik ile API'nin gördüğü kimlik ayrışır.
+// ⚠️ ÖNCELİK KURALI: aktif önizleme, kurum oturumunun ÖNÜNE geçer — ama
+// "aktif" olması için tarayıcıda geçerli bir PLATFORM SAHİBİ oturumu da
+// gerekir (bkz. preview-jwt.ts > resolveActivePreview; kuralın hangi gerçek
+// hatadan doğduğu orada yazılı). Aynı kural session-guard.ts ve
+// preview/read-only.ts'te de birebir uygulanır; üçü tutarlı olmak ZORUNDA,
+// aksi halde sayfanın gördüğü kimlik ile API'nin gördüğü kimlik ayrışır —
+// ki tam olarak bu yaşandı: sayfa yönetici oturumuyla açılırken önizleme
+// başka bir kurumu göstermeye çalışıyordu.
 //
-// Önizleme oturumu buradan geçse bile SALT OKUNURDUR (bkz. preview-jwt.ts).
+// Önizleme oturumu buradan geçse bile SALT OKUNURDUR.
 async function resolveRole(request: NextRequest): Promise<{ roleId: string | null; hasSession: boolean }> {
+  const preview = await resolveActivePreview((name) => request.cookies.get(name)?.value);
+  if (preview) return { roleId: ROLE_ID_BY_AUTH_ROLE[preview.role], hasSession: true };
+
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (token) {
-    const session = await verifySessionToken(token);
-    return { roleId: session ? ROLE_ID_BY_AUTH_ROLE[session.role] : null, hasSession: !!session };
-  }
-  const previewToken = request.cookies.get(PREVIEW_SESSION_COOKIE_NAME)?.value;
-  if (!previewToken) return { roleId: null, hasSession: false };
-  const preview = await verifyPreviewSessionToken(previewToken);
-  return { roleId: preview ? ROLE_ID_BY_AUTH_ROLE[preview.role] : null, hasSession: !!preview };
+  if (!token) return { roleId: null, hasSession: false };
+  const session = await verifySessionToken(token);
+  return { roleId: session ? ROLE_ID_BY_AUTH_ROLE[session.role] : null, hasSession: !!session };
 }
 
 export const config = {

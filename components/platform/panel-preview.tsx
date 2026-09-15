@@ -321,7 +321,7 @@ export function PanelPreview({
         </div>
 
         {/* --- Sahne --- */}
-        <div ref={stageRef} className="min-h-0 flex-1 overflow-auto bg-cream-muted/40 p-4 dark:bg-black/30">
+        <div ref={stageRef} className="relative min-h-0 flex-1 overflow-auto bg-cream-muted/40 p-4 dark:bg-black/30">
           {!session ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
               <p className="text-sm font-medium text-espresso dark:text-cream">Hangi panele bakmak istersiniz?</p>
@@ -329,20 +329,21 @@ export function PanelPreview({
                 Yukarıdan bir kurum ve rol seçin. Panel, o kurumun gerçek bir kullanıcısının gözünden — giriş yapmış biri gibi — açılır.
               </p>
             </div>
-          ) : preset.width === null ? (
-            <iframe
-              key={iframeKey}
-              src={session.url}
-              title={`${session.roleLabel} paneli önizlemesi`}
-              className="h-full w-full rounded-xl border border-hairline bg-white shadow-sm dark:border-white/10 dark:bg-midnight-card"
-            />
           ) : (
-            <div className="flex justify-center">
+            // ⚠️ TEK bir iframe, TEK bir ağaç — cihaz değişince sadece
+            // stiller değişir. Önce masaüstü ve telefon AYRI JSX dalları
+            // olarak yazılmıştı; React o durumda iframe'i söküp yeniden
+            // kuruyordu, yani her cihaz değişiminde panel BAŞTAN yükleniyor
+            // ve boş beyaz bir çerçeve görünüyordu (2026-09-15 ekran
+            // görüntüsüyle yakalandı). Ağaç şekli sabit kalınca iframe
+            // korunur, geçiş anında olur.
+            <div className="flex h-full justify-center">
               <div
-                style={{
-                  width: (preset.width + BEZEL * 2) * scale,
-                  height: ((preset.height ?? 0) + BEZEL * 2) * scale,
-                }}
+                style={
+                  preset.width === null
+                    ? { width: "100%", height: "100%" }
+                    : { width: (preset.width + BEZEL * 2) * scale, height: ((preset.height ?? 0) + BEZEL * 2) * scale }
+                }
               >
                 {/* Cihaz çerçevesi — iframe GERÇEK piksel ölçüsünde kalır,
                     sadece görsel olarak ölçeklenir; böylece uygulamanın
@@ -351,18 +352,27 @@ export function PanelPreview({
                     border-box ve o haldeyken 10px'lik çerçeve genişliğin
                     İÇİNDEN yeniyordu: canlı ölçümde iframe'in iç viewport'u
                     390 değil 370px çıktı — yani "telefon önizlemesi" gerçek
-                    bir telefonun genişliği DEĞİLDİ (bkz. Playwright ölçümü,
-                    2026-09-15). content-box ile 390 içerik + 10 çerçeve. */}
+                    bir telefonun genişliği DEĞİLDİ. content-box ile 390
+                    içerik + 10 çerçeve. */}
                 <div
-                  style={{
-                    width: preset.width,
-                    height: preset.height ?? 0,
-                    boxSizing: "content-box",
-                    borderWidth: BEZEL,
-                    transform: `scale(${scale})`,
-                    transformOrigin: "top left",
-                  }}
-                  className="overflow-hidden rounded-[2rem] border-solid border-espresso bg-white shadow-2xl dark:border-black"
+                  style={
+                    preset.width === null
+                      ? { width: "100%", height: "100%" }
+                      : {
+                          width: preset.width,
+                          height: preset.height ?? 0,
+                          boxSizing: "content-box",
+                          borderWidth: BEZEL,
+                          transform: `scale(${scale})`,
+                          transformOrigin: "top left",
+                        }
+                  }
+                  className={cn(
+                    "overflow-hidden bg-white dark:bg-midnight-card",
+                    preset.width === null
+                      ? "rounded-xl border border-hairline shadow-sm dark:border-white/10"
+                      : "rounded-[2rem] border-solid border-espresso shadow-2xl dark:border-black"
+                  )}
                 >
                   <iframe
                     key={iframeKey}
@@ -372,6 +382,17 @@ export function PanelPreview({
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Rol/kullanıcı değişirken üstte net bir geçiş — aksi halde bir an
+              ÖNCEKİ kimliğin paneli görünüyor ve hangi kimliğe bakıldığı
+              belirsizleşiyor. */}
+          {starting && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-cream-muted/70 backdrop-blur-[2px] dark:bg-black/50">
+              <span className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-medium text-espresso shadow-lg dark:bg-midnight-card dark:text-cream">
+                <Loader2 className="h-4 w-4 animate-spin text-brand-600" /> Panel açılıyor...
+              </span>
             </div>
           )}
         </div>

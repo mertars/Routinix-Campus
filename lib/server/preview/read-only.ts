@@ -1,6 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { SESSION_COOKIE_NAME } from "@/lib/server/auth/jwt";
-import { PREVIEW_SESSION_COOKIE_NAME, verifyPreviewSessionToken, type PreviewSessionPayload } from "@/lib/server/auth/preview-jwt";
+import { PREVIEW_SESSION_COOKIE_NAME, resolveActivePreview, type PreviewSessionPayload } from "@/lib/server/auth/preview-jwt";
 
 // ----------------------------------------------------------------------------
 // ÖNİZLEME SALT-OKUNUR KİLİDİ — platform önizlemesinin TEK güvenlik garantisi.
@@ -42,13 +41,14 @@ function readCookie(cookieHeader: string, name: string): string | null {
 }
 
 /**
- * Bu istek için GEÇERLİ önizleme oturumunu çözer.
+ * Bu istek için AKTİF önizleme oturumunu çözer — salt-okunur kilidinin
+ * uygulanıp uygulanmayacağını belirleyen tek soru.
  *
- * ⚠️ ÖNCELİK KURALI: gerçek bir kurum oturumu cookie'si varsa önizleme
- * token'ı HİÇ okunmaz ve null döner. Aynı tarayıcıda gerçek bir hesapla
- * giriş yapan biri, unutulmuş bir önizleme cookie'si yüzünden ASLA salt
- * okunur moda düşmez — ve bir önizleme oturumu gerçek bir oturumun yerine
- * ASLA geçemez. Aynı kural session-guard.ts'te de birebir uygulanır.
+ * ⚠️ Kural session-guard.ts ve middleware.ts ile BİREBİR aynı olmak zorunda:
+ * üçü de preview-jwt.ts > resolveActivePreview'ı çağırır, yani "önizleme +
+ * geçerli platform sahibi oturumu" şartı tek bir yerde tanımlıdır. Üç yerde
+ * ayrı ayrı yazılsaydı biri değişip diğerleri kalabilir, sayfanın gördüğü
+ * kimlik ile API'nin gördüğü kimlik ayrışabilirdi.
  */
 export async function resolveEffectivePreview(request: Request | undefined): Promise<PreviewSessionPayload | null> {
   const cookieHeader = request?.headers.get("cookie");
@@ -57,11 +57,11 @@ export async function resolveEffectivePreview(request: Request | undefined): Pro
   // (bu kontrol HER API isteğinde çalışıyor). Üç cookie adı birbirinin
   // alt dizesi değil, bu yüzden includes() güvenli bir ön eleme.
   if (!cookieHeader.includes(`${PREVIEW_SESSION_COOKIE_NAME}=`)) return null;
-  if (readCookie(cookieHeader, SESSION_COOKIE_NAME)) return null;
 
-  const raw = readCookie(cookieHeader, PREVIEW_SESSION_COOKIE_NAME);
-  if (!raw) return null;
-  return verifyPreviewSessionToken(decodeURIComponent(raw));
+  return resolveActivePreview((name) => {
+    const raw = readCookie(cookieHeader, name);
+    return raw ? decodeURIComponent(raw) : null;
+  });
 }
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);

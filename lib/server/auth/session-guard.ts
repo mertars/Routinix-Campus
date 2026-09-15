@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/server/prisma";
 import { verifySessionToken, ROLE_ID_BY_AUTH_ROLE, SESSION_COOKIE_NAME, type SessionPayload, type RoleId } from "./jwt";
-import { PREVIEW_SESSION_COOKIE_NAME, verifyPreviewSessionToken } from "./preview-jwt";
+import { resolveActivePreview } from "./preview-jwt";
 import { AuthError } from "./errors";
 
 // Korumalı TÜM API route'larının (bkz. FAZ 1 planı) tek gerçek giriş noktası.
@@ -16,15 +16,16 @@ import { AuthError } from "./errors";
 export type Session = SessionPayload & { isPreview?: true; previewBy?: string };
 
 export async function requireSession(): Promise<Session> {
-  const token = cookies().get(SESSION_COOKIE_NAME)?.value;
-
-  // ⚠️ ÖNCELİK KURALI: GERÇEK oturum her zaman kazanır. Kurum oturumu
-  // cookie'si VARSA (geçersiz/süresi dolmuş olsa bile) önizleme token'ına
-  // hiç bakılmaz — aksi halde unutulmuş bir önizleme cookie'si, gerçek
-  // oturumu süren birinin isteğini sessizce başka bir kimliğe çevirebilirdi.
-  // Aynı kural lib/server/preview/read-only.ts ve middleware.ts'te de
-  // birebir uygulanır; üçü birbiriyle tutarlı olmak ZORUNDA.
-  const payload = token ? await verifySessionToken(token) : await resolvePreviewSession();
+  // ⚠️ ÖNCELİK KURALI: aktif bir önizleme, kurum oturumunun ÖNÜNE geçer —
+  // ama "aktif" olması için o tarayıcıda geçerli bir PLATFORM SAHİBİ oturumu
+  // da bulunmak zorundadır (bkz. preview-jwt.ts > resolveActivePreview,
+  // kuralın neden böyle olduğu ve hangi gerçek hatadan doğduğu orada yazılı).
+  // Aynı kural middleware.ts ve lib/server/preview/read-only.ts'te de birebir
+  // uygulanır; üçü tutarlı olmak ZORUNDA, aksi halde sayfanın gördüğü kimlik
+  // ile API'nin gördüğü kimlik ayrışır.
+  const preview = await resolvePreviewSession();
+  const token = preview ? null : cookies().get(SESSION_COOKIE_NAME)?.value;
+  const payload = preview ?? (token ? await verifySessionToken(token) : null);
 
   if (!token && !payload) {
     throw new AuthError("Oturum bulunamadı. Lütfen giriş yapın.", "NO_SESSION", 401);
@@ -53,12 +54,10 @@ export async function requireSession(): Promise<Session> {
   return payload;
 }
 
-// Önizleme cookie'sini Session şekline çevirir. Ayrı 'aud' claim'i sayesinde
+// Aktif önizlemeyi Session şekline çevirir. Ayrı 'aud' claim'i sayesinde
 // buraya bir kurum/platform oturumu token'ı ASLA geçemez (bkz. preview-jwt.ts).
 async function resolvePreviewSession(): Promise<Session | null> {
-  const previewToken = cookies().get(PREVIEW_SESSION_COOKIE_NAME)?.value;
-  if (!previewToken) return null;
-  const preview = await verifyPreviewSessionToken(previewToken);
+  const preview = await resolveActivePreview((name) => cookies().get(name)?.value);
   if (!preview) return null;
   return {
     sub: preview.sub,

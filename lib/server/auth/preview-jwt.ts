@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { getEnv } from "@/lib/server/env";
 import type { AuthRole } from "@/lib/server/auth/jwt";
+import { PLATFORM_SESSION_COOKIE_NAME, verifyPlatformSessionToken } from "@/lib/server/auth/platform-jwt";
 
 // ----------------------------------------------------------------------------
 // ÖNİZLEME OTURUMU — platform sahibinin bir kurumun panelini "içeriden"
@@ -23,8 +24,10 @@ import type { AuthRole } from "@/lib/server/auth/jwt";
 //      (withApiLogging) reddedilir, AYRICA Prisma seviyesinde her yazma
 //      işlemi bloke edilir (bkz. lib/server/db-preview-guard.ts) — GET
 //      içinden yazmaya çalışan bir uç bile veri değiştiremez.
-//   3. GERÇEK oturuma ASLA öncelik veremez: bir kurum oturumu cookie'si
-//      varsa önizleme token'ı hiç okunmaz (bkz. session-guard.ts).
+//   3. TEK BAŞINA DEĞERSİZDİR: aynı tarayıcıda GEÇERLİ bir platform sahibi
+//      oturumu (routinix-platform-session) yoksa hiç okunmaz. Yani sızan bir
+//      önizleme cookie'si hiçbir işe yaramaz ve platform çıkışı yapıldığı an
+//      etkisiz kalır. Bkz. resolveActivePreview.
 //   4. Kısa ömürlü (1 saat) — platform çıkışında da temizlenir.
 // ----------------------------------------------------------------------------
 
@@ -76,3 +79,44 @@ export async function verifyPreviewSessionToken(token: string): Promise<PreviewS
 }
 
 export const PREVIEW_SESSION_MAX_AGE_SECONDS = PREVIEW_SESSION_TTL_SECONDS;
+
+/**
+ * Bu istek için AKTİF önizleme oturumu — üç kapının üçü de açıksa.
+ *
+ * ⚠️ ÖNCELİK KURALI (2026-09-15'te DEĞİŞTİ, gerçek bir hatadan sonra):
+ * Önce "gerçek kurum oturumu her zaman kazanır" kuralı vardı. Mert üretimde
+ * bunun özelliği İŞE YARAMAZ hale getirdiğini bildirdi: tarayıcısında zaten
+ * bir yönetici oturumu açıktı, bu yüzden Öğretmen önizlemesi "bu rolle
+ * erişemezsiniz" diye reddediliyor, Yönetici önizlemesi ise açılıyor ama
+ * SESSİZCE kendi kurumunu gösteriyordu (yerelde birebir üretildi). Özelliğin
+ * var oluş sebebi tam olarak "aynı tarayıcıda başka bir hesaba bakabilmek"
+ * olduğu için o kural özelliğin kendisiyle çelişiyordu.
+ *
+ * Yeni kural önizlemeyi gerçek oturumun ÖNÜNE alır ama üç şartla — ve bu
+ * hâli eskisinden DAHA sıkıdır, çünkü önizleme cookie'si artık tek başına
+ * hiçbir şey ifade etmez:
+ *   1. Geçerli bir önizleme token'ı var,
+ *   2. AYNI tarayıcıda GEÇERLİ bir platform sahibi oturumu var,
+ *   3. Önizlemeyi başlatan platform sahibi ile şu anki platform sahibi AYNI.
+ *
+ * Yani önizlemenin bir isteğin kimliğini değiştirebilmesi için o tarayıcının
+ * sistemdeki EN YETKİLİ oturumunu zaten taşıyor olması gerekir. Sıradan bir
+ * kurum kullanıcısının isteği bundan ETKİLENEMEZ — platform cookie'si yoktur.
+ * Önizleme yine de SALT OKUNURDUR (bkz. lib/server/preview/read-only.ts).
+ */
+export async function resolveActivePreview(
+  readCookie: (name: string) => string | undefined | null
+): Promise<PreviewSessionPayload | null> {
+  const previewToken = readCookie(PREVIEW_SESSION_COOKIE_NAME);
+  if (!previewToken) return null;
+  const platformToken = readCookie(PLATFORM_SESSION_COOKIE_NAME);
+  if (!platformToken) return null;
+
+  const [preview, platform] = await Promise.all([
+    verifyPreviewSessionToken(previewToken),
+    verifyPlatformSessionToken(platformToken),
+  ]);
+  if (!preview || !platform) return null;
+  if (preview.previewBy !== platform.sub) return null;
+  return preview;
+}
