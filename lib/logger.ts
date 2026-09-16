@@ -107,9 +107,14 @@ export function withApiLogging<Args extends unknown[]>(
     // hiç yapılmaz).
     const preview = await resolveEffectivePreview(request);
     if (preview) {
-      const blocked = previewBlockReason(method, url ? new URL(url).pathname : "", preview.canWrite === true);
+      // ⚠️ İKİ TÜR salt-okunur oturum var (platform önizlemesi ve yönetici
+      // görüntülemesi) — "bunu kim başlattı" alanı türüne göre değişiyor,
+      // log satırı ikisinde de dolu olsun diye burada normalize edilir.
+      const startedBy = preview.kind === "preview" ? preview.previewBy : preview.by;
+      const canWrite = preview.kind === "preview" && preview.canWrite === true;
+      const blocked = previewBlockReason(method, url ? new URL(url).pathname : "", canWrite, preview.kind);
       if (blocked) {
-        logger.warn("api_preview_blocked", { route: routeLabel, method, url, previewBy: preview.previewBy, institutionId: preview.institutionId });
+        logger.warn("api_preview_blocked", { route: routeLabel, method, url, kind: preview.kind, startedBy, institutionId: preview.institutionId });
         return new Response(JSON.stringify({ error: blocked, code: "PREVIEW_READ_ONLY" }), {
           status: 403,
           headers: { "Content-Type": "application/json" },
@@ -120,12 +125,13 @@ export function withApiLogging<Args extends unknown[]>(
       // görünür — yani müşterinin kendi yöneticisi yapmış gibi durur. Bu
       // satır o boşluğu kapatır: gerçekte kimin, hangi kuruma, hangi uçtan
       // yazdığı sunucu logunda (ve Sentry'de) aranabilir kalır.
-      if (preview.canWrite && MUTATING_FOR_LOG.has(method.toUpperCase())) {
+      if (canWrite && MUTATING_FOR_LOG.has(method.toUpperCase())) {
         logger.warn("api_preview_write", {
           route: routeLabel,
           method,
           url,
-          previewBy: preview.previewBy,
+          kind: preview.kind,
+          startedBy,
           institutionId: preview.institutionId,
           asUser: `${preview.role}:${preview.sub}`,
           asName: preview.name,

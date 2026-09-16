@@ -25,6 +25,8 @@ export type Student360Section = {
 };
 
 export type Student360Parent = {
+  /** Veli panelini açabilmek için gerekir (yalnızca yönetici görür). */
+  id: string;
   name: string;
   relationship: string;
   phone: string;
@@ -45,4 +47,8 @@ export type Student360 = {
   sections: Student360Section[];
   /** Finansal bölüm gizlendi mi (öğretmen görünümü). Arayüz bunu açıklar. */
   financeHidden: boolean;
+  /** ⚠️ "Panele Gir" tuşu gösterilsin mi — SADECE yönetici oturumunda true.
+   *  Bu yalnızca GÖRÜNÜRLÜK kararıdır; asıl yetki kontrolü uçtadır
+   *  (bkz. app/api/admin/impersonate/route.ts). */
+  canEnterPanel?: boolean;
 };

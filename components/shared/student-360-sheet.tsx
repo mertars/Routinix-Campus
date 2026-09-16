@@ -2,9 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowRight, GraduationCap, Loader2, Phone, ShieldAlert, UserRound } from "lucide-react";
+import { ArrowRight, GraduationCap, Loader2, LogIn, Phone, ShieldAlert, UserRound } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useStudent360 } from "@/lib/student-360-store";
+import { enterPanel } from "@/lib/client/enter-panel";
 import { MODULE_BY_ID } from "@/lib/modules";
 import { requestErpTab } from "@/lib/erp-tab-store";
 import type { ErpTabId } from "@/lib/erp-tabs";
@@ -151,6 +152,23 @@ export function Student360Sheet() {
                     <span className="rounded bg-amber-500/15 px-1 text-[9.5px] font-semibold text-amber-700 dark:text-amber-300">
                       SMS kapalı
                     </span>
+                  )}
+                  {/* ⚠️ VELİ PANELİNE GİR — yalnızca yönetici oturumunda
+                      görünür (canEnterPanel). Veliler yönetici dizininde
+                      listelenmiyor; velinin ekranını görmenin doğal yeri
+                      öğrencinin 360 kartındaki bu satır. Salt okunur. */}
+                  {data.canEnterPanel && (
+                    <button
+                      onClick={async () => {
+                        const error = await enterPanel("parent", parent.id);
+                        if (error) alert(error);
+                      }}
+                      aria-label={`${parent.name} panelini görüntüle`}
+                      title="Veli panelini görüntüle (salt okunur)"
+                      className="ml-0.5 flex h-5 w-5 items-center justify-center rounded text-espresso-muted transition hover:bg-amber-500/15 hover:text-amber-700 dark:text-cream/40"
+                    >
+                      <LogIn className="h-3 w-3" />
+                    </button>
                   )}
                 </span>
               ))}

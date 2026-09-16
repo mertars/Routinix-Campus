@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, memo } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileDown, FileUp, GraduationCap, Layers, ListChecks, Orbit, Pencil, Plus, Search, Trash2, UserCheck, UserCog2, UserX, Users } from "lucide-react";
+import { FileDown, FileUp, GraduationCap, Layers, ListChecks, LogIn, Orbit, Pencil, Plus, Search, Trash2, UserCheck, UserCog2, UserX, Users } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { AvatarInitials } from "@/components/principal/avatar-initials";
 import type { EditTarget } from "@/components/principal/user-management/edit-user-modal";
@@ -11,6 +11,7 @@ import type { NewUserCredentials } from "@/components/principal/user-management/
 import type { DeactivateTarget } from "@/components/principal/user-management/deactivate-confirm-modal";
 import type { PermanentDeleteTarget } from "@/components/principal/user-management/permanent-delete-confirm-modal";
 import { openStudent360 } from "@/lib/student-360-store";
+import { enterPanel } from "@/lib/client/enter-panel";
 import { cn } from "@/lib/utils";
 
 type BranchOption = { id: string; name: string };
@@ -65,6 +66,7 @@ const StudentRowCard = memo(function StudentRowCard({
   selected,
   onToggleSelect,
   onInspect,
+  onEnterPanel,
   onEdit,
   onDeactivate,
   onDelete,
@@ -73,6 +75,7 @@ const StudentRowCard = memo(function StudentRowCard({
   selected: boolean;
   onToggleSelect: (id: string) => void;
   onInspect: (id: string, role: DirectoryRole, name: string) => void;
+  onEnterPanel: (role: "teacher" | "student" | "parent" | "guidance", userId: string) => void;
   onEdit: (id: string, role: DirectoryRole, name: string) => void;
   onDeactivate: (id: string, role: DirectoryRole, name: string, isActive: boolean) => void;
   onDelete: (id: string, role: DirectoryRole, name: string) => void;
@@ -117,6 +120,20 @@ const StudentRowCard = memo(function StudentRowCard({
       >
         <Orbit className="h-3.5 w-3.5" />
       </button>
+      {/* ⚠️ PANELE GİR (Mert, 2026-09-16) — öğrencinin kendi panelini onun
+          gözünden açar. SALT OKUNUR ve denetim kaydına yazılır (bkz.
+          lib/server/auth/impersonation-jwt.ts). Pasif hesapta gösterilmez:
+          ayrılmış bir öğrencinin paneli zaten açılmamalı. */}
+      {student.isActive && (
+        <button
+          onClick={() => onEnterPanel("student", student.id)}
+          aria-label={`${fullName} panelini görüntüle`}
+          title="Panele gir (salt okunur)"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-amber-600 dark:text-cream/40 dark:hover:bg-white/10"
+        >
+          <LogIn className="h-3.5 w-3.5" />
+        </button>
+      )}
       {student.isActive && (
         <button
           onClick={() => onEdit(student.id, "STUDENT", fullName)}
@@ -152,6 +169,7 @@ const TeacherRowCard = memo(function TeacherRowCard({
   selected,
   onToggleSelect,
   onInspect,
+  onEnterPanel,
   onEdit,
   onDeactivate,
   onDelete,
@@ -160,6 +178,7 @@ const TeacherRowCard = memo(function TeacherRowCard({
   selected: boolean;
   onToggleSelect: (id: string) => void;
   onInspect: (id: string, role: DirectoryRole, name: string) => void;
+  onEnterPanel: (role: "teacher" | "student" | "parent" | "guidance", userId: string) => void;
   onEdit: (id: string, role: DirectoryRole, name: string) => void;
   onDeactivate: (id: string, role: DirectoryRole, name: string, isActive: boolean) => void;
   onDelete: (id: string, role: DirectoryRole, name: string) => void;
@@ -196,6 +215,16 @@ const TeacherRowCard = memo(function TeacherRowCard({
           </p>
         </div>
       </button>
+      {teacher.isActive && (
+        <button
+          onClick={() => onEnterPanel(teacher.subject === "Rehberlik" ? "guidance" : "teacher", teacher.id)}
+          aria-label={`${fullName} panelini görüntüle`}
+          title="Panele gir (salt okunur)"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:bg-white hover:text-amber-600 dark:text-cream/40 dark:hover:bg-white/10"
+        >
+          <LogIn className="h-3.5 w-3.5" />
+        </button>
+      )}
       {teacher.isActive && (
         <button
           onClick={() => onEdit(teacher.id, "TEACHER", fullName)}
@@ -267,6 +296,19 @@ export function BranchStaffTab() {
     []
   );
   const handleDelete = useCallback((id: string, role: DirectoryRole, name: string) => setPermanentDeleteTarget({ id, role, name }), []);
+  // "Panele Gir" — başarılıysa tam sayfa yönlendirme yapar (bkz.
+  // lib/client/enter-panel.ts), hata dönerse kullanıcıya gösterilir.
+  const handleEnterPanel = useCallback(
+    async (role: "teacher" | "student" | "parent" | "guidance", userId: string) => {
+      const error = await enterPanel(role, userId);
+      if (error) showError(error);
+    },
+    // showError referansı sabit olmayabilir; bağımlılık listesi bilerek boş
+    // bırakılmıyor — memo'lu satır kartları için referans kararlılığı
+    // gerekiyor ama hata gösterimi her zaman güncel fonksiyonu kullanmalı.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
   async function loadDirectory() {
     setLoading(true);
@@ -477,6 +519,7 @@ export function BranchStaffTab() {
                     selected={selectedIds.includes(s.id)}
                     onToggleSelect={toggleSelect}
                     onInspect={handleInspect}
+                    onEnterPanel={handleEnterPanel}
                     onEdit={handleEdit}
                     onDeactivate={handleDeactivate}
                     onDelete={handleDelete}
@@ -489,6 +532,7 @@ export function BranchStaffTab() {
                     selected={selectedIds.includes(t.id)}
                     onToggleSelect={toggleSelect}
                     onInspect={handleInspect}
+                    onEnterPanel={handleEnterPanel}
                     onEdit={handleEdit}
                     onDeactivate={handleDeactivate}
                     onDelete={handleDelete}

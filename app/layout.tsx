@@ -4,6 +4,9 @@ import { headers } from "next/headers";
 import { RoleProvider } from "@/lib/role-context";
 import { SessionProfileProvider } from "@/lib/institution-scope";
 import { getSessionProfile } from "@/lib/server/auth/session-profile";
+import { cookies } from "next/headers";
+import { resolveActiveImpersonation } from "@/lib/server/auth/impersonation-jwt";
+import { ImpersonationBanner } from "@/components/shared/impersonation-banner";
 import { ThemeProvider } from "@/lib/theme-context";
 import { AccentProvider } from "@/lib/accent-context";
 import { LiveSyncProvider } from "@/lib/live-sync-context";
@@ -75,6 +78,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // (/login, /platform) null döner, hiçbir maliyeti olmaz.
   const sessionProfile = await getSessionProfile();
 
+  // ⚠️ GÖRÜNTÜLEME BANTI SUNUCUDA ÇÖZÜLÜR: bant, "yanlış hesapta olduğunu
+  // unutma" güvencesinin kendisi — istemci bir istek atana kadar gecikmeli
+  // görünmesi, o güvenceyi delerdi. Kimlik zaten burada çözülüyor
+  // (getSessionProfile), ek maliyeti yok.
+  const impersonation = await resolveActiveImpersonation((name) => cookies().get(name)?.value);
+
   // middleware.ts'in her istekte ürettiği CSP nonce'ı — Next.js kendi
   // hydration/RSC script'lerine bunu otomatik uygular, ama BURADA elle
   // yazılan iki inline script'in çalışabilmesi için nonce prop'u AÇIKÇA
@@ -109,6 +118,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* Tarayıcı hatalarını (CSP ihlali dahil) sunucu loguna taşır —
             bkz. components/client-error-reporter.tsx. Hiçbir şey render etmez. */}
         <ClientErrorReporter />
+        <ImpersonationBanner
+          initial={
+            impersonation
+              ? { active: true, name: impersonation.name, role: impersonation.role, byName: impersonation.byName }
+              : null
+          }
+        />
         <PanelAurora />
         <ThemeProvider>
           <AccentProvider>

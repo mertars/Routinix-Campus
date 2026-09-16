@@ -1640,6 +1640,14 @@ enum AuditAction {
   PAYROLL_PAID
   CASH_COUNTED
   PAYMENT_ROLE_CHANGED
+  // --- Yönetici panel görüntülemesi ("Panele Gir") ---
+  // ⚠️ Bu İKİ satır özelliğin güvenlik dayanağının bir parçası: bir
+  // yöneticinin başka bir kullanıcının panelini açması ASLA sessiz
+  // olmamalı. Başlangıç ve çıkış ayrı ayrı loglanır, böylece "kim, kimin
+  // panelini, ne zaman, ne kadar süre görüntüledi" sorusu cevaplanabilir
+  // (bkz. lib/server/auth/impersonation-jwt.ts).
+  PANEL_VIEW_STARTED
+  PANEL_VIEW_ENDED
 }
 
 model AuditLog {

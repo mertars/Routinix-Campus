@@ -45,8 +45,12 @@ export const previewReadOnlyGuard = Prisma.defineExtension((client) =>
           // Yazma modu AÇIK bir önizlemede kilit devre dışı — o mod zaten
           // bilinçli ve görünür bir tercih (bkz. preview-jwt.ts > canWrite).
           // Salt okunur önizlemede kilit aynen sürer.
+          // ⚠️ Yönetici görüntülemesinde (kind: "impersonation") yazma modu
+          // KAVRAMI YOKTUR — kilit her koşulda geçerlidir (bkz.
+          // lib/server/auth/impersonation-jwt.ts'teki 4. madde).
           const preview = currentPreview();
-          if (WRITE_OPERATIONS.has(operation) && preview && !preview.canWrite) {
+          const canWrite = preview?.kind === "preview" && preview.canWrite === true;
+          if (WRITE_OPERATIONS.has(operation) && preview && !canWrite) {
             throw new PreviewReadOnlyError(model, operation);
           }
           return query(args);

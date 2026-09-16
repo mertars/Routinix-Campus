@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifySessionToken, ROLE_ID_BY_AUTH_ROLE } from "@/lib/server/auth/jwt";
 import { verifyPlatformSessionToken, PLATFORM_SESSION_COOKIE_NAME } from "@/lib/server/auth/platform-jwt";
 import { resolveActivePreview, PREVIEW_SESSION_COOKIE_NAME } from "@/lib/server/auth/preview-jwt";
+import { resolveActiveImpersonation } from "@/lib/server/auth/impersonation-jwt";
 
 // Panel rotalarını GERÇEK, sunucu tarafı imzalı oturuma (routinix-kampus-session,
 // bkz. lib/server/auth/jwt.ts) göre korur. Rol bilgisi tarayıcıdan okunabilir/
@@ -220,6 +221,15 @@ export async function middleware(request: NextRequest) {
 async function resolveRole(request: NextRequest): Promise<{ roleId: string | null; hasSession: boolean }> {
   const preview = await resolveActivePreview((name) => request.cookies.get(name)?.value);
   if (preview) return { roleId: ROLE_ID_BY_AUTH_ROLE[preview.role], hasSession: true };
+
+  // ⚠️ YÖNETİCİ GÖRÜNTÜLEMESİ ("Panele Gir") — sayfa rotası, API ile AYNI
+  // kimliği görmek zorunda. Bu satır olmasaydı yönetici /student adresine
+  // gittiğinde middleware onu hâlâ ADMIN sayıp "bu rolle erişemezsiniz"
+  // diye geri atardı; API ise öğrenci kimliğiyle cevap verirdi — ikisi
+  // ayrışır ve özellik hiç çalışmazdı (platform önizlemesinde bu hata
+  // gerçekten yaşandı, bkz. preview-jwt.ts > resolveActivePreview).
+  const impersonation = await resolveActiveImpersonation((name) => request.cookies.get(name)?.value);
+  if (impersonation) return { roleId: ROLE_ID_BY_AUTH_ROLE[impersonation.role], hasSession: true };
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (!token) return { roleId: null, hasSession: false };

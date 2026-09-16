@@ -62,7 +62,7 @@ export async function getStudent360(studentId: string, options: Student360Option
       advisorTeacher: { select: { firstName: true, lastName: true } },
       parents: {
         select: {
-          parent: { select: { firstName: true, lastName: true, relationship: true, mobilePhone: true, smsConsent: true } },
+          parent: { select: { id: true, firstName: true, lastName: true, relationship: true, mobilePhone: true, smsConsent: true } },
         },
       },
     },
@@ -259,6 +259,7 @@ export async function getStudent360(studentId: string, options: Student360Option
         : null,
     },
     parents: student.parents.map((p) => ({
+      id: p.parent.id,
       name: `${p.parent.firstName} ${p.parent.lastName}`,
       relationship: p.parent.relationship,
       phone: p.parent.mobilePhone,

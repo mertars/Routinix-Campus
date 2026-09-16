@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { prisma } from "@/lib/server/prisma";
 import { verifySessionToken, ROLE_ID_BY_AUTH_ROLE, SESSION_COOKIE_NAME, type SessionPayload, type RoleId } from "./jwt";
 import { resolveActivePreview } from "./preview-jwt";
+import { resolveActiveImpersonation } from "./impersonation-jwt";
 import { AuthError } from "./errors";
 
 // Korumalı TÜM API route'larının (bkz. FAZ 1 planı) tek gerçek giriş noktası.
@@ -13,7 +14,14 @@ import { AuthError } from "./errors";
 // gerek YOKTUR (amaç "tıpkı uygulamadan girmiş biri gibi" görünmek); alan
 // yalnızca denetim/teşhis için taşınır, yetki kararı VERMEZ — yazma kilidi
 // tamamen ayrı iki katmanda uygulanır (bkz. lib/server/preview/read-only.ts).
-export type Session = SessionPayload & { isPreview?: true; previewBy?: string };
+export type Session = SessionPayload & {
+  isPreview?: true;
+  previewBy?: string;
+  /** Kurum yöneticisinin "Panele Gir" görüntülemesi (bkz. impersonation-jwt.ts). */
+  isImpersonation?: true;
+  /** Görüntülemeyi başlatan yöneticinin id'si — denetim izi. */
+  impersonatedBy?: string;
+};
 
 export async function requireSession(): Promise<Session> {
   // ⚠️ ÖNCELİK KURALI: aktif bir önizleme, kurum oturumunun ÖNÜNE geçer —
@@ -23,7 +31,9 @@ export async function requireSession(): Promise<Session> {
   // Aynı kural middleware.ts ve lib/server/preview/read-only.ts'te de birebir
   // uygulanır; üçü tutarlı olmak ZORUNDA, aksi halde sayfanın gördüğü kimlik
   // ile API'nin gördüğü kimlik ayrışır.
-  const preview = await resolvePreviewSession();
+  // ⚠️ SIRA: platform önizlemesi > yönetici görüntülemesi > gerçek oturum.
+  // Önizleme daha yetkili bir bağlamdır ve ikisi de salt okunurdur.
+  const preview = (await resolvePreviewSession()) ?? (await resolveImpersonationSession());
   const token = preview ? null : cookies().get(SESSION_COOKIE_NAME)?.value;
   const payload = preview ?? (token ? await verifySessionToken(token) : null);
 
@@ -67,6 +77,22 @@ async function resolvePreviewSession(): Promise<Session | null> {
     institutionId: preview.institutionId,
     isPreview: true,
     previewBy: preview.previewBy,
+  };
+}
+
+// Aktif görüntülemeyi Session şekline çevirir. Ayrı 'aud' claim'i sayesinde
+// buraya başka türde bir token ASLA geçemez (bkz. impersonation-jwt.ts).
+async function resolveImpersonationSession(): Promise<Session | null> {
+  const view = await resolveActiveImpersonation((name) => cookies().get(name)?.value);
+  if (!view) return null;
+  return {
+    sub: view.sub,
+    role: view.role,
+    phone: view.phone,
+    name: view.name,
+    institutionId: view.institutionId,
+    isImpersonation: true,
+    impersonatedBy: view.by,
   };
 }
 

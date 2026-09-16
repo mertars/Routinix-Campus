@@ -56,6 +56,11 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
     }
 
     const data = await getStudent360(student.id, { includeFinance });
+    // ⚠️ SADECE GÖRÜNÜRLÜK: "Panele Gir" tuşu yönetici dışındaki rollerde
+    // hiç çizilmesin. Gerçek yetki kontrolü uçtadır (POST
+    // /api/admin/impersonate > requireRole("principal")) — bu bayrak
+    // kaldırılsa bile öğretmen o ucu çağıramaz.
+    if (data && session.role === "ADMIN") data.canEnterPanel = true;
     if (!data) return NextResponse.json({ error: "Öğrenci bulunamadı." }, { status: 404 });
     return NextResponse.json(data);
   } catch (error) {
