@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, LineChart, Loader2, NotebookPen, Search, Send, ShieldCheck, UserRound } from "lucide-react";
+import { GUIDANCE_CATEGORY_LABEL } from "@/lib/guidance/categories";
 import { useToast } from "@/lib/toast-context";
 import { StudentDossier } from "@/components/guidance/student-dossier";
 import { cn } from "@/lib/utils";
@@ -38,14 +39,7 @@ type NoteEntry = {
   createdAt: string;
 };
 
-const CATEGORY_LABEL: Record<string, string> = {
-  ACADEMIC: "Akademik",
-  BEHAVIORAL: "Davranış",
-  CAREER: "Kariyer",
-  FAMILY: "Aile",
-  HEALTH: "Sağlık",
-  OTHER: "Diğer",
-};
+
 
 // ⚠️ GİZLİLİK SEVİYELERİ — kodda GERÇEKTE ne yaptıkları (ölçüldü):
 //   PUBLIC       → VELİ de görebilir (lib/guidance/visibility.ts'teki
@@ -303,7 +297,7 @@ export function StudentFocusTab({
                   onChange={(e) => setCategory(e.target.value)}
                   className="min-h-[40px] rounded-lg border border-hairline bg-white px-2.5 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
                 >
-                  {Object.entries(CATEGORY_LABEL).map(([v, l]) => (
+                  {Object.entries(GUIDANCE_CATEGORY_LABEL).map(([v, l]) => (
                     <option key={v} value={v}>
                       {l}
                     </option>

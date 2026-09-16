@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
+  Activity,
   BookMarked,
   CalendarClock,
   CalendarPlus,
@@ -19,6 +20,8 @@ import {
   X,
 } from "lucide-react";
 import { AcademicPanel } from "@/components/guidance/academic-panel";
+import { MeetingImpactPanel } from "@/components/guidance/meeting-impact-panel";
+import { GUIDANCE_CATEGORY_LABEL } from "@/lib/guidance/categories";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -96,14 +99,7 @@ const CONFIDENTIALITY_EXPLAIN: Record<string, string> = {
   CONFIDENTIAL: "Bu not yalnızca rehberliğe açıktır; yönetici akışında bile görünmez.",
 };
 
-const CATEGORY_LABEL: Record<string, string> = {
-  ACADEMIC: "Akademik",
-  BEHAVIORAL: "Davranış",
-  CAREER: "Kariyer",
-  FAMILY: "Aile",
-  HEALTH: "Sağlık",
-  OTHER: "Diğer",
-};
+
 
 const PROGRAM_DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"] as const;
 const PROGRAM_KIND_LABEL: Record<string, string> = {
@@ -232,7 +228,7 @@ function TimelineDetailModal({
               )}
               {item.category && (
                 <span className="rounded-full bg-cream-card px-2 py-0.5 text-[11px] font-semibold text-espresso-muted dark:bg-white/10 dark:text-cream/50">
-                  {CATEGORY_LABEL[item.category] ?? item.category}
+                  {GUIDANCE_CATEGORY_LABEL[item.category as keyof typeof GUIDANCE_CATEGORY_LABEL] ?? item.category}
                 </span>
               )}
               {item.confidentiality && (
@@ -426,6 +422,7 @@ export function StudentDossier({
   // Dosya geçmişinde tıklanan satır — detay penceresinde açılır.
   const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);
   const [academicOpen, setAcademicOpen] = useState(false);
+  const [impactOpen, setImpactOpen] = useState(false);
 
   const load = useCallback(() => {
     setData(null);
@@ -499,6 +496,16 @@ export function StudentDossier({
             className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-brand-500/40 bg-brand-50/60 px-3 text-[11.5px] font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-brand-600/10 dark:text-brand-300 dark:hover:bg-brand-600/20"
           >
             <LineChart className="h-3.5 w-3.5" /> Akademik Durum
+          </button>
+          {/* ⚠️ GÖRÜŞME ETKİSİ (Mert, 2026-09-16): rehberliğin yaptığı iş
+              ilk kez ölçülüyor — görüşme öncesi/sonrası 30 günün devam,
+              ödev ve net karşılaştırması. Veliyle paylaşılan notların
+              okunup okunmadığı da bu ekranın içinde. */}
+          <button
+            onClick={() => setImpactOpen(true)}
+            className="flex min-h-[36px] items-center gap-1.5 rounded-xl border border-violet-500/40 bg-violet-50/60 px-3 text-[11.5px] font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20"
+          >
+            <Activity className="h-3.5 w-3.5" /> Görüşme Etkisi
           </button>
         </div>
       </div>
@@ -607,6 +614,8 @@ export function StudentDossier({
       {detailItem && (
         <TimelineDetailModal item={detailItem} studentId={student.id} onClose={() => setDetailItem(null)} />
       )}
+
+      {impactOpen && <MeetingImpactPanel studentId={student.id} onClose={() => setImpactOpen(false)} />}
 
       {academicOpen && (
         <AcademicPanel

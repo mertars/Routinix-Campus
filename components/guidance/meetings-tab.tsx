@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarClock, CalendarPlus, Check, Loader2, Search, UserRound, UserX, Users, X, XCircle } from "lucide-react";
+import { GUIDANCE_CATEGORY_LABEL } from "@/lib/guidance/categories";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -34,11 +35,7 @@ type Meeting = {
 
 type StudentOption = { id: string; name: string; branchName: string | null };
 
-const CATEGORY_LABEL: Record<Meeting["category"], string> = {
-  ACADEMIC: "Akademik",
-  PSYCHOLOGICAL: "Psikolojik",
-  DISCIPLINARY: "Davranış",
-};
+const CATEGORY_LABEL = GUIDANCE_CATEGORY_LABEL;
 
 const ATTENDEE_LABEL: Record<Meeting["attendee"], string> = {
   STUDENT: "Öğrenci",

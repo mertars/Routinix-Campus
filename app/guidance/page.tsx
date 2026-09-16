@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, BookMarked, CalendarClock, LifeBuoy, Users } from "lucide-react";
+import { AlertTriangle, BookMarked, CalendarClock, ClipboardCheck, LifeBuoy, Users } from "lucide-react";
 import { GuidanceTopBar } from "@/components/guidance/guidance-top-bar";
 import { ReferralQueue } from "@/components/guidance/referral-queue";
 import { StudentFocusTab } from "@/components/guidance/student-focus-tab";
 import { RiskTab } from "@/components/guidance/risk-tab";
 import { GuidanceMeetingsTab } from "@/components/guidance/meetings-tab";
 import { GuidanceProgramBuilder } from "@/components/guidance/program-builder";
+import { ProgramComplianceTab } from "@/components/guidance/program-compliance-tab";
 import { useDeepLinkTab } from "@/lib/use-deep-link-tab";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,9 @@ const TABS = [
   { id: "meetings", label: "Görüşme Takvimi", icon: CalendarClock, hint: "Kimle ne zaman" },
   { id: "students", label: "Öğrenci Dosyası", icon: Users, hint: "Kiminle ilgilenmeliyim" },
   { id: "program", label: "Çalışma Programı", icon: BookMarked, hint: "Ne çalışacak" },
+  // ⚠️ Mert (2026-09-16): "rehberliğin yaptığı planlara ne kadar uyulmuş
+  // onu görebileceği bir ekran" — program yazmakla takip etmek ayrı işler.
+  { id: "compliance", label: "Program Takibi", icon: ClipboardCheck, hint: "Uyuldu mu" },
   { id: "risk", label: "Risk Radarı", icon: AlertTriangle, hint: "Kimi kaçırıyorum" },
 ] as const;
 
@@ -114,6 +118,12 @@ export default function GuidancePage() {
               <StudentFocusTab focusStudentId={focusStudentId} onNavigate={(tab, studentId) => goTo(tab, studentId)} />
             )}
             {activeTab === "program" && <GuidanceProgramBuilder initialStudentId={focusStudentId} />}
+            {activeTab === "compliance" && (
+              <ProgramComplianceTab
+                onOpenStudent={(id) => goTo("students", id)}
+                onPlanMeeting={(id) => goTo("meetings", id)}
+              />
+            )}
             {activeTab === "risk" && (
               <RiskTab
                 onOpenStudent={(id) => goTo("students", id)}

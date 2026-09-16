@@ -11,11 +11,14 @@ import {
   ClipboardList,
   Loader2,
   PlayCircle,
+  Check,
+  Plus,
   Scan,
   TrendingDown,
   TrendingUp,
   X,
 } from "lucide-react";
+import { clearFindings, removeFinding, toggleFinding, useFindings, type Finding } from "@/lib/guidance-findings-store";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +54,17 @@ type Academic = {
     rate: number;
     counts: Record<string, number>;
     total: number;
-    recent: { id: string; date: string; slot: string; subject: string; status: string }[];
+    recent: {
+      id: string;
+      date: string;
+      slot: string;
+      subject: string | null;
+      status: string;
+      dayName: string | null;
+      scheduledSubjects: string[];
+      lessonCount: number;
+    }[];
+    bySubject: { subject: string; absent: number; late: number; total: number; derived: boolean; rate: number | null }[];
   };
   homework: {
     total: number;
@@ -192,6 +205,33 @@ function Metric({
   );
 }
 
+/** "+" — bu satırı tespit sepetine ekler/çıkarır.
+ *
+ * ⚠️ Mert (2026-09-16): "yapmadığı ödev, katılmadığı ders, hepsinde artı
+ * tuşu olsun... program yaza tıklandığında 'sizin tespitleriniz' diye bir
+ * kısımda toplansın". Rehber program yazarken bir daha bu ekrana dönmek
+ * zorunda kalmasın diye seçim TAŞINIR (bkz. lib/guidance-findings-store.ts).
+ */
+function PickButton({ studentId, finding }: { studentId: string; finding: Finding }) {
+  const picked = useFindings(studentId).some((f) => f.id === finding.id);
+  return (
+    <button
+      type="button"
+      onClick={() => toggleFinding(studentId, finding)}
+      aria-label={picked ? "Tespitlerden çıkar" : "Tespitlere ekle"}
+      title={picked ? "Tespitlerden çıkar" : "Tespitlere ekle"}
+      className={cn(
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition",
+        picked
+          ? "border-brand-600 bg-brand-600 text-white"
+          : "border-hairline text-espresso-muted hover:border-brand-500 hover:text-brand-600 dark:border-white/15 dark:text-cream/40"
+      )}
+    >
+      {picked ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
 function SectionCard({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-hairline bg-white p-4 dark:border-white/10 dark:bg-midnight-card/60">
@@ -235,6 +275,8 @@ export function AcademicPanel({
   const [data, setData] = useState<Academic | null>(null);
   const [failed, setFailed] = useState(false);
   const [section, setSection] = useState<SectionId>("overview");
+  // Seçilen tespitler — program yapıcıya taşınacak (bkz. guidance-findings-store).
+  const picked = useFindings(studentId);
 
   useEffect(() => {
     fetch(`/api/guidance/students/${studentId}/academic`)
@@ -429,13 +471,23 @@ export function AcademicPanel({
                     <div className="space-y-2">
                       {data.xray.mastery.slice(0, 5).map((m) => (
                         <div key={m.id}>
-                          <div className="mb-1 flex items-baseline justify-between gap-2">
+                          <div className="mb-1 flex items-center justify-between gap-2">
                             <p className="truncate text-[12px] font-medium text-espresso dark:text-cream">
                               {m.subtopicName}
                             </p>
                             <span className="shrink-0 text-[11px] font-bold tabular-nums text-espresso-muted dark:text-cream/50">
                               %{m.masteryScore}
                             </span>
+                            <PickButton
+                              studentId={data.student.id}
+                              finding={{
+                                id: `mastery:${m.id}`,
+                                kind: "mastery",
+                                label: `${m.subtopicName} · %${m.masteryScore} hâkimiyet`,
+                                detail: `${m.subject} · röntgen ölçümü`,
+                                subject: m.subject,
+                              }}
+                            />
                           </div>
                           <Bar percent={m.masteryScore} tone={m.masteryScore < 50 ? "bad" : m.masteryScore < 70 ? "warn" : "good"} />
                           <p className="mt-0.5 text-[10px] text-espresso-muted/80 dark:text-cream/30">{m.subject}</p>
@@ -488,6 +540,16 @@ export function AcademicPanel({
                           <span className="text-[10.5px] text-espresso-muted dark:text-cream/45">
                             {h.subject} · {h.teacherName} · son tarih {shortDate(h.dueAt)}
                           </span>
+                          <PickButton
+                            studentId={data.student.id}
+                            finding={{
+                              id: `homework:${h.id}`,
+                              kind: "homework",
+                              label: `${h.title} · yapılmadı`,
+                              detail: `${h.subject} · ${h.teacherName}`,
+                              subject: h.subject,
+                            }}
+                          />
                         </div>
                       ))}
                   </div>
@@ -523,6 +585,18 @@ export function AcademicPanel({
                         <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", st.className)}>
                           {st.label}
                         </span>
+                        {h.status !== "DONE" && (
+                          <PickButton
+                            studentId={data.student.id}
+                            finding={{
+                              id: `homework:${h.id}`,
+                              kind: "homework",
+                              label: `${h.title} · ${st.label.toLocaleLowerCase("tr")}`,
+                              detail: `${h.subject} · ${h.teacherName}${h.targetQuestionCount ? ` · hedef ${h.targetQuestionCount} soru` : ""}`,
+                              subject: h.subject,
+                            }}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -543,13 +617,23 @@ export function AcademicPanel({
                   <div className="space-y-2.5">
                     {data.xray.mastery.map((m) => (
                       <div key={m.id}>
-                        <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                           <p className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-espresso dark:text-cream">
                             {m.subtopicName}
                           </p>
                           <span className="shrink-0 text-[11.5px] font-bold tabular-nums text-espresso-muted dark:text-cream/50">
                             %{m.masteryScore}
                           </span>
+                          <PickButton
+                            studentId={data.student.id}
+                            finding={{
+                              id: `mastery:${m.id}`,
+                              kind: "mastery",
+                              label: `${m.subtopicName} · %${m.masteryScore} hâkimiyet`,
+                              detail: `${m.subject} · röntgen ölçümü`,
+                              subject: m.subject,
+                            }}
+                          />
                         </div>
                         <Bar percent={m.masteryScore} tone={m.masteryScore < 50 ? "bad" : m.masteryScore < 70 ? "warn" : "good"} />
                         <p className="mt-0.5 text-[10px] text-espresso-muted/80 dark:text-cream/30">
@@ -591,6 +675,18 @@ export function AcademicPanel({
                           <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", st.className)}>
                             {st.label}
                           </span>
+                          {a.status !== "COMPLETED" && (
+                            <PickButton
+                              studentId={data.student.id}
+                              finding={{
+                                id: `xray:${a.id}`,
+                                kind: "xray",
+                                label: `${a.subtopicName} · röntgen testi çözülmedi`,
+                                detail: `${a.subject} · ${st.label}`,
+                                subject: a.subject,
+                              }}
+                            />
+                          )}
                         </div>
                       );
                     })}
@@ -603,16 +699,92 @@ export function AcademicPanel({
           {data && section === "attendance" && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                {(["PRESENT", "ABSENT", "LATE", "EXCUSED"] as const).map((s) => (
-                  <div key={s} className="rounded-2xl border border-hairline bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                {(["PRESENT", "ABSENT", "LATE", "EXCUSED"] as const).map((st) => (
+                  <div key={st} className="rounded-2xl border border-hairline bg-white p-3 dark:border-white/10 dark:bg-white/[0.04]">
                     <p className="text-xl font-bold tabular-nums text-espresso dark:text-cream">
-                      {data.attendance.counts[s] ?? 0}
+                      {data.attendance.counts[st] ?? 0}
                     </p>
-                    <p className="text-[10.5px] text-espresso-muted dark:text-cream/45">{ATTENDANCE_STATUS[s].label}</p>
+                    <p className="text-[10.5px] text-espresso-muted dark:text-cream/45">{ATTENDANCE_STATUS[st].label}</p>
                   </div>
                 ))}
               </div>
-              <SectionCard title="Son yoklama kayıtları" hint="En yeni kayıt en üstte — hangi gün, hangi saat, hangi ders.">
+
+              {/* ⚠️ DERS BAZLI TABLO (Mert: "hangi derse kaç kere gelmediği
+                  yazsın"). Kurumdaki yoklama kayıtlarının çoğu GÜN GENELİ
+                  tutulmuş; o satırlar şubenin ders programından o günün
+                  derslerine dağıtılır ve tablo bunu açıkça söyler. */}
+              <SectionCard
+                title="Hangi derse kaç kez gelmedi"
+                hint="Devamsızlığı en çok olan ders en üstte. Gün geneli tutulmuş yoklamalar, o günün ders programından ilgili derslere dağıtılmıştır."
+              >
+                {data.attendance.bySubject.length === 0 ? (
+                  <EmptyLine text="Ders bazlı devamsızlık çıkarılamadı — şubeye tanımlı ders programı yok." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[420px] text-left">
+                      <thead>
+                        <tr className="border-b border-hairline text-[10.5px] uppercase tracking-wide text-espresso-muted dark:border-white/10 dark:text-cream/40">
+                          <th className="pb-1.5 font-semibold">Ders</th>
+                          <th className="pb-1.5 text-right font-semibold">Gelmedi</th>
+                          <th className="pb-1.5 text-right font-semibold">Geç</th>
+                          <th className="pb-1.5 text-right font-semibold">Toplam ders</th>
+                          <th className="pb-1.5 text-right font-semibold">Devam</th>
+                          <th className="pb-1.5" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.attendance.bySubject.map((row) => (
+                          <tr key={row.subject} className="border-b border-hairline/60 last:border-0 dark:border-white/5">
+                            <td className="py-2 text-[12.5px] font-medium text-espresso dark:text-cream">
+                              {row.subject}
+                              {row.derived && (
+                                <span className="ml-1.5 rounded-full bg-cream-card px-1.5 py-0.5 text-[9.5px] font-semibold text-espresso-muted dark:bg-white/10 dark:text-cream/40">
+                                  programdan
+                                </span>
+                              )}
+                            </td>
+                            <td
+                              className={cn(
+                                "py-2 text-right text-[13px] font-bold tabular-nums",
+                                row.absent > 0 ? "text-rose-600 dark:text-rose-400" : "text-espresso-muted dark:text-cream/40"
+                              )}
+                            >
+                              {row.absent}
+                            </td>
+                            <td className="py-2 text-right text-[12px] tabular-nums text-amber-700 dark:text-amber-300">
+                              {row.late || "—"}
+                            </td>
+                            <td className="py-2 text-right text-[12px] tabular-nums text-espresso-muted dark:text-cream/45">
+                              {row.total}
+                            </td>
+                            <td className="py-2 text-right text-[12px] font-semibold tabular-nums text-espresso dark:text-cream">
+                              {row.rate !== null ? `%${row.rate}` : "—"}
+                            </td>
+                            <td className="py-2 pl-2 text-right">
+                              {row.absent > 0 && (
+                                <span className="inline-flex">
+                                  <PickButton
+                                    studentId={data.student.id}
+                                    finding={{
+                                      id: `attendance:${row.subject}`,
+                                      kind: "attendance",
+                                      label: `${row.subject} · ${row.absent} derse gelmedi`,
+                                      detail: `Devam oranı ${row.rate !== null ? `%${row.rate}` : "—"} · ${row.total} ders kaydı`,
+                                      subject: row.subject,
+                                    }}
+                                  />
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard title="Son yoklama kayıtları" hint="En yeni kayıt en üstte — hangi gün, hangi ders.">
                 {data.attendance.recent.length === 0 ? (
                   <EmptyLine text="Bu öğrenci için hiç yoklama kaydı yok." />
                 ) : (
@@ -622,14 +794,21 @@ export function AcademicPanel({
                         label: r.status,
                         className: "bg-cream-card text-espresso-muted",
                       };
+                      // Hangi ders: kaydın kendi dersi varsa o, yoksa o günün
+                      // programındaki dersler.
+                      const lessonText = r.subject
+                        ? [r.slot, r.subject].filter(Boolean).join(" · ")
+                        : r.scheduledSubjects.length > 0
+                          ? `gün geneli · ${r.scheduledSubjects.join(", ")}`
+                          : "gün geneli";
                       return (
                         <div
                           key={r.id}
                           className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 odd:bg-cream-card/60 dark:odd:bg-white/[0.03]"
                         >
-                          <span className="text-[12px] text-espresso dark:text-cream">{dayLabel(r.date)}</span>
+                          <span className="shrink-0 text-[12px] text-espresso dark:text-cream">{dayLabel(r.date)}</span>
                           <span className="min-w-0 flex-1 truncate text-[10.5px] text-espresso-muted dark:text-cream/40">
-                            {[r.slot, r.subject].filter(Boolean).join(" · ")}
+                            {lessonText}
                           </span>
                           <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", st.className)}>
                             {st.label}
@@ -706,13 +885,25 @@ export function AcademicPanel({
                 <div className="space-y-2">
                   {data.videos.map((v) => (
                     <div key={v.id} className="rounded-xl border border-hairline p-3 dark:border-white/10">
-                      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+                      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
                         <p className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-espresso dark:text-cream">
                           {v.title}
                         </p>
                         <span className="shrink-0 text-[11px] font-bold tabular-nums text-espresso-muted dark:text-cream/50">
                           {v.watchedPercent !== null ? `%${v.watchedPercent}` : "—"}
                         </span>
+                        {(v.watchedPercent ?? 0) < 90 && (
+                          <PickButton
+                            studentId={data.student.id}
+                            finding={{
+                              id: `video:${v.id}`,
+                              kind: "video",
+                              label: `${v.title} · %${v.watchedPercent ?? 0} izlendi`,
+                              detail: `${v.subject} · ${watchLabel(v.watchedSeconds)}`,
+                              subject: v.subject,
+                            }}
+                          />
+                        )}
                       </div>
                       <Bar
                         percent={v.watchedPercent ?? 0}
@@ -729,6 +920,64 @@ export function AcademicPanel({
           )}
         </div>
       </div>
+
+      {/* ⚠️ TESPİT SEPETİ — seçilenler "küçük bir ekranda" görünsün
+          (Mert, 2026-09-16). Ekranın altına sabitlenir ki rehber hangi
+          satırları işaretlediğini kaybetmesin; "Programa Geç" tuşu
+          doğrudan program yapıcıyı açar ve tespitler orada
+          "Sizin Tespitleriniz" başlığı altında listelenir. */}
+      {picked.length > 0 && (
+        <motion.div
+          initial={{ y: 60, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="shrink-0 border-t border-hairline bg-white/95 backdrop-blur-md dark:border-white/10 dark:bg-midnight-card/95"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          <div className="mx-auto max-w-6xl px-4 py-2.5 md:px-8">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-600">
+                <ClipboardList className="h-3.5 w-3.5" /> Tespitleriniz ({picked.length})
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={clearFindings}
+                  className="min-h-[32px] rounded-full px-2.5 text-[11px] font-medium text-espresso-muted transition hover:text-rose-600 dark:text-cream/45"
+                >
+                  Temizle
+                </button>
+                {onWriteProgram && (
+                  <button
+                    onClick={() => {
+                      onWriteProgram(studentId);
+                      onClose();
+                    }}
+                    className="flex min-h-[36px] items-center gap-1.5 rounded-full bg-brand-600 px-3.5 text-[12px] font-semibold text-white transition hover:bg-brand-500"
+                  >
+                    <BookMarked className="h-3.5 w-3.5" /> Programa Geç
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {picked.map((f) => (
+                <span
+                  key={f.id}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full border border-brand-500/30 bg-brand-50/70 py-1 pl-2.5 pr-1 text-[11px] font-medium text-brand-800 dark:border-brand-500/25 dark:bg-brand-600/10 dark:text-brand-200"
+                >
+                  {f.label}
+                  <button
+                    onClick={() => removeFinding(f.id)}
+                    aria-label="Çıkar"
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-brand-700/60 transition hover:bg-brand-600/15 hover:text-brand-800 dark:text-brand-300/60"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 

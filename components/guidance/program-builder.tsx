@@ -7,6 +7,7 @@ import {
   BookOpen,
   CalendarRange,
   Check,
+  ClipboardCheck,
   Copy,
   FileDown,
   GripHorizontal,
@@ -22,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { SubtopicPickerModal, VideoPickerModal, type VideoOption } from "@/components/guidance/block-pickers";
+import { removeFinding, useFindings } from "@/lib/guidance-findings-store";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -416,6 +418,10 @@ export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialStudentId]);
+  // ⚠️ "SİZİN TESPİTLERİNİZ" (Mert, 2026-09-16): Akademik Durum ekranında
+  // "+" ile işaretlenen satırlar burada listelenir — rehber program
+  // yazarken o ekrana geri dönmek zorunda kalmasın diye.
+  const findings = useFindings(student?.id ?? null);
   const [ctx, setCtx] = useState<Context | null>(null);
   const [weekLabel, setWeekLabel] = useState(defaultWeekLabel);
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -661,6 +667,49 @@ export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?
                   </div>
                 )}
               </section>
+
+              {findings.length > 0 && (
+                <section className="rounded-2xl border border-brand-500/40 bg-brand-50/50 p-3.5 dark:border-brand-500/25 dark:bg-brand-600/10">
+                  <h3 className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+                    <ClipboardCheck className="h-3.5 w-3.5" /> Sizin tespitleriniz
+                  </h3>
+                  <p className="mb-2 text-[10.5px] leading-snug text-espresso-muted dark:text-cream/45">
+                    Akademik Durum ekranında işaretledikleriniz. &quot;+&quot; tuşu bu tespiti{" "}
+                    <span className="font-semibold">{targetDay}</span> gününe blok olarak ekler.
+                  </p>
+                  <div className="max-h-72 space-y-1 overflow-y-auto">
+                    {findings.map((f) => (
+                      <div key={f.id} className="flex items-center gap-1.5 rounded-lg bg-white/80 px-2 py-1.5 dark:bg-white/5">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12px] font-medium text-espresso dark:text-cream">{f.label}</span>
+                          <span className="block truncate text-[10px] text-espresso-muted dark:text-cream/40">{f.detail}</span>
+                        </span>
+                        <button
+                          onClick={() =>
+                            addEntry(targetDay, {
+                              subject: f.subject ?? "Genel",
+                              topic: f.label,
+                              questionTarget: f.kind === "homework" || f.kind === "mastery" ? 30 : 0,
+                            })
+                          }
+                          title={`${targetDay} gününe ekle`}
+                          aria-label={`${f.label} tespitini ${targetDay} gününe ekle`}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-espresso text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => removeFinding(f.id)}
+                          aria-label="Tespiti çıkar"
+                          className="flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:text-rose-600 dark:text-cream/35"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               <section className="rounded-2xl border border-hairline bg-white p-3.5 dark:border-white/10 dark:bg-midnight-card/50">
                 <h3 className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-espresso-muted dark:text-cream/40">

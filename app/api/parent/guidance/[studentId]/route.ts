@@ -34,8 +34,28 @@ async function handleGet(_request: NextRequest, { params }: { params: { studentI
       where: { studentId: params.studentId, confidentialityLevel: { in: [...PARENT_VISIBLE_CONFIDENTIALITY] } },
       orderBy: { createdAt: "desc" },
       take: LIMIT,
-      select: { id: true, category: true, note: true, authorName: true, createdAt: true },
+      select: { id: true, category: true, note: true, authorName: true, createdAt: true, parentReadAt: true },
     });
+
+    // ⚠️ OKUNDU DAMGASI (Mert, 2026-09-16: "PUBLIC notların velinin
+    // panelinde okunup okunmadığını işaretle"). Rehberlik, veliyle
+    // paylaştığı notun karşı tarafa GERÇEKTEN ulaşıp ulaşmadığını
+    // göremiyordu — "paylaştım" ile "okudu" arasındaki fark, bir sonraki
+    // görüşmenin nasıl başlayacağını değiştiriyor.
+    //
+    // Damga yalnızca BİR KEZ konur (parentReadAt: null koşulu): alan "ilk
+    // açılış" anlamına gelir, son açılış değil. Yazma isteği yanıtı
+    // BEKLETMEZ — veli notunu okumak için bir güncelleme sorgusunun
+    // bitmesini beklememeli.
+    const unread = notes.filter((n) => n.parentReadAt === null).map((n) => n.id);
+    if (unread.length > 0) {
+      // id listesiyle daraltılmış, bilerek await edilmeyen yazma (bkz.
+      // lib/server/db-guard.ts — `id` bir sahiplik anahtarıdır, toplu
+      // yazma koruması bu sorguyu kabul eder).
+      void prisma.guidanceNote
+        .updateMany({ where: { id: { in: unread } }, data: { parentReadAt: new Date() } })
+        .catch(() => {});
+    }
 
     return NextResponse.json({
       notes: notes.map((n) => ({

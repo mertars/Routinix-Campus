@@ -1107,6 +1107,13 @@ model GuidanceNote {
   confidentialityLevel ConfidentialityLevel @default(RESTRICTED)
   note                 String
   createdAt            DateTime             @default(now())
+  // ⚠️ VELİ BU NOTU AÇTI MI (Mert, 2026-09-16: "veliyle paylaşıldı ama 2
+  // haftadır açılmadı uyarısı"). Yalnızca PUBLIC notlar için anlamlıdır —
+  // veli zaten başka seviyeyi hiç göremez (bkz. lib/guidance/visibility.ts).
+  // Damga, veli kendi panelindeki rehberlik notlarını çektiğinde konur
+  // (bkz. GET /api/parent/guidance/[studentId]); bir daha güncellenmez,
+  // yani "ilk açılış" anlamına gelir.
+  parentReadAt         DateTime?
 
   @@index([studentId])
 }

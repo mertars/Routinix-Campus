@@ -6,6 +6,7 @@ import { withApiLogging } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
 import { computeAttendanceRateFromCounts } from "@/lib/attendance/status";
 import { CURRICULUM_TREE } from "@/lib/mock-data";
+import { getTrDayNameForDate } from "@/lib/schedule-time";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,7 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
         lastName: true,
         studentNumber: true,
         institutionId: true,
+        branchId: true,
         branch: { select: { name: true, grade: true, track: true } },
         advisorTeacher: { select: { firstName: true, lastName: true } },
       },
@@ -62,15 +64,23 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
     // panel yedi ağ turu beklerdi (bkz. dossier/route.ts'teki aynı gerekçe).
     const [
       attendanceCounts,
+      allAttendance,
       recentAttendance,
       submissions,
       mastery,
       xrayAssignments,
       netRows,
       videoAssignments,
+      lessonSlots,
       programs,
     ] = await Promise.all([
       prisma.attendanceRecord.groupBy({ by: ["status"], where: { studentId: student.id }, _count: { _all: true } }),
+      // Ders bazlı tablo TÜM kayıtları gerektirir (son 40 değil) — ama
+      // yalnızca üç küçük alan çekilir.
+      prisma.attendanceRecord.findMany({
+        where: { studentId: student.id },
+        select: { date: true, status: true, subject: true },
+      }),
       prisma.attendanceRecord.findMany({
         where: { studentId: student.id },
         select: { id: true, date: true, slot: true, subject: true, status: true },
@@ -133,6 +143,14 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
         orderBy: { assignedAt: "desc" },
         take: 30,
       }),
+      // ⚠️ DERS BAZLI DEVAMSIZLIK için şubenin haftalık programı (Mert,
+      // 2026-09-16: "hangi derse kaç kere gelmediği yazsın"). Kayıtların
+      // çoğu GÜN GENELİ (subject="Genel", slot="") — o günün hangi
+      // derslerine denk geldiği ancak ders programından çıkar.
+      prisma.lessonSlot.findMany({
+        where: { branchId: student.branchId ?? "" },
+        select: { day: true, slot: true, subject: true, teacher: { select: { firstName: true, lastName: true } } },
+      }),
       prisma.guidanceProgram.findMany({
         where: { studentId: student.id },
         select: {
@@ -148,6 +166,47 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
 
     const counts: Record<string, number> = {};
     for (const row of attendanceCounts) counts[row.status] = row._count._all;
+
+    // DERS BAZLI DEVAMSIZLIK TABLOSU.
+    //
+    // İki kaynak var ve ikisi de dürüstçe etiketlenir:
+    //  • Kaydın kendi `subject` alanı doluysa (canlı yoklama ekranından
+    //    ders saatiyle alınmış) doğrudan kullanılır → derived=false.
+    //  • Kayıt gün geneliyse ("Genel"/slot boş — kurumdaki kayıtların
+    //    büyük çoğunluğu böyle) o günün ders programındaki HER ders
+    //    kaçırılmış sayılır → derived=true. Bu bir tahmin değil,
+    //    programdan çıkarımdır ve arayüz bunu açıkça söyler.
+    const slotsByDay = new Map<string, { subject: string; slot: string }[]>();
+    for (const ls of lessonSlots) {
+      const list = slotsByDay.get(ls.day) ?? [];
+      list.push({ subject: ls.subject, slot: ls.slot });
+      slotsByDay.set(ls.day, list);
+    }
+    const perSubject = new Map<string, { absent: number; late: number; total: number; derived: boolean }>();
+    const bump = (subject: string, status: string, derived: boolean) => {
+      const cur = perSubject.get(subject) ?? { absent: 0, late: 0, total: 0, derived };
+      cur.total += 1;
+      if (status === "ABSENT") cur.absent += 1;
+      if (status === "LATE") cur.late += 1;
+      // Bir ders hem gerçek hem türetilmiş kayıt taşıyorsa "türetilmiş"
+      // etiketi düşer — en az bir gerçek kayıt varsa satır artık tahmin
+      // değildir demek yanıltıcı olur, bu yüzden türetilmiş olan baskındır.
+      cur.derived = cur.derived || derived;
+      perSubject.set(subject, cur);
+    };
+    for (const rec of allAttendance) {
+      const own = rec.subject && rec.subject !== "Genel" ? rec.subject : null;
+      if (own) {
+        bump(own, rec.status, false);
+        continue;
+      }
+      const dayName = getTrDayNameForDate(rec.date);
+      const lessons = dayName ? slotsByDay.get(dayName) ?? [] : [];
+      for (const lesson of lessons) bump(lesson.subject, rec.status, true);
+    }
+    const subjectAttendance = [...perSubject.entries()]
+      .map(([subject, v]) => ({ subject, ...v, rate: v.total > 0 ? Math.round(((v.total - v.absent) / v.total) * 100) : null }))
+      .sort((a, b) => b.absent - a.absent || a.subject.localeCompare(b.subject, "tr"));
 
     const hwTotal = submissions.length;
     const hwDone = submissions.filter((s) => s.status === "DONE" || s.status === "LATE").length;
@@ -191,13 +250,25 @@ async function handleGet(_request: Request, { params }: { params: { id: string }
         rate: computeAttendanceRateFromCounts(counts),
         counts,
         total: attendanceCounts.reduce((s, c) => s + c._count._all, 0),
-        recent: recentAttendance.map((r) => ({
-          id: r.id,
-          date: r.date.toISOString(),
-          slot: r.slot,
-          subject: r.subject,
-          status: r.status,
-        })),
+        // ⚠️ Satırda "hangi ders" (Mert: "hangi derse gelmediği yazmıyor").
+        // Kaydın kendi dersi yoksa o günün ders programı yazılır.
+        recent: recentAttendance.map((r) => {
+          const dayName = getTrDayNameForDate(r.date);
+          const lessons = dayName ? slotsByDay.get(dayName) ?? [] : [];
+          const own = r.subject && r.subject !== "Genel" ? r.subject : null;
+          return {
+            id: r.id,
+            date: r.date.toISOString(),
+            slot: r.slot,
+            subject: own,
+            status: r.status,
+            dayName,
+            // Gün geneli kayıtta o gün programda olan dersler.
+            scheduledSubjects: own ? [] : [...new Set(lessons.map((l) => l.subject))],
+            lessonCount: own ? 1 : lessons.length,
+          };
+        }),
+        bySubject: subjectAttendance,
       },
       homework: {
         total: hwTotal,
