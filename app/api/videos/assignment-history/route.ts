@@ -23,6 +23,7 @@ async function handleGet(_request: NextRequest) {
         assignedAt: true,
         watchedAt: true,
         lastPositionSeconds: true,
+        watchedSeconds: true,
         video: { select: { id: true, title: true, subject: true, topic: true, grade: true, durationSeconds: true } },
         student: { select: { id: true, firstName: true, lastName: true, branch: { select: { name: true } } } },
       },
@@ -37,7 +38,10 @@ async function handleGet(_request: NextRequest) {
       // sadece izlendi/izlenmedi değil, GERÇEKTEN NE KADAR izlendiğini
       // görebiliyor (bkz. video-history-modal.tsx).
       watchedPercent:
-        a.lastPositionSeconds && a.video.durationSeconds ? Math.min(100, Math.round((a.lastPositionSeconds / a.video.durationSeconds) * 100)) : null,
+        // ⚠️ watchedSeconds (en ileri nokta) kullanılır, lastPositionSeconds
+        // DEĞİL: ikincisi 'kaldığı yer'dir ve öğrenci başa sarınca küçülür —
+        // yüzde yanlış düşerdi (bkz. schema.prisma > VideoAssignment).
+        a.watchedSeconds && a.video.durationSeconds ? Math.min(100, Math.round((a.watchedSeconds / a.video.durationSeconds) * 100)) : null,
       videoId: a.video.id,
       videoTitle: a.video.title,
       videoSubject: a.video.subject,

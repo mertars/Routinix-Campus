@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { BookOpen, CalendarCheck2, Check, FileDown, Loader2, PlayCircle, Scan, Target } from "lucide-react";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
@@ -40,7 +40,18 @@ export type StudentProgramEntry = {
   xrayAssignment?: { id: string; status: string; completedAt: string | null } | null;
   done?: boolean | null;
   manualDone?: boolean;
+  /** En ileri izlenen saniye ve yüzdesi (bkz. VideoAssignment.watchedSeconds). */
+  watchedSeconds?: number | null;
+  videoDurationSeconds?: number | null;
+  watchedPercent?: number | null;
 };
+
+/** 153 → "2dk 33sn" */
+function formatWatched(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return m > 0 ? `${m}dk ${s}sn` : `${s}sn`;
+}
 
 export type StudentProgram = {
   id: string;
@@ -73,6 +84,7 @@ export function StudentWeeklyProgram({
   /** Bir blok işaretlenince üst bileşen programı tazelesin. */
   onChanged?: () => void;
 }) {
+  const router = useRouter();
   const { showError } = useToast();
   const [pdfBusy, setPdfBusy] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -80,6 +92,20 @@ export function StudentWeeklyProgram({
   // olursa geri alınır — tek tuşluk bir işlem için bekletmek gereksiz.
   const [localDone, setLocalDone] = useState<Record<string, boolean>>({});
   const today = todayName();
+
+  /** Video/röntgen bloğunu aç — hedef hazır değilse uç hazırlar. */
+  async function onOpen(entryId: string) {
+    setBusyId(entryId);
+    try {
+      const res = await fetch(`/api/guidance-program/entries/${entryId}/open`, { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.url) throw new Error(data?.error ?? "Açılamadı.");
+      router.push(data.url);
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Açılamadı.");
+      setBusyId(null);
+    }
+  }
 
   async function onToggle(entryId: string, next: boolean) {
     setBusyId(entryId);
@@ -234,6 +260,15 @@ export function StudentWeeklyProgram({
                           <p className="line-clamp-2 text-[11px] leading-snug text-espresso-muted dark:text-cream/50">
                             {kind === "VIDEO" && entry.video ? entry.video.title : entry.topic}
                           </p>
+                          {/* ⚠️ "Ne kadar izlendi" — sadece izlendi/izlenmedi
+                              değil (Mert). Süre bilinmiyorsa yalnızca dakika
+                              gösterilir, uydurma bir yüzde YAZILMAZ. */}
+                          {kind === "VIDEO" && (entry.watchedSeconds ?? 0) > 0 && (
+                            <p className="mt-0.5 text-[10px] font-medium text-rose-600 dark:text-rose-300">
+                              {formatWatched(entry.watchedSeconds!)} izlendi
+                              {entry.watchedPercent !== null && entry.watchedPercent !== undefined ? ` · %${entry.watchedPercent}` : ""}
+                            </p>
+                          )}
                           {entry.note && (
                             <p className="mt-0.5 line-clamp-2 text-[10px] italic leading-snug text-espresso-muted/80 dark:text-cream/35">
                               {entry.note}
@@ -245,38 +280,51 @@ export function StudentWeeklyProgram({
                               "Video izle" deyip nereye gideceğini söylememek
                               bildirim gönderip gidecek yer vermemekle aynı hata. */}
                           <div className="mt-1.5">
-                            {kind === "VIDEO" && entry.video?.youtubeId ? (
-                              <Link
-                                // ⚠️ Sekmeye DEĞİL, videonun KENDİSİNE
-                                // (bkz. videos.tsx > ?video derin bağlantısı).
-                                // Sadece sekmeye gitmek "video izlenmiyor"
-                                // şikâyetinin sebebiydi: öğrenci hangi videoyu
-                                // izleyeceğini listede aramak zorunda kalıyordu.
-                                href={`/student?tab=videos&video=${entry.video.id}`}
-                                className={cn(
-                                  "flex min-h-[32px] w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition hover:opacity-85",
-                                  done ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400" : meta.chip
+                            {kind === "VIDEO" || kind === "XRAY_TEST" ? (
+                              /* ⚠️ Doğrudan LİNK DEĞİL, uç üzerinden açılıyor
+                                 (POST .../open). Sebebi canlı veride ölçüldü:
+                                 bir VIDEO bloğunun videoId'si vardı ama
+                                 VideoAssignment'ı YOKTU (program, atama üretme
+                                 özelliğinden önce yazılmıştı) — öğrenci "İzle"ye
+                                 basınca video sekmesi o videoyu listelemiyor ve
+                                 HİÇBİR ŞEY açılmıyordu. Uç, hedefi açmadan önce
+                                 atamayı GARANTİ EDER. Aynısı röntgen için de
+                                 geçerli. */
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => onOpen(entry.id)}
+                                  disabled={busyId === entry.id}
+                                  className={cn(
+                                    "flex min-h-[32px] flex-1 items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition hover:opacity-85 disabled:opacity-60",
+                                    done ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400" : meta.chip
+                                  )}
+                                >
+                                  {busyId === entry.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Icon className="h-3 w-3" />}
+                                  {kind === "VIDEO"
+                                    ? done
+                                      ? "Tekrar izle"
+                                      : "İzle"
+                                    : done
+                                      ? "Sonucu gör"
+                                      : "Teste başla"}
+                                </button>
+                                {/* ⚠️ Elle işaretleme burada da DURMALI: röntgen
+                                    konusunun soru havuzu boşsa test açılamıyor
+                                    (uç bunu açıkça söylüyor) ve öğrencinin
+                                    bloğu kapatacak başka yolu kalmazdı. Video
+                                    başka bir yerden izlenmiş de olabilir. */}
+                                {!done && (
+                                  <button
+                                    onClick={() => onToggle(entry.id, true)}
+                                    disabled={busyId === entry.id}
+                                    title="Yaptım olarak işaretle"
+                                    aria-label="Yaptım olarak işaretle"
+                                    className="flex min-h-[32px] w-8 shrink-0 items-center justify-center rounded-lg border border-hairline text-espresso-muted transition hover:bg-cream-card hover:text-green-700 disabled:opacity-60 dark:border-white/10 dark:text-cream/40 dark:hover:bg-white/5"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                  </button>
                                 )}
-                              >
-                                <Icon className="h-3 w-3" /> {done ? "Tekrar izle" : "İzle"}
-                              </Link>
-                            ) : kind === "XRAY_TEST" && entry.xrayAssignment ? (
-                              <Link
-                                // ⚠️ Röntgen testi AYRI bir sayfada çözülüyor
-                                // (app/student/comprehension/[assignmentId]).
-                                // Sekmeye yönlendirmek "test başlamıyor"
-                                // şikâyetinin sebebiydi — test doğrudan açılır.
-                                // Tamamlanmış atama da AYNI sayfada açılır
-                                // (sayfa durumu kendisi ayırt eder) — ayrı bir
-                                // sonuç rotası YOK.
-                                href={`/student/comprehension/${entry.xrayAssignment.id}`}
-                                className={cn(
-                                  "flex min-h-[32px] w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold transition hover:opacity-85",
-                                  done ? "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-400" : meta.chip
-                                )}
-                              >
-                                <Icon className="h-3 w-3" /> {done ? "Sonucu gör" : "Teste başla"}
-                              </Link>
+                              </div>
                             ) : (
                               /* ⚠️ SORU / KONU (ve ataması olmayan röntgen)
                                  blokları artık TIKLANABİLİR. Eskiden burada

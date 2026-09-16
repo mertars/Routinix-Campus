@@ -114,11 +114,15 @@ export function VideoLibraryTab() {
   // "Kaldığı yerden devam" (2026-09-05) — oynatıcı periyodik (~10sn) ve
   // duraklat/bitir anında çağırır; sessizce yutuluyor (izlemeyi asla
   // ENGELLEMEMESİ gerekiyor, bkz. progress endpoint'inin kendi yorumu).
-  function reportProgress(assignmentId: string, positionSeconds: number) {
+  // ⚠️ Süre de gönderiliyor: yüzde hesabı Video.durationSeconds'a dayanıyor
+  // ve o alan canlı veride 40 videonun 40'ında BOŞTU (ölçüldü) — çünkü
+  // yalnızca /watched ucundan yazılıyordu ve videoyu bitirmeyen öğrenci
+  // oradan hiç geçmiyordu.
+  function reportProgress(assignmentId: string, positionSeconds: number, durationSeconds?: number) {
     fetch(`/api/videos/assigned/${encodeURIComponent(assignmentId)}/progress`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ positionSeconds }),
+      body: JSON.stringify({ positionSeconds, durationSeconds }),
     }).catch(() => {});
   }
 
@@ -225,7 +229,7 @@ export function VideoLibraryTab() {
               videoId={active.youtubeId}
               initialPositionSeconds={active.lastPositionSeconds ?? undefined}
               onFirstPlay={(durationSeconds) => markWatched(active, durationSeconds)}
-              onProgress={(seconds) => reportProgress(active.assignmentId, seconds)}
+              onProgress={(seconds, duration) => reportProgress(active.assignmentId, seconds, duration)}
             />
             {active.description && <p className="text-xs leading-relaxed text-espresso-muted dark:text-cream/50">{active.description}</p>}
           </div>

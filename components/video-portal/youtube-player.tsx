@@ -185,7 +185,11 @@ export function YoutubePlayer({
   videoId: string;
   onFirstPlay?: (durationSeconds: number) => void;
   initialPositionSeconds?: number;
-  onProgress?: (seconds: number) => void;
+  // ⚠️ İkinci parametre SÜRE: sunucu 'ne kadar izlendi' yüzdesini
+  // Video.durationSeconds ile hesaplıyor ve o alan ilk oynatmaya kadar BOŞ
+  // kalıyordu (canlı veride 40/40 boştu). Her ilerleme raporu süreyi de
+  // taşırsa alan ilk 10 saniyede dolar.
+  onProgress?: (seconds: number, durationSeconds: number) => void;
   className?: string;
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -287,7 +291,7 @@ export function YoutubePlayer({
                 }
               } else if (event.data === window.YT.PlayerState.PAUSED || event.data === window.YT.PlayerState.ENDED) {
                 setPlaying(false);
-                onProgress?.(event.target.getCurrentTime());
+                onProgress?.(event.target.getCurrentTime(), event.target.getDuration());
               }
             },
           },
@@ -313,7 +317,7 @@ export function YoutubePlayer({
       setBuffered(playerRef.current.getVideoLoadedFraction());
       if (onProgress && t - lastReportedRef.current >= PROGRESS_REPORT_INTERVAL_SECONDS) {
         lastReportedRef.current = t;
-        onProgress(t);
+        onProgress(t, playerRef.current.getDuration());
       }
     }, 250);
     return () => {

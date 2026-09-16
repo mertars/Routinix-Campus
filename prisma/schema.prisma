@@ -2437,6 +2437,16 @@ model VideoAssignment {
   // assignment-history route'u).
   lastPositionSeconds Int?
 
+  // ⚠️ EN İLERİ İZLENEN NOKTA (Mert, 2026-09-15: "sadece izlendi izlenmedi
+  // değil, ne kadar izlendi o işlenmeli, yüzdelik de olur").
+  //
+  // lastPositionSeconds'tan AYRI bir alan olmasının sebebi: o alan "kaldığı
+  // yerden devam" içindir ve öğrenci geri sardığında KÜÇÜLÜR — "ne kadar
+  // izledi" sorusunun cevabı olamaz. Bu alan yalnızca BÜYÜR (max), yani
+  // videonun ne kadarını gördüğünü dürüstçe gösterir.
+  // Yüzde = watchedSeconds / Video.durationSeconds.
+  watchedSeconds Int?
+
   @@unique([videoId, studentId])
   @@index([studentId])
 }

@@ -65,7 +65,7 @@ async function handleGet(request: NextRequest) {
     const watchRows = videoIds.length
       ? await prisma.videoAssignment.findMany({
           where: { studentId, videoId: { in: videoIds } },
-          select: { id: true, videoId: true, watchedAt: true, lastPositionSeconds: true },
+          select: { id: true, videoId: true, watchedAt: true, lastPositionSeconds: true, watchedSeconds: true },
         })
       : [];
     const watchByVideo = new Map(watchRows.map((w) => [w.videoId, w]));
@@ -81,6 +81,14 @@ async function handleGet(request: NextRequest) {
             videoAssignmentId: w?.id ?? null,
             watchedAt: w?.watchedAt?.toISOString() ?? null,
             lastPositionSeconds: w?.lastPositionSeconds ?? null,
+            // ⚠️ "Ne kadar izledi" — en ileri gidilen nokta ve yüzdesi
+            // (bkz. schema.prisma > VideoAssignment.watchedSeconds).
+            watchedSeconds: w?.watchedSeconds ?? null,
+            videoDurationSeconds: e.video?.durationSeconds ?? null,
+            watchedPercent:
+              w?.watchedSeconds && e.video?.durationSeconds
+                ? Math.min(100, Math.round((w.watchedSeconds / e.video.durationSeconds) * 100))
+                : null,
             // Blok "yapıldı" mı? Video izlendiyse, röntgen testi
             // tamamlandıysa. Soru/konu bloklarında böyle bir sinyal yok —
             // null döner, arayüz onları tamamlanma göstermez.
@@ -89,9 +97,16 @@ async function handleGet(request: NextRequest) {
             // konu çalışmada öğrencinin elle işaretlemesi (completedAt)
             // kullanılır. Böylece rehberlik dört türün TAMAMINDA ilerleme
             // görür — eskiden soru bloğu hep "takip edilemez"di.
+            // ⚠️ VIDEO'da "bitti" ölçütü watchedAt DEĞİL: o damga ilk
+            // oynatma anında konuyor (bkz. videos.tsx > onFirstPlay), yani
+            // 1 saniye izleyen öğrencinin bloğu yeşile dönerdi. Ölçüt
+            // videonun %90'ını görmüş olmak; süre bilinmiyorsa eski
+            // davranışa (watchedAt) düşülür.
             done:
               e.kind === "VIDEO"
-                ? !!w?.watchedAt || !!e.completedAt
+                ? (w?.watchedSeconds && e.video?.durationSeconds
+                    ? w.watchedSeconds / e.video.durationSeconds >= 0.9
+                    : !!w?.watchedAt) || !!e.completedAt
                 : e.kind === "XRAY_TEST" && e.xrayAssignment
                   ? e.xrayAssignment.status === "COMPLETED" || !!e.completedAt
                   : !!e.completedAt,

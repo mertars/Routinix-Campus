@@ -107,6 +107,8 @@ type SavedProgram = {
     note?: string | null;
     /** Video izlendi / röntgen testi tamamlandı mı (soru-konu bloklarında null). */
     done?: boolean | null;
+    watchedSeconds?: number | null;
+    watchedPercent?: number | null;
   }[];
 };
 
@@ -841,6 +843,12 @@ export function GuidanceProgramBuilder() {
                         const trackable = p.entries.filter((e) => e.done === true || e.done === false);
                         if (trackable.length === 0) return null;
                         const done = trackable.filter((e) => e.done).length;
+                        // ⚠️ Video bloklarında "ne kadar izlendi" de görünür —
+                        // Mert: "sadece izlendi izlenmedi değil".
+                        const watched = p.entries
+                          .filter((e) => e.kind === "VIDEO" && (e.watchedPercent ?? 0) > 0)
+                          .map((e) => `%${e.watchedPercent}`)
+                          .join(" · ");
                         return (
                           <span
                             className={cn(
@@ -850,7 +858,7 @@ export function GuidanceProgramBuilder() {
                                 : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
                             )}
                           >
-                            <Check className="h-2.5 w-2.5" /> {done}/{trackable.length} yapıldı
+                            <Check className="h-2.5 w-2.5" /> {done}/{trackable.length} yapıldı{watched ? ` · video ${watched}` : ""}
                           </span>
                         );
                       })()}
