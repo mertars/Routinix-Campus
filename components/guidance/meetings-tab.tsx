@@ -73,12 +73,20 @@ function defaultWhen(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function NewMeetingForm({ onCreated }: { onCreated: () => void }) {
+function NewMeetingForm({
+  onCreated,
+  initialStudentId,
+}: {
+  onCreated: () => void;
+  /** Başka sekmeden "bu öğrenciyle görüşme planla" denince gelir —
+   *  form AÇIK ve öğrenci SEÇİLİ başlar (Mert: "sadece sekmeye atıyor"). */
+  initialStudentId?: string | null;
+}) {
   const { showError, showSuccess } = useToast();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!initialStudentId);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [query, setQuery] = useState("");
-  const [studentId, setStudentId] = useState("");
+  const [studentId, setStudentId] = useState(initialStudentId ?? "");
   const [when, setWhen] = useState(defaultWhen);
   const [duration, setDuration] = useState(30);
   const [topic, setTopic] = useState("");
@@ -90,7 +98,10 @@ function NewMeetingForm({ onCreated }: { onCreated: () => void }) {
 
   useEffect(() => {
     if (!open || students.length > 0) return;
-    fetch("/api/guidance/students")
+    // ⚠️ ?studentId= zorunlu: liste alfabetik ve 40 satırla sınırlı; başka
+    // sekmeden gelen öğrenci ilk 40'ta değilse form onu "seçili" gösteremez
+    // ve rehber öğrenciyi elle aramak zorunda kalırdı.
+    fetch(`/api/guidance/students${initialStudentId ? `?studentId=${encodeURIComponent(initialStudentId)}` : ""}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) =>
         setStudents(
@@ -102,7 +113,7 @@ function NewMeetingForm({ onCreated }: { onCreated: () => void }) {
         )
       )
       .catch(() => showError("Öğrenci listesi yüklenemedi."));
-  }, [open, students.length, showError]);
+  }, [open, students.length, initialStudentId, showError]);
 
   // Aranabilir liste — 500 öğrencilik bir kurumda düz <select> kullanışsız
   // (gap-closing.tsx'te aynı gerekçeyle arama kutusuna geçilmişti).
@@ -390,7 +401,7 @@ function MeetingRow({ meeting, onChanged }: { meeting: Meeting; onChanged: () =>
   );
 }
 
-export function GuidanceMeetingsTab() {
+export function GuidanceMeetingsTab({ initialStudentId }: { initialStudentId?: string | null }) {
   const { showError } = useToast();
   const [meetings, setMeetings] = useState<Meeting[] | null>(null);
 
@@ -426,7 +437,7 @@ export function GuidanceMeetingsTab() {
         </p>
       </div>
 
-      <NewMeetingForm onCreated={load} />
+      <NewMeetingForm onCreated={load} initialStudentId={initialStudentId} />
 
       {meetings === null ? (
         <div className="flex justify-center py-12">

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { LifeBuoy, Loader2, CheckCircle2, StickyNote, Clock } from "lucide-react";
+import { CalendarPlus, CheckCircle2, ChevronRight, Clock, FolderOpen, LifeBuoy, Loader2, StickyNote } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
 import { openStudent360 } from "@/lib/student-360-store";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ type Referral = {
   status: ReferralStatus;
   createdAt: string;
 };
-type GuidanceNoteEntry = { id: string; authorName: string; studentName: string; category: string; createdAt: string };
+type GuidanceNoteEntry = { id: string; authorName: string; studentId: string; studentName: string; category: string; createdAt: string };
 
 const FILTERS: { id: ReferralStatus | "ALL"; label: string }[] = [
   { id: "PENDING", label: "Bekleyen" },
@@ -32,7 +32,13 @@ const FILTERS: { id: ReferralStatus | "ALL"; label: string }[] = [
 // lib/server/xray/auto-referral.ts) GERÇEK bir GuidanceReferral kaydı
 // oluşturuyordu ama BUNU OKUYAN hiçbir ekran yoktu — kayıt sessizce
 // kayboluyordu. Bu ekran o kaydı GÖRÜNÜR kılan ilk ve tek yer.
-export function ReferralQueue() {
+export function ReferralQueue({
+  onOpenStudent,
+  onPlanMeeting,
+}: {
+  onOpenStudent?: (studentId: string) => void;
+  onPlanMeeting?: (studentId: string) => void;
+}) {
   const { showError, showSuccess } = useToast();
   const [filter, setFilter] = useState<ReferralStatus | "ALL">("PENDING");
   const [referrals, setReferrals] = useState<Referral[] | null>(null);
@@ -129,7 +135,7 @@ export function ReferralQueue() {
               >
                 <div className="min-w-0">
                   <button
-                    onClick={() => openStudent360(r.studentId)}
+                    onClick={() => (onOpenStudent ? onOpenStudent(r.studentId) : openStudent360(r.studentId))}
                     className="text-left text-sm font-semibold text-espresso underline-offset-2 hover:underline dark:text-cream"
                   >
                     {r.studentName}
@@ -142,6 +148,27 @@ export function ReferralQueue() {
                     <Clock className="h-3 w-3" /> {new Date(r.createdAt).toLocaleString("tr-TR")}
                   </p>
                 </div>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                {/* ⚠️ Sevk kartı artık ÖLÜ DEĞİL: rehber sevki görünce iki şey
+                    yapar — dosyayı açar ya da görüşme planlar. Eskiden tek
+                    eylem "Görüldü İşaretle"ydi, yani sevk kapanıyor ama
+                    hiçbir iş başlamıyordu. */}
+                {onPlanMeeting && (
+                  <button
+                    onClick={() => onPlanMeeting(r.studentId)}
+                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-brand-500"
+                  >
+                    <CalendarPlus className="h-3.5 w-3.5" /> Görüşme Planla
+                  </button>
+                )}
+                {onOpenStudent && (
+                  <button
+                    onClick={() => onOpenStudent(r.studentId)}
+                    className="flex shrink-0 items-center gap-1.5 rounded-full border border-hairline px-3 py-1.5 text-[11px] font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/10"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" /> Dosyayı Aç
+                  </button>
+                )}
                 {r.status === "PENDING" ? (
                   <button
                     onClick={() => markReviewed(r)}
@@ -156,6 +183,7 @@ export function ReferralQueue() {
                     <CheckCircle2 className="h-3 w-3" /> Görüldü
                   </span>
                 )}
+                </div>
               </motion.div>
             ))}
           </div>
@@ -163,9 +191,19 @@ export function ReferralQueue() {
       </div>
 
       <div className="rounded-3xl border border-hairline bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-midnight-card/50">
-        <h2 className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
-          <StickyNote className="h-3.5 w-3.5" /> Yönetim Notları
+        {/* ⚠️ ADI YANLIŞTI (Mert: "yönetim notları var, amacı ne bilmiyorum").
+            Bu bölüm bir "yönetim" kaydı DEĞİL: kurumdaki SON GÖRÜŞME NOTU
+            hareketlerinin akışı — kim, hangi öğrenci için not yazmış.
+            Not METNİ burada bilerek gösterilmez (gizlilik seviyeleri
+            öğrenci bazlıdır, akışta toplu ifşa olmamalı); satıra basınca
+            o öğrencinin dosyası açılır ve notlar orada okunur. */}
+        <h2 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+          <StickyNote className="h-3.5 w-3.5" /> Son Görüşme Hareketleri
         </h2>
+        <p className="mb-3 text-[11px] leading-snug text-espresso-muted dark:text-cream/40">
+          Kurumda son yazılan görüşme notları — kim, kimin için yazmış. Notun içeriği burada gösterilmez; satıra basınca o
+          öğrencinin dosyası açılır.
+        </p>
         {notes === null ? (
           <div className="flex justify-center py-6">
             <Loader2 className="h-4 w-4 animate-spin text-brand-600" />
@@ -175,12 +213,23 @@ export function ReferralQueue() {
         ) : (
           <div className="space-y-1.5">
             {notes.map((n) => (
-              <div key={n.id} className="rounded-lg bg-cream-card px-2.5 py-1.5 text-xs dark:bg-white/5">
-                <span className="font-medium text-espresso dark:text-cream">{n.authorName}</span>{" "}
-                <span className="text-espresso-muted dark:text-cream/40">
-                  , {n.studentName} için not ekledi · {new Date(n.createdAt).toLocaleString("tr-TR")}
+              <button
+                key={n.id}
+                onClick={() => onOpenStudent?.(n.studentId)}
+                disabled={!onOpenStudent}
+                className="flex min-h-[40px] w-full items-center gap-2 rounded-lg bg-cream-card px-2.5 py-1.5 text-left text-xs transition hover:bg-cream-muted disabled:cursor-default dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">
+                    <span className="font-medium text-espresso dark:text-cream">{n.studentName}</span>{" "}
+                    <span className="text-espresso-muted dark:text-cream/40">· {n.authorName}</span>
+                  </span>
+                  <span className="block text-[10px] text-espresso-muted dark:text-cream/35">
+                    {new Date(n.createdAt).toLocaleString("tr-TR")}
+                  </span>
                 </span>
-              </div>
+                {onOpenStudent && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-espresso-muted dark:text-cream/30" />}
+              </button>
             ))}
           </div>
         )}

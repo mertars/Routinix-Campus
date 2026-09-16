@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, LineChart, Loader2, NotebookPen, Search, Send, UserRound } from "lucide-react";
+import { AlertTriangle, LineChart, Loader2, NotebookPen, Search, Send, ShieldCheck, UserRound } from "lucide-react";
 import { useToast } from "@/lib/toast-context";
-import { openStudent360 } from "@/lib/student-360-store";
 import { StudentDossier } from "@/components/guidance/student-dossier";
 import { cn } from "@/lib/utils";
 
@@ -48,10 +47,28 @@ const CATEGORY_LABEL: Record<string, string> = {
   OTHER: "Diğer",
 };
 
+// ⚠️ GİZLİLİK SEVİYELERİ — kodda GERÇEKTE ne yaptıkları (ölçüldü):
+//   PUBLIC       → VELİ de görebilir (lib/guidance/visibility.ts'teki
+//                  PARENT_VISIBLE_CONFIDENTIALITY pozitif listesinde TEK
+//                  değer budur), yönetici de görür.
+//   RESTRICTED   → Veli GÖREMEZ. Yönetici ve rehberlik görür.
+//   CONFIDENTIAL → Yalnızca REHBERLİK. Yöneticinin canlı akışında ve
+//                  öğrenci analitiğinde HİÇ görünmez.
+//
+// ⚠️ Eskiden buradaki anahtar "OPEN"dı ama şemadaki değer PUBLIC —
+// "Herkese açık" seçilse bile sunucu onu tanımıyor ve varsayılan
+// RESTRICTED'a düşüyordu. Yani veliyle paylaşılması istenen not
+// paylaşılmıyordu, sessizce.
+const CONFIDENTIALITY_OPTIONS: { value: string; label: string; hint: string }[] = [
+  { value: "PUBLIC", label: "Veliyle paylaş", hint: "Veli, öğrenci panelinden bu notu okuyabilir" },
+  { value: "RESTRICTED", label: "Kurum içi", hint: "Yönetici ve rehberlik görür — veli GÖREMEZ" },
+  { value: "CONFIDENTIAL", label: "Yalnızca rehberlik", hint: "Yönetici dahil kimse göremez, sadece rehberlik" },
+];
+
 const CONFIDENTIALITY_LABEL: Record<string, string> = {
-  OPEN: "Herkese açık",
-  RESTRICTED: "Kısıtlı",
-  CONFIDENTIAL: "Gizli",
+  PUBLIC: "Veliyle paylaşıldı",
+  RESTRICTED: "Kurum içi",
+  CONFIDENTIAL: "Yalnızca rehberlik",
 };
 
 function sinceLabel(iso: string | null): string {
@@ -64,7 +81,11 @@ function sinceLabel(iso: string | null): string {
 
 export function StudentFocusTab({
   onNavigate,
+  focusStudentId,
 }: {
+  /** Başka sekmeden (risk radarı, sevk kuyruğu) gelen öğrenci — liste
+   *  yüklenince otomatik seçilir. */
+  focusStudentId?: string | null;
   /** Dosyadaki eylem tuşları başka sekmeye geçirir ve öğrenciyi oraya taşır —
    *  rehber "bu öğrenciye program yazayım" dediğinde onu tekrar seçtirmek
    *  gereksiz bir adım olurdu. */
@@ -86,7 +107,18 @@ export function StudentFocusTab({
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      fetch(`/api/guidance/students${query.trim().length >= 2 ? `?q=${encodeURIComponent(query.trim())}` : ""}`, {
+      const params = new URLSearchParams();
+      if (query.trim().length >= 2) params.set("q", query.trim());
+      // Başka sekmeden gelen öğrenci listede olmayabilir (liste 40 satırla
+      // sınırlı) — sunucudan onun satırını da isteriz, yoksa dosya hiç
+      // açılmaz.
+      if (focusStudentId) params.set("studentId", focusStudentId);
+      // ⚠️ params.size DEĞİL, toString(): .size yalnızca yeni tarayıcılarda
+      // var; eski bir tarayıcıda undefined > 0 sessizce false döner ve
+      // sorgu dizesi HİÇ eklenmezdi (Playwright'ın Chromium'unda tam olarak
+      // bu oldu — öğrenci taşınıyor ama URL'e hiç yazılmıyordu).
+      const qs = params.toString();
+      fetch(`/api/guidance/students${qs ? `?${qs}` : ""}`, {
         signal: controller.signal,
       })
         .then((r) => r.json())
@@ -100,9 +132,18 @@ export function StudentFocusTab({
       controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query]);
+  }, [query, focusStudentId]);
 
   const selected = useMemo(() => students?.find((s) => s.id === selectedId) ?? null, [students, selectedId]);
+
+  // ⚠️ Başka sekmeden gelen öğrenciyi OTOMATİK seç (risk radarı, sevk
+  // kuyruğu). Eskiden sadece sekme değişiyordu ve rehber öğrenciyi listede
+  // yeniden aramak zorunda kalıyordu (Mert, 2026-09-16).
+  useEffect(() => {
+    if (!focusStudentId || !students) return;
+    if (students.some((s) => s.id === focusStudentId)) setSelectedId(focusStudentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusStudentId, students]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -273,9 +314,9 @@ export function StudentFocusTab({
                   onChange={(e) => setConfidentiality(e.target.value)}
                   className="min-h-[40px] rounded-lg border border-hairline bg-white px-2.5 text-xs text-espresso outline-none focus:border-brand-600 dark:border-white/10 dark:bg-midnight dark:text-cream"
                 >
-                  {Object.entries(CONFIDENTIALITY_LABEL).map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
+                  {CONFIDENTIALITY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
                     </option>
                   ))}
                 </select>
@@ -288,8 +329,28 @@ export function StudentFocusTab({
                   Kaydet
                 </button>
               </div>
-              <p className="mt-1.5 text-[10.5px] text-espresso-muted dark:text-cream/35">
-                &quot;Gizli&quot; notlar yönetici akışında görünmez; veliye hiçbir notun metni gösterilmez.
+              {/* ⚠️ Mert: "bunların anlamını ben bile tam bilmiyorum" —
+                  seçili seviyenin NE YAPTIĞI artık tek cümleyle yazıyor.
+                  Genel bir uyarı yerine SEÇİME BAĞLI metin: rehber
+                  kaydetmeden önce kimin göreceğini okur. */}
+              <p
+                className={cn(
+                  "mt-1.5 flex items-start gap-1.5 rounded-lg px-2 py-1.5 text-[10.5px] leading-snug",
+                  confidentiality === "CONFIDENTIAL"
+                    ? "bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300"
+                    : confidentiality === "PUBLIC"
+                      ? "bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
+                      : "bg-cream-card text-espresso-muted dark:bg-white/5 dark:text-cream/45"
+                )}
+              >
+                <ShieldCheck className="mt-[1px] h-3 w-3 shrink-0" />
+                <span>
+                  <span className="font-semibold">
+                    {CONFIDENTIALITY_OPTIONS.find((o) => o.value === confidentiality)?.label}:
+                  </span>{" "}
+                  {CONFIDENTIALITY_OPTIONS.find((o) => o.value === confidentiality)?.hint}.
+                  {confidentiality === "PUBLIC" && " Hassas bilgi yazmayın."}
+                </span>
               </p>
             </div>
 

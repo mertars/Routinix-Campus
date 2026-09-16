@@ -84,16 +84,26 @@ async function handleGet(request: NextRequest) {
     if (isFeed) {
       requireRole(session, "principal", "guidance");
       const limit = Math.min(20, Number(request.nextUrl.searchParams.get("limit") ?? "4") || 4);
+      // ⚠️ GİZLİ notlar YÖNETİCİ akışında görünmez ama REHBERLİK kendi
+      // akışında görür — "CONFIDENTIAL: sadece rehberlik erişebilir"
+      // kuralının ta kendisi (bkz. prisma/schema.prisma > ConfidentialityLevel).
+      // Eskiden tek bir kural vardı ve rehberlik kendi yazdığı gizli notun
+      // hareketini bile göremiyordu.
       const notes = await prisma.guidanceNote.findMany({
-        where: { confidentialityLevel: { not: "CONFIDENTIAL" }, student: { institutionId: session.institutionId } },
+        where: {
+          ...(session.role === "GUIDANCE" ? {} : { confidentialityLevel: { not: "CONFIDENTIAL" as const } }),
+          student: { institutionId: session.institutionId },
+        },
         orderBy: { createdAt: "desc" },
         take: limit,
-        include: { student: { select: { firstName: true, lastName: true } } },
+        include: { student: { select: { id: true, firstName: true, lastName: true } } },
       });
       return NextResponse.json({
         notes: notes.map((n) => ({
           id: n.id,
           authorName: n.authorName,
+          // Satıra basınca o öğrencinin dosyası açılsın diye id de döner.
+          studentId: n.student.id,
           studentName: `${n.student.firstName} ${n.student.lastName}`,
           category: n.category,
           confidentialityLevel: n.confidentialityLevel,

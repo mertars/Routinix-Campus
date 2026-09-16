@@ -397,9 +397,25 @@ function EntryCard({
   );
 }
 
-export function GuidanceProgramBuilder() {
+export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?: string | null }) {
   const { showError, showSuccess } = useToast();
   const [student, setStudent] = useState<StudentOption | null>(null);
+  // ⚠️ Başka sekmeden "bu öğrenciye program yaz" denince öğrenci SEÇİLİ
+  // açılır; rehberi listeden yeniden aratmak gereksiz bir adımdı.
+  useEffect(() => {
+    if (!initialStudentId || student) return;
+    // ⚠️ ?studentId= zorunlu: uç alfabetik ve 40 satırla sınırlı döner;
+    // ilk 40'ın dışındaki bir öğrenci için preselect sessizce başarısız
+    // oluyordu (ölçüldü: "Umut Kara" ile ekran boş açılıyordu).
+    fetch(`/api/guidance/students?studentId=${encodeURIComponent(initialStudentId)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        const found = (d.students ?? []).find((s: { id: string }) => s.id === initialStudentId);
+        if (found) setStudent({ id: found.id, name: found.name ?? "", branchName: found.branchName ?? null });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialStudentId]);
   const [ctx, setCtx] = useState<Context | null>(null);
   const [weekLabel, setWeekLabel] = useState(defaultWeekLabel);
   const [entries, setEntries] = useState<Entry[]>([]);
