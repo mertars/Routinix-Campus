@@ -11,8 +11,11 @@ import {
   PlayCircle,
   Scan,
   Search,
+  SlidersHorizontal,
   Target,
 } from "lucide-react";
+import { ProgramComplianceDetail } from "@/components/guidance/program-compliance-detail";
+import { useCachedFetch } from "@/lib/client/cached-fetch";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -73,19 +76,19 @@ export function ProgramComplianceTab({
   onPlanMeeting: (studentId: string) => void;
 }) {
   const { showError } = useToast();
-  const [data, setData] = useState<Payload | null>(null);
   const [weeks, setWeeks] = useState(4);
   const [query, setQuery] = useState("");
   const [onlyBehind, setOnlyBehind] = useState(false);
+  // "İncele" ile açılan tam ekran döküm.
+  const [detailFor, setDetailFor] = useState<string | null>(null);
 
+  const { data, failed } = useCachedFetch<Payload>(`/api/guidance/program-compliance?weeks=${weeks}`, {
+    ttlMs: 60_000,
+  });
   useEffect(() => {
-    setData(null);
-    fetch(`/api/guidance/program-compliance?weeks=${weeks}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setData)
-      .catch(() => showError("Program takibi yüklenemedi."));
+    if (failed) showError("Program takibi yüklenemedi.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weeks]);
+  }, [failed]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLocaleLowerCase("tr");
@@ -109,7 +112,10 @@ export function ProgramComplianceTab({
             </h2>
             <p className="text-[11.5px] text-espresso-muted dark:text-cream/45">
               Yazdığınız çalışma programlarının ne kadarı gerçekten yapıldı. Video blokları en az %90 izlenince, röntgen
-              blokları test çözülünce, soru ve konu blokları öğrenci işaretleyince &quot;yapıldı&quot; sayılır.
+              blokları test çözülünce, soru ve konu blokları öğrenci kendi panelinde işaretleyince &quot;yapıldı&quot;
+              sayılır. Liste en düşük uyumdan başlar; bir satırdaki <span className="font-semibold">İncele</span> tuşu o
+              öğrencinin hangi derste takıldığını, ne tür işi atladığını ve hangi hafta hangi bloğu yapmadığını tablo
+              hâlinde açar.
             </p>
           </div>
           <div className="flex shrink-0 gap-1">
@@ -270,6 +276,15 @@ export function ProgramComplianceTab({
                   </div>
 
                   <div className="flex shrink-0 flex-col gap-1.5">
+                    {/* ⚠️ İNCELE (Mert, 2026-09-16: "alttaki ekran kafa
+                        karıştırıcı, incele butonu olsun"). Satırdaki tek
+                        yüzde "neden böyle" sorusunu cevaplamıyordu. */}
+                    <button
+                      onClick={() => setDetailFor(row.studentId)}
+                      className="flex min-h-[34px] items-center gap-1.5 rounded-full bg-brand-600 px-3 text-[11px] font-semibold text-white transition hover:bg-brand-500"
+                    >
+                      <SlidersHorizontal className="h-3 w-3" /> İncele
+                    </button>
                     <button
                       onClick={() => onPlanMeeting(row.studentId)}
                       className="flex min-h-[34px] items-center gap-1.5 rounded-full bg-espresso px-3 text-[11px] font-semibold text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
@@ -297,6 +312,15 @@ export function ProgramComplianceTab({
           )}
         </div>
       </div>
+
+      {detailFor && (
+        <ProgramComplianceDetail
+          studentId={detailFor}
+          weeks={weeks}
+          onClose={() => setDetailFor(null)}
+          onPlanMeeting={onPlanMeeting}
+        />
+      )}
     </div>
   );
 }

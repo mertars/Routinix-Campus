@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { AcademicPanel } from "@/components/guidance/academic-panel";
 import { MeetingImpactPanel } from "@/components/guidance/meeting-impact-panel";
+import { invalidateCache, useCachedFetch } from "@/lib/client/cached-fetch";
 import { GUIDANCE_CATEGORY_LABEL } from "@/lib/guidance/categories";
 import { fetchAndDownloadPdf } from "@/lib/client/download-pdf";
 import { useToast } from "@/lib/toast-context";
@@ -417,26 +418,36 @@ export function StudentDossier({
   children?: React.ReactNode;
 }) {
   const { showError } = useToast();
-  const [data, setData] = useState<Dossier | null>(null);
-  const [failed, setFailed] = useState(false);
+  // ⚠️ Önbellekli (Mert, 2026-09-16: "öğrenciye tıklayınca o da 2-3
+  // saniyede geliyor"). Aynı öğrenciye ikinci kez tıklamak artık anlık;
+  // veri arka planda tazeleniyor. refreshKey değişince (not eklendi vb.)
+  // önbellek bilerek atlanır.
+  const dossierUrl = `/api/guidance/students/${studentId}/dossier`;
+  const { data, failed, refresh } = useCachedFetch<Dossier>(dossierUrl, { ttlMs: 20_000 });
   // Dosya geçmişinde tıklanan satır — detay penceresinde açılır.
   const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);
   const [academicOpen, setAcademicOpen] = useState(false);
   const [impactOpen, setImpactOpen] = useState(false);
 
-  const load = useCallback(() => {
-    setData(null);
-    setFailed(false);
-    fetch(`/api/guidance/students/${studentId}/dossier`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then(setData)
-      .catch(() => {
-        setFailed(true);
-        showError("Öğrenci dosyası yüklenemedi.");
-      });
-  }, [studentId, showError]);
+  // Dışarıdan bir kayıt eklendiğinde (görüşme/not/program) önbelleği atla.
+  //
+  // ⚠️ "İlk render mı" bayrağı YETMEZ: React katı modda efektler bir kez
+  // temizlenip yeniden çalışır, bayrak o ikinci çalıştırmada zaten false
+  // olur ve dosya İKİNCİ KEZ çekilirdi (ölçüldü: tek tıklamaya iki istek).
+  // Bunun yerine refreshKey'in GERÇEKTEN değişip değişmediğine bakılır.
+  const lastRefreshKey = useRef(refreshKey);
+  useEffect(() => {
+    if (lastRefreshKey.current === refreshKey) return;
+    lastRefreshKey.current = refreshKey;
+    invalidateCache(dossierUrl);
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
-  useEffect(load, [load, refreshKey]);
+  useEffect(() => {
+    if (failed) showError("Öğrenci dosyası yüklenemedi.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failed]);
 
   if (failed) {
     return <p className="py-10 text-center text-sm text-espresso-muted dark:text-cream/40">Dosya yüklenemedi.</p>;

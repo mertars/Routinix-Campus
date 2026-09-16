@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, LineChart, Loader2, NotebookPen, Search, Send, ShieldCheck, UserRound } from "lucide-react";
+import { useCachedFetch } from "@/lib/client/cached-fetch";
 import { GUIDANCE_CATEGORY_LABEL } from "@/lib/guidance/categories";
 import { useToast } from "@/lib/toast-context";
 import { StudentDossier } from "@/components/guidance/student-dossier";
@@ -29,14 +30,6 @@ type GuidanceStudent = {
   noteCount: number;
   lastNoteAt: string | null;
   openReferrals: OpenReferral[];
-};
-type NoteEntry = {
-  id: string;
-  note: string;
-  category: string;
-  confidentialityLevel: string;
-  authorName: string;
-  createdAt: string;
 };
 
 
@@ -91,42 +84,45 @@ export function StudentFocusTab({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Not kaydedilince dosya (zaman tüneli) tazelensin.
   const [dossierKey, setDossierKey] = useState(0);
-  const [notes, setNotes] = useState<NoteEntry[] | null>(null);
 
   const [draft, setDraft] = useState("");
   const [category, setCategory] = useState("ACADEMIC");
   const [confidentiality, setConfidentiality] = useState("RESTRICTED");
   const [saving, setSaving] = useState(false);
 
+  // ⚠️ Arama yazarken her harfte istek atılmasın diye SADECE aramada
+  // gecikme var; ilk açılışta gecikme YOK (eskiden 250 ms boş bekleniyordu
+  // — Mert: "listelerin yüklenmesi 2-3 saniye sürüyor").
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
   useEffect(() => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (query.trim().length >= 2) params.set("q", query.trim());
-      // Başka sekmeden gelen öğrenci listede olmayabilir (liste 40 satırla
-      // sınırlı) — sunucudan onun satırını da isteriz, yoksa dosya hiç
-      // açılmaz.
-      if (focusStudentId) params.set("studentId", focusStudentId);
-      // ⚠️ params.size DEĞİL, toString(): .size yalnızca yeni tarayıcılarda
-      // var; eski bir tarayıcıda undefined > 0 sessizce false döner ve
-      // sorgu dizesi HİÇ eklenmezdi (Playwright'ın Chromium'unda tam olarak
-      // bu oldu — öğrenci taşınıyor ama URL'e hiç yazılmıyordu).
-      const qs = params.toString();
-      fetch(`/api/guidance/students${qs ? `?${qs}` : ""}`, {
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .then((d) => setStudents(d.students ?? []))
-        .catch(() => {
-          if (!controller.signal.aborted) showError("Öğrenci listesi yüklenemedi.");
-        });
-    }, 250);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
+    if (query.trim().length < 2) {
+      setDebouncedQuery(query);
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedQuery(query), 250);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const listUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (debouncedQuery.trim().length >= 2) params.set("q", debouncedQuery.trim());
+    // Başka sekmeden gelen öğrenci listede olmayabilir (liste 40 satırla
+    // sınırlı) — sunucudan onun satırını da isteriz, yoksa dosya hiç açılmaz.
+    if (focusStudentId) params.set("studentId", focusStudentId);
+    // ⚠️ params.size DEĞİL, toString(): .size yalnızca yeni tarayıcılarda
+    // var; eski bir tarayıcıda undefined > 0 sessizce false döner ve sorgu
+    // dizesi HİÇ eklenmezdi (Playwright'ın Chromium'unda tam olarak bu oldu).
+    const qs = params.toString();
+    return `/api/guidance/students${qs ? `?${qs}` : ""}`;
+  }, [debouncedQuery, focusStudentId]);
+
+  // Önbellekli: aynı listeye geri dönmek anlık, arka planda tazeleniyor.
+  const listQuery = useCachedFetch<{ students: GuidanceStudent[] }>(listUrl, { ttlMs: 30_000 });
+  useEffect(() => {
+    if (listQuery.data) setStudents(listQuery.data.students ?? []);
+    if (listQuery.failed) showError("Öğrenci listesi yüklenemedi.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, focusStudentId]);
+  }, [listQuery.data, listQuery.failed]);
 
   const selected = useMemo(() => students?.find((s) => s.id === selectedId) ?? null, [students, selectedId]);
 
@@ -139,18 +135,12 @@ export function StudentFocusTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusStudentId, students]);
 
-  useEffect(() => {
-    if (!selectedId) {
-      setNotes(null);
-      return;
-    }
-    setNotes(null);
-    fetch(`/api/guidance-notes?studentId=${encodeURIComponent(selectedId)}`)
-      .then((r) => r.json())
-      .then((d) => setNotes(d.notes ?? []))
-      .catch(() => showError("Görüşme geçmişi yüklenemedi."));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  // ⚠️ BURADA ESKİDEN BİR İSTEK DAHA VARDI ve kaldırıldı (Mert,
+  // 2026-09-16: "ekranlar çok yavaş"). Her öğrenci tıklamasında
+  // GET /api/guidance-notes?studentId= çağrılıyordu ama dönen veri
+  // HİÇBİR YERDE render edilmiyordu — notlar zaten dosyanın zaman
+  // tünelinde geliyor. Ölçüldü: öğrenciye tıklayınca atılan üç istekten
+  // biri tamamen boşaydı.
 
   async function saveNote() {
     if (!selectedId || !draft.trim()) return;
@@ -168,8 +158,9 @@ export function StudentFocusTab({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Not kaydedilemedi.");
-      setNotes((prev) => [data.guidanceNote, ...(prev ?? [])]);
       setDraft("");
+      // Yeni not zaman tünelinde görünsün.
+      setDossierKey((k) => k + 1);
       showSuccess("Görüşme notu kaydedildi.");
       // Listedeki "son görüşme" bilgisi tazelensin.
       setStudents((prev) =>

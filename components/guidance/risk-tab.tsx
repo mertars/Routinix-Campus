@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, CalendarPlus, FolderOpen, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import { RISK_REASON_LABEL, type RiskReason } from "@/lib/mock-data";
+import { useCachedFetch } from "@/lib/client/cached-fetch";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -68,18 +69,19 @@ export function RiskTab({
   onPlanMeeting: (studentId: string) => void;
 }) {
   const { showError } = useToast();
-  const [entries, setEntries] = useState<RiskEntry[] | null>(null);
+  // ⚠️ Önbellekli: sekmeye geri dönmek anlık. Risk radarı kurum genelini
+  // tarayan pahalı bir uçtur (sunucuda ayrıca 20 sn TTL cache var), her
+  // sekme değişiminde sıfırdan beklemenin anlamı yoktu.
+  const { data, failed } = useCachedFetch<{ entries: RiskEntry[] }>("/api/risk-radar", { ttlMs: 60_000 });
+  const entries = data?.entries ?? null;
   const [reason, setReason] = useState<RiskReason | "all">("all");
   const [level, setLevel] = useState<"all" | "high" | "mid">("mid");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    fetch("/api/risk-radar")
-      .then((r) => r.json())
-      .then((d) => setEntries(d.entries ?? []))
-      .catch(() => showError("Risk radarı yüklenemedi."));
+    if (failed) showError("Risk radarı yüklenemedi.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [failed]);
 
   // Sebep filtresi rozetlerinde gerçek sayı göstermek için — "Devamsızlık (0)"
   // yazan bir filtreye basıp boş liste görmek zaman kaybı.

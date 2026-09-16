@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarPlus, CheckCircle2, ChevronRight, Clock, FolderOpen, LifeBuoy, Loader2, StickyNote } from "lucide-react";
+import { invalidateCache, useCachedFetch } from "@/lib/client/cached-fetch";
 import { useToast } from "@/lib/toast-context";
 import { openStudent360 } from "@/lib/student-360-store";
 import { cn } from "@/lib/utils";
@@ -41,26 +42,28 @@ export function ReferralQueue({
 }) {
   const { showError, showSuccess } = useToast();
   const [filter, setFilter] = useState<ReferralStatus | "ALL">("PENDING");
-  const [referrals, setReferrals] = useState<Referral[] | null>(null);
-  const [notes, setNotes] = useState<GuidanceNoteEntry[] | null>(null);
   const [markingId, setMarkingId] = useState<string | null>(null);
 
+  // Önbellekli: filtre değiştirip geri dönmek ya da sekmeler arasında
+  // gidip gelmek artık yeniden bekleme gerektirmiyor.
+  const referralsUrl = `/api/guidance-referrals${filter === "ALL" ? "" : `?status=${filter}`}`;
+  const referralsQuery = useCachedFetch<{ referrals: Referral[] }>(referralsUrl, { ttlMs: 30_000 });
+  const [localReferrals, setLocalReferrals] = useState<Referral[] | null>(null);
+  const referrals = localReferrals ?? referralsQuery.data?.referrals ?? null;
+  const setReferrals = (fn: (prev: Referral[] | null) => Referral[] | null) =>
+    setLocalReferrals(fn(referrals));
   useEffect(() => {
-    setReferrals(null);
-    const qs = filter === "ALL" ? "" : `?status=${filter}`;
-    fetch(`/api/guidance-referrals${qs}`)
-      .then((res) => res.json())
-      .then((data) => setReferrals(data.referrals ?? []))
-      .catch(() => showError("Sevk kuyruğu yüklenemedi."));
+    setLocalReferrals(null);
+  }, [referralsUrl, referralsQuery.data]);
+  useEffect(() => {
+    if (referralsQuery.failed) showError("Sevk kuyruğu yüklenemedi.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter]);
+  }, [referralsQuery.failed]);
 
-  useEffect(() => {
-    fetch("/api/guidance-notes?feed=true&limit=30")
-      .then((res) => res.json())
-      .then((data) => setNotes(data.notes ?? []))
-      .catch(() => setNotes([]));
-  }, []);
+  const notesQuery = useCachedFetch<{ notes: GuidanceNoteEntry[] }>("/api/guidance-notes?feed=true&limit=30", {
+    ttlMs: 60_000,
+  });
+  const notes = notesQuery.failed ? [] : notesQuery.data?.notes ?? null;
 
   const pendingCount = useMemo(() => referrals?.filter((r) => r.status === "PENDING").length ?? 0, [referrals]);
 
@@ -73,7 +76,9 @@ export function ReferralQueue({
         body: JSON.stringify({ status: "REVIEWED" }),
       });
       if (!res.ok) throw new Error();
-      setReferrals((prev) => (prev ? (filter === "PENDING" ? prev.filter((r) => r.id !== referral.id) : prev.map((r) => (r.id === referral.id ? { ...r, status: "REVIEWED" } : r))) : prev));
+      setReferrals((prev) => (prev ? (filter === "PENDING" ? prev.filter((r) => r.id !== referral.id) : prev.map((r) => (r.id === referral.id ? { ...r, status: "REVIEWED" as const } : r))) : prev));
+      // Sunucudaki gerçek durum değişti — önbellekteki sevk listeleri bayat.
+      invalidateCache("/api/guidance-referrals");
       showSuccess(`${referral.studentName} görüldü olarak işaretlendi.`);
     } catch {
       showError("İşaretlenemedi.");

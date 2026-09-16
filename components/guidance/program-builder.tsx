@@ -627,7 +627,14 @@ export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?
         </button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[19rem_1fr]">
+      {/* ⚠️ ÜÇ SÜTUN (Mert, 2026-09-16: "aşağıya kaydırmayı minimum yapmamız
+          lazım, bütün ekranlar solda; bunları sola ve sağa dağıt, program
+          ortada kalsın"). Eskiden hem veri panelleri hem geçmiş tek sütunda
+          üst üste diziliyordu; program yazmak için sürekli aşağı kaydırmak
+          gerekiyordu. Artık: solda öğrencinin verisi, ORTADA haftalık
+          program, sağda tespitler ve geçmiş programlar. Dar ekranda (lg
+          altı) hepsi tek sütuna iner. */}
+      <div className="grid gap-4 lg:grid-cols-[17rem_minmax(0,1fr)] xl:grid-cols-[16.5rem_minmax(0,1fr)_17rem]">
         {/* --- SOL: öğrenci röntgeni --- */}
         <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
           {!ctx ? (
@@ -668,48 +675,6 @@ export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?
                 )}
               </section>
 
-              {findings.length > 0 && (
-                <section className="rounded-2xl border border-brand-500/40 bg-brand-50/50 p-3.5 dark:border-brand-500/25 dark:bg-brand-600/10">
-                  <h3 className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">
-                    <ClipboardCheck className="h-3.5 w-3.5" /> Sizin tespitleriniz
-                  </h3>
-                  <p className="mb-2 text-[10.5px] leading-snug text-espresso-muted dark:text-cream/45">
-                    Akademik Durum ekranında işaretledikleriniz. &quot;+&quot; tuşu bu tespiti{" "}
-                    <span className="font-semibold">{targetDay}</span> gününe blok olarak ekler.
-                  </p>
-                  <div className="max-h-72 space-y-1 overflow-y-auto">
-                    {findings.map((f) => (
-                      <div key={f.id} className="flex items-center gap-1.5 rounded-lg bg-white/80 px-2 py-1.5 dark:bg-white/5">
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[12px] font-medium text-espresso dark:text-cream">{f.label}</span>
-                          <span className="block truncate text-[10px] text-espresso-muted dark:text-cream/40">{f.detail}</span>
-                        </span>
-                        <button
-                          onClick={() =>
-                            addEntry(targetDay, {
-                              subject: f.subject ?? "Genel",
-                              topic: f.label,
-                              questionTarget: f.kind === "homework" || f.kind === "mastery" ? 30 : 0,
-                            })
-                          }
-                          title={`${targetDay} gününe ekle`}
-                          aria-label={`${f.label} tespitini ${targetDay} gününe ekle`}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-espresso text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => removeFinding(f.id)}
-                          aria-label="Tespiti çıkar"
-                          className="flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:text-rose-600 dark:text-cream/35"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
 
               <section className="rounded-2xl border border-hairline bg-white p-3.5 dark:border-white/10 dark:bg-midnight-card/50">
                 <h3 className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
@@ -886,6 +851,58 @@ export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?
             </div>
           </div>
 
+
+          {history?.length === 0 && entries.length === 0 && (
+            <p className="rounded-2xl border border-hairline bg-white px-3 py-6 text-center text-xs text-espresso-muted dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream/40">
+              Bu öğrenciye henüz program verilmemiş. Soldaki zayıf kazanımlardan &quot;+&quot; ile başlayabilirsiniz.
+            </p>
+          )}
+        </div>
+
+        {/* --- SAĞ: tespitler ve geçmiş programlar --- */}
+        <aside className="space-y-3 xl:sticky xl:top-4 xl:self-start">
+          {findings.length > 0 && (
+            <section className="rounded-2xl border border-brand-500/40 bg-brand-50/50 p-3.5 dark:border-brand-500/25 dark:bg-brand-600/10">
+              <h3 className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+                <ClipboardCheck className="h-3.5 w-3.5" /> Sizin tespitleriniz
+              </h3>
+              <p className="mb-2 text-[10.5px] leading-snug text-espresso-muted dark:text-cream/45">
+                Akademik Durum ekranında işaretledikleriniz. &quot;+&quot; tuşu bu tespiti{" "}
+                <span className="font-semibold">{targetDay}</span> gününe blok olarak ekler.
+              </p>
+              <div className="max-h-72 space-y-1 overflow-y-auto">
+                {findings.map((f) => (
+                  <div key={f.id} className="flex items-center gap-1.5 rounded-lg bg-white/80 px-2 py-1.5 dark:bg-white/5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12px] font-medium text-espresso dark:text-cream">{f.label}</span>
+                      <span className="block truncate text-[10px] text-espresso-muted dark:text-cream/40">{f.detail}</span>
+                    </span>
+                    <button
+                      onClick={() =>
+                        addEntry(targetDay, {
+                          subject: f.subject ?? "Genel",
+                          topic: f.label,
+                          questionTarget: f.kind === "homework" || f.kind === "mastery" ? 30 : 0,
+                        })
+                      }
+                      title={`${targetDay} gününe ekle`}
+                      aria-label={`${f.label} tespitini ${targetDay} gününe ekle`}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-espresso text-cream transition hover:bg-caramel dark:bg-brand-600 dark:hover:bg-brand-500"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => removeFinding(f.id)}
+                      aria-label="Tespiti çıkar"
+                      className="flex h-8 w-6 shrink-0 items-center justify-center rounded-lg text-espresso-muted transition hover:text-rose-600 dark:text-cream/35"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           {/* --- Daha önce verilen programlar --- */}
           {history && history.length > 0 && (
             <section className="rounded-2xl border border-hairline bg-white p-3.5 dark:border-white/10 dark:bg-midnight-card/50">
@@ -894,8 +911,10 @@ export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?
               </h3>
               <div className="space-y-1.5">
                 {history.map((p) => (
-                  <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-cream-card px-3 py-2 dark:bg-white/5">
-                    <span className="min-w-0 flex-1">
+                  // ⚠️ Sağ sütun dar (17rem): etiket ve tuşlar yan yana
+                  // sığmıyor, hafta adı kırpılıyordu. Dikey yığ.
+                  <div key={p.id} className="rounded-xl bg-cream-card px-3 py-2 dark:bg-white/5">
+                    <span className="block min-w-0">
                       <span className="block truncate text-[12.5px] font-medium text-espresso dark:text-cream">{p.weekLabel}</span>
                       <span className="block text-[10.5px] text-espresso-muted dark:text-cream/40">
                         {p.entries.length} blok · {new Date(p.createdAt).toLocaleDateString("tr-TR")}
@@ -928,6 +947,7 @@ export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?
                         );
                       })()}
                     </span>
+                    <span className="mt-1.5 flex flex-wrap gap-1.5">
                     {/* Geçmiş programı taslağa kopyala — haftalar çoğu zaman
                         birbirinin üstüne kurulur, sıfırdan yazdırmak gereksiz. */}
                     <button
@@ -960,18 +980,13 @@ export function GuidanceProgramBuilder({ initialStudentId }: { initialStudentId?
                     >
                       <FileDown className="h-3 w-3" /> PDF
                     </button>
+                    </span>
                   </div>
                 ))}
               </div>
             </section>
           )}
-
-          {history?.length === 0 && entries.length === 0 && (
-            <p className="rounded-2xl border border-hairline bg-white px-3 py-6 text-center text-xs text-espresso-muted dark:border-white/10 dark:bg-midnight-card/50 dark:text-cream/40">
-              Bu öğrenciye henüz program verilmemiş. Soldaki zayıf kazanımlardan &quot;+&quot; ile başlayabilirsiniz.
-            </p>
-          )}
-        </div>
+        </aside>
       </div>
 
       {/* Pop-up seçiciler — blok kartının içine sığmayan seçimler burada. */}
