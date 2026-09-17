@@ -10,14 +10,19 @@
 // artık sunucu tarafında farklı bir kullanıcıdır ve istemcideki RSC
 // önbelleği hâlâ yöneticinin ağacını taşır — tam sayfa yükleme, sunucunun
 // yeni kimlikle baştan render etmesini garanti eder.
-export async function enterPanel(role: "teacher" | "student" | "parent" | "guidance", userId: string): Promise<string | null> {
+export async function enterPanel(
+  role: "teacher" | "student" | "parent" | "guidance",
+  userId: string,
+  options: { write?: boolean; reload?: boolean } = {}
+): Promise<string | null> {
   const res = await fetch("/api/admin/impersonate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ role, userId }),
+    body: JSON.stringify({ role, userId, write: options.write === true }),
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) return data?.error ?? "Panele girilemedi.";
-  window.location.href = data.url;
+  // reload:false → çerez değişti ama aynı sayfada kalınacak (mod değiştirme).
+  window.location.href = options.reload === false ? window.location.href : data.url;
   return null;
 }

@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan, Activity, ListChecks, ShieldCheck, MonitorSmartphone } from "lucide-react";
+import { FileSearch, Plus, Building2, Users, UserCog2, Layers, LogOut, Loader2, Copy, Check, ShieldAlert, X, Scan, Activity, ListChecks, ShieldCheck, MonitorSmartphone } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { XrayQuestionPoolWizard } from "@/components/platform/xray-question-pool-wizard";
 import { XrayPoolGenerationDashboard } from "@/components/platform/xray-pool-generation-dashboard";
 import { XrayQaReviewDashboard } from "@/components/platform/xray-qa-review-dashboard";
 import { XrayPoolQuestionsBrowser } from "@/components/platform/xray-pool-questions-browser";
 import { PanelPreview } from "@/components/platform/panel-preview";
+import { ActivityReport } from "@/components/platform/activity-report";
 import { useToast } from "@/lib/toast-context";
 import { spaceGrotesk, GlowLogo } from "@/components/ui/aurora-brand";
 import { cn } from "@/lib/utils";
@@ -189,6 +190,10 @@ export default function PlatformDashboardPage() {
   const [isQuestionsBrowserOpen, setIsQuestionsBrowserOpen] = useState(false);
   const [isQaReviewOpen, setIsQaReviewOpen] = useState(false);
   const [previewInstitutionId, setPreviewInstitutionId] = useState<string | null>(null);
+  // ⚠️ Etkinlik raporu BURADA (platform tarafında): kurumun kendi
+  // yöneticisinin eylemlerini de içerdiği için, o yöneticinin
+  // erişemeyeceği bir yerde durmak zorunda.
+  const [isActivityReportOpen, setIsActivityReportOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   async function loadInstitutions() {
@@ -252,6 +257,12 @@ export default function PlatformDashboardPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setIsActivityReportOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-500/30 bg-slate-500/10 px-3 py-2.5 text-[13px] font-medium text-slate-700 transition hover:bg-slate-500/20 dark:text-slate-300"
+            >
+              <FileSearch className="h-4 w-4" /> Etkinlik Raporu
+            </button>
             <button
               onClick={() => setIsPreviewOpen(true)}
               className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[13px] font-medium text-amber-700 transition hover:bg-amber-500/20 dark:text-amber-300"
@@ -391,6 +402,11 @@ export default function PlatformDashboardPage() {
         onClose={() => setIsPreviewOpen(false)}
         institutions={(institutions ?? []).map((i) => ({ id: i.id, name: i.name }))}
         initialInstitutionId={previewInstitutionId}
+      />
+      <ActivityReport
+        isOpen={isActivityReportOpen}
+        onClose={() => setIsActivityReportOpen(false)}
+        institutions={(institutions ?? []).map((i) => ({ id: i.id, name: i.name }))}
       />
     </main>
   );

@@ -1,6 +1,7 @@
 import { checkGeneralRateLimit, extractClientIp, MAX_REQUESTS_PER_USER } from "@/lib/server/rate-limit/general-rate-limit";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/server/auth/jwt";
 import { previewBlockReason, resolveEffectivePreview, runAsPreview } from "@/lib/server/preview/read-only";
+import { recordActivity } from "@/lib/server/activity/record-activity";
 
 // Request'in Cookie header'ından oturum çerezini elle ayrıştırıp doğrular —
 // bu wrapper next/headers'ın cookies() API'sini kullanamaz (route context'i
@@ -111,7 +112,7 @@ export function withApiLogging<Args extends unknown[]>(
       // görüntülemesi) — "bunu kim başlattı" alanı türüne göre değişiyor,
       // log satırı ikisinde de dolu olsun diye burada normalize edilir.
       const startedBy = preview.kind === "preview" ? preview.previewBy : preview.by;
-      const canWrite = preview.kind === "preview" && preview.canWrite === true;
+      const canWrite = preview.canWrite === true;
       const blocked = previewBlockReason(method, url ? new URL(url).pathname : "", canWrite, preview.kind);
       if (blocked) {
         logger.warn("api_preview_blocked", { route: routeLabel, method, url, kind: preview.kind, startedBy, institutionId: preview.institutionId });
@@ -149,12 +150,19 @@ export function withApiLogging<Args extends unknown[]>(
     async function runHandler(): Promise<Response> {
       try {
         const response = await handler(...args);
-        logger.info("api_request", {
-          route: routeLabel,
+        const durationMs = Date.now() - startedAt;
+        logger.info("api_request", { route: routeLabel, method, url, status: response.status, durationMs });
+        // ⚠️ ETKİNLİK KAYDI — yalnızca YAZMA istekleri, bekletmeden
+        // (bkz. lib/server/activity/record-activity.ts). Raporun tek
+        // kaynağı burasıdır; yeni bir API eklendiğinde kendiliğinden
+        // kapsanır, ayrıca kod yazmak gerekmez.
+        recordActivity({
+          cookieHeader: request?.headers.get("cookie") ?? null,
+          routeLabel,
           method,
           url,
           status: response.status,
-          durationMs: Date.now() - startedAt,
+          durationMs,
         });
         return response;
       } catch (error) {

@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
+import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/server/auth/jwt";
+import { PREVIEW_SESSION_COOKIE_NAME } from "@/lib/server/auth/preview-jwt";
 import {
   signImpersonationToken,
   verifyImpersonationToken,
@@ -43,6 +45,10 @@ export const dynamic = "force-dynamic";
 const bodySchema = z.object({
   role: z.enum(["teacher", "student", "parent", "guidance"]),
   userId: z.string().min(1),
+  // Düzenleme modu — VARSAYILAN KAPALI. Yönetici bir paneli incelerken
+  // yanlışlıkla veri değiştirmesin; düzenleme açık bir tercih olsun
+  // (bkz. impersonation-jwt.ts > canWrite).
+  write: z.boolean().optional(),
 });
 
 const AUTH_ROLE_BY_ROLE: Record<string, AuthRole> = {
@@ -93,20 +99,50 @@ async function findTarget(role: string, userId: string, institutionId: string) {
 
 async function handlePost(request: NextRequest) {
   try {
-    const session = await requireSession();
-    requireRole(session, "principal");
+    // ⚠️ KİMLİK BURADA requireSession() İLE ÇÖZÜLMEZ — GERÇEK HATA (Mert,
+    // 2026-09-17: "böyle bir hata aldım, açılmıyor, panellere giremiyor").
+    //
+    // requireSession, aktif bir görüntüleme varsa GÖRÜNTÜLENEN kullanıcının
+    // kimliğini döndürür (özelliğin bütün amacı bu). Bu uç ise tam tersini
+    // sormak zorunda: "bu isteği yapan GERÇEK kişi kim?". Eskiden
+    // requireSession kullanılıyordu ve sonuç şuydu: tarayıcıda bir
+    // görüntüleme çerezi kaldığı anda yönetici BAŞKA hiçbir panele
+    // giremiyordu — istek öğrenci kimliğiyle değerlendirilip reddediliyordu.
+    // Yani özellik, ilk kullanımdan sonra kendini kilitliyordu.
+    //
+    // Doğrusu: yönetici oturumunu HAM ÇEREZDEN oku. Böylece eski görüntüleme
+    // çerezi bir engel değil, sadece üzerine yazılacak bir değerdir.
+    const adminToken = cookies().get(SESSION_COOKIE_NAME)?.value;
+    const admin = adminToken ? await verifySessionToken(adminToken) : null;
 
-    // ⚠️ Görüntüleme oturumundan YENİ bir görüntüleme başlatılamaz.
-    // requireSession bu istekte zaten hedef kullanıcının kimliğini dönerdi
-    // ve requireRole onu eler; yine de niyeti açıkça yazıyoruz: zincirleme
-    // kimlik değiştirme (A→B→C) kapalıdır.
-    if (session.isImpersonation || session.isPreview) {
-      throw new AuthError("Görüntüleme sırasında yeni bir görüntüleme başlatılamaz.", "FORBIDDEN_ROLE", 403);
+    // Platform önizlemesi: orada gerçek bir kurum oturumu çerezi YOKTUR,
+    // dolayısıyla üretilecek görüntüleme çerezi hiçbir zaman çözülemezdi.
+    // Sessizce çalışmıyormuş gibi görünmesin diye net bir mesaj veriyoruz.
+    if (!admin && cookies().get(PREVIEW_SESSION_COOKIE_NAME)?.value) {
+      throw new AuthError(
+        "Platform önizlemesindesiniz. Panel değiştirmek için önizleme ekranındaki rol seçicisini kullanın.",
+        "FORBIDDEN_ROLE",
+        403
+      );
     }
+    if (!admin) throw new AuthError("Oturum bulunamadı. Lütfen giriş yapın.", "NO_SESSION", 401);
+    if (admin.role !== "ADMIN") throw new AuthError("Bu işlem için yetkiniz yok.", "FORBIDDEN_ROLE", 403);
+
+    // Kurum askıya alınmışsa hiçbir panel açılmaz — requireSession'ın yaptığı
+    // kill-switch kontrolünün burada da uygulanması ŞART (ham çerezden
+    // okuduğumuz için o kontrolü atlamış oluyoruz).
+    const institution = await prisma.institution.findUnique({
+      where: { id: admin.institutionId },
+      select: { isActive: true },
+    });
+    if (!institution?.isActive) {
+      throw new AuthError("Kurum hesabınız askıya alınmış.", "INSTITUTION_SUSPENDED", 403);
+    }
+    const session = admin;
 
     const parsed = bodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) throw new AuthError("Rol ve kullanıcı zorunludur.", "MISSING_FIELDS", 400);
-    const { role, userId } = parsed.data;
+    const { role, userId, write } = parsed.data;
 
     const target = await findTarget(role, userId, session.institutionId);
     // 404 — 403 DEĞİL: başka kurumun kaydının VARLIĞINI bile sızdırmayız
@@ -122,6 +158,8 @@ async function handlePost(request: NextRequest) {
       impersonation: true,
       by: session.sub,
       byName: session.name,
+      canWrite: write === true,
+      targetRole: role,
     });
 
     cookies().set(IMPERSONATION_COOKIE_NAME, token, {
@@ -139,7 +177,7 @@ async function handlePost(request: NextRequest) {
       action: "PANEL_VIEW_STARTED",
       targetType: role === "student" ? "Student" : role === "parent" ? "Parent" : "Teacher",
       targetId: target.id,
-      metadata: { role, targetName: target.name },
+      metadata: { role, targetName: target.name, mode: write ? "edit" : "read-only" },
     });
     logger.warn("panel_view_started", {
       institutionId: session.institutionId,
@@ -147,12 +185,14 @@ async function handlePost(request: NextRequest) {
       byName: session.name,
       asUser: `${role}:${target.id}`,
       asName: target.name,
+      mode: write ? "edit" : "read-only",
     });
 
     return NextResponse.json({
       ok: true,
       url: PANEL_PATH_BY_ROLE[role],
       target: { id: target.id, name: target.name, role },
+      canWrite: write === true,
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);

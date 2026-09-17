@@ -121,7 +121,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <ImpersonationBanner
           initial={
             impersonation
-              ? { active: true, name: impersonation.name, role: impersonation.role, byName: impersonation.byName }
+              ? {
+                  active: true,
+                  name: impersonation.name,
+                  role: impersonation.role,
+                  byName: impersonation.byName,
+                  canWrite: impersonation.canWrite === true,
+                  targetId: impersonation.sub,
+                  targetRole: impersonation.targetRole,
+                }
               : null
           }
         />

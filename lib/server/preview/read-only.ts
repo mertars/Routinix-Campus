@@ -182,7 +182,11 @@ export function previewBlockReason(
   // kayıt değiştirmesi, denetim izinde o işi öğretmenin/öğrencinin yapmış
   // gibi göstermek demektir; kurum içi hesap verebilirliği bozar.
   if (kind === "impersonation") {
-    return "Görüntüleme modundasınız — bu ekranda değişiklik yapılamaz. İşlem yapmak için görüntülemeden çıkın.";
+    // ⚠️ Düzenleme modu AÇIKSA yazma serbesttir — ama izsiz değildir:
+    // her yazma ActivityLog'a "yönetici tarafından, X'in panelinden"
+    // olarak düşer (bkz. lib/server/activity/record-activity.ts).
+    if (canWrite) return null;
+    return "Görüntüleme modundasınız — bu ekranda değişiklik yapılamaz. Üstteki banttan \"Düzenlemeyi Aç\" diyebilirsiniz.";
   }
   if (canWrite) return null;
   return "Önizleme salt okunurdur. Üstteki \"Yazma Modu\" düğmesiyle açabilirsiniz.";

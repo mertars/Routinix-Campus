@@ -65,6 +65,26 @@ export type ImpersonationPayload = {
   by: string;
   /** Bant ve loglarda gösterilecek yönetici adı. */
   byName: string;
+  /**
+   * DÜZENLEME MODU — varsayılan kapalı (salt okunur).
+   *
+   * ⚠️ Mert (2026-09-17): "amaç hem öğrenciyi kontrol etmek hem de
+   * yapamadığı bir şey olursa yöneticinin panelden halletmesi; ama
+   * yöneticinin değiştirdiği her şeyde 'yönetici tarafından yapıldı'
+   * etiketi olsun."
+   *
+   * Yani yazma artık mümkün — ama İZSİZ DEĞİL. Düzenleme modunda yapılan
+   * HER yazma isteği ActivityLog'a actor=YÖNETİCİ, onBehalfOf=paneline
+   * girilen kişi olarak düşer (bkz. lib/server/activity/record-activity.ts).
+   * Bir öğretmen şikâyetinde "bunu öğretmen mi yaptı, müdür mü onun
+   * ekranından yaptı" sorusu böylece kesin cevaplanır.
+   *
+   * Varsayılanın KAPALI olması bilinçli: yönetici bir paneli incelerken
+   * yanlışlıkla veri değiştirmesin; düzenleme açık bir tercih olsun.
+   */
+  canWrite?: boolean;
+  /** Bant, modu değiştirirken aynı hedefi yeniden üretebilsin diye. */
+  targetRole: "teacher" | "student" | "parent" | "guidance";
 };
 
 // 30 dakika: bir panele bakıp sorunu görmeye fazlasıyla yeter, sızan bir

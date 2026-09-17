@@ -120,6 +120,7 @@ model Institution {
   announcements               Announcement[]
   notificationBatches         NotificationBatch[]
   auditLogs                   AuditLog[]
+  activityLogs                ActivityLog[]
   classrooms                  Classroom[]
   scheduleSlots               ScheduleSlotDefinition[]
   etutSetting                 EtutSetting?
@@ -1648,6 +1649,60 @@ enum AuditAction {
   // (bkz. lib/server/auth/impersonation-jwt.ts).
   PANEL_VIEW_STARTED
   PANEL_VIEW_ENDED
+}
+
+// ----------------------------------------------------------------------------
+// ETKİNLİK KAYDI — "kim, ne zaman, hangi veriyi girdi/değiştirdi".
+//
+// ⚠️ NEDEN VAR (Mert, 2026-09-17): "olası bir öğretmen şikâyetinde kendi
+// /platform hesabımdan rapor çıkarıp kimin ne yaptığını kanıt olarak
+// sunabileyim; her öğretmenin/yöneticinin bütün veri giriş ve çıkışlarını
+// rapor alabilmek istiyorum."
+//
+// AuditLog'dan (yukarıda) FARKI ve neden ikisi birden var:
+//   * AuditLog SEÇİLMİŞ, anlamlı İŞ OLAYLARINI tutar (tahsilat yapıldı,
+//     kullanıcı silindi) — okunabilir, az sayıda, kalıcı.
+//   * ActivityLog ise HER YAZMA İSTEĞİNİ tutar (yöntem + rota + sonuç).
+//     Amacı okunabilirlik değil KANIT: "3 Ekim 14:22'de Selin Hoca
+//     yoklama girdi" sorusunun cevabı burada, hiçbir uç için özel kod
+//     yazılmadan. Tek noktadan (withApiLogging) yazıldığı için yeni bir
+//     API eklendiğinde kendiliğinden kapsanır.
+//
+// ⚠️ 90 GÜN SAKLANIR (Mert'in isteği: "kayıtlar 3 aylık olsun") — günlük
+// bir cron eskiyeni siler (bkz. app/api/cron/activity-prune). Sınırsız
+// büyüyen bir tablo hem maliyet hem de KVKK açısından savunulamaz.
+//
+// ⚠️ onBehalfOf* alanları "YÖNETİCİ TARAFINDAN YAPILDI" etiketidir: yönetici
+// bir kullanıcının paneline girip işlem yaptığında actor YÖNETİCİDİR,
+// onBehalfOf ise paneline girilen kişidir. Böylece bir şikâyette "bunu
+// öğretmen mi yaptı, müdür mü onun ekranından yaptı" sorusu kesin
+// cevaplanır (bkz. lib/server/auth/impersonation-jwt.ts).
+model ActivityLog {
+  id            String      @id @default(cuid())
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  // İsteği GERÇEKTEN yapan kişi.
+  actorId   String
+  actorRole String
+  actorName String
+
+  // Yönetici başka birinin panelinden işlem yaptıysa dolu olur.
+  onBehalfOfId   String?
+  onBehalfOfRole String?
+  onBehalfOfName String?
+
+  method     String // POST | PUT | PATCH | DELETE
+  route      String // "POST /api/attendance" — rota etiketi
+  path       String // gerçek adres (sorgu dizesi olmadan)
+  status     Int
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  // Raporlar iki eksende çalışır: kurum+tarih (dönem raporu) ve
+  // kişi+tarih (tek kişinin dökümü).
+  @@index([institutionId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 model AuditLog {
