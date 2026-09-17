@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/server/prisma";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/server/auth/jwt";
 import { verifyImpersonationToken, IMPERSONATION_COOKIE_NAME } from "@/lib/server/auth/impersonation-jwt";
+import { describeAdminAction } from "@/lib/server/activity/describe";
 
 // ETKİNLİK KAYDI YAZICISI — tek noktadan, her yazma isteği için.
 //
@@ -10,9 +11,22 @@ import { verifyImpersonationToken, IMPERSONATION_COOKIE_NAME } from "@/lib/serve
 // unutulurdu. withApiLogging zaten TÜM rotaları sarmaladığı için kaydın
 // doğal ve tek yeri orası.
 //
-// ⚠️ KİMLİK BURADA VERİTABANINA SORULMAZ: çerezdeki imzalı JWT'den okunur
-// (isim de token'ın içinde). Her yazma isteğine fazladan bir SELECT
-// eklemek, bu turda düzelttiğimiz gecikme sorununu geri getirirdi.
+// ⚠️ SADECE YÖNETİCİNİN EYLEMLERİ KAYDEDİLİR (Mert, 2026-09-17: "zaten
+// yönetici yapmadıysa kişi kendi yapmıştır, başka seçenek yok"). Bir
+// öğretmenin kaydını değiştirebilecek iki kişi vardır: kendisi ve
+// yönetici. Yöneticinin eylemleri kayıtlıysa geri kalan her şey tanım
+// gereği kişinin kendisine aittir. Bu, tabloyu hem küçük hem OKUNUR
+// tutar — herkesin her isteğini tutmak günde on binlerce anlamsız satır
+// demekti.
+//
+// ⚠️ KİMLİK ÇEREZDEKİ İMZALI JWT'DEN okunur, veritabanından değil — her
+// yazma isteğine fazladan bir SELECT eklemek, bu turda düzelttiğimiz
+// gecikme sorununu geri getirirdi. İsim/rol zaten token'ın içinde.
+//
+// ⚠️ İSTEK GÖVDESİ handler'dan ÖNCE okunup buraya hazır verilir (bkz.
+// lib/logger.ts > captureJsonBody). Klonu arka planda okumayı denemek
+// HER ZAMAN boş gövde döndürüyordu — yanıt gönderildikten sonra akış yok
+// ediliyor.
 
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -28,6 +42,8 @@ export type ActivityInput = {
   url: string | undefined;
   status: number;
   durationMs: number;
+  /** Handler'dan ÖNCE okunmuş JSON gövdesi — özet bundan üretilir. */
+  rawBody: string | null;
 };
 
 /**
@@ -44,6 +60,8 @@ export function recordActivity(input: ActivityInput): void {
       const sessionToken = readCookie(cookieHeader, SESSION_COOKIE_NAME);
       const session = sessionToken ? await verifySessionToken(sessionToken) : null;
       if (!session) return;
+      // ⚠️ Yalnızca yönetici eylemleri (yukarıdaki gerekçe).
+      if (session.role !== "ADMIN") return;
 
       // Yönetici başka birinin panelindeyse: aktör YÖNETİCİ, onBehalfOf
       // paneline girilen kişidir — "yönetici tarafından yapıldı" etiketi.
@@ -59,6 +77,9 @@ export function recordActivity(input: ActivityInput): void {
       }
 
       const path = input.url ? new URL(input.url).pathname : "";
+
+      const described = await describeAdminAction({ method: input.method, path, rawBody: input.rawBody });
+
       await prisma.activityLog.create({
         data: {
           institutionId: session.institutionId,
@@ -73,6 +94,9 @@ export function recordActivity(input: ActivityInput): void {
           path,
           status: input.status,
           durationMs: Math.round(input.durationMs),
+          summary: described.summary,
+          category: described.category,
+          details: described.details as object,
         },
       });
     } catch {

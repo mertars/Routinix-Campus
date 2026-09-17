@@ -18,6 +18,10 @@ export const dynamic = "force-dynamic";
 //
 // ⚠️ 90 GÜN: kayıtlar bundan eskisini tutmuyor (bkz. cron/activity-prune),
 // bu yüzden aralık istenirse de o sınırın dışına çıkılamaz.
+//
+// ⚠️ TABLO ARTIK SADECE YÖNETİCİ EYLEMLERİNİ TUTUYOR (Mert, 2026-09-17:
+// "zaten yönetici yapmadıysa kişi kendi yapmıştır"). Rapor da bu yüzden
+// "kim yaptı" değil "yönetici NE yaptı" sorusuna cevap verir.
 
 const MAX_RANGE_DAYS = 92;
 const DETAIL_LIMIT = 500;
@@ -89,6 +93,9 @@ async function handleGet(request: NextRequest) {
           path: true,
           status: true,
           createdAt: true,
+          summary: true,
+          category: true,
+          details: true,
         },
         orderBy: { createdAt: "desc" },
         take: DETAIL_LIMIT,
@@ -127,7 +134,13 @@ async function handleGet(request: NextRequest) {
         // asıl anahtarı bu alan.
         onBehalfOfName: r.onBehalfOfName,
         onBehalfOfRole: r.onBehalfOfRole,
-        action: actionLabel(r.path),
+        // ⚠️ Özet KAYIT ANINDA üretilip donduruldu (bkz.
+        // lib/server/activity/describe.ts) — rapor anında yeniden
+        // üretilemez, çünkü o an silinmiş bir şubenin adı artık bulunamaz.
+        summary: r.summary ?? actionLabel(r.path),
+        category: r.category ?? actionLabel(r.path),
+        details: r.details,
+        action: r.category ?? actionLabel(r.path),
         method: r.method,
         route: r.route,
         status: r.status,

@@ -29,6 +29,8 @@ type LogRow = {
   actorRole: string;
   onBehalfOfName: string | null;
   onBehalfOfRole: string | null;
+  summary: string;
+  category: string;
   action: string;
   method: string;
   route: string;
@@ -59,13 +61,6 @@ const ROLE_LABEL: Record<string, string> = {
   GUIDANCE: "Rehberlik",
   STUDENT: "Öğrenci",
   PARENT: "Veli",
-};
-
-const METHOD_LABEL: Record<string, string> = {
-  POST: "ekledi",
-  PUT: "güncelledi",
-  PATCH: "değiştirdi",
-  DELETE: "sildi",
 };
 
 function when(iso: string): string {
@@ -111,15 +106,14 @@ export function ActivityReport({
     if (!data) return;
     // Excel'in tr-TR ayarı için BOM + noktalı virgül (sistemdeki diğer
     // dışa aktarmalarla aynı kural).
-    const head = ["Tarih", "Kişi", "Rol", "İşlem", "Tür", "Yönetici tarafından", "Sonuç", "Uç"];
+    const head = ["Tarih", "Yönetici", "Ne yaptı", "Tür", "Panelinden", "Sonuç", "Uç"];
     const lines = data.rows.map((r) => [
       when(r.at),
       r.actorName,
-      ROLE_LABEL[r.actorRole] ?? r.actorRole,
-      r.action,
-      METHOD_LABEL[r.method] ?? r.method,
-      r.onBehalfOfName ? `${r.onBehalfOfName} panelinden` : "",
-      String(r.status),
+      r.summary,
+      r.category,
+      r.onBehalfOfName ? `${r.onBehalfOfName} panelinden` : "kendi paneli",
+      r.status >= 400 ? "başarısız" : "başarılı",
       r.route,
     ]);
     const csv = "﻿" + [head, ...lines].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
@@ -141,10 +135,10 @@ export function ActivityReport({
         <div className="flex gap-2.5 rounded-2xl border border-hairline bg-cream-card/60 p-3 dark:border-white/10 dark:bg-white/[0.03]">
           <FileSearch className="mt-0.5 h-4 w-4 shrink-0 text-brand-600" />
           <p className="text-[11.5px] leading-relaxed text-espresso dark:text-cream/70">
-            Kurumdaki <strong>her veri girişi ve değişikliği</strong> zaman damgasıyla burada. Bir şikâyette kimin ne
-            yaptığını kanıtlamak için kullanılır. Kayıtlar <strong>90 gün</strong> saklanır.{" "}
-            <strong>&quot;Yönetici tarafından&quot;</strong> sütunu, işlemin o kişinin kendisi tarafından mı yoksa
-            yöneticinin onun panelinden mi yapıldığını gösterir.
+            <strong>Yöneticinin yaptığı her değişiklik</strong> zaman damgası ve detayıyla burada — &quot;9-A
+            şubesinin 17.09.2026 yoklamasını aldı&quot; gibi. Yönetici yapmadıysa işlem tanım gereği kişinin kendisine
+            aittir, o yüzden yalnızca yönetici eylemleri tutulur. Kayıtlar <strong>90 gün</strong> saklanır.{" "}
+            <strong>&quot;Panelinden&quot;</strong> sütunu, yöneticinin işlemi kimin ekranından yaptığını gösterir.
           </p>
         </div>
 
@@ -292,9 +286,9 @@ export function ActivityReport({
                       <tr className="border-b border-hairline text-[10.5px] uppercase tracking-wide text-espresso-muted dark:border-white/10 dark:text-cream/40">
                         <th className="pb-1.5 font-semibold">Tarih</th>
                         <th className="pb-1.5 font-semibold">Kişi</th>
-                        <th className="pb-1.5 font-semibold">İşlem</th>
+                        <th className="pb-1.5 font-semibold">Ne yaptı</th>
                         <th className="pb-1.5 font-semibold">Tür</th>
-                        <th className="pb-1.5 font-semibold">Yönetici tarafından</th>
+                        <th className="pb-1.5 font-semibold">Panelinden</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -309,9 +303,11 @@ export function ActivityReport({
                               {ROLE_LABEL[r.actorRole] ?? r.actorRole}
                             </span>
                           </td>
-                          <td className="py-1.5 pr-3 text-[12px] text-espresso dark:text-cream/80">{r.action}</td>
+                          <td className="py-1.5 pr-3 text-[12px] leading-snug text-espresso dark:text-cream/80">
+                            {r.summary}
+                          </td>
                           <td className="py-1.5 pr-3 text-[11.5px] text-espresso-muted dark:text-cream/45">
-                            {METHOD_LABEL[r.method] ?? r.method}
+                            {r.category}
                             {r.status >= 400 && (
                               <span className="ml-1 rounded bg-rose-100 px-1 text-[9.5px] font-semibold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">
                                 başarısız

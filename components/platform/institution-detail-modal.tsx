@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import * as XLSX from "xlsx";
-import { GraduationCap, UserCog2, FileSpreadsheet, Loader2, Plus, FileUp, Layers, Pencil, UserX, Trash2 } from "lucide-react";
+import { Download, FileSpreadsheet, FileUp, GraduationCap, Layers, Loader2, Pencil, Plus, Trash2, UserCog2, UserX } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { AddBranchModal } from "@/components/principal/user-management/add-branch-modal";
 import { AddUserModal } from "@/components/principal/user-management/add-user-modal";
@@ -35,6 +35,7 @@ type DetailData = { institution: { id: string; name: string }; students: Account
 // SAPMAZ, tek bir yerde bakım yapılır.
 export function InstitutionDetailModal({ institutionId, onClose }: { institutionId: string | null; onClose: () => void }) {
   const { showError } = useToast();
+  const [exporting, setExporting] = useState(false);
   const apiBase = institutionId ? `/api/platform/institutions/${institutionId}` : "";
 
   const [data, setData] = useState<DetailData | null>(null);
@@ -108,6 +109,41 @@ export function InstitutionDetailModal({ institutionId, onClose }: { institution
         ) : (
           <>
             <div className="mb-3 flex flex-wrap items-center gap-2">
+              {/* ⚠️ TEK TUŞLA TÜM VERİ (Mert, 2026-09-17: "uygulamayı
+                  bıraksanız bile veri kaybınız yok diye garanti vereceğim").
+                  Kurumun sistemdeki her verisi klasörlü bir ZIP olarak
+                  iner — CSV, yani Excel'de çift tıklayınca açılır. */}
+              <button
+                onClick={async () => {
+                  if (!institutionId || exporting) return;
+                  setExporting(true);
+                  try {
+                    const res = await fetch(`/api/platform/export?institutionId=${encodeURIComponent(institutionId)}`);
+                    if (!res.ok) throw new Error();
+                    const blob = await res.blob();
+                    // Dosya adı sunucunun Content-Disposition'ından gelir.
+                    const name =
+                      res.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "kurum-verisi.zip";
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch {
+                    showError("Veri dosyası hazırlanamadı.");
+                  } finally {
+                    setExporting(false);
+                  }
+                }}
+                disabled={exporting}
+                className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-500/20 disabled:opacity-60 dark:text-emerald-300"
+              >
+                {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {exporting ? "Hazırlanıyor…" : "Tüm Veriyi İndir (ZIP)"}
+              </button>
               <button
                 onClick={() => setIsAddBranchOpen(true)}
                 className="flex items-center gap-1.5 rounded-lg border border-hairline px-3 py-1.5 text-xs font-medium text-espresso transition hover:bg-cream-card dark:border-white/10 dark:text-cream dark:hover:bg-white/5"

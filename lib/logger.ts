@@ -65,6 +65,25 @@ export const logger = {
 // sadece gözlemlenebilirlik (observability) katmanı ekler.
 const MUTATING_FOR_LOG = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+/** Yazma isteğinin JSON gövdesinin kopyası — yönetici eyleminin özeti
+ *  bundan üretilir (bkz. lib/server/activity/describe.ts). Kayıt uğruna
+ *  isteğin kendisi ASLA bozulmamalı: her hata yutulur ve null dönülür. */
+const MAX_AUDIT_BODY_BYTES = 20_000;
+
+async function captureJsonBody(request: Request | undefined, method: string): Promise<string | null> {
+  if (!request || !MUTATING_FOR_LOG.has(method.toUpperCase())) return null;
+  const type = request.headers.get("content-type") ?? "";
+  if (!type.includes("application/json")) return null;
+  const length = Number(request.headers.get("content-length") ?? "0");
+  if (length > MAX_AUDIT_BODY_BYTES) return null;
+  try {
+    const text = await request.clone().text();
+    return text.length > MAX_AUDIT_BODY_BYTES ? null : text;
+  } catch {
+    return null;
+  }
+}
+
 export function withApiLogging<Args extends unknown[]>(
   routeLabel: string,
   handler: (...args: Args) => Promise<Response>
@@ -95,6 +114,19 @@ export function withApiLogging<Args extends unknown[]>(
         headers: { "Content-Type": "application/json", "Retry-After": String(rateLimit.retryAfterSeconds) },
       });
     }
+
+    // ⚠️ GÖVDE HANDLER'DAN ÖNCE OKUNUR — GERÇEK HATA (canlı testte
+    // yakalandı): önce request.clone() alınıp okuma ARKA PLANA bırakılıyordu
+    // ve klonun gövdesi HER ZAMAN BOŞ geliyordu (yanıt döndükten sonra
+    // akış yok ediliyor). Sonuç: "şube şubesine '' ödevini verdi" gibi
+    // içi boş özetler.
+    //
+    // Şimdi gövde burada, senkron biçimde okunuyor. Maliyeti yok denecek
+    // kadar az: küçük bir JSON gövdesi zaten tamamen bellekte (content-length
+    // biliniyor), okumak bir dize kopyalamaktan ibaret. Dosya yüklemeleri
+    // (multipart) ve büyük gövdeler BİLEREK atlanır — dev gövdeler belleğe
+    // alınmamalı.
+    const bodySnapshot = await captureJsonBody(request, method);
 
     // ÖNİZLEME SALT-OKUNUR KİLİDİ — 1. katman (bkz.
     // lib/server/preview/read-only.ts'teki iki katman açıklaması). Bu
@@ -157,6 +189,7 @@ export function withApiLogging<Args extends unknown[]>(
         // kaynağı burasıdır; yeni bir API eklendiğinde kendiliğinden
         // kapsanır, ayrıca kod yazmak gerekmez.
         recordActivity({
+          rawBody: bodySnapshot,
           cookieHeader: request?.headers.get("cookie") ?? null,
           routeLabel,
           method,

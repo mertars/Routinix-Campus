@@ -1662,11 +1662,14 @@ enum AuditAction {
 // AuditLog'dan (yukarıda) FARKI ve neden ikisi birden var:
 //   * AuditLog SEÇİLMİŞ, anlamlı İŞ OLAYLARINI tutar (tahsilat yapıldı,
 //     kullanıcı silindi) — okunabilir, az sayıda, kalıcı.
-//   * ActivityLog ise HER YAZMA İSTEĞİNİ tutar (yöntem + rota + sonuç).
-//     Amacı okunabilirlik değil KANIT: "3 Ekim 14:22'de Selin Hoca
-//     yoklama girdi" sorusunun cevabı burada, hiçbir uç için özel kod
-//     yazılmadan. Tek noktadan (withApiLogging) yazıldığı için yeni bir
-//     API eklendiğinde kendiliğinden kapsanır.
+//   * ActivityLog ise YÖNETİCİNİN yaptığı HER değişikliği tutar.
+//
+// ⚠️ NEDEN SADECE YÖNETİCİ (Mert, 2026-09-17): "zaten yönetici yapmadıysa
+// kişi kendi yapmıştır, başka seçenek yok." Doğru: bir öğretmenin kaydını
+// değiştirebilecek iki kişi vardır — kendisi ve yönetici. Yöneticinin
+// eylemleri kaydedildiğinde geri kalan her şey tanım gereği kişinin
+// kendisine aittir. Bu, kaydı hem küçük hem de okunur tutar; herkesin her
+// isteğini tutmak günde on binlerce anlamsız satır demekti.
 //
 // ⚠️ 90 GÜN SAKLANIR (Mert'in isteği: "kayıtlar 3 aylık olsun") — günlük
 // bir cron eskiyeni siler (bkz. app/api/cron/activity-prune). Sınırsız
@@ -1698,6 +1701,21 @@ model ActivityLog {
   status     Int
   durationMs Int
   createdAt  DateTime @default(now())
+
+  // ⚠️ İNSAN DİLİNDE ÖZET (Mert, 2026-09-17: "daha detaylı istiyorum,
+  // mesela yönetici X hocanın Y tarihindeki şu yoklamasını aldı, Y
+  // öğrencisine şu ödevi verdi gibi").
+  //
+  // Ham "POST /api/attendance" satırı bir şikâyette hiçbir şey anlatmıyor.
+  // Özet, isteğin GÖVDESİNDEN ve ilgili kayıtlardan üretilir (bkz.
+  // lib/server/activity/describe.ts) ve kayıt anında YAZILIR — rapor
+  // zamanında yeniden üretilemez, çünkü o an silinmiş bir şubenin adı
+  // artık bulunamaz. Kanıt, olduğu anda dondurulmalıdır.
+  summary  String?
+  /** "Yoklama" | "Ödev" | "Ödeme" ... — raporda gruplamak için. */
+  category String?
+  /** Yapısal döküm (şube id, tarih, etkilenen öğrenci sayısı...). */
+  details  Json?
 
   // Raporlar iki eksende çalışır: kurum+tarih (dönem raporu) ve
   // kişi+tarih (tek kişinin dökümü).
