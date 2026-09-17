@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GraduationCap, UserCog2, ShieldCheck, Send, Loader2, Wallet } from "lucide-react";
+import { GraduationCap, HeartHandshake, Loader2, Send, ShieldCheck, UserCog2, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
@@ -316,6 +316,34 @@ export function AddUserModal({
               ))}
             </div>
             {subject === "Diğer" && <input value={customSubject} onChange={(e) => setCustomSubject(e.target.value)} placeholder="Branş adı" className={inputClass} />}
+
+            {/* ⚠️ BRANŞ, PANELİ BELİRLER (Mert, 2026-09-18: "rehberlik hocası
+                seçildiğinde normal öğretmen paneline mi rehberlik paneline mi
+                üyeliği açılıyor?"). Sistemde rehberlik AYRI bir kullanıcı
+                tablosu değil: branşı "Rehberlik" olan öğretmen GİRİŞTE
+                GUIDANCE rolüne çözülür ve /guidance panelini görür (bkz.
+                lib/server/auth/otp.ts > GUIDANCE_SUBJECT). Bu davranış
+                arayüzde hiçbir yerde yazmıyordu, o yüzden kullanıcı bile emin
+                olamıyordu — artık formda yazıyor. */}
+            {subject === "Rehberlik" ? (
+              <p className="flex items-start gap-1.5 rounded-lg bg-brand-50 px-2.5 py-2 text-[11px] leading-snug text-brand-800 dark:bg-brand-600/10 dark:text-brand-200">
+                <HeartHandshake className="mt-[1px] h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Bu kişi <span className="font-semibold">Rehberlik paneline</span> girecek (sevk kuyruğu, görüşme
+                  takvimi, öğrenci dosyası, çalışma programı). Öğretmen panelini{" "}
+                  <span className="font-semibold">görmez</span>; yoklama alamaz, ödev atamaz. Branşı sonradan
+                  değiştirilirse paneli de değişir.
+                </span>
+              </p>
+            ) : (
+              <p className="flex items-start gap-1.5 rounded-lg bg-cream-card px-2.5 py-2 text-[11px] leading-snug text-espresso-muted dark:bg-white/5 dark:text-cream/45">
+                <GraduationCap className="mt-[1px] h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Bu kişi <span className="font-semibold">Öğretmen paneline</span> girecek. Rehberlik paneli için branş
+                  olarak <span className="font-semibold">&quot;Rehberlik&quot;</span> seçin.
+                </span>
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <input value={mobilePhone} onChange={(e) => setMobilePhone(e.target.value)} placeholder="GSM" className={inputClass} />
               <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="E-posta (isteğe bağlı)" className={inputClass} />
