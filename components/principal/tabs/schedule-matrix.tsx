@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { GripVertical, Lock, X, LayoutGrid, Table2, AlertCircle, Clock3, Plus, Pencil, Trash2, Check, UserCog2, Upload } from "lucide-react";
+import { AlertCircle, Check, Clock3, GripVertical, LayoutGrid, Lock, Pencil, Plus, Sparkles, Table2, Trash2, Upload, UserCog2, X } from "lucide-react";
 import { SCHEDULE_DAYS, type ScheduleAssignment, type ScheduleDay } from "@/lib/mock-data";
 import { ScheduleImportModal } from "@/components/principal/schedule/schedule-import-modal";
+import { AutoPlanModal } from "@/components/principal/schedule/auto-plan-modal";
 import { parseSlotRange } from "@/lib/schedule-time";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/lib/toast-context";
@@ -208,6 +209,7 @@ export function ScheduleMatrixTab() {
   const [importOpen, setImportOpen] = useState(false);
   const [draggingTeacher, setDraggingTeacher] = useState<DraggingTeacher | null>(null);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+  const [autoPlanOpen, setAutoPlanOpen] = useState(false);
   const [isSlotManagerOpen, setIsSlotManagerOpen] = useState(false);
 
   const sortedSlots = useMemo(() => [...slots].sort((a, b) => parseSlotRange(a.label)[0] - parseSlotRange(b.label)[0]), [slots]);
@@ -388,6 +390,15 @@ export function ScheduleMatrixTab() {
           >
             <Clock3 className="h-3.5 w-3.5" /> Saatleri Yönet
           </button>
+          {/* ⚠️ OTOMATİK PLAN (Mert: "ders programı en sürtünmeli yer") —
+              boş bir programı sıfırdan doldurma yükünü kaldırır; sonucu
+              yönetici önizleyip onaylıyor. */}
+          <button
+            onClick={() => setAutoPlanOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-600/40 bg-emerald-600/10 px-3 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-600/20 dark:text-emerald-400"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> Otomatik Plan
+          </button>
           <button
             onClick={() => setImportOpen(true)}
             className="flex items-center gap-1.5 rounded-lg border border-brand-600/40 bg-brand-600/10 px-3 py-2 text-xs font-medium text-brand-700 transition hover:bg-brand-600/20 dark:text-brand-500"
@@ -431,6 +442,7 @@ export function ScheduleMatrixTab() {
       </div>
 
       <ScheduleImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} onImported={loadAll} />
+      <AutoPlanModal isOpen={autoPlanOpen} onClose={() => setAutoPlanOpen(false)} onApplied={loadAll} />
 
       <AnimatePresence>
         {conflictMessage && (

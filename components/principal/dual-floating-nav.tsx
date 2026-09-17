@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "framer-motion";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { NavTab } from "./floating-nav";
 import { useAgenda } from "@/lib/agenda-store";
 import type { NavBadge } from "@/lib/agenda-badges";
-import type { AgendaUrgency } from "@/lib/agenda-types";
+import type { AgendaItem, AgendaUrgency } from "@/lib/agenda-types";
 
 type Side = "left" | "right";
 
@@ -25,6 +26,72 @@ const BADGE_TONE: Record<AgendaUrgency, string> = {
   info: "bg-sky-500 text-white",
 };
 
+// ROZET SEBEP PANELİ — "1 bildirim gözüküyor ama sebep ne?"
+//
+// ⚠️ NEDEN VAR (Mert, 2026-09-18): "çakışmasız ders programında 1 bildirim
+// gözüküyor ama sebep ne? Her menüde o bildirimlerin sebebinin olduğu küçük
+// bir panel olsun." Rozet sayıyı söylüyordu ama gerekçeyi söylemiyordu;
+// kullanıcı sekmeye girip eksiği kendisi aramak zorunda kalıyordu. Oysa
+// gerekçe ZATEN elimizde: rozet Gündem maddelerinden türetiliyor ve her
+// maddenin başlığı/detayı var (bkz. lib/agenda-types.ts > AgendaItem).
+//
+// ⚠️ PORTAL ZORUNLU, İKİ SEBEPTEN: (1) ada `overflow-hidden` — içine
+// konan panel kırpılırdı; (2) ada bir `motion.nav`, yani `transform`lu bir
+// ata — transform'lu ata, içindeki `position: fixed` için yeni kapsayıcı
+// blok yaratır ve panel ekranın yanlış yerine çapalanırdı (bu tuzağa bu
+// kod tabanında renk paletinde ve ayarlar sayfasında düşülmüştü).
+function BadgeReasons({
+  anchor,
+  items,
+  side,
+}: {
+  anchor: DOMRect;
+  items: AgendaItem[];
+  side: Side;
+}) {
+  const WIDTH = 268;
+  const top = Math.max(12, Math.min(anchor.top - 8, window.innerHeight - 220));
+  // ⚠️ Konum ÖLÇÜLMEZ, HESAPLANIR — ve bu bir düzeltme (ekran
+  // görüntüsüyle iki kez görüldü): ada fareyle 64px'ten 284px'e genişliyor,
+  // ama ölçüm hover'ın BAŞINDA alındığı için hep daralmış hâli okunuyor ve
+  // panel genişleyen adanın altında kalıyordu. Ada `left-6`/`right-6` ile
+  // sabit konumlu ve genişliği sabit (EXPANDED_WIDTH), yani dış kenarı
+  // kesin olarak bilinebilir.
+  const EDGE = 24; // left-6 / right-6
+  const left =
+    side === "left" ? EDGE + EXPANDED_WIDTH + 12 : window.innerWidth - EDGE - EXPANDED_WIDTH - WIDTH - 12;
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0, x: side === "left" ? -6 : 6 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.12 }}
+      style={{ top, left, width: WIDTH }}
+      className="pointer-events-none fixed z-[70] rounded-2xl border border-white/10 bg-midnight-card/95 p-3 shadow-[0_8px_32px_0_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+    >
+      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-cream/40">Neden bildirim var</p>
+      <div className="space-y-1.5">
+        {items.map((item) => (
+          <div key={item.key} className="flex gap-2">
+            <span
+              className={cn(
+                "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
+                item.urgency === "critical" ? "bg-red-500" : item.urgency === "attention" ? "bg-amber-500" : "bg-sky-500"
+              )}
+            />
+            <span className="min-w-0">
+              <span className="block text-[12px] font-medium leading-snug text-cream">{item.title}</span>
+              <span className="block text-[10.5px] leading-snug text-cream/50">{item.detail}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 border-t border-white/10 pt-1.5 text-[10px] text-cream/35">Tıklayınca bu sekme açılır.</p>
+    </motion.div>,
+    document.body
+  );
+}
+
 function IslandButton({
   tab,
   isActive,
@@ -32,6 +99,7 @@ function IslandButton({
   side,
   expanded,
   badge,
+  reasons,
 }: {
   tab: NavTab;
   isActive: boolean;
@@ -39,9 +107,21 @@ function IslandButton({
   side: Side;
   expanded: boolean;
   badge?: NavBadge;
+  /** Bu sekmedeki rozeti doğuran Gündem maddeleri. */
+  reasons: AgendaItem[];
 }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const showReasons = rect !== null && reasons.length > 0;
+  const measure = () => setRect(ref.current?.getBoundingClientRect() ?? null);
+
   return (
     <button
+      ref={ref}
+      onMouseEnter={measure}
+      onMouseLeave={() => setRect(null)}
+      onFocus={measure}
+      onBlur={() => setRect(null)}
       onClick={() => onSelect(tab.id)}
       aria-label={badge ? `${tab.label} — ${badge.count} bekleyen iş` : tab.label}
       className={cn(
@@ -91,6 +171,10 @@ function IslandButton({
       >
         {tab.label}
       </span>
+
+      <AnimatePresence>
+        {showReasons && <BadgeReasons anchor={rect} items={reasons} side={side} />}
+      </AnimatePresence>
     </button>
   );
 }
@@ -101,12 +185,14 @@ function Island({
   onSelect,
   side,
   badges,
+  itemsByTab,
 }: {
   tabs: readonly NavTab[];
   activeTab: string;
   onSelect: (id: string) => void;
   side: Side;
   badges: Record<string, NavBadge>;
+  itemsByTab: Record<string, AgendaItem[]>;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -135,6 +221,7 @@ function Island({
             side={side}
             expanded={expanded}
             badge={badges[tab.id]}
+            reasons={itemsByTab[tab.id] ?? []}
           />
         ))}
       </motion.nav>
@@ -160,12 +247,20 @@ export function DualFloatingNav({
    */
   showWork?: boolean;
 }) {
-  const { badges } = useAgenda(showWork);
+  const { badges, items } = useAgenda(showWork);
+
+  // Rozetin gerekçesi: aynı sekmeye düşen Gündem maddeleri. Rozet sayısı
+  // zaten bunların toplamı (bkz. lib/agenda-badges.ts > toBadges).
+  const itemsByTab: Record<string, AgendaItem[]> = {};
+  for (const item of items ?? []) {
+    if (!item.tab || item.count <= 0) continue;
+    (itemsByTab[item.tab] ??= []).push(item);
+  }
 
   return (
     <>
-      <Island tabs={leftTabs} activeTab={activeTab} onSelect={onSelect} side="left" badges={badges} />
-      <Island tabs={rightTabs} activeTab={activeTab} onSelect={onSelect} side="right" badges={badges} />
+      <Island tabs={leftTabs} activeTab={activeTab} onSelect={onSelect} side="left" badges={badges} itemsByTab={itemsByTab} />
+      <Island tabs={rightTabs} activeTab={activeTab} onSelect={onSelect} side="right" badges={badges} itemsByTab={itemsByTab} />
     </>
   );
 }
