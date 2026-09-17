@@ -4,7 +4,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/server/prisma";
 import { requireSession, requireRole } from "@/lib/server/auth/session-guard";
 import { verifySessionToken, SESSION_COOKIE_NAME } from "@/lib/server/auth/jwt";
-import { PREVIEW_SESSION_COOKIE_NAME } from "@/lib/server/auth/preview-jwt";
+import {
+  PREVIEW_SESSION_COOKIE_NAME,
+  PREVIEW_SESSION_MAX_AGE_SECONDS,
+  resolveActivePreview,
+  signPreviewSessionToken,
+} from "@/lib/server/auth/preview-jwt";
 import {
   signImpersonationToken,
   verifyImpersonationToken,
@@ -99,6 +104,10 @@ async function findTarget(role: string, userId: string, institutionId: string) {
 
 async function handlePost(request: NextRequest) {
   try {
+    const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) throw new AuthError("Rol ve kullanıcı zorunludur.", "MISSING_FIELDS", 400);
+    const { role, userId, write } = parsed.data;
+
     // ⚠️ KİMLİK BURADA requireSession() İLE ÇÖZÜLMEZ — GERÇEK HATA (Mert,
     // 2026-09-17: "böyle bir hata aldım, açılmıyor, panellere giremiyor").
     //
@@ -115,15 +124,60 @@ async function handlePost(request: NextRequest) {
     const adminToken = cookies().get(SESSION_COOKIE_NAME)?.value;
     const admin = adminToken ? await verifySessionToken(adminToken) : null;
 
-    // Platform önizlemesi: orada gerçek bir kurum oturumu çerezi YOKTUR,
-    // dolayısıyla üretilecek görüntüleme çerezi hiçbir zaman çözülemezdi.
-    // Sessizce çalışmıyormuş gibi görünmesin diye net bir mesaj veriyoruz.
-    if (!admin && cookies().get(PREVIEW_SESSION_COOKIE_NAME)?.value) {
-      throw new AuthError(
-        "Platform önizlemesindesiniz. Panel değiştirmek için önizleme ekranındaki rol seçicisini kullanın.",
-        "FORBIDDEN_ROLE",
-        403
-      );
+    // ⚠️ PLATFORM ÖNİZLEMESİ İÇİNDEN (Mert, 2026-09-17: "beni giriş
+    // sayfasına atıyor, yine giremedim").
+    //
+    // Mert yönetici paneline /platform > Panel Önizleme üzerinden bakıyordu.
+    // O bağlamda GERÇEK bir kurum oturumu çerezi YOKTUR — dolayısıyla
+    // üretilecek görüntüleme jetonu hiçbir zaman çözülemez (bkz.
+    // impersonation-jwt.ts > resolveActiveImpersonation'ın 2. şartı) ve
+    // tarayıcı /student'a gidince middleware onu hâlâ "yönetici" sayıp
+    // "bu rolle erişemezsiniz" diye geri atıyordu.
+    //
+    // Çözüm: tuşu orada da ÇALIŞTIR — ama görüntüleme jetonu üreterek
+    // değil, ZATEN VAR OLAN önizleme mekanizmasını o kullanıcıya
+    // yönlendirerek. Platform sahibi kurum yöneticisinden daha yetkilidir,
+    // yani yeni bir yetki açılmıyor: aynı kişi aynı paneli önizleme rol
+    // seçicisinden de açabiliyordu; bu sadece "listedeki şu öğrenci" diye
+    // seçebilmesini sağlıyor.
+    if (!admin) {
+      const preview = await resolveActivePreview((name) => cookies().get(name)?.value);
+      if (preview) {
+        const target = await findTarget(role, userId, preview.institutionId);
+        if (!target) return NextResponse.json({ error: "Kullanıcı bulunamadı." }, { status: 404 });
+        const token = await signPreviewSessionToken({
+          sub: target.id,
+          role: AUTH_ROLE_BY_ROLE[role],
+          phone: target.phone,
+          name: target.name,
+          institutionId: preview.institutionId,
+          preview: true,
+          previewBy: preview.previewBy,
+          // Önizlemenin yazma modu KORUNUR — kullanıcı önizlemeyi yazma
+          // moduyla açtıysa panel değiştirince kapanmasın.
+          canWrite: write === true || preview.canWrite === true,
+        });
+        cookies().set(PREVIEW_SESSION_COOKIE_NAME, token, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+          maxAge: PREVIEW_SESSION_MAX_AGE_SECONDS,
+        });
+        logger.warn("platform_preview_switched_from_panel", {
+          previewBy: preview.previewBy,
+          institutionId: preview.institutionId,
+          asUser: `${role}:${target.id}`,
+          asName: target.name,
+        });
+        return NextResponse.json({
+          ok: true,
+          url: PANEL_PATH_BY_ROLE[role],
+          target: { id: target.id, name: target.name, role },
+          canWrite: write === true || preview.canWrite === true,
+          viaPreview: true,
+        });
+      }
     }
     if (!admin) throw new AuthError("Oturum bulunamadı. Lütfen giriş yapın.", "NO_SESSION", 401);
     if (admin.role !== "ADMIN") throw new AuthError("Bu işlem için yetkiniz yok.", "FORBIDDEN_ROLE", 403);
@@ -139,10 +193,6 @@ async function handlePost(request: NextRequest) {
       throw new AuthError("Kurum hesabınız askıya alınmış.", "INSTITUTION_SUSPENDED", 403);
     }
     const session = admin;
-
-    const parsed = bodySchema.safeParse(await request.json().catch(() => null));
-    if (!parsed.success) throw new AuthError("Rol ve kullanıcı zorunludur.", "MISSING_FIELDS", 400);
-    const { role, userId, write } = parsed.data;
 
     const target = await findTarget(role, userId, session.institutionId);
     // 404 — 403 DEĞİL: başka kurumun kaydının VARLIĞINI bile sızdırmayız
