@@ -22,14 +22,30 @@ import { levelOfGrade } from "@/lib/subjects";
 // (bkz. lib/subjects.ts'teki aynı kural).
 // ----------------------------------------------------------------------------
 
-export type Track = "sayisal" | "esit_agirlik" | "sozel" | "dil";
+export type Track = "sayisal" | "esit_agirlik" | "sozel" | "dil" | "tyt";
 
 export const TRACK_LABEL: Record<Track, string> = {
   sayisal: "Sayısal",
   esit_agirlik: "Eşit Ağırlık",
   sozel: "Sözel",
   dil: "Yabancı Dil",
+  tyt: "Sadece TYT",
 };
+
+/**
+ * Şube açarken sunulan seçenekler — sıra ekranda da bu sıradadır.
+ *
+ * ⚠️ "Sadece TYT" (Mert, 2026-09-18): "2 yıllık için hazırlanan kişilere
+ * eğitim verebilir, bizde de bulunsun." Bu öğrenciler AYT'ye girmez;
+ * onlara AYT dersi yazmak hem programı hem değerlendirmeyi bozar.
+ */
+export const TRACK_OPTIONS: { id: Track; label: string; hint: string }[] = [
+  { id: "sayisal", label: "Sayısal", hint: "AYT: Matematik, Geometri, Fizik, Kimya, Biyoloji" },
+  { id: "esit_agirlik", label: "Eşit Ağırlık", hint: "AYT: Matematik, Geometri, Edebiyat, Tarih, Coğrafya" },
+  { id: "sozel", label: "Sözel", hint: "AYT: Edebiyat, Tarih, Coğrafya, Felsefe, Din" },
+  { id: "dil", label: "Yabancı Dil", hint: "AYT/YDT: İngilizce, Edebiyat" },
+  { id: "tyt", label: "Sadece TYT", hint: "2 yıllık programlar — AYT dersi yok" },
+];
 
 /** Alan seçimi bu sınıftan İTİBAREN anlamlıdır (11. sınıfın başı). */
 export const TRACK_START_GRADE = 11;
@@ -56,6 +72,9 @@ export const AYT_SUBJECTS_BY_TRACK: Record<Track, string[]> = {
   esit_agirlik: ["Matematik", "Geometri", "Edebiyat", "Tarih", "Coğrafya", "Felsefe", "Din Kültürü ve Ahlak Bilgisi"],
   sozel: ["Edebiyat", "Tarih", "Coğrafya", "Felsefe", "Din Kültürü ve Ahlak Bilgisi"],
   dil: ["İngilizce", "Edebiyat"],
+  // ⚠️ TYT öğrencisinin AYT dersi YOKTUR — liste bilerek boş. responsibleSubjects
+  // bu durumda yalnızca TYT derslerini döndürür.
+  tyt: [],
 };
 
 /** Ortaokul (5-8) LGS dersleri — alan kavramı YOKTUR. */
@@ -79,6 +98,7 @@ export function inferTrack(text: string | null | undefined): Track | null {
   if (/(sayısal|sayisal|\bfen\b|\bmf\b|matematik.?fen)/.test(t)) return "sayisal";
   if (/(sözel|sozel|\bsöz\b|edebiyat.?sosyal|\bts\b)/.test(t)) return "sozel";
   if (/(yabancı dil|yabanci dil|\bdil\b|\bydt\b)/.test(t)) return "dil";
+  if (/(sadece tyt|\btyt\b|2 yıllık|2 yillik|önlisans|onlisans)/.test(t)) return "tyt";
   return null;
 }
 
@@ -138,6 +158,8 @@ export function responsibleSubjects(
     return { subjects: common, common, trackOnly: [], trackMissing: true, track: null };
   }
   const trackOnly = AYT_SUBJECTS_BY_TRACK[track];
+  // ⚠️ "Sadece TYT" alanında trackOnly boştur — bu EKSİKLİK DEĞİL, bilinçli
+  // bir seçimdir; trackMissing false kalır ve öğrenci TYT'den sorumludur.
   // Birleşim — aynı ders TYT'de de AYT'de de olabilir (ör. Matematik).
   const subjects = [...new Set([...common, ...trackOnly])];
   return { subjects, common, trackOnly, trackMissing: false, track };

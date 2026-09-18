@@ -79,3 +79,19 @@ describe("sorumlu dersler", () => {
     expect(AYT_SUBJECTS_BY_TRACK.sayisal).not.toContain("Türkçe");
   });
 });
+
+describe("Sadece TYT alanı (2 yıllık programlar)", () => {
+  it("AYT dersi almaz, TYT'den sorumludur", () => {
+    const r = responsibleSubjects(12, "tyt");
+    expect(r.trackMissing).toBe(false);
+    expect(r.trackOnly).toHaveLength(0);
+    expect(r.subjects).toEqual([...TYT_SUBJECTS]);
+    expect(isResponsibleFor(12, "tyt", "Geometri")).toBe(false);
+    expect(isResponsibleFor(12, "tyt", "Matematik")).toBe(true);
+  });
+
+  it("şube adından TYT çıkarımı yapar", () => {
+    expect(inferTrack("12-D Sadece TYT")).toBe("tyt");
+    expect(inferTrack("2 Yıllık Hazırlık")).toBe("tyt");
+  });
+});

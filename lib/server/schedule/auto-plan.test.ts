@@ -161,3 +161,141 @@ describe("kıt öğretmen adaletle dağıtılır", () => {
     expect(b.scarceSubjects.length).toBeGreaterThan(0);
   });
 });
+
+describe("kural motoru", () => {
+  const twoBranches: PlanBranch[] = [
+    { id: "b1", name: "12-A Fen", grade: 12, track: null },
+    { id: "b2", name: "11-A Fen", grade: 11, track: null },
+  ];
+
+  it("öğretmenin izinli günü SERT kuraldır", () => {
+    const r = buildAutoPlan({
+      branches: twoBranches,
+      teachers,
+      days: DAYS,
+      slots: SLOTS,
+      blocked: [],
+      rules: { teacherDaysOff: [{ teacherId: "t-mat", days: ["Pazartesi", "Salı"] }] },
+    });
+    const violations = r.assignments.filter(
+      (a) => a.teacherId === "t-mat" && (a.day === "Pazartesi" || a.day === "Salı")
+    );
+    expect(violations).toHaveLength(0);
+    // Diğer günlerde çalışmaya devam etmeli — kural onu tamamen dışlamamalı.
+    expect(r.assignments.some((a) => a.teacherId === "t-mat")).toBe(true);
+  });
+
+  it("şubeye özel ders ağırlığı saati artırır", () => {
+    const base = buildAutoPlan({ branches: [twoBranches[0]], teachers, days: DAYS, slots: SLOTS, blocked: [] });
+    const boosted = buildAutoPlan({
+      branches: [twoBranches[0]],
+      teachers,
+      days: DAYS,
+      slots: SLOTS,
+      blocked: [],
+      rules: { subjectEmphasis: [{ branchId: "b1", subject: "Fizik", factor: 3 }] },
+    });
+    expect(boosted.branches[0].assigned["Fizik"] ?? 0).toBeGreaterThan(base.branches[0].assigned["Fizik"] ?? 0);
+  });
+
+  it("günde aynı dersten en fazla N kuralına uyar", () => {
+    const r = buildAutoPlan({
+      branches: [twoBranches[0]],
+      teachers,
+      days: DAYS,
+      slots: SLOTS,
+      blocked: [],
+      rules: { maxSameSubjectPerDay: 1 },
+    });
+    const perDay = new Map<string, Map<string, number>>();
+    for (const a of r.assignments) {
+      const m = perDay.get(a.day) ?? new Map<string, number>();
+      m.set(a.subject, (m.get(a.subject) ?? 0) + 1);
+      perDay.set(a.day, m);
+    }
+    for (const m of perDay.values()) expect(Math.max(...m.values())).toBeLessThanOrEqual(1);
+  });
+
+  it("öğretmen günlük azami ders kuralına uyar", () => {
+    const r = buildAutoPlan({
+      branches: [
+        { id: "b1", name: "12-A Fen", grade: 12, track: null },
+        { id: "b2", name: "11-A Fen", grade: 11, track: null },
+        { id: "b3", name: "10-A", grade: 10, track: null },
+      ],
+      teachers,
+      days: DAYS,
+      slots: SLOTS,
+      blocked: [],
+      rules: { maxDailyLoadPerTeacher: 2 },
+    });
+    const load = new Map<string, number>();
+    for (const a of r.assignments) {
+      const k = `${a.teacherId}|${a.day}`;
+      load.set(k, (load.get(k) ?? 0) + 1);
+    }
+    expect(Math.max(...load.values())).toBeLessThanOrEqual(2);
+  });
+
+  it("öğretmen–şube yasağı SERT kuraldır", () => {
+    const r = buildAutoPlan({
+      branches: twoBranches,
+      teachers,
+      days: DAYS,
+      slots: SLOTS,
+      blocked: [],
+      rules: { banTeacherFromBranch: [{ teacherId: "t-fiz", branchId: "b1" }] },
+    });
+    expect(r.assignments.filter((a) => a.teacherId === "t-fiz" && a.branchId === "b1")).toHaveLength(0);
+  });
+
+  it("devamsız sınıfa disiplinli öğretmeni yönlendirir", () => {
+    // ⚠️ MERT'İN ÖRNEĞİ: "en çok devamsızlık olan sınıfa devam oranı en
+    // yüksek hoca". İki matematik öğretmeni var; biri disiplinli.
+    const twoMath = [
+      { id: "t-a", name: "A Hoca", subject: "Matematik" },
+      { id: "t-b", name: "B Hoca", subject: "Matematik" },
+    ];
+    const r = buildAutoPlan({
+      branches: [
+        { id: "bad", name: "12-A Fen", grade: 12, track: null },
+        { id: "good", name: "12-B Fen", grade: 12, track: null },
+      ],
+      teachers: twoMath,
+      days: DAYS,
+      slots: SLOTS,
+      blocked: [],
+      rules: { disciplinedTeacherToAbsentBranch: true },
+      signals: {
+        branchAbsenceSeverity: { bad: 1, good: 0 },
+        branchAcademicWeakness: {},
+        teacherAttendanceDiscipline: { "t-a": 1, "t-b": 0 },
+        teacherAcademicStrength: {},
+      },
+    });
+    const badBranchTeachers = r.assignments.filter((a) => a.branchId === "bad").map((a) => a.teacherId);
+    const aShare = badBranchTeachers.filter((t) => t === "t-a").length / Math.max(1, badBranchTeachers.length);
+    expect(aShare).toBeGreaterThan(0.5);
+  });
+
+  it("kural uyum raporu üretir", () => {
+    const r = buildAutoPlan({
+      branches: [twoBranches[0]],
+      teachers,
+      days: DAYS,
+      slots: SLOTS,
+      blocked: [],
+      rules: { preferDoubleBlocks: true, heavySubjectsEarly: true },
+    });
+    const ids = r.compliance.map((c) => c.ruleId);
+    expect(ids).toContain("preferDoubleBlocks");
+    expect(ids).toContain("heavySubjectsEarly");
+    for (const c of r.compliance) expect(c.total).toBeGreaterThan(0);
+  });
+
+  it("kural yokken davranış DEĞİŞMEZ (geriye dönük uyum)", () => {
+    const withoutRules = buildAutoPlan({ branches: twoBranches, teachers, days: DAYS, slots: SLOTS, blocked: [] });
+    const withEmptyRules = buildAutoPlan({ branches: twoBranches, teachers, days: DAYS, slots: SLOTS, blocked: [], rules: {} });
+    expect(JSON.stringify(withoutRules.assignments)).toBe(JSON.stringify(withEmptyRules.assignments));
+  });
+});

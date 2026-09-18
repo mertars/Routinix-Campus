@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertTriangle, Check, Info, Loader2, Sparkles, UserX } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { RULE_CATALOG, type PlannerRules, type RuleId } from "@/lib/server/schedule/planner-rules";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +31,10 @@ type BranchReport = {
   emptySlots: number;
 };
 
+type RuleCompliance = { ruleId: string; satisfied: number; total: number; detail?: string };
+
 type PlanResponse = {
+  compliance: RuleCompliance[];
   assignments: { branchId: string; day: string; slot: string; subject: string; teacherName: string }[];
   branches: BranchReport[];
   unstaffedSubjects: string[];
@@ -43,18 +47,242 @@ type PlanResponse = {
   deleted?: number;
 };
 
+
+const DAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"] as const;
+
+/** Öğretmen + gün seçimi — "bu hoca şu gün çalışmıyor". */
+function TeacherDayOffEditor({
+  teachers,
+  value,
+  onChange,
+}: {
+  teachers: { id: string; name: string }[];
+  value: { teacherId: string; days: string[] }[];
+  onChange: (v: { teacherId: string; days: string[] }[]) => void;
+}) {
+  const [teacherId, setTeacherId] = useState("");
+  const daysOf = (id: string) => value.find((v) => v.teacherId === id)?.days ?? [];
+
+  function toggleDay(day: string) {
+    if (!teacherId) return;
+    const current = daysOf(teacherId);
+    const next = current.includes(day) ? current.filter((d) => d !== day) : [...current, day];
+    const rest = value.filter((v) => v.teacherId !== teacherId);
+    onChange(next.length > 0 ? [...rest, { teacherId, days: next }] : rest);
+  }
+
+  return (
+    <div className="mt-2 space-y-1.5 border-t border-hairline pt-2 dark:border-white/10">
+      <select
+        value={teacherId}
+        onChange={(e) => setTeacherId(e.target.value)}
+        className="w-full rounded-lg border border-hairline bg-white px-2 py-1.5 text-[12px] text-espresso dark:border-white/10 dark:bg-midnight dark:text-cream"
+      >
+        <option value="">Öğretmen seçin…</option>
+        {teachers.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+      {teacherId && (
+        <div className="flex flex-wrap gap-1">
+          {DAYS.map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => toggleDay(day)}
+              className={cn(
+                "rounded-full px-2 py-1 text-[11px] font-medium transition",
+                daysOf(teacherId).includes(day)
+                  ? "bg-rose-600 text-white"
+                  : "bg-cream-card text-espresso-muted dark:bg-white/5 dark:text-cream/45"
+              )}
+            >
+              {day}
+            </button>
+          ))}
+        </div>
+      )}
+      {value.length > 0 && (
+        <p className="text-[10.5px] text-espresso-muted dark:text-cream/40">
+          {value
+            .map((v) => `${teachers.find((t) => t.id === v.teacherId)?.name ?? "?"}: ${v.days.join(", ")}`)
+            .join(" · ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Öğretmen–şube eşleşmesi (sabitle / yasakla). */
+function TeacherBranchEditor({
+  teachers,
+  branches,
+  value,
+  onChange,
+}: {
+  teachers: { id: string; name: string }[];
+  branches: { id: string; name: string }[];
+  value: { teacherId: string; branchId: string }[];
+  onChange: (v: { teacherId: string; branchId: string }[]) => void;
+}) {
+  const [teacherId, setTeacherId] = useState("");
+  const [branchId, setBranchId] = useState("");
+  return (
+    <div className="mt-2 space-y-1.5 border-t border-hairline pt-2 dark:border-white/10">
+      <div className="flex flex-wrap gap-1.5">
+        <select
+          value={teacherId}
+          onChange={(e) => setTeacherId(e.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-hairline bg-white px-2 py-1.5 text-[12px] text-espresso dark:border-white/10 dark:bg-midnight dark:text-cream"
+        >
+          <option value="">Öğretmen…</option>
+          {teachers.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={branchId}
+          onChange={(e) => setBranchId(e.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-hairline bg-white px-2 py-1.5 text-[12px] text-espresso dark:border-white/10 dark:bg-midnight dark:text-cream"
+        >
+          <option value="">Şube…</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={!teacherId || !branchId}
+          onClick={() => {
+            if (value.some((v) => v.teacherId === teacherId && v.branchId === branchId)) return;
+            onChange([...value, { teacherId, branchId }]);
+          }}
+          className="rounded-lg bg-espresso px-2.5 py-1.5 text-[11px] font-semibold text-cream disabled:opacity-40 dark:bg-brand-600"
+        >
+          Ekle
+        </button>
+      </div>
+      {value.map((v, i) => (
+        <span
+          key={`${v.teacherId}-${v.branchId}`}
+          className="mr-1 inline-flex items-center gap-1 rounded-full bg-cream-card px-2 py-0.5 text-[10.5px] dark:bg-white/5"
+        >
+          {teachers.find((t) => t.id === v.teacherId)?.name} → {branches.find((b) => b.id === v.branchId)?.name}
+          <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))} className="text-rose-600">
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Şubeye özel ders ağırlığı. */
+function EmphasisEditor({
+  branches,
+  value,
+  onChange,
+}: {
+  branches: { id: string; name: string }[];
+  value: { branchId: string; subject: string; factor: number }[];
+  onChange: (v: { branchId: string; subject: string; factor: number }[]) => void;
+}) {
+  const [branchId, setBranchId] = useState("");
+  const [subject, setSubject] = useState("");
+  const [factor, setFactor] = useState(2);
+  return (
+    <div className="mt-2 space-y-1.5 border-t border-hairline pt-2 dark:border-white/10">
+      <div className="flex flex-wrap gap-1.5">
+        <select
+          value={branchId}
+          onChange={(e) => setBranchId(e.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-hairline bg-white px-2 py-1.5 text-[12px] text-espresso dark:border-white/10 dark:bg-midnight dark:text-cream"
+        >
+          <option value="">Şube…</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+        <input
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Ders (örn. Matematik)"
+          className="min-w-0 flex-1 rounded-lg border border-hairline bg-white px-2 py-1.5 text-[12px] text-espresso dark:border-white/10 dark:bg-midnight dark:text-cream"
+        />
+        <input
+          type="number"
+          min={0.5}
+          max={4}
+          step={0.5}
+          value={factor}
+          onChange={(e) => setFactor(Number(e.target.value))}
+          className="w-16 rounded-lg border border-hairline bg-white px-2 py-1.5 text-[12px] text-espresso dark:border-white/10 dark:bg-midnight dark:text-cream"
+        />
+        <button
+          type="button"
+          disabled={!branchId || !subject.trim()}
+          onClick={() => onChange([...value, { branchId, subject: subject.trim(), factor }])}
+          className="rounded-lg bg-espresso px-2.5 py-1.5 text-[11px] font-semibold text-cream disabled:opacity-40 dark:bg-brand-600"
+        >
+          Ekle
+        </button>
+      </div>
+      {value.map((v, i) => (
+        <span
+          key={`${v.branchId}-${v.subject}`}
+          className="mr-1 inline-flex items-center gap-1 rounded-full bg-cream-card px-2 py-0.5 text-[10.5px] dark:bg-white/5"
+        >
+          {branches.find((b) => b.id === v.branchId)?.name}: {v.subject} ×{v.factor}
+          <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))} className="text-rose-600">
+            ×
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function AutoPlanModal({
   isOpen,
   onClose,
   onApplied,
+  branches,
+  teachers,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onApplied: () => void;
+  branches: { id: string; name: string }[];
+  teachers: { id: string; name: string }[];
 }) {
   const { showError, showSuccess } = useToast();
   const [keepExisting, setKeepExisting] = useState(true);
   const [preview, setPreview] = useState<PlanResponse | null>(null);
+  // Seçilen kurallar — hepsi opsiyonel (bkz. planner-rules.ts).
+  const [rules, setRules] = useState<PlannerRules>({});
+  const [onlyBranchId, setOnlyBranchId] = useState("");
+  const [showRules, setShowRules] = useState(true);
+
+  const toggleRule = (id: RuleId, on: boolean) =>
+    setRules((prev) => {
+      const next = { ...prev };
+      if (!on) {
+        delete next[id];
+        return next;
+      }
+      const meta = RULE_CATALOG.find((r) => r.id === id);
+      if (meta?.kind === "toggle") return { ...next, [id]: true };
+      if (meta?.kind === "number") return { ...next, [id]: meta.defaultValue ?? 2 };
+      return { ...next, [id]: [] };
+    });
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
 
@@ -64,7 +292,7 @@ export function AutoPlanModal({
       const res = await fetch("/api/admin/schedule-auto-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun, keepExisting }),
+        body: JSON.stringify({ dryRun, keepExisting, rules, branchId: onlyBranchId || undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Plan oluşturulamadı.");
@@ -96,7 +324,118 @@ export function AutoPlanModal({
           </p>
         </div>
 
+        {/* ⚠️ KURAL PANELİ (Mert: "otomatik hazırlamadan önce kurallar
+            koyabilsin"). Kurallar OPSİYONEL: hiçbiri seçilmezse plan
+            eskisi gibi çalışır. Sert kısıtlar rozetle ayrılır — sağlanamazsa
+            hücre boş kalır, tercihler ise "elinden geldiğince" uygulanır. */}
+        <div className="rounded-2xl border border-hairline bg-white p-3.5 dark:border-white/10 dark:bg-midnight-card/50">
+          <button
+            onClick={() => setShowRules((v) => !v)}
+            className="mb-2 flex w-full items-center justify-between text-left"
+          >
+            <span className="text-[13px] font-bold text-espresso dark:text-cream">
+              Kurallar{" "}
+              <span className="font-normal text-espresso-muted dark:text-cream/40">
+                ({Object.keys(rules).length} seçili · isteğe bağlı)
+              </span>
+            </span>
+            <span className="text-[11px] text-brand-600">{showRules ? "gizle" : "göster"}</span>
+          </button>
+
+          {showRules && (
+            <div className="space-y-1.5">
+              {RULE_CATALOG.map((rule) => {
+                const active = rules[rule.id] !== undefined;
+                return (
+                  <div
+                    key={rule.id}
+                    className={cn(
+                      "rounded-xl border px-3 py-2 transition",
+                      active
+                        ? "border-brand-500/50 bg-brand-50/60 dark:border-brand-500/30 dark:bg-brand-600/10"
+                        : "border-hairline dark:border-white/10"
+                    )}
+                  >
+                    <label className="flex cursor-pointer items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={(e) => toggleRule(rule.id, e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[12.5px] font-medium text-espresso dark:text-cream">{rule.label}</span>
+                          <span
+                            className={cn(
+                              "rounded-full px-1.5 py-0.5 text-[9.5px] font-bold uppercase",
+                              rule.hard
+                                ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
+                                : "bg-cream-card text-espresso-muted dark:bg-white/10 dark:text-cream/45"
+                            )}
+                          >
+                            {rule.hard ? "kesin" : "tercih"}
+                          </span>
+                        </span>
+                        <span className="block text-[10.5px] leading-snug text-espresso-muted dark:text-cream/40">
+                          {rule.description}
+                        </span>
+                      </span>
+                    </label>
+
+                    {active && rule.kind === "number" && (
+                      <input
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={Number(rules[rule.id] ?? rule.defaultValue ?? 2)}
+                        onChange={(e) => setRules((p) => ({ ...p, [rule.id]: Number(e.target.value) }))}
+                        className="mt-1.5 w-24 rounded-lg border border-hairline bg-white px-2 py-1 text-[12px] text-espresso dark:border-white/10 dark:bg-midnight dark:text-cream"
+                      />
+                    )}
+
+                    {active && rule.id === "teacherDaysOff" && (
+                      <TeacherDayOffEditor
+                        teachers={teachers}
+                        value={rules.teacherDaysOff ?? []}
+                        onChange={(v) => setRules((p) => ({ ...p, teacherDaysOff: v }))}
+                      />
+                    )}
+                    {active && (rule.id === "pinTeacherToBranch" || rule.id === "banTeacherFromBranch") && (
+                      <TeacherBranchEditor
+                        teachers={teachers}
+                        branches={branches}
+                        value={(rules[rule.id] as { teacherId: string; branchId: string }[]) ?? []}
+                        onChange={(v) => setRules((p) => ({ ...p, [rule.id]: v }))}
+                      />
+                    )}
+                    {active && rule.id === "subjectEmphasis" && (
+                      <EmphasisEditor
+                        branches={branches}
+                        value={rules.subjectEmphasis ?? []}
+                        onChange={(v) => setRules((p) => ({ ...p, subjectEmphasis: v }))}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={onlyBranchId}
+            onChange={(e) => setOnlyBranchId(e.target.value)}
+            className="min-h-[38px] rounded-xl border border-hairline bg-white px-2.5 text-[12.5px] text-espresso dark:border-white/10 dark:bg-midnight dark:text-cream"
+          >
+            <option value="">Tüm kurum</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                Sadece {b.name}
+              </option>
+            ))}
+          </select>
           <label className="flex min-h-[38px] cursor-pointer items-center gap-2 rounded-xl border border-hairline px-3 text-[12.5px] text-espresso dark:border-white/10 dark:text-cream">
             <input type="checkbox" checked={keepExisting} onChange={(e) => setKeepExisting(e.target.checked)} />
             Mevcut programı koru (sadece boş saatleri doldur)
@@ -161,6 +500,40 @@ export function AutoPlanModal({
                 alanı (sayısal / eşit ağırlık / sözel) girilmemiş. Bu sınıflara <strong>yalnızca TYT dersleri</strong>{" "}
                 yazıldı; AYT derslerini alabilmeleri için şube alanını girin.
               </p>
+            )}
+
+            {/* Kural uyum raporu — "elinden geldiğince uydu" iddiasının kanıtı. */}
+            {preview.compliance.length > 0 && (
+              <div className="rounded-2xl border border-hairline bg-white p-3 dark:border-white/10 dark:bg-midnight-card/50">
+                <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+                  Kurallara uyum
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {preview.compliance.map((c) => {
+                    const pct = c.total > 0 ? Math.round((c.satisfied / c.total) * 100) : 100;
+                    const label = RULE_CATALOG.find((r) => r.id === c.ruleId)?.label ?? c.ruleId;
+                    return (
+                      <span
+                        key={c.ruleId}
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10.5px] font-medium tabular-nums",
+                          pct >= 80
+                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300"
+                            : pct >= 50
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
+                              : "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
+                        )}
+                      >
+                        {label}: {c.detail ?? `%${pct}`}
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="mt-1.5 text-[10.5px] text-espresso-muted dark:text-cream/40">
+                  Tercih kuralları &quot;elinden geldiğince&quot; uygulanır; kadro ve saat kısıtı yüzünden %100
+                  olmayabilir. Kesin kurallar (öğretmen izni, yasak eşleşme) her zaman %100&apos;dür.
+                </p>
+              </div>
             )}
 
             {preview.unstaffedSubjects.length > 0 && (

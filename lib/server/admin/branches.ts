@@ -1,3 +1,4 @@
+import { resolveTrack, TRACK_LABEL, TRACK_START_GRADE } from "@/lib/tracks";
 import { prisma } from "@/lib/server/prisma";
 import { recordAuditLog } from "@/lib/server/audit/audit-log";
 import { AdminCreateError } from "@/lib/server/admin/create-user";
@@ -23,6 +24,25 @@ export async function createBranch(input: {
     throw new AdminCreateError("Sınıf seviyesi 5-12 arasında olmalıdır.");
   }
 
+  // ⚠️ ALAN ZORUNLU — 11, 12 ve mezun şubelerinde (Mert, 2026-09-18).
+  //
+  // Kontrol SUNUCUDA da yapılır, yalnızca formda değil: istemciye asla
+  // güvenilmez (bkz. CLAUDE.md > rol tabanlı yetkilendirme ilkesi) ve bu
+  // uç toplu içe aktarma ile platform panelinden de çağrılıyor.
+  //
+  // Gerekçe: alan bilinmeden o sınıfın SORUMLU DERSLERİ hesaplanamıyor
+  // (bkz. lib/tracks.ts) — ders programı, değerlendirme ve çalışma planı
+  // hep eksik çıkıyordu. "Sonradan doldururuz" pratikte hiç doldurulmadı:
+  // canlı veride şubelerin TAMAMI boştu.
+  const needsTrack = input.segment === "MEZUN" || input.grade >= TRACK_START_GRADE;
+  const resolvedTrack = resolveTrack(input.track ?? null, name);
+  if (needsTrack && !resolvedTrack) {
+    throw new AdminCreateError(
+      "11, 12 ve mezun şubeleri için alan seçimi zorunludur (Sayısal / Eşit Ağırlık / Sözel / Yabancı Dil / Sadece TYT).",
+      400
+    );
+  }
+
   const existing = await prisma.branch.findFirst({
     where: { institutionId: input.institutionId, name: { equals: name, mode: "insensitive" } },
   });
@@ -34,7 +54,10 @@ export async function createBranch(input: {
       name,
       grade: input.grade,
       segment: input.segment,
-      track: input.track?.trim() || undefined,
+      // Alan KANONİK etiketiyle saklanır ("Sayısal", "Eşit Ağırlık"...) —
+      // serbest metin olarak bırakılırsa aynı alan üç farklı yazımla
+      // kaydedilir ve hiçbir hesap onu tanıyamaz.
+      track: resolvedTrack ? TRACK_LABEL[resolvedTrack] : input.track?.trim() || undefined,
     },
   });
 

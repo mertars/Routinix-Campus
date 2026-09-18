@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Loader2, Send } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { TRACK_OPTIONS, TRACK_START_GRADE, type Track } from "@/lib/tracks";
 import { useToast } from "@/lib/toast-context";
 import { cn } from "@/lib/utils";
 
@@ -37,10 +38,17 @@ export function AddBranchModal({
   const [name, setName] = useState("");
   const [segment, setSegment] = useState<Segment>("YKS");
   const [grade, setGrade] = useState<number>(9);
-  const [track, setTrack] = useState("");
+  const [track, setTrack] = useState<Track | "">("");
   const [submitting, setSubmitting] = useState(false);
 
-  const isValid = name.trim().length > 0;
+  // ⚠️ ALAN ZORUNLU (Mert, 2026-09-18): "11, 12 ve mezun sınıfları
+  // açılırken hepsine mecbur alan seçimi koy, alan seçmeden şube
+  // açılmasın." Gerekçe: alan bilinmeden o sınıfın SORUMLU DERSLERİ
+  // hesaplanamıyor (bkz. lib/tracks.ts) — ders programı, değerlendirme ve
+  // çalışma planı hep eksik çıkıyordu. Sonradan doldurulması beklenen bir
+  // alan pratikte hiç doldurulmuyor: canlı veride 10 şubenin 10'u da boştu.
+  const trackRequired = segment === "MEZUN" || grade >= TRACK_START_GRADE;
+  const isValid = name.trim().length > 0 && (!trackRequired || track !== "");
 
   function resetForm() {
     setName("");
@@ -56,7 +64,7 @@ export function AddBranchModal({
       const res = await fetch(`${apiBase}/branches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, segment, grade, track: track.trim() || undefined }),
+        body: JSON.stringify({ name, segment, grade, track: track || undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Şube oluşturulamadı.");
@@ -110,7 +118,37 @@ export function AddBranchModal({
           </select>
         </div>
 
-        <input value={track} onChange={(e) => setTrack(e.target.value)} placeholder="Alan/Dal (isteğe bağlı — Sayısal, Eşit Ağırlık vb.)" className={inputClass} />
+        <div>
+          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-espresso-muted dark:text-cream/40">
+            Alan {trackRequired ? <span className="text-rose-600">(zorunlu)</span> : "(isteğe bağlı)"}
+          </label>
+          <div className="grid grid-cols-2 gap-1.5">
+            {TRACK_OPTIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setTrack(track === option.id ? "" : option.id)}
+                title={option.hint}
+                className={cn(
+                  "rounded-lg px-2.5 py-2 text-left text-[11.5px] font-medium transition",
+                  track === option.id
+                    ? "bg-espresso text-cream dark:bg-brand-600"
+                    : "bg-cream-card text-espresso-muted hover:text-espresso dark:bg-white/5 dark:text-cream/45"
+                )}
+              >
+                <span className="block">{option.label}</span>
+                <span className={cn("block text-[9.5px] leading-tight", track === option.id ? "text-cream/70" : "text-espresso-muted/70 dark:text-cream/30")}>
+                  {option.hint}
+                </span>
+              </button>
+            ))}
+          </div>
+          {trackRequired && track === "" && (
+            <p className="mt-1.5 text-[11px] text-rose-600 dark:text-rose-400">
+              {grade}. sınıf için alan seçimi zorunlu — sorumlu dersler buna göre belirleniyor.
+            </p>
+          )}
+        </div>
       </div>
 
       <button

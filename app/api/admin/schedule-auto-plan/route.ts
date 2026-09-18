@@ -5,6 +5,8 @@ import { AuthError, authErrorResponse } from "@/lib/server/auth/errors";
 import { withApiLogging, logger } from "@/lib/logger";
 import { apiFailure } from "@/lib/server/api-failure";
 import { buildAutoPlan } from "@/lib/server/schedule/auto-plan";
+import { computePlannerSignals } from "@/lib/server/schedule/planner-signals";
+import { EMPTY_SIGNALS, type PlannerRules } from "@/lib/server/schedule/planner-rules";
 import { SCHEDULE_DAYS } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +36,15 @@ async function handlePost(request: NextRequest) {
     const body = await request.json().catch(() => null);
     const dryRun = body?.dryRun !== false;
     const keepExisting = body?.keepExisting !== false;
+    const rules: PlannerRules = body?.rules ?? {};
+    // Yalnızca veriye dayalı kurallar açıksa sinyalleri HESAPLA — aksi
+    // halde beş ağır sorgu boşuna koşar.
+    const needsSignals = rules.disciplinedTeacherToAbsentBranch === true || rules.strongTeacherToWeakBranch === true;
+    // Tek şube için plan (Mert: "tek tuşla bütün kurum ya da sınıf
+    // özelinde program hazırlansın").
+    const onlyBranchId: string | undefined = body?.branchId ?? undefined;
 
-    const [branches, teachers, slotDefs, blocked, existing] = await Promise.all([
+    const [branches, teachers, slotDefs, blocked, existing, signals] = await Promise.all([
       prisma.branch.findMany({
         where: { institutionId: session.institutionId },
         select: { id: true, name: true, grade: true, track: true },
@@ -57,27 +66,41 @@ async function handlePost(request: NextRequest) {
         where: { branch: { institutionId: session.institutionId } },
         select: { id: true, branchId: true, day: true, slot: true, teacherId: true, subject: true },
       }),
+      needsSignals ? computePlannerSignals(session.institutionId) : Promise.resolve(EMPTY_SIGNALS),
     ]);
 
-    if (branches.length === 0) return NextResponse.json({ error: "Kurumda şube yok." }, { status: 400 });
+    // ⚠️ Tek şube planı istenmişse DİĞER şubeler yine de "mevcut" olarak
+    // hesaba katılır (aşağıdaki existing) — yoksa o şubeye atanan öğretmen
+    // başka şubede aynı saatte derste olabilirdi.
+    const targetBranches = onlyBranchId ? branches.filter((b) => b.id === onlyBranchId) : branches;
+    if (targetBranches.length === 0) return NextResponse.json({ error: "Kurumda şube yok." }, { status: 400 });
     if (slotDefs.length === 0) return NextResponse.json({ error: "Önce ders saatlerini tanımlayın." }, { status: 400 });
 
     const result = buildAutoPlan({
-      branches,
+      branches: targetBranches,
       teachers: teachers.map((t) => ({ id: t.id, name: `${t.firstName} ${t.lastName}`, subject: t.subject })),
       days: SCHEDULE_DAYS,
       slots: slotDefs.map((s) => s.label),
       blocked,
-      existing: keepExisting
-        ? existing.map((e) => ({ branchId: e.branchId, day: e.day, slot: e.slot, teacherId: e.teacherId, subject: e.subject }))
-        : [],
+      rules,
+      signals,
+      // Tek şube planlanıyorsa DİĞER şubelerin dersleri her koşulda
+      // "mevcut" sayılır (çakışma önlemek için); yalnızca hedef şubenin
+      // dersleri keepExisting=false iken göz ardı edilir.
+      existing: existing
+        // keepExisting: hiçbir ders üzerine yazılmaz → hepsi "mevcut".
+        // Aksi hâlde: tek şube planlanıyorsa SADECE o şubenin dersleri
+        // yeniden yazılır, diğer şubelerinki çakışma için korunur; tüm
+        // kurum planlanıyorsa hiçbiri korunmaz.
+        .filter((e) => (keepExisting ? true : onlyBranchId ? e.branchId !== onlyBranchId : false))
+        .map((e) => ({ branchId: e.branchId, day: e.day, slot: e.slot, teacherId: e.teacherId, subject: e.subject })),
     });
 
     const teacherById = new Map(teachers.map((t) => [t.id, `${t.firstName} ${t.lastName}`]));
     const preview = {
       ...result,
       assignments: result.assignments.map((a) => ({ ...a, teacherName: teacherById.get(a.teacherId) ?? "" })),
-      willDelete: keepExisting ? 0 : existing.length,
+      willDelete: keepExisting ? 0 : existing.filter((e) => !onlyBranchId || e.branchId === onlyBranchId).length,
       keepExisting,
     };
 
@@ -86,8 +109,9 @@ async function handlePost(request: NextRequest) {
     // UYGULAMA. Silme, ID listesiyle daraltılır (bkz. lib/server/db-guard.ts —
     // toplu yazma koruması sahiplik anahtarı ister; ayrıca silinen satırlar
     // çöp kutusuna düşer, bkz. lib/server/db-archive.ts).
-    if (!keepExisting && existing.length > 0) {
-      await prisma.lessonSlot.deleteMany({ where: { id: { in: existing.map((e) => e.id) } } });
+    const toDelete = keepExisting ? [] : existing.filter((e) => !onlyBranchId || e.branchId === onlyBranchId);
+    if (toDelete.length > 0) {
+      await prisma.lessonSlot.deleteMany({ where: { id: { in: toDelete.map((e) => e.id) } } });
     }
     let created = 0;
     if (result.assignments.length > 0) {
@@ -108,8 +132,8 @@ async function handlePost(request: NextRequest) {
       institutionId: session.institutionId,
       by: session.sub,
       created,
-      deleted: keepExisting ? 0 : existing.length,
-      branches: branches.length,
+      deleted: toDelete.length,
+      branches: targetBranches.length,
     });
 
     return NextResponse.json({ ...preview, applied: true, created, deleted: keepExisting ? 0 : existing.length });

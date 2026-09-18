@@ -442,7 +442,13 @@ export function ScheduleMatrixTab() {
       </div>
 
       <ScheduleImportModal isOpen={importOpen} onClose={() => setImportOpen(false)} onImported={loadAll} />
-      <AutoPlanModal isOpen={autoPlanOpen} onClose={() => setAutoPlanOpen(false)} onApplied={loadAll} />
+      <AutoPlanModal
+        isOpen={autoPlanOpen}
+        onClose={() => setAutoPlanOpen(false)}
+        onApplied={loadAll}
+        branches={branches}
+        teachers={teachers.map((t) => ({ id: t.id, name: `${t.firstName} ${t.lastName}` }))}
+      />
 
       <AnimatePresence>
         {conflictMessage && (
